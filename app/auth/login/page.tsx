@@ -1,22 +1,83 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { Star, ArrowLeft, Eye, EyeOff } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Star, ArrowLeft, Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { Login } from "@/services/auth/auth.api";
+import { useAuth } from "@/context/context";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { setUser, setAccessToken, setIsAuthen } = useAuth();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const redirectByUserType = (userType: string) => {
+    switch (userType) {
+      case "Startup":
+        router.push("/startup");
+        break;
+      case "Investor":
+        router.push("/investor");
+        break;
+      case "Advisor":
+        router.push("/advisor");
+        break;
+      default:
+        router.push("/");
+    }
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const res = await Login(email, password);
+
+      if (res.success && res.data) {
+        const { info, accessToken } = res.data;
+
+        setUser(info);
+        setAccessToken(accessToken);
+        setIsAuthen(true);
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem("accessToken", accessToken);
+        }
+
+        redirectByUserType(info.userType);
+      } else {
+        setError(res.message || "Đăng nhập không thành công");
+      }
+    } catch (e: any) {
+      const message =
+        e?.response?.data?.message ||
+        e?.message ||
+        "Có lỗi xảy ra. Vui lòng thử lại.";
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
       <div className="container mx-auto px-6 py-6">
-        <Link 
-          href="/" 
+        <Link
+          href="/"
           className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -51,7 +112,7 @@ export default function LoginPage() {
           </CardHeader>
 
           <CardContent className="space-y-6">
-            <form className="space-y-5">
+            <form className="space-y-5" onSubmit={handleSubmit}>
               {/* Email Field */}
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-gray-700">
@@ -62,6 +123,9 @@ export default function LoginPage() {
                   type="email"
                   placeholder="your@email.com"
                   className="w-full"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
                 />
               </div>
 
@@ -76,6 +140,9 @@ export default function LoginPage() {
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     className="w-full pr-10"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
                   />
                   <button
                     type="button"
@@ -99,13 +166,20 @@ export default function LoginPage() {
                 </div>
               </div>
 
+              {error && (
+                <p className="text-sm text-red-600">
+                  {error}
+                </p>
+              )}
+
               {/* Login Button */}
               <Button
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 size="lg"
+                disabled={isLoading}
               >
-                Đăng nhập
+                {isLoading ? "Đang đăng nhập..." : "Đăng nhập"}
               </Button>
             </form>
 

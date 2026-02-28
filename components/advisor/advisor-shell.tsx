@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import React from "react";
+import { Logout } from "@/services/auth/auth.api";
+import { useAuth } from "@/context/context";
 
 type NavItem = {
   label: string;
@@ -35,6 +37,7 @@ type AdvisorShellProps = {
 export function AdvisorShell({ children }: AdvisorShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { setUser, setAccessToken, setIsAuthen } = useAuth();
 
   const isActive = (href: string) => {
     if (href === "/advisor") return pathname === "/advisor";
@@ -49,9 +52,24 @@ export function AdvisorShell({ children }: AdvisorShellProps) {
     router.push("/advisor/profile?tab=password");
   };
 
-  const handleLogout = () => {
-    // TODO: Implement logout logic
-    console.log("Logout");
+  const handleLogout = async () => {
+    try {
+      const res = await Logout();
+
+      if (!res.success) {
+        console.error(res.message || "Logout không thành công");
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setUser(undefined);
+      setAccessToken(undefined);
+      setIsAuthen(false);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("accessToken");
+      }
+      router.push("/auth/login");
+    }
   };
 
   return (

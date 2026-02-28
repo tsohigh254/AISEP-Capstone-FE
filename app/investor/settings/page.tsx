@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { X } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChangePassword } from "@/services/auth/auth.api";
 
 export default function InvestorSettingsPage() {
   const router = useRouter();
@@ -15,22 +16,44 @@ export default function InvestorSettingsPage() {
     newPassword: "",
     confirmPassword: "",
   });
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     
     if (form.newPassword !== form.confirmPassword) {
-      alert("Mật khẩu mới và xác nhận mật khẩu không khớp");
+      setError("Mật khẩu mới và xác nhận mật khẩu không khớp");
       return;
     }
 
-    console.log("Change password data:", form);
-    // TODO: handle password change logic
-    router.back();
+    setIsLoading(true);
+    try {
+      const res = await ChangePassword(
+        form.oldPassword,
+        form.newPassword,
+        form.confirmPassword,
+      );
+
+      if (res.success) {
+        router.back();
+      } else {
+        setError(res.message || "Đổi mật khẩu không thành công");
+      }
+    } catch (e: any) {
+      const message =
+        e?.response?.data?.message ||
+        e?.message ||
+        "Có lỗi xảy ra. Vui lòng thử lại.";
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCancel = () => {
@@ -110,6 +133,12 @@ export default function InvestorSettingsPage() {
                 </p>
               </div>
 
+              {error && (
+                <p className="text-sm text-red-600">
+                  {error}
+                </p>
+              )}
+
               {/* Action Buttons */}
               <div className="flex gap-3 pt-2">
                 <Button
@@ -123,8 +152,9 @@ export default function InvestorSettingsPage() {
                 <Button
                   type="submit"
                   className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                  disabled={isLoading}
                 >
-                  Đổi mật khẩu
+                  {isLoading ? "Đang đổi mật khẩu..." : "Đổi mật khẩu"}
                 </Button>
               </div>
             </form>

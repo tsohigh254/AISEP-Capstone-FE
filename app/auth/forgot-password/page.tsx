@@ -8,18 +8,35 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Star, Mail, ArrowLeft } from "lucide-react";
 import { useState } from "react";
+import { ForgotPassword } from "@/services/auth/auth.api";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Navigate to verify email page with email as query parameter
-    if (email) {
-      router.push(`/auth/verify-email?email=${encodeURIComponent(email)}`);
-    } else {
-      router.push("/auth/verify-email");
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const res = await ForgotPassword(email);
+
+      if (res.success) {
+        router.push(`/auth/verify-email?email=${encodeURIComponent(email)}&purpose=forgot-password`);
+      } else {
+        setError(res.message || "Không thể gửi mã xác nhận");
+      }
+    } catch (e: any) {
+      const message =
+        e?.response?.data?.message ||
+        e?.message ||
+        "Có lỗi xảy ra. Vui lòng thử lại.";
+      setError(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -87,13 +104,18 @@ export default function ForgotPasswordPage() {
                 />
               </div>
 
+              {error && (
+                <p className="text-sm text-red-600">{error}</p>
+              )}
+
               {/* Submit Button */}
               <Button
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 size="lg"
+                disabled={isLoading}
               >
-                Gửi mã xác nhận
+                {isLoading ? "Đang gửi..." : "Gửi mã xác nhận"}
               </Button>
             </form>
           </CardContent>

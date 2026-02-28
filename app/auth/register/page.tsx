@@ -1,48 +1,93 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { Star, ArrowLeft, Eye, EyeOff } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Star, ArrowLeft, Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { Register } from "@/services/auth/auth.api";
 
-type Role = "startup" | "investor" | "expert" | "employee";
+type Role = "startup" | "investor" | "expert";
 
 export default function RegisterPage() {
+  const router = useRouter();
+
   const [showPassword, setShowPassword] = useState(false);
   const [selectedRole, setSelectedRole] = useState<Role>("startup");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const roles = [
+  const roles: { id: Role; title: string }[] = [
     {
-      id: "startup" as Role,
+      id: "startup",
       title: "Startup",
-      subtitle: "Tìm đầu tư",
     },
     {
-      id: "investor" as Role,
-      title: "Nhà đầu tư",
-      subtitle: "Tìm startup",
+      id: "investor",
+      title: "Investor",
     },
     {
-      id: "expert" as Role,
-      title: "Chuyên gia",
-      subtitle: "Tư vấn",
-    },
-    {
-      id: "employee" as Role,
-      title: "Nhân viên",
-      subtitle: "Quản lý",
+      id: "expert",
+      title: "Advisor",
     },
   ];
+
+  const mapRoleToUserType = (role: Role): string => {
+    switch (role) {
+      case "startup":
+        return "Startup";
+      case "investor":
+        return "Investor";
+      case "expert":
+      default:
+        return "Advisor";
+    }
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+
+    if (password !== confirmPassword) {
+      setError("Mật khẩu xác nhận không khớp");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const userType = mapRoleToUserType(selectedRole);
+      const res = await Register(email, password, confirmPassword, userType);
+
+      if (res.success) {
+        router.push(`/auth/verify-email?email=${encodeURIComponent(email)}&purpose=register`);
+      } else {
+        setError(res.message || "Đăng ký không thành công");
+      }
+    } catch (e: any) {
+      const message =
+        e?.response?.data?.message ||
+        e?.message ||
+        "Có lỗi xảy ra. Vui lòng thử lại.";
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
       <div className="container mx-auto px-6 py-6">
-        <Link 
-          href="/" 
+        <Link
+          href="/"
           className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -77,20 +122,7 @@ export default function RegisterPage() {
           </CardHeader>
 
           <CardContent className="space-y-6">
-            <form className="space-y-5">
-              {/* Full Name Field */}
-              <div className="space-y-2">
-                <Label htmlFor="fullName" className="text-gray-700">
-                  Họ và tên
-                </Label>
-                <Input
-                  id="fullName"
-                  type="text"
-                  placeholder="Nguyễn Văn A"
-                  className="w-full"
-                />
-              </div>
-
+            <form className="space-y-5" onSubmit={handleSubmit}>
               {/* Email Field */}
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-gray-700">
@@ -101,6 +133,9 @@ export default function RegisterPage() {
                   type="email"
                   placeholder="your@email.com"
                   className="w-full"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
                 />
               </div>
 
@@ -115,6 +150,9 @@ export default function RegisterPage() {
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     className="w-full pr-10"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
                   />
                   <button
                     type="button"
@@ -128,6 +166,22 @@ export default function RegisterPage() {
                     )}
                   </button>
                 </div>
+              </div>
+
+              {/* Confirm Password Field */}
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-gray-700">
+                  Xác nhận mật khẩu
+                </Label>
+                <Input
+                  id="confirmPassword"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  className="w-full"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
               </div>
 
               {/* Role Selection */}
@@ -148,21 +202,25 @@ export default function RegisterPage() {
                       <div className="font-semibold text-gray-900 mb-1">
                         {role.title}
                       </div>
-                      <div className="text-sm text-gray-600">
-                        {role.subtitle}
-                      </div>
                     </button>
                   ))}
                 </div>
               </div>
+
+              {error && (
+                <p className="text-sm text-red-600">
+                  {error}
+                </p>
+              )}
 
               {/* Register Button */}
               <Button
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 size="lg"
+                disabled={isLoading}
               >
-                Tạo tài khoản
+                {isLoading ? "Đang tạo tài khoản..." : "Tạo tài khoản"}
               </Button>
             </form>
 

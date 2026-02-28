@@ -209,10 +209,17 @@ export default function ConsultationSchedulePage() {
       </div>
 
       {/* View Detail Modal */}
-      <Dialog open={viewDetailOpen} onClose={() => setViewDetailOpen(false)} className="max-w-xl">
+      <Dialog
+        open={viewDetailOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewDetailOpen(false);
+          }
+        }}
+      >
         {selectedConsultation && (
           <>
-            <DialogContent className="p-6">
+            <DialogContent className="max-w-xl p-6">
               <div className="flex items-start justify-between mb-6">
                 <h2 className="text-lg font-semibold text-slate-900">Consultation Details</h2>
                 <button
@@ -297,10 +304,17 @@ export default function ConsultationSchedulePage() {
       </Dialog>
 
       {/* Cancel Confirmation Dialog */}
-      <Dialog open={cancelDialogOpen} onClose={() => setCancelDialogOpen(false)} className="max-w-md">
+      <Dialog
+        open={cancelDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCancelDialogOpen(false);
+          }
+        }}
+      >
         {selectedConsultation && (
           <>
-            <DialogContent className="p-6">
+            <DialogContent className="max-w-md p-6">
               <div className="flex flex-col items-center text-center">
                 <button
                   onClick={() => setCancelDialogOpen(false)}
@@ -342,10 +356,17 @@ export default function ConsultationSchedulePage() {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} className="max-w-md">
+      <Dialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteDialogOpen(false);
+          }
+        }}
+      >
         {selectedConsultation && (
           <>
-            <DialogContent className="p-6">
+            <DialogContent className="max-w-md p-6">
               <div className="flex flex-col items-center text-center">
                 <button
                   onClick={() => setDeleteDialogOpen(false)}
@@ -387,10 +408,17 @@ export default function ConsultationSchedulePage() {
       </Dialog>
 
       {/* Feedback Modal */}
-      <Dialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} className="max-w-xl">
+      <Dialog
+        open={feedbackOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFeedbackOpen(false);
+          }
+        }}
+      >
         {selectedConsultation && (
           <>
-            <DialogContent className="p-6">
+            <DialogContent className="max-w-xl p-6">
               <div className="flex items-start justify-between mb-6">
                 <h2 className="text-lg font-semibold text-slate-900">Feedback for {selectedConsultation.advisorName}</h2>
                 <button

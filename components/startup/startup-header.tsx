@@ -5,6 +5,9 @@ import { cn } from "@/lib/utils";
 import { Bell, ChevronDown, User, Key, LogOut } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Logout } from "@/services/auth/auth.api";
+import { useAuth } from "@/context/context";
 
 type StartupHeaderProps = {
   userName?: string;
@@ -21,6 +24,8 @@ export function StartupHeader({
 }: StartupHeaderProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const { setUser, setAccessToken, setIsAuthen } = useAuth();
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -32,6 +37,26 @@ export function StartupHeader({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      const res = await Logout();
+
+      if (!res.success) {
+        console.error(res.message || "Logout không thành công");
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setUser(undefined);
+      setAccessToken(undefined);
+      setIsAuthen(false);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("accessToken");
+      }
+      router.push("/auth/login");
+    }
+  };
 
   return (
     <header
@@ -99,12 +124,13 @@ export function StartupHeader({
 
                 <div className="my-1 h-px bg-slate-100"></div>
 
-                <Link href="/auth/login">
-                  <button className="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-slate-50 text-red-600">
-                    <LogOut className="w-4 h-4" />
-                    <span className="text-sm">Đăng xuất</span>
-                  </button>
-                </Link>
+                <button
+                  className="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-slate-50 text-red-600"
+                  onClick={handleLogout}
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span className="text-sm">Đăng xuất</span>
+                </button>
               </div>
             </div>
           )}

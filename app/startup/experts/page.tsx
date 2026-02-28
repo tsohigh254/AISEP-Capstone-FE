@@ -249,10 +249,17 @@ export default function StartupAdvisorsPage() {
       </div>
 
       {/* View Detail Modal */}
-      <Dialog open={viewDetailOpen} onClose={handleCloseViewDetail} className="max-w-xl">
+      <Dialog
+        open={viewDetailOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseViewDetail();
+          }
+        }}
+      >
         {selectedAdvisor && (
           <>
-            <DialogContent className="p-6 space-y-6">
+            <DialogContent className="max-w-xl p-6 space-y-6">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-4 flex-1">
                   <div className={`w-20 h-20 rounded-full ${selectedAdvisor.avatarColor} text-white flex items-center justify-center text-2xl font-semibold shrink-0`}>
@@ -341,10 +348,17 @@ export default function StartupAdvisorsPage() {
       </Dialog>
 
       {/* Request Consultation Modal */}
-      <Dialog open={requestOpen} onClose={handleCloseRequest}>
+      <Dialog
+        open={requestOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseRequest();
+          }
+        }}
+      >
         {selectedAdvisor && (
           <>
-            <DialogHeader onClose={handleCloseRequest}>
+            <DialogHeader>
               <DialogTitle>Request Consultation with {selectedAdvisor.name}</DialogTitle>
             </DialogHeader>
             

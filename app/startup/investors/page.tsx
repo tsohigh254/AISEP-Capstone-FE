@@ -206,10 +206,17 @@ export default function InvestorsPage() {
       </div>
 
       {/* View Detail Modal */}
-      <Dialog open={viewDetailOpen} onClose={handleCloseViewDetail} className="max-w-xl">
+      <Dialog
+        open={viewDetailOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseViewDetail();
+          }
+        }}
+      >
         {selectedInvestor && (
           <>
-            <DialogContent className="p-6 space-y-6">
+            <DialogContent className="max-w-xl p-6 space-y-6">
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-4 flex-1">
                   <div className={`w-20 h-20 rounded-full ${selectedInvestor.avatarColor} text-white flex items-center justify-center text-2xl font-semibold shrink-0`}>
@@ -279,10 +286,17 @@ export default function InvestorsPage() {
       </Dialog>
 
       {/* Message Modal */}
-      <Dialog open={messageOpen} onClose={handleCloseMessage} className="max-w-xl">
+      <Dialog
+        open={messageOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseMessage();
+          }
+        }}
+      >
         {selectedInvestor && (
           <>
-            <DialogContent className="p-6">
+            <DialogContent className="max-w-xl p-6">
               <div className="flex items-start justify-between mb-4">
                 <h2 className="text-lg font-semibold text-slate-900">Message {selectedInvestor.name}</h2>
                 <button

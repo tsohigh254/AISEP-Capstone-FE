@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { X } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChangePassword } from "@/services/auth/auth.api";
 
 export default function StartupSettingsPage() {
   const router = useRouter();
@@ -15,21 +16,44 @@ export default function StartupSettingsPage() {
     newPassword: "",
     confirmPassword: "",
   });
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setError(null);
+
     if (form.newPassword !== form.confirmPassword) {
-      alert("New password and confirm password do not match");
+      setError("New password and confirm password do not match");
       return;
     }
 
-    console.log("Change password data:", form);
-    router.back();
+    setIsLoading(true);
+    try {
+      const res = await ChangePassword(
+        form.oldPassword,
+        form.newPassword,
+        form.confirmPassword,
+      );
+
+      if (res.success) {
+        router.back();
+      } else {
+        setError(res.message || "Change password failed");
+      }
+    } catch (e: any) {
+      const message =
+        e?.response?.data?.message ||
+        e?.message ||
+        "Có lỗi xảy ra. Vui lòng thử lại.";
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCancel = () => {
@@ -109,6 +133,12 @@ export default function StartupSettingsPage() {
                 </p>
               </div>
 
+              {error && (
+                <p className="text-sm text-red-600">
+                  {error}
+                </p>
+              )}
+
               {/* Action Buttons */}
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <Button
@@ -122,8 +152,9 @@ export default function StartupSettingsPage() {
                 <Button
                   type="submit"
                   className="h-10 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium"
+                  disabled={isLoading}
                 >
-                  Change Password
+                  {isLoading ? "Changing..." : "Change Password"}
                 </Button>
               </div>
             </form>
