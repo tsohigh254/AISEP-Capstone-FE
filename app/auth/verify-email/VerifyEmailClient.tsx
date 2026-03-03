@@ -85,11 +85,12 @@ export default function VerifyEmailClient() {
     try {
       const res = await VerifyEmail(email, otpCode);
 
-      if (res.success && res.data) {
-        const { info, accessToken } = res.data;
+      if (res.isSuccess && res.statusCode === 200 && res.data) {
+        const { data, accessToken } = res.data;
 
         if (purpose === "register") {
-          setUser(info);
+
+          setUser(data);
           setAccessToken(accessToken);
           setIsAuthen(true);
 
@@ -97,7 +98,7 @@ export default function VerifyEmailClient() {
             localStorage.setItem("accessToken", accessToken);
           }
 
-          redirectByUserType(info.userType);
+          redirectByUserType(data.userType);
         } else {
           router.push(`/auth/reset-password?email=${encodeURIComponent(email)}`);
         }
@@ -124,7 +125,7 @@ export default function VerifyEmailClient() {
 
     try {
       const res = await ResendVerificationEmail(email);
-      if (res.success) {
+      if (res.isSuccess && res.statusCode === 200) {
         setSuccessMessage("Đã gửi lại mã xác nhận vào email của bạn.");
         setOtp(["", "", "", "", "", ""]);
         inputRefs.current[0]?.focus();

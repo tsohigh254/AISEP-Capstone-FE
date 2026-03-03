@@ -66,7 +66,7 @@ export default function RegisterPage() {
       const userType = mapRoleToUserType(selectedRole);
       const res = await Register(email, password, confirmPassword, userType);
 
-      if (res.success) {
+      if (res.isSuccess && res.statusCode === 200) {
         router.push(`/auth/verify-email?email=${encodeURIComponent(email)}&purpose=register`);
       } else {
         setError(res.message || "Đăng ký không thành công");

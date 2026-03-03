@@ -40,7 +40,7 @@ export default function StartupSettingsPage() {
         form.confirmPassword,
       );
 
-      if (res.success) {
+      if (res.isSuccess && res.statusCode === 200) {
         router.back();
       } else {
         setError(res.message || "Change password failed");

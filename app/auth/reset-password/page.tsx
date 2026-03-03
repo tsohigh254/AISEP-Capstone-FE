@@ -81,7 +81,7 @@ export default function ResetPasswordPage() {
     try {
       const res = await ResetPassword(email, newPassword, confirmPassword);
 
-      if (res.success) {
+      if (res.isSuccess && res.statusCode === 200) {
         router.push("/auth/login");
       } else {
         setApiError(res.message || "Đặt lại mật khẩu không thành công");

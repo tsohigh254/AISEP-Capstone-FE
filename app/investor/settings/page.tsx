@@ -40,7 +40,7 @@ export default function InvestorSettingsPage() {
         form.confirmPassword,
       );
 
-      if (res.success) {
+      if (res.isSuccess && res.statusCode === 200) {
         router.back();
       } else {
         setError(res.message || "Đổi mật khẩu không thành công");
