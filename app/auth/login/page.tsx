@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Star, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,10 +47,10 @@ export default function LoginPage() {
     try {
       const res = await Login(email, password);
 
-      if (res.success && res.data) {
-        const { info, accessToken } = res.data;
+      if (res.isSuccess && res.statusCode === 200 && res.data) {
+        const { data, accessToken } = res.data;
 
-        setUser(info);
+        setUser(data);
         setAccessToken(accessToken);
         setIsAuthen(true);
 
@@ -57,9 +58,12 @@ export default function LoginPage() {
           localStorage.setItem("accessToken", accessToken);
         }
 
-        redirectByUserType(info.userType);
+        toast.success("Đăng nhập thành công");
+        redirectByUserType(data.userType);
       } else {
-        setError(res.message || "Đăng nhập không thành công");
+        const message = res.message || "Đăng nhập không thành công";
+        setError(message);
+        toast.error(message);
       }
     } catch (e: any) {
       const message =
@@ -67,6 +71,7 @@ export default function LoginPage() {
         e?.message ||
         "Có lỗi xảy ra. Vui lòng thử lại.";
       setError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }

@@ -48,7 +48,7 @@ instance.interceptors.response.use(
       try {
         const refreshResult = await callRefreshToken();
 
-        if (refreshResult && refreshResult.success && refreshResult.data) {
+        if (refreshResult && refreshResult.isSuccess && refreshResult.statusCode === 200 && refreshResult.data) {
           const { accessToken } = refreshResult.data;
 
           if (typeof window !== "undefined") {
@@ -67,7 +67,7 @@ instance.interceptors.response.use(
 
     // Trả về dạng IBackendRes nếu backend trả về theo cấu trúc đó
     const backendRes = (error.response?.data ?? null) as IBackendRes<unknown> | null;
-    if (backendRes && typeof backendRes.success === "boolean") {
+    if (backendRes && backendRes.isSuccess && backendRes.statusCode === 200) {
       return backendRes;
     }
 

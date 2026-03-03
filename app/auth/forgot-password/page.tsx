@@ -24,7 +24,7 @@ export default function ForgotPasswordPage() {
     try {
       const res = await ForgotPassword(email);
 
-      if (res.success) {
+      if (res.isSuccess && res.statusCode === 200) {
         router.push(`/auth/verify-email?email=${encodeURIComponent(email)}&purpose=forgot-password`);
       } else {
         setError(res.message || "Không thể gửi mã xác nhận");
