@@ -36,7 +36,7 @@ export function AdvisorHeader({
   return (
     <header
       className={cn(
-        "flex items-center justify-between px-6 py-4 bg-white border-b",
+        "fixed top-0 z-50 left-0 right-0 flex items-center justify-between px-6 py-4 bg-white border-b",
         className
       )}
     >

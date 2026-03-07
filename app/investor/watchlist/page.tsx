@@ -4,69 +4,48 @@ import { InvestorShell } from "@/components/investor/investor-shell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Download, Eye, Trash2, Heart, Send, Clock, Bell } from "lucide-react";
-import { useState } from "react";
-
-type WatchlistItem = {
-  id: number;
-  name: string;
-  description: string;
-  logo: string;
-  stage: string;
-  category: string;
-  location: string;
-  aiScore: number;
-  verification: "VERIFIED" | "PENDING";
-  lastActivity: string;
-  fundingNeeds: string;
-  addedDate: string;
-  notifications: boolean;
-};
-
-const watchlistItems: WatchlistItem[] = [
-  {
-    id: 1,
-    name: "Tech ABC",
-    description: "AI-Powered Analytics Platform",
-    logo: "/api/placeholder/400/300",
-    stage: "Seed",
-    category: "Artificial Intelligence",
-    location: "Vietnam",
-    aiScore: 8.7,
-    verification: "VERIFIED",
-    lastActivity: "New document uploaded (2h ago)",
-    fundingNeeds: "$500K",
-    addedDate: "2026-01-15",
-    notifications: true,
-  },
-  {
-    id: 2,
-    name: "HealthAI Pro",
-    description: "AI Medical Diagnosis Assistant",
-    logo: "/api/placeholder/400/300",
-    stage: "Seed",
-    category: "Healthcare",
-    location: "Vietnam",
-    aiScore: 9.1,
-    verification: "VERIFIED",
-    lastActivity: "AI re-evaluated (1d ago)",
-    fundingNeeds: "$2.5M",
-    addedDate: "2026-01-10",
-    notifications: true,
-  },
-];
+import { Download, Eye, Heart, Send, Clock, Bell } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { GetInvestorWatchlist } from "@/services/investor/investor.api";
 
 export default function InvestorWatchlistPage() {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [selectAll, setSelectAll] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [items, setItems] = useState(watchlistItems);
+  const [items, setItems] = useState<IWatchlistItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [paging, setPaging] = useState<IPaging | null>(null);
+  const pageSize = 20;
+
+  const fetchWatchlist = useCallback(async (p: number) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await GetInvestorWatchlist(p, pageSize) as unknown as IBackendRes<IPaginatedRes<IWatchlistItem>>;
+      if (res.success && res.data) {
+        setItems(res.data.items);
+        setPaging(res.data.paging);
+      } else {
+        setError(res.message || "Không thể tải watchlist.");
+      }
+    } catch {
+      setError("Có lỗi xảy ra khi tải watchlist. Vui lòng thử lại.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWatchlist(page);
+  }, [page, fetchWatchlist]);
 
   const handleSelectAll = () => {
     if (selectAll) {
       setSelectedItems([]);
     } else {
-      setSelectedItems(items.map((item) => item.id));
+      setSelectedItems(items.map((item) => item.watchlistID));
     }
     setSelectAll(!selectAll);
   };
@@ -81,14 +60,8 @@ export default function InvestorWatchlistPage() {
 
   const handleRemoveFromWatchlist = (id: number) => {
     if (confirm("Bạn có chắc muốn xóa startup này khỏi watchlist?")) {
-      setItems(items.filter((item) => item.id !== id));
+      setItems(items.filter((item) => item.watchlistID !== id));
     }
-  };
-
-  const handleToggleNotifications = (id: number) => {
-    setItems(items.map((item) => 
-      item.id === id ? { ...item, notifications: !item.notifications } : item
-    ));
   };
 
   return (
@@ -98,6 +71,13 @@ export default function InvestorWatchlistPage() {
           <h1 className="text-3xl font-bold text-slate-900">Watchlist</h1>
           <p className="text-slate-600 mt-1">Startup bạn đang theo dõi</p>
         </div>
+
+        {error && (
+          <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            {error}
+            <button onClick={() => fetchWatchlist(page)} className="ml-2 underline hover:no-underline">Thử lại</button>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex items-center justify-between gap-4">
@@ -123,46 +103,59 @@ export default function InvestorWatchlistPage() {
         </div>
 
         {/* Watchlist Cards */}
-        {!showHistory ? (
+        {loading ? (
+          <div className="text-center py-12 text-slate-500">Đang tải watchlist...</div>
+        ) : items.length === 0 ? (
+          <div className="text-center py-12 text-slate-500">Chưa có startup nào trong watchlist.</div>
+        ) : !showHistory ? (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(400px,1fr))] gap-6">
             {items.map((item) => (
-              <Card key={item.id} className="hover:shadow-lg transition-shadow overflow-hidden">
+              <Card key={item.watchlistID} className="hover:shadow-lg transition-shadow overflow-hidden">
                 <div className="relative h-48 bg-gradient-to-br from-slate-200 to-slate-300">
-                  <img
-                    src={item.logo}
-                    alt={item.name}
-                    className="w-full h-full object-cover"
-                  />
+                  {item.logoURL ? (
+                    <img
+                      src={item.logoURL}
+                      alt={item.companyName}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-4xl font-bold text-slate-400">
+                      {item.companyName?.charAt(0)?.toUpperCase()}
+                    </div>
+                  )}
                   <button
-                    onClick={() => handleRemoveFromWatchlist(item.id)}
+                    onClick={() => handleRemoveFromWatchlist(item.watchlistID)}
                     className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center text-red-500 hover:text-red-600"
                   >
                     <Heart className="w-5 h-5 fill-current" />
                   </button>
-                  <button
-                    onClick={() => handleToggleNotifications(item.id)}
-                    className={`absolute top-4 left-4 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center ${
-                      item.notifications ? "text-blue-600" : "text-slate-400"
-                    } hover:text-blue-700`}
-                    title={item.notifications ? "Tắt thông báo" : "Bật thông báo"}
-                  >
-                    <Bell className={`w-5 h-5 ${item.notifications ? "fill-current" : ""}`} />
-                  </button>
                 </div>
                 <CardContent className="p-6">
-                  <h3 className="font-bold text-lg text-slate-900 mb-2">
-                    {item.name}
+                  <h3 className="font-bold text-lg text-slate-900 mb-1">
+                    {item.companyName}
                   </h3>
-                  <p className="text-sm text-slate-600 mb-4">
-                    {item.description}
+                  <p className="text-sm text-slate-600 mb-3">
+                    {item.oneLiner}
                   </p>
+                  {item.location && (
+                    <p className="text-xs text-slate-500 mb-3">{item.location}</p>
+                  )}
                   <div className="flex flex-wrap gap-2 mb-4">
-                    <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 text-xs px-3 py-1">
-                      {item.category}
-                    </Badge>
-                    <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 text-xs px-3 py-1">
-                      {item.stage}
-                    </Badge>
+                    {item.industry && (
+                      <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 text-xs px-3 py-1">
+                        {item.industry}
+                      </Badge>
+                    )}
+                    {item.stage && (
+                      <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 text-xs px-3 py-1">
+                        {item.stage}
+                      </Badge>
+                    )}
+                    {item.priority && (
+                      <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 text-xs px-3 py-1">
+                        {item.priority}
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <Button 
@@ -187,20 +180,26 @@ export default function InvestorWatchlistPage() {
               <h3 className="font-bold text-lg mb-4">Lịch sử Watchlist</h3>
               <div className="space-y-3">
                 {items.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                  <div key={item.watchlistID} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-gradient-to-br from-slate-200 to-slate-300 rounded overflow-hidden">
-                        <img src={item.logo} alt={item.name} className="w-full h-full object-cover" />
+                      <div className="w-12 h-12 bg-gradient-to-br from-slate-200 to-slate-300 rounded overflow-hidden flex items-center justify-center">
+                        {item.logoURL ? (
+                          <img src={item.logoURL} alt={item.companyName} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-lg font-bold text-slate-400">{item.companyName?.charAt(0)?.toUpperCase()}</span>
+                        )}
                       </div>
                       <div>
-                        <h4 className="font-semibold text-sm text-slate-900">{item.name}</h4>
-                        <p className="text-xs text-slate-600">Đã thêm: {new Date(item.addedDate).toLocaleDateString('vi-VN')}</p>
+                        <h4 className="font-semibold text-sm text-slate-900">{item.companyName}</h4>
+                        <p className="text-xs text-slate-600">Đã thêm: {new Date(item.addedAt).toLocaleDateString('vi-VN')}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge className="bg-blue-100 text-blue-700 text-xs">
-                        {item.category}
-                      </Badge>
+                      {item.industry && (
+                        <Badge className="bg-blue-100 text-blue-700 text-xs">
+                          {item.industry}
+                        </Badge>
+                      )}
                       <Badge className="bg-green-100 text-green-700 text-xs">
                         Đang theo dõi
                       </Badge>
@@ -210,6 +209,33 @@ export default function InvestorWatchlistPage() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Pagination */}
+        {paging && paging.totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => p - 1)}
+              className="border-slate-300"
+            >
+              Trước
+            </Button>
+            <span className="text-sm text-slate-600">
+              Trang {paging.page} / {paging.totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= paging.totalPages}
+              onClick={() => setPage((p) => p + 1)}
+              className="border-slate-300"
+            >
+              Sau
+            </Button>
+          </div>
         )}
       </div>
     </InvestorShell>

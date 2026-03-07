@@ -1,163 +1,294 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Upload, Eye, Edit, Trash2, Shield } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { UploadDocumentModal } from "@/components/startup/upload-document-modal";
+import {
+  Search,
+  ChevronDown,
+  ChevronRight,
+  ChevronLeft,
+  Upload,
+  Eye,
+  Shield,
+  RefreshCcw,
+  Info,
+  FileText,
+  FileSpreadsheet,
+  FileArchive,
+  Award,
+  MoreHorizontal,
+  FolderOpen,
+  ShieldCheck,
+  HardDrive
+} from "lucide-react";
 
-type DocumentItem = {
-  name: string;
-  updateDate: string;
-  type: string;
-  typeColor: string;
-  fileHash: string;
-  transactionHash: string;
-  blockNumber: string;
-};
-
-const documents: DocumentItem[] = [
+const documents = [
   {
-    name: "Business Plan 2026",
-    updateDate: "2026-02-01",
-    type: "Business Document",
-    typeColor: "bg-blue-100 text-blue-700",
-    fileHash: "0xabc123...def456",
-    transactionHash: "0x789xyz...012abc",
-    blockNumber: "15234567",
+    id: "1",
+    name: "Pitch_Deck_NextGen_v2.pdf",
+    size: "2.4 MB",
+    owner: "Admin",
+    category: "Pitch Deck",
+    uploadDate: "12/02/2026",
+    status: "Protected",
+    icon: FileText,
+    iconColor: "text-red-500 bg-red-50",
   },
   {
-    name: "Patent Application",
-    updateDate: "2026-01-28",
-    type: "IP Document",
-    typeColor: "bg-purple-100 text-purple-700",
-    fileHash: "0xdef789...ghi012",
-    transactionHash: "0x345uvw...678rst",
-    blockNumber: "15234520",
+    id: "2",
+    name: "Financial_Report_Q4.xlsx",
+    size: "1.1 MB",
+    owner: "Tài chính",
+    category: "Tài chính",
+    uploadDate: "10/02/2026",
+    status: "Pending",
+    icon: FileSpreadsheet,
+    iconColor: "text-blue-500 bg-blue-50",
   },
   {
-    name: "Financial Report Q4 2025",
-    updateDate: "2026-01-15",
-    type: "Financial Document",
-    typeColor: "bg-blue-100 text-blue-700",
-    fileHash: "0xjkl345...mno678",
-    transactionHash: "0x901efg...234hij",
-    blockNumber: "15234400",
+    id: "3",
+    name: "Algorithm_Core_Specs.txt",
+    size: "0.5 MB",
+    owner: "Kỹ thuật",
+    category: "Kỹ thuật",
+    uploadDate: "08/02/2026",
+    status: "Not Protected",
+    icon: FileText,
+    iconColor: "text-purple-500 bg-purple-50",
+  },
+  {
+    id: "4",
+    name: "Trade_Secrets_V1.zip",
+    size: "15.8 MB",
+    owner: "Pháp lý",
+    category: "Pháp lý",
+    uploadDate: "05/02/2026",
+    status: "Failed",
+    icon: FileArchive,
+    iconColor: "text-orange-500 bg-orange-50",
   },
 ];
 
+const statusStyles = {
+  Protected: "ip-badge-protected",
+  Pending: "ip-badge-pending",
+  "Not Protected": "ip-badge-not-protected",
+  Failed: "ip-badge-failed",
+};
+
+const statusIcons = {
+  Protected: "verified",
+  Pending: "hourglass_empty",
+  "Not Protected": "lock_open",
+  Failed: "error",
+};
+
 export default function StartupDocumentsPage() {
+  const router = useRouter();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+
   return (
     <StartupShell>
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Document & IP</h1>
-            <p className="text-slate-600">Quản lý tài liệu và sở hữu trí tuệ</p>
+      <main className={cn(
+        "flex-1 max-w-[1440px] mx-auto w-full p-6 md:p-8 space-y-8 animate-in fade-in duration-500",
+        isUploadModalOpen && "blur-sm pointer-events-none select-none transition-all duration-300"
+      )}>
+        {/* Breadcrumbs */}
+        <nav className="flex items-center gap-2 text-[13px] font-medium text-slate-400 mb-6">
+          <Link href="/startup" className="hover:text-slate-600 transition-colors">Workspace</Link>
+          <ChevronRight className="size-4 text-slate-300" />
+          <span className="text-slate-600 font-semibold">Tài liệu & IP</span>
+        </nav>
+
+        {/* Page Header */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+          <div className="space-y-1.5">
+            <h1 className="text-[28px] font-bold text-slate-900 tracking-tight">Thư viện Tài liệu & IP</h1>
+            <p className="text-slate-500 text-[15px] font-medium leading-relaxed">Giao diện quản lý danh sách tập trung và bảo vệ tài sản trí tuệ.</p>
           </div>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto">
-            <Upload className="w-4 h-4 mr-2" />
-            Upload Document
+          <Button
+            onClick={() => setIsUploadModalOpen(true)}
+            className="bg-[#eec54e] hover:bg-[#dab13b] text-slate-900 font-bold h-11 px-7 rounded-xl shadow-sm border-none flex items-center gap-2.5 transition-all active:scale-[0.98]"
+          >
+            <div className="size-6 bg-slate-900/10 rounded-md flex items-center justify-center">
+              <Upload className="size-3.5 text-slate-900" />
+            </div>
+            + Tải lên tài liệu
           </Button>
         </div>
 
-        {/* Desktop Table View */}
-        <div className="hidden lg:block bg-white border border-slate-200 rounded-lg overflow-hidden">
-          <table className="w-full">
+        {/* Search & Filters */}
+        <div className="bg-white rounded-[24px] p-4 shadow-sm border border-slate-100 flex flex-col lg:flex-row items-center gap-4">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 size-5" />
+            <Input
+              placeholder="Tìm kiếm tài liệu, phân loại hoặc trạng thái IP..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-14 h-12 bg-[#f8fafc]/50 border-none rounded-2xl font-bold text-sm focus:ring-1 focus:ring-yellow-400/30 transition-all placeholder:text-slate-400"
+            />
+          </div>
+          <div className="flex items-center gap-6 w-full lg:w-auto px-4">
+            <div className="flex items-center gap-3 cursor-pointer group">
+              <span className="text-[11px] font-bold text-slate-900 uppercase tracking-widest whitespace-nowrap">Loại tài liệu</span>
+              <ChevronDown className="size-4 text-slate-900 transition-transform group-hover:translate-y-0.5" />
+            </div>
+            <div className="w-px h-5 bg-slate-200"></div>
+            <div className="flex items-center gap-3 cursor-pointer group">
+              <span className="text-[11px] font-bold text-slate-900 uppercase tracking-widest whitespace-nowrap">Trạng thái IP</span>
+              <ChevronDown className="size-4 text-slate-900 transition-transform group-hover:translate-y-0.5" />
+            </div>
+          </div>
+        </div>
+
+        {/* Document Table */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden overflow-x-auto">
+          <table className="w-full border-collapse">
             <thead>
-              <tr className="border-b border-slate-200">
-                <th className="text-left text-sm font-semibold text-slate-700 px-6 py-4">Document Name</th>
-                <th className="text-left text-sm font-semibold text-slate-700 px-6 py-4">Update Date</th>
-                <th className="text-left text-sm font-semibold text-slate-700 px-6 py-4">Type</th>
-                <th className="text-left text-sm font-semibold text-slate-700 px-6 py-4">File Hash</th>
-                <th className="text-left text-sm font-semibold text-slate-700 px-6 py-4">Transaction Hash</th>
-                <th className="text-left text-sm font-semibold text-slate-700 px-6 py-4">Block Number</th>
-                <th className="text-left text-sm font-semibold text-slate-700 px-6 py-4">Actions</th>
+              <tr className="bg-slate-50/30 border-b border-slate-100/80">
+                <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-left">Tên tài liệu</th>
+                <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-left whitespace-nowrap">Phân loại</th>
+                <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">Ngày tải lên</th>
+                <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">Trạng thái IP</th>
+                <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Hành động</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {documents.map((doc, index) => (
-                <tr key={index} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{doc.name}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{doc.updateDate}</td>
-                  <td className="px-6 py-4">
-                    <Badge className={`${doc.typeColor} hover:${doc.typeColor} border-0 font-normal text-xs`}>
-                      {doc.type}
-                    </Badge>
+            <tbody className="divide-y divide-slate-100/60">
+              {documents.map((doc) => (
+                <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors group">
+                  <td className="px-8 py-5">
+                    <div className="flex items-center gap-4">
+                      <div className={cn("size-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm border border-white", doc.iconColor)}>
+                        <doc.icon className="size-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-bold text-slate-900 truncate mb-0.5 tracking-tight">{doc.name}</p>
+                        <p className="text-[11px] text-slate-400 font-medium">{doc.size} • {doc.owner}</p>
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-600 font-mono">{doc.fileHash}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600 font-mono">{doc.transactionHash}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{doc.blockNumber}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center justify-end gap-1">
-                      <button className="p-2 hover:bg-blue-50 rounded-md transition-colors" title="View">
-                        <Eye className="w-4 h-4 text-blue-600" />
+                  <td className="px-8 py-5">
+                    <span className="px-2.5 py-1 bg-slate-50 text-slate-500 rounded-lg text-[10px] font-bold border border-slate-100/50">
+                      {doc.category}
+                    </span>
+                  </td>
+                  <td className="px-8 py-5 text-center text-[13px] font-medium text-slate-500 whitespace-nowrap">
+                    {doc.uploadDate}
+                  </td>
+                  <td className="px-8 py-5 text-center">
+                    <span className={cn(
+                      "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-widest border transition-all",
+                      doc.status === "Protected" && "bg-emerald-50 text-emerald-600 border-emerald-100",
+                      doc.status === "Pending" && "bg-amber-50 text-amber-600 border-amber-100",
+                      doc.status === "Not Protected" && "bg-slate-100 text-slate-500 border-slate-200",
+                      doc.status === "Failed" && "bg-rose-50 text-rose-600 border-rose-100"
+                    )}>
+                      {doc.status === "Protected" && <Shield className="size-3" fill="currentColor" />}
+                      {doc.status === "Pending" && <RefreshCcw className="size-3" />}
+                      {doc.status === "Not Protected" && <Shield className="size-3" />}
+                      {doc.status === "Failed" && <Info className="size-3" fill="currentColor" />}
+                      {doc.status}
+                    </span>
+                  </td>
+                  <td className="px-8 py-5 text-right">
+                    <div className="flex items-center justify-end gap-3">
+                      <button className="p-2 text-slate-400 hover:text-slate-900 transition-colors">
+                        <Eye className="size-4" />
                       </button>
-                      <button className="p-2 hover:bg-green-50 rounded-md transition-colors" title="Edit">
-                        <Edit className="w-4 h-4 text-green-600" />
-                      </button>
-                      <button className="p-2 hover:bg-red-50 rounded-md transition-colors" title="Delete">
-                        <Trash2 className="w-4 h-4 text-red-600" />
-                      </button>
-                      <button className="p-2 hover:bg-purple-50 rounded-md transition-colors" title="Verify">
-                        <Shield className="w-4 h-4 text-purple-600" />
-                      </button>
+                      {doc.status === "Protected" && (
+                        <button className="p-2 text-emerald-500 hover:text-emerald-700 transition-colors">
+                          <Award className="size-4" />
+                        </button>
+                      )}
+                      {doc.status === "Not Protected" && (
+                        <button className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#eec54e] text-slate-900 rounded-lg hover:bg-[#dab13b] shadow-sm transition-all active:scale-[0.98]">
+                          <Shield className="size-3.5" fill="currentColor" />
+                          <span className="text-[10px] font-bold uppercase">Protect IP</span>
+                        </button>
+                      )}
+                      {doc.status === "Failed" && (
+                        <button className="p-2 text-rose-500 hover:text-rose-700 transition-colors">
+                          <RefreshCcw className="size-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <div className="px-8 py-5 bg-white border-t border-slate-100 flex items-center justify-between">
+            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Hiển thị 1 - 4 trong tổng số 24 tài liệu</p>
+            <div className="flex items-center gap-1.5">
+              <button className="size-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-50 transition-all">
+                <ChevronLeft className="size-4" />
+              </button>
+              <button className="size-8 rounded-lg flex items-center justify-center bg-[#eec54e] text-slate-900 text-[11px] font-bold shadow-sm transition-all">1</button>
+              <button className="size-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-50 text-[11px] font-bold transition-all">2</button>
+              <button className="size-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-50 text-[11px] font-bold transition-all">3</button>
+              <button className="size-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-50 transition-all">
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Mobile Card View */}
-        <div className="lg:hidden space-y-4">
-          {documents.map((doc, index) => (
-            <div key={index} className="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="font-semibold text-slate-900">{doc.name}</h3>
-                <Badge className={`${doc.typeColor} hover:${doc.typeColor} border-0 font-normal text-xs shrink-0`}>
-                  {doc.type}
-                </Badge>
-              </div>
-              
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Update Date:</span>
-                  <span className="text-slate-900">{doc.updateDate}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Block Number:</span>
-                  <span className="text-slate-900">{doc.blockNumber}</span>
-                </div>
-                <div>
-                  <div className="text-slate-600 mb-1">File Hash:</div>
-                  <div className="text-slate-900 font-mono text-xs break-all">{doc.fileHash}</div>
-                </div>
-                <div>
-                  <div className="text-slate-600 mb-1">Transaction Hash:</div>
-                  <div className="text-slate-900 font-mono text-xs break-all">{doc.transactionHash}</div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-1 pt-2 border-t border-slate-100">
-                <button className="p-2 hover:bg-blue-50 rounded-md transition-colors" title="View">
-                  <Eye className="w-4 h-4 text-blue-600" />
-                </button>
-                <button className="p-2 hover:bg-green-50 rounded-md transition-colors" title="Edit">
-                  <Edit className="w-4 h-4 text-green-600" />
-                </button>
-                <button className="p-2 hover:bg-red-50 rounded-md transition-colors" title="Delete">
-                  <Trash2 className="w-4 h-4 text-red-600" />
-                </button>
-                <button className="p-2 hover:bg-purple-50 rounded-md transition-colors" title="Verify">
-                  <Shield className="w-4 h-4 text-purple-600" />
-                </button>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="p-7 bg-white rounded-[20px] border border-slate-100 shadow-sm relative overflow-hidden group">
+            <div className="absolute top-6 right-6 text-slate-100 group-hover:text-slate-200 transition-colors">
+              <FolderOpen className="size-8" />
+            </div>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.1em] mb-4">Tổng số tài liệu</p>
+            <div className="flex items-end justify-between relative z-10">
+              <h4 className="text-[32px] font-bold text-slate-900 leading-none">24</h4>
+              <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg uppercase tracking-wider border border-emerald-100/50">+2 tuần này</span>
+            </div>
+          </div>
+          <div className="p-7 bg-white rounded-[20px] border border-slate-100 shadow-sm relative overflow-hidden group">
+            <div className="absolute top-6 right-6 text-slate-100 group-hover:text-slate-200 transition-colors">
+              <ShieldCheck className="size-8" />
+            </div>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.1em] mb-4">Xác thực IP (Protected)</p>
+            <div className="flex items-end justify-between relative z-10">
+              <h4 className="text-[32px] font-bold text-slate-900 leading-none">18</h4>
+              <div className="flex flex-col items-end gap-1.5">
+                <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg uppercase tracking-wider border border-slate-200/50">75% hoàn thành</span>
               </div>
             </div>
-          ))}
+          </div>
+          <div className="p-7 bg-white rounded-[20px] border border-slate-100 shadow-sm relative overflow-hidden group">
+            <div className="absolute top-6 right-6 text-slate-100 group-hover:text-slate-200 transition-colors">
+              <HardDrive className="size-8" />
+            </div>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.1em] mb-4">Dung lượng sử dụng</p>
+            <div className="flex items-end justify-between relative z-10">
+              <h4 className="text-[32px] font-bold text-slate-900 leading-none">2.4 <span className="text-sm text-slate-400 font-medium">GB</span></h4>
+              <div className="w-20 bg-slate-100 rounded-full h-1 mb-1.5 overflow-hidden">
+                <div className="bg-slate-900 h-full w-[45%]"></div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+
+        <footer className="pt-16 pb-8 text-center">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.35em] leading-relaxed opacity-80">
+            © 2026 AISEP STARTUP WORKSPACE • HỆ THỐNG QUẢN TRỊ TÀI LIỆU & BẢO VỆ TÀI SẢN TRÍ TUỆ
+          </p>
+        </footer>
+      </main>
+
+      <UploadDocumentModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+      />
     </StartupShell>
   );
 }
-

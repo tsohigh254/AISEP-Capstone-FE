@@ -161,9 +161,9 @@ export default function AdvisorDashboardPage() {
                   </div>
                 </div>
                 <p className="text-xs text-slate-500">vs last month</p>
-                <a href="#" className="text-sm text-blue-600 hover:underline">
+                <button className="text-sm text-blue-600 hover:underline">
                   View details →
-                </a>
+                </button>
               </div>
             </CardContent>
           </Card>
@@ -180,9 +180,9 @@ export default function AdvisorDashboardPage() {
                   <p className="text-3xl font-bold text-slate-900">23</p>
                   <p className="text-sm text-green-600">+3 new this week</p>
                 </div>
-                <a href="#" className="text-sm text-blue-600 hover:underline">
+                <button className="text-sm text-blue-600 hover:underline">
                   View all →
-                </a>
+                </button>
               </div>
             </CardContent>
           </Card>
@@ -202,9 +202,9 @@ export default function AdvisorDashboardPage() {
                     <span>94% satisfaction</span>
                   </div>
                 </div>
-                <a href="#" className="text-sm text-blue-600 hover:underline">
+                <button className="text-sm text-blue-600 hover:underline">
                   View history →
-                </a>
+                </button>
               </div>
             </CardContent>
           </Card>
@@ -237,9 +237,9 @@ export default function AdvisorDashboardPage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-xl font-semibold">Consultation Requests</CardTitle>
-                  <a href="#" className="text-sm text-blue-600 hover:underline">
+                  <button className="text-sm text-blue-600 hover:underline">
                     View All ({consultationRequests.length})
-                  </a>
+                  </button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">

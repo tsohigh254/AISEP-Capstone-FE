@@ -1,166 +1,184 @@
 "use client";
 
-import { StartupShell } from "@/components/startup/startup-shell";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { X } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChangePassword } from "@/services/auth/auth.api";
+import { StartupShell } from "@/components/startup/startup-shell";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { ChangePasswordModal, SuccessModal } from "@/components/startup/change-password-modal";
 
 export default function StartupSettingsPage() {
   const router = useRouter();
-  const [form, setForm] = useState({
-    oldPassword: "",
-    newPassword: "",
-    confirmPassword: "",
+  const [isChangeModalOpen, setIsChangeModalOpen] = useState(false);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [emailPrefs, setEmailPrefs] = useState({
+    system: true,
+    newsletter: false,
+    advisor: true
   });
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
 
-  const handleChange = (field: string, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+  const handlePasswordSuccess = () => {
+    setIsChangeModalOpen(false);
+    setIsSuccessModalOpen(true);
+    setShowSuccessToast(true);
+    setTimeout(() => setShowSuccessToast(false), 5000);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (form.newPassword !== form.confirmPassword) {
-      setError("New password and confirm password do not match");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const res = await ChangePassword(
-        form.oldPassword,
-        form.newPassword,
-        form.confirmPassword,
-      );
-
-      if (res.success) {
-        router.back();
-      } else {
-        setError(res.message || "Change password failed");
-      }
-    } catch (e: any) {
-      const message =
-        e?.response?.data?.message ||
-        e?.message ||
-        "Có lỗi xảy ra. Vui lòng thử lại.";
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCancel = () => {
-    router.back();
+  const togglePref = (key: keyof typeof emailPrefs) => {
+    setEmailPrefs(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   return (
     <StartupShell>
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl max-w-lg w-full">
-          {/* Header */}
-          <div className="border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-            <h1 className="text-xl font-bold text-slate-900">Change Password</h1>
-            <button
-              onClick={handleCancel}
-              className="text-slate-400 hover:text-slate-600 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="p-6">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Old Password */}
-              <div className="space-y-1.5">
-                <Label htmlFor="oldPassword" className="text-sm font-medium text-slate-700">
-                  Old Password
-                </Label>
-                <Input
-                  id="oldPassword"
-                  type="password"
-                  value={form.oldPassword}
-                  onChange={(e) => handleChange("oldPassword", e.target.value)}
-                  placeholder="Enter old password"
-                  className="h-10 border-slate-300"
-                  required
-                />
-              </div>
-
-              {/* New Password */}
-              <div className="space-y-1.5">
-                <Label htmlFor="newPassword" className="text-sm font-medium text-slate-700">
-                  New Password
-                </Label>
-                <Input
-                  id="newPassword"
-                  type="password"
-                  value={form.newPassword}
-                  onChange={(e) => handleChange("newPassword", e.target.value)}
-                  placeholder="Enter new password"
-                  className="h-10 border-slate-300"
-                  required
-                />
-              </div>
-
-              {/* Confirm New Password */}
-              <div className="space-y-1.5">
-                <Label htmlFor="confirmPassword" className="text-sm font-medium text-slate-700">
-                  Confirm New Password
-                </Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  value={form.confirmPassword}
-                  onChange={(e) => handleChange("confirmPassword", e.target.value)}
-                  placeholder="Confirm new password"
-                  className="h-10 border-slate-300"
-                  required
-                />
-              </div>
-
-              {/* Password Requirements */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-sm text-blue-800">
-                  Password must be at least 8 characters with uppercase, lowercase, and numbers
-                </p>
-              </div>
-
-              {error && (
-                <p className="text-sm text-red-600">
-                  {error}
-                </p>
-              )}
-
-              {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleCancel}
-                  className="h-10 border-slate-300 text-slate-700 hover:bg-slate-50"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  className="h-10 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium"
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Changing..." : "Change Password"}
-                </Button>
-              </div>
-            </form>
+      {/* Success Toast */}
+      {showSuccessToast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[110] animate-in slide-in-from-top-4 duration-500">
+          <div className="bg-white/90 backdrop-blur-md border border-neutral-100 px-6 py-3 rounded-2xl shadow-xl flex items-center gap-3">
+            <div className="w-6 h-6 rounded-full bg-[#10b981]/20 flex items-center justify-center">
+              <span className="material-symbols-outlined text-[#10b981] text-base font-black">check</span>
+            </div>
+            <p className="text-sm font-black text-[#171611]">Mật khẩu đã được cập nhật thành công.</p>
           </div>
         </div>
-      </div>
+      )}
+
+      <main className={cn(
+        "flex-1 max-w-[800px] mx-auto w-full p-6 space-y-8 animate-in fade-in duration-500 pb-20",
+        (isChangeModalOpen || isSuccessModalOpen) && "blur-[2px] pointer-events-none select-none"
+      )}>
+        {/* Header */}
+        <div className="flex items-center gap-4 mb-2">
+          <button
+            onClick={() => router.back()}
+            className="p-2 hover:bg-neutral-surface rounded-full transition-colors flex items-center justify-center"
+          >
+            <span className="material-symbols-outlined text-neutral-muted">arrow_back</span>
+          </button>
+          <div>
+            <h1 className="text-2xl font-black text-[#171611] tracking-tight">Cài đặt tài khoản & Bảo mật</h1>
+            <p className="text-sm text-neutral-muted font-bold">Quản lý mật khẩu và các tùy chọn nhận thông báo của bạn.</p>
+          </div>
+        </div>
+
+        {/* Security Section */}
+        <section className="bg-white rounded-[32px] shadow-sm border border-neutral-surface overflow-hidden">
+          <div className="p-6 border-b border-neutral-surface bg-[#e6cc4c]/5">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#e6cc4c] font-black">shield</span>
+              <h3 className="font-black text-lg text-[#171611]">Bảo mật</h3>
+            </div>
+          </div>
+          <div className="p-8">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="space-y-1">
+                <p className="font-black text-[15px] text-[#171611]">Mật khẩu đăng nhập</p>
+                <p className="text-xs text-neutral-muted font-bold">Cập nhật mật khẩu thường xuyên để tăng tính bảo mật cho tài khoản.</p>
+              </div>
+              <Button
+                onClick={() => setIsChangeModalOpen(true)}
+                variant="outline"
+                className="w-full sm:w-auto bg-[#f8f8f6] hover:bg-[#e6cc4c]/10 text-[#171611] border-neutral-200 px-6 h-11 rounded-2xl font-black transition-all active:scale-95"
+              >
+                Đổi mật khẩu
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {/* Email Preferences Section */}
+        <section className="bg-white rounded-[32px] shadow-sm border border-neutral-surface overflow-hidden">
+          <div className="p-6 border-b border-neutral-surface bg-[#e6cc4c]/5">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#e6cc4c] font-black">mail</span>
+              <h3 className="font-black text-lg text-[#171611]">Tùy chọn Email</h3>
+            </div>
+          </div>
+          <div className="p-8 space-y-8">
+            <div className="flex items-start gap-4 group cursor-pointer" onClick={() => togglePref("system")}>
+              <div className="pt-0.5">
+                <div className={cn(
+                  "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
+                  emailPrefs.system ? "bg-[#e6cc4c] border-[#e6cc4c] text-white" : "border-neutral-surface bg-white"
+                )}>
+                  {emailPrefs.system && <span className="material-symbols-outlined text-sm font-black">check</span>}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="font-black text-[15px] text-[#171611]">Thông báo hệ thống</p>
+                <p className="text-xs text-neutral-muted font-bold leading-relaxed">Nhận email về các cập nhật bảo mật, hoạt động đăng nhập và thông báo quan trọng từ nền tảng.</p>
+              </div>
+            </div>
+
+            <div className="h-px bg-neutral-surface mx-4"></div>
+
+            <div className="flex items-start gap-4 group cursor-pointer" onClick={() => togglePref("newsletter")}>
+              <div className="pt-0.5">
+                <div className={cn(
+                  "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
+                  emailPrefs.newsletter ? "bg-[#e6cc4c] border-[#e6cc4c] text-white" : "border-neutral-surface bg-white"
+                )}>
+                  {emailPrefs.newsletter && <span className="material-symbols-outlined text-sm font-black">check</span>}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="font-black text-[15px] text-[#171611]">Bản tin & Tin tức (Newsletter)</p>
+                <p className="text-xs text-neutral-muted font-bold leading-relaxed">Cập nhật về các xu hướng Startup, sự kiện kết nối nhà đầu tư và các tính năng mới hàng tuần.</p>
+              </div>
+            </div>
+
+            <div className="h-px bg-neutral-surface mx-4"></div>
+
+            <div className="flex items-start gap-4 group cursor-pointer" onClick={() => togglePref("advisor")}>
+              <div className="pt-0.5">
+                <div className={cn(
+                  "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
+                  emailPrefs.advisor ? "bg-[#e6cc4c] border-[#e6cc4c] text-white" : "border-neutral-surface bg-white"
+                )}>
+                  {emailPrefs.advisor && <span className="material-symbols-outlined text-sm font-black">check</span>}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="font-black text-[15px] text-[#171611]">Tương tác từ Cố vấn & Nhà đầu tư</p>
+                <p className="text-xs text-neutral-muted font-bold leading-relaxed">Thông báo khi có người xem hồ sơ, yêu cầu kết nối hoặc phản hồi tài liệu của bạn.</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6 bg-[#f8f8f6] border-t border-neutral-surface flex justify-end">
+            <Button className="bg-[#e6cc4c] text-[#171611] font-black px-10 h-12 rounded-2xl hover:bg-[#d4ba3d] shadow-lg shadow-[#e6cc4c]/20 transition-all active:scale-95">
+              Lưu thay đổi
+            </Button>
+          </div>
+        </section>
+
+        {/* Account Footer */}
+        <footer className="pt-12 space-y-8">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6 border-t border-neutral-surface pt-8">
+            <div className="flex items-center gap-3">
+              <div className="bg-[#e6cc4c]/20 p-2 rounded-xl">
+                <span className="material-symbols-outlined text-[#e6cc4c] text-2xl font-black">rocket_launch</span>
+              </div>
+              <p className="text-sm font-black text-[#171611] opacity-80">AISEP Startup Platform © 2024</p>
+            </div>
+            <div className="flex gap-8 text-xs font-black text-neutral-muted uppercase tracking-widest">
+              <a href="#" className="hover:text-[#e6cc4c] transition-colors">Điều khoản</a>
+              <a href="#" className="hover:text-[#e6cc4c] transition-colors">Chính sách bảo mật</a>
+              <a href="#" className="hover:text-[#e6cc4c] transition-colors">Trung tâm hỗ trợ</a>
+            </div>
+          </div>
+        </footer>
+      </main>
+
+      {/* Modals */}
+      <ChangePasswordModal
+        isOpen={isChangeModalOpen}
+        onClose={() => setIsChangeModalOpen(false)}
+        onSuccess={handlePasswordSuccess}
+      />
+      <SuccessModal
+        isOpen={isSuccessModalOpen}
+        onClose={() => setIsSuccessModalOpen(false)}
+      />
     </StartupShell>
   );
 }

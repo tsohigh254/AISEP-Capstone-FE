@@ -4,100 +4,194 @@ import { InvestorShell } from "@/components/investor/investor-shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, MapPin, Tag, DollarSign, CheckCircle2, MessageSquare, AlertCircle, Phone, RefreshCw } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import {
+  ArrowLeft,
+  Loader2,
+  Sparkles,
+  Calendar,
+  CheckCircle2,
+  XCircle,
+  Undo2,
+  Lock,
+  Edit3,
+  FileQuestion,
+  X,
+  MessageSquare,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
+import {
+  GetConnectionById,
+  UpdateConnection,
+  WithdrawConnection,
+  AcceptConnection,
+  RejectConnection,
+  CloseConnection,
+} from "@/services/connection/connection.api";
 
-// Sample data - in real app this would come from API based on ID
-const offerData: Record<string, any> = {
-  "1": {
-    id: 1,
-    startup: "TechVision AI",
-    logo: "🤖",
-    category: "AI/ML, SaaS",
-    location: "San Francisco, CA",
-    status: "counter-offer",
-    statusLabel: "COUNTER-OFFER",
-    responseNeeded: true,
-    sentDate: "Jan 10, 2024",
-    daysAgo: 5,
-    valuation: "$5.0M",
-    valuationType: "Pre-money",
-    roundSize: "$2.5M",
-    roundType: "Target raise",
-    expiration: "2 days",
-    expirationDate: "Jan 24, 2024",
-    offerId: "#OFF.2024.018",
-    originalOffer: {
-      amount: "$250,000",
-      equity: "5%",
-    },
-    counterOffer: {
-      amount: "$300,000",
-      equity: "5%",
-      note: "same",
-    },
-    negotiationHistory: [
-      {
-        type: "counter",
-        date: "Jan 13, 2024",
-        time: "11:45 AM",
-        title: "TechVision AI proposed: $300,000 for 5% equity",
-        description: "Based on our updated projections and recent market traction with 3 enterprise clients signed in Q4, we believe a $300K investment better reflects our current position and growth trajectory. We're excited to partner with Catalyst Ventures and believe this valuation is fair for both parties.",
-      },
-    ],
-    alertMessage: "TechVision AI has sent a counter-offer of $300,000 for 5% equity. You have 2 days to respond before this offer expires.",
-  },
-  "4": {
-    id: 4,
-    startup: "DataStream Analytics",
-    logo: "📊",
-    category: "Data/AI, Analytics",
-    location: "Seattle, WA",
-    status: "declined",
-    statusLabel: "DECLINED",
-    sentDate: "Dec 28, 2023",
-    daysAgo: 18,
-    declinedDate: "Jan 4, 2024",
-    declinedDaysAgo: 7,
-    valuation: "$6.67M",
-    valuationType: "Post-money",
-    roundSize: "$3.0M",
-    roundType: "Series A",
-    offerId: "#OFF.2023.146",
-    originalOffer: {
-      amount: "$400,000",
-      equity: "6%",
-    },
-    declineReason: {
-      primary: "Valuation mismatch",
-      feedback: "Thank you for your interest in DataStream Analytics. After careful consideration, we've decided to decline your offer at this time. While we appreciate the proposed investment amount, we believe our current traction and market position justify a higher valuation. We're open to future discussions as our metrics continue to improve.",
-    },
-    declineMessage: "DataStream Analytics declined your investment offer on Jan 4, 2024. They provided feedback about their decision and remain open to future discussions.",
-  },
-};
-
-export default function OfferDetailPage() {
+export default function ConnectionDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const offerId = params.id as string;
-  const offer = offerData[offerId];
+  const connectionId = Number(params.id);
 
-  if (!offer) {
+  const [conn, setConn] = useState<IConnectionDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // Edit message modal
+  const [showEdit, setShowEdit] = useState(false);
+  const [editMessage, setEditMessage] = useState("");
+  const [editing, setEditing] = useState(false);
+
+  // Reject modal
+  const [showReject, setShowReject] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+
+  const fetchConnection = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = (await GetConnectionById(connectionId)) as unknown as IBackendRes<IConnectionDetail>;
+      if (res.success && res.data) {
+        setConn(res.data);
+      } else {
+        setError(res.message || "Không tìm thấy kết nối.");
+      }
+    } catch {
+      setError("Có lỗi xảy ra. Vui lòng thử lại.");
+    } finally {
+      setLoading(false);
+    }
+  }, [connectionId]);
+
+  useEffect(() => {
+    if (connectionId) fetchConnection();
+  }, [connectionId, fetchConnection]);
+
+  const handleAction = async (action: () => Promise<unknown>, successMsg?: string) => {
+    setActionLoading(true);
+    try {
+      const res = (await action()) as unknown as IBackendRes<IConnectionItem>;
+      if (res.success) {
+        fetchConnection();
+      } else {
+        alert(res.message || "Thao tác thất bại.");
+      }
+    } catch {
+      alert("Có lỗi xảy ra.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleWithdraw = () => {
+    if (!confirm("Bạn có chắc muốn rút lại yêu cầu kết nối này?")) return;
+    handleAction(() => WithdrawConnection(connectionId));
+  };
+
+  const handleAccept = () => handleAction(() => AcceptConnection(connectionId));
+
+  const handleReject = async () => {
+    setActionLoading(true);
+    try {
+      const res = (await RejectConnection(connectionId, { reason: rejectReason })) as unknown as IBackendRes<IConnectionItem>;
+      if (res.success) {
+        setShowReject(false);
+        setRejectReason("");
+        fetchConnection();
+      } else {
+        alert(res.message || "Thao tác thất bại.");
+      }
+    } catch {
+      alert("Có lỗi xảy ra.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (!confirm("Bạn có chắc muốn đóng kết nối này?")) return;
+    handleAction(() => CloseConnection(connectionId));
+  };
+
+  const handleUpdateMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditing(true);
+    try {
+      const res = (await UpdateConnection(connectionId, { message: editMessage })) as unknown as IBackendRes<IConnectionItem>;
+      if (res.success) {
+        setShowEdit(false);
+        fetchConnection();
+      } else {
+        alert(res.message || "Không thể cập nhật.");
+      }
+    } catch {
+      alert("Có lỗi xảy ra.");
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const s = status.toLowerCase();
+    const map: Record<string, { bg: string; text: string }> = {
+      pending: { bg: "bg-yellow-100", text: "text-yellow-700" },
+      accepted: { bg: "bg-green-100", text: "text-green-700" },
+      rejected: { bg: "bg-red-100", text: "text-red-700" },
+      withdrawn: { bg: "bg-slate-100", text: "text-slate-600" },
+      closed: { bg: "bg-gray-100", text: "text-gray-600" },
+    };
+    const style = map[s] || { bg: "bg-blue-100", text: "text-blue-700" };
+    return (
+      <Badge className={`${style.bg} ${style.text} hover:${style.bg} border-0 px-4 py-1.5 text-xs font-bold uppercase`}>
+        {status}
+      </Badge>
+    );
+  };
+
+  const formatDate = (iso: string) => {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  };
+
+  const getInfoRequestStatusBadge = (status: string) => {
+    const s = status.toLowerCase();
+    if (s === "pending") return <Badge className="bg-yellow-100 text-yellow-700 border-0 text-xs">Pending</Badge>;
+    if (s === "fulfilled") return <Badge className="bg-green-100 text-green-700 border-0 text-xs">Fulfilled</Badge>;
+    if (s === "rejected") return <Badge className="bg-red-100 text-red-700 border-0 text-xs">Rejected</Badge>;
+    return <Badge className="bg-blue-100 text-blue-700 border-0 text-xs">{status}</Badge>;
+  };
+
+  if (loading) {
     return (
       <InvestorShell>
-        <div className="text-center py-12">
-          <h2 className="text-2xl font-bold">Offer not found</h2>
+        <div className="flex items-center justify-center py-24 text-slate-400">
+          <Loader2 className="w-6 h-6 animate-spin mr-2" />
+          Đang tải...
+        </div>
+      </InvestorShell>
+    );
+  }
+
+  if (error || !conn) {
+    return (
+      <InvestorShell>
+        <div className="text-center py-16">
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">{error || "Không tìm thấy kết nối"}</h2>
           <Link href="/investor/offers">
-            <Button className="mt-4">Back to Offers</Button>
+            <Button className="mt-4">Quay lại danh sách</Button>
           </Link>
         </div>
       </InvestorShell>
     );
   }
 
-  const isDeclined = offer.status === "declined";
-  const isCounter = offer.status === "counter-offer";
+  const status = conn.connectionStatus.toLowerCase();
+  const isPending = status === "pending";
+  const isAccepted = status === "accepted";
 
   return (
     <InvestorShell>
@@ -105,210 +199,145 @@ export default function OfferDetailPage() {
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-slate-600">
           <Link href="/investor/offers" className="hover:text-blue-600">
-            💰 Offers
+            🔗 Connections
           </Link>
           <span>/</span>
-          <span>Offer to {offer.startup}</span>
+          <span>Connection #{conn.connectionID}</span>
         </div>
 
         {/* Back Button */}
         <Link href="/investor/offers">
           <Button variant="ghost" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 -ml-2">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Offers
+            Quay lại
           </Button>
         </Link>
 
-        {/* Main Offer Card */}
+        {/* Main Connection Card */}
         <Card>
           <CardContent className="p-8">
             <div className="flex items-start justify-between">
-              <div className="flex items-start gap-6">
-                {/* Logo */}
-                <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-4xl">
-                  {offer.logo}
+              <div>
+                <h1 className="text-3xl font-bold mb-3">{conn.startupName || `Startup #${conn.startupID}`}</h1>
+                <div className="flex items-center gap-3 mb-3">
+                  {getStatusBadge(conn.connectionStatus)}
+                  {conn.matchScore > 0 && (
+                    <div className="flex items-center gap-1 text-sm text-amber-600">
+                      <Sparkles className="w-4 h-4" />
+                      Match Score: {conn.matchScore}%
+                    </div>
+                  )}
                 </div>
-
-                {/* Info */}
-                <div>
-                  <h1 className="text-3xl font-bold mb-3">Offer to {offer.startup}</h1>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="flex items-center gap-1 text-sm text-slate-600">
-                      <MapPin className="w-4 h-4" />
-                      Seed Round
-                    </div>
-                    <div className="flex items-center gap-1 text-sm text-slate-600">
-                      <MapPin className="w-4 h-4" />
-                      {offer.location}
-                    </div>
-                    <div className="flex items-center gap-1 text-sm text-slate-600">
-                      <Tag className="w-4 h-4" />
-                      {offer.category}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className={`${
-                      isDeclined ? "bg-red-500" : "bg-cyan-500"
-                    } text-white px-4 py-1.5 text-[11px] font-bold uppercase rounded-full`}>
-                      {offer.statusLabel}
-                    </Badge>
-                    {offer.responseNeeded && (
-                      <Badge className="bg-orange-500 text-white px-4 py-1.5 text-[11px] font-bold uppercase rounded-full">
-                        ● Response Needed
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Amount */}
-              <div className="text-right">
-                <div className="text-xs text-slate-500 mb-1">Offer {offer.offerId}</div>
-                <div className="text-4xl font-bold text-slate-900 mb-1">
-                  {offer.originalOffer.amount}
-                </div>
-                <div className="text-lg text-slate-600">for {offer.originalOffer.equity} equity</div>
-
-                {isCounter && offer.counterOffer && (
-                  <div className="mt-4 pt-4 border-t border-slate-200">
-                    <div className="text-xs text-slate-500 uppercase font-medium mb-1">
-                      Counter-Offer Received
-                    </div>
-                    <div className="text-3xl font-bold text-cyan-600 mb-1">
-                      {offer.counterOffer.amount}
-                    </div>
-                    <div className="text-sm text-slate-600">
-                      for {offer.counterOffer.equity} equity {offer.counterOffer.note && `(${offer.counterOffer.note})`}
-                    </div>
-                  </div>
+                {conn.investorName && (
+                  <p className="text-sm text-slate-500">Investor: {conn.investorName}</p>
                 )}
+              </div>
+              <div className="text-right text-sm text-slate-500 space-y-1">
+                <div>Connection #{conn.connectionID}</div>
               </div>
             </div>
 
-            {/* Offer Details Grid */}
-            <div className="grid grid-cols-4 gap-6 mt-8 pt-8 border-t border-slate-200">
+            {/* Details Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-8 pt-8 border-t border-slate-200">
               <div>
-                <div className="text-xs text-slate-500 uppercase font-medium mb-2">
-                  {isDeclined ? "Declined" : "Sent Date"}
-                </div>
-                <div className="text-lg font-bold">{isDeclined ? offer.declinedDate : offer.sentDate}</div>
-                <div className="text-sm text-slate-600">
-                  {isDeclined ? `${offer.declinedDaysAgo} days response` : `${offer.daysAgo} days ago`}
-                </div>
+                <div className="text-xs text-slate-500 uppercase font-medium mb-2">Gửi lúc</div>
+                <div className="text-sm font-semibold">{formatDate(conn.requestedAt)}</div>
               </div>
-
-              {!isDeclined && (
-                <>
-                  <div>
-                    <div className="text-xs text-slate-500 uppercase font-medium mb-2">Valuation</div>
-                    <div className="text-lg font-bold">{offer.valuation}</div>
-                    <div className="text-sm text-slate-600">{offer.valuationType}</div>
-                  </div>
-
-                  <div>
-                    <div className="text-xs text-slate-500 uppercase font-medium mb-2">Round Size</div>
-                    <div className="text-lg font-bold">{offer.roundSize}</div>
-                    <div className="text-sm text-slate-600">{offer.roundType}</div>
-                  </div>
-
-                  <div>
-                    <div className="text-xs text-slate-500 uppercase font-medium mb-2">Expires In</div>
-                    <div className="text-lg font-bold text-red-600">{offer.expiration}</div>
-                    <div className="text-sm text-slate-600">{offer.expirationDate}</div>
-                  </div>
-                </>
-              )}
-
-              {isDeclined && (
-                <>
-                  <div>
-                    <div className="text-xs text-slate-500 uppercase font-medium mb-2">Valuation</div>
-                    <div className="text-lg font-bold">{offer.valuation}</div>
-                    <div className="text-sm text-slate-600">{offer.valuationType}</div>
-                  </div>
-
-                  <div>
-                    <div className="text-xs text-slate-500 uppercase font-medium mb-2">Status</div>
-                    <div className="text-lg font-bold text-red-600">Closed</div>
-                    <div className="text-sm text-slate-600">Deal ended</div>
-                  </div>
-                </>
-              )}
+              <div>
+                <div className="text-xs text-slate-500 uppercase font-medium mb-2">Phản hồi lúc</div>
+                <div className="text-sm font-semibold">{conn.respondedAt ? formatDate(conn.respondedAt) : "Chưa phản hồi"}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500 uppercase font-medium mb-2">Match Score</div>
+                <div className="text-sm font-semibold">{conn.matchScore > 0 ? `${conn.matchScore}%` : "—"}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500 uppercase font-medium mb-2">Documents</div>
+                <div className="text-sm font-semibold">{conn.attachedDocumentIDs || "Không có"}</div>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Alert Message */}
-        {offer.alertMessage && (
-          <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <div className="font-bold text-orange-800">Counter-Offer Received - Response Required</div>
-              <div className="text-sm text-orange-700 mt-1">{offer.alertMessage}</div>
-            </div>
-          </div>
-        )}
-
-        {/* Declined Message */}
-        {isDeclined && (
-          <Card className="border-2 border-red-200 bg-red-50">
-            <CardContent className="p-8 text-center">
-              <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <div className="text-white text-3xl">✕</div>
-              </div>
-              <h2 className="text-2xl font-bold mb-2">Offer Declined by Startup</h2>
-              <p className="text-slate-600 mb-6">{offer.declineMessage}</p>
-              <div className="flex items-center justify-center gap-3">
-                <Button className="bg-blue-600 text-white hover:bg-blue-700">
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Send New Offer
-                </Button>
-                <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50">
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  Message Startup
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Negotiation History / Decline Reason */}
-          <div className="lg:col-span-2">
+          {/* Left Column: Message + Info Requests */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Personalized Message */}
             <Card>
               <CardContent className="p-6">
-                <h2 className="text-xl font-bold mb-6">
-                  {isDeclined ? "Decline Reason & Feedback" : "Negotiation History"}
-                </h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-blue-600" />
+                    Lời nhắn
+                  </h2>
+                  {isPending && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditMessage(conn.personalizedMessage || "");
+                        setShowEdit(true);
+                      }}
+                    >
+                      <Edit3 className="w-4 h-4 mr-1" />
+                      Chỉnh sửa
+                    </Button>
+                  )}
+                </div>
+                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                    {conn.personalizedMessage || "Không có lời nhắn."}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
 
-                {isDeclined && offer.declineReason ? (
-                  <div className="space-y-4">
-                    <div>
-                      <div className="text-xs text-slate-500 uppercase font-medium mb-2">Primary Reason</div>
-                      <Badge className="bg-red-100 text-red-700 px-4 py-2 text-sm">
-                        {offer.declineReason.primary}
-                      </Badge>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500 uppercase font-medium mb-2">Feedback from Startup</div>
-                      <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                        <p className="text-sm text-slate-700 leading-relaxed">{offer.declineReason.feedback}</p>
-                      </div>
-                    </div>
+            {/* Information Requests */}
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <FileQuestion className="w-5 h-5 text-purple-600" />
+                    Yêu cầu thông tin ({conn.informationRequests?.length || 0})
+                  </h2>
+                  {isAccepted && (
+                    <Link href={`/investor/offers/${conn.connectionID}/counter`}>
+                      <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white">
+                        Tạo yêu cầu mới
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+
+                {!conn.informationRequests || conn.informationRequests.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400">
+                    <FileQuestion className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                    <p>Chưa có yêu cầu thông tin nào.</p>
                   </div>
                 ) : (
-                  <div className="space-y-6">
-                    {offer.negotiationHistory?.map((item: any, index: number) => (
-                      <div key={index} className="relative pl-8 pb-6 border-l-2 border-blue-200 last:border-0 last:pb-0">
-                        <div className="absolute -left-2 top-0 w-4 h-4 bg-blue-500 rounded-full border-2 border-white"></div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge className="bg-blue-50 text-blue-700 px-3 py-1">Counter-Offer Received</Badge>
-                          <span className="text-xs text-slate-500">{item.date} at {item.time}</span>
+                  <div className="space-y-4">
+                    {conn.informationRequests.map((req) => (
+                      <div key={req.requestID} className="border border-slate-200 rounded-lg p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">{req.requestType}</Badge>
+                            {getInfoRequestStatusBadge(req.requestStatus)}
+                          </div>
+                          <span className="text-xs text-slate-500">{formatDate(req.requestedAt)}</span>
                         </div>
-                        <div className="font-semibold text-blue-600 mb-2">{item.title}</div>
-                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                          <p className="text-sm text-slate-700 leading-relaxed italic">"{item.description}"</p>
-                        </div>
+                        <p className="text-sm text-slate-700 mb-2">{req.requestMessage}</p>
+                        {req.responseMessage && (
+                          <div className="mt-3 pt-3 border-t border-slate-100">
+                            <div className="text-xs text-slate-500 uppercase font-medium mb-1">Phản hồi</div>
+                            <p className="text-sm text-slate-600">{req.responseMessage}</p>
+                            {req.responseDocumentIDs && (
+                              <p className="text-xs text-slate-400 mt-1">Tài liệu: {req.responseDocumentIDs}</p>
+                            )}
+                            {req.fulfilledAt && (
+                              <p className="text-xs text-slate-400 mt-1">Hoàn thành: {formatDate(req.fulfilledAt)}</p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -317,74 +346,164 @@ export default function OfferDetailPage() {
             </Card>
           </div>
 
-          {/* Action Panel */}
+          {/* Right Column: Actions */}
           <div>
             <Card>
               <CardContent className="p-6">
-                <h2 className="text-xl font-bold mb-4">
-                  {isDeclined ? "What's Next?" : "Respond to Counter-Offer"}
-                </h2>
+                <h2 className="text-xl font-bold mb-4">Thao tác</h2>
+                <div className="space-y-3">
+                  {/* Pending actions */}
+                  {isPending && (
+                    <>
+                      <Button
+                        className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        disabled={actionLoading}
+                        onClick={handleAccept}
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        Chấp nhận
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full text-red-600 border-red-300 hover:bg-red-50"
+                        disabled={actionLoading}
+                        onClick={() => setShowReject(true)}
+                      >
+                        <XCircle className="w-4 h-4 mr-2" />
+                        Từ chối
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full text-orange-600 border-orange-300 hover:bg-orange-50"
+                        disabled={actionLoading}
+                        onClick={handleWithdraw}
+                      >
+                        <Undo2 className="w-4 h-4 mr-2" />
+                        Rút lại yêu cầu
+                      </Button>
+                    </>
+                  )}
 
-                {isDeclined ? (
-                  <div className="space-y-3">
-                    <Button className="w-full bg-blue-600 text-white hover:bg-blue-700">
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Send New Offer
-                    </Button>
-                    <Button variant="outline" className="w-full border-blue-600 text-blue-600 hover:bg-blue-50">
-                      <MessageSquare className="w-4 h-4 mr-2" />
-                      Message Startup
-                    </Button>
-                    <Button variant="outline" className="w-full">
-                      View Similar Startups
-                    </Button>
-                    <div className="pt-4 border-t border-slate-200">
-                      <h3 className="font-semibold text-sm mb-3">More Actions</h3>
-                      <div className="space-y-2">
-                        <Button variant="link" className="w-full justify-start text-blue-600 p-0">
-                          Add to Watchlist
+                  {/* Accepted actions */}
+                  {isAccepted && (
+                    <>
+                      <Link href={`/investor/offers/${conn.connectionID}/counter`} className="block">
+                        <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                          <FileQuestion className="w-4 h-4 mr-2" />
+                          Yêu cầu thông tin
                         </Button>
-                        <Button variant="link" className="w-full justify-start text-blue-600 p-0">
-                          Download Offer Details
-                        </Button>
-                        <Button variant="link" className="w-full justify-start text-red-600 p-0">
-                          Archive Offer
-                        </Button>
-                      </div>
+                      </Link>
+                      <Button
+                        variant="outline"
+                        className="w-full text-slate-600"
+                        disabled={actionLoading}
+                        onClick={handleClose}
+                      >
+                        <Lock className="w-4 h-4 mr-2" />
+                        Đóng kết nối
+                      </Button>
+                    </>
+                  )}
+
+                  {/* Closed / Rejected / Withdrawn */}
+                  {(status === "closed" || status === "rejected" || status === "withdrawn") && (
+                    <div className="text-center py-4 text-slate-500 text-sm">
+                      Kết nối đã kết thúc ({conn.connectionStatus}).
                     </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <Button className="w-full bg-blue-600 text-white hover:bg-blue-700">
-                      <CheckCircle2 className="w-4 h-4 mr-2" />
-                      Accept Counter-Offer ($300K)
-                    </Button>
-                    <Link href={`/investor/offers/${offerId}/counter`} className="block">
-                      <Button className="w-full bg-cyan-500 text-white hover:bg-cyan-600">
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        Send Counter-Counter-Offer
+                  )}
+
+                  <div className="pt-4 border-t border-slate-200">
+                    <Link href="/investor/offers">
+                      <Button variant="link" className="w-full justify-start text-blue-600 p-0">
+                        ← Quay lại danh sách Connections
                       </Button>
                     </Link>
-                    <Button variant="outline" className="w-full border-blue-600 text-blue-600 hover:bg-blue-50">
-                      <Phone className="w-4 h-4 mr-2" />
-                      Request Discussion Call
-                    </Button>
-                    <Button variant="outline" className="w-full">
-                      <MessageSquare className="w-4 h-4 mr-2" />
-                      Send Message
-                    </Button>
-                    <div className="pt-4 border-t border-slate-200">
-                      <Button variant="link" className="w-full justify-start text-red-600 p-0">
-                        Decline Counter-Offer
-                      </Button>
-                    </div>
                   </div>
-                )}
+                </div>
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
+
+      {/* ── Edit Message Modal ── */}
+      {showEdit && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full">
+            <div className="border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Chỉnh sửa lời nhắn</h2>
+              <button onClick={() => setShowEdit(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <form onSubmit={handleUpdateMessage} className="space-y-5">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Lời nhắn</Label>
+                  <textarea
+                    value={editMessage}
+                    onChange={(e) => setEditMessage(e.target.value)}
+                    className="w-full min-h-[120px] px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <Button type="button" variant="outline" onClick={() => setShowEdit(false)} className="flex-1 h-11">
+                    Hủy
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={editing}
+                    className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {editing && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                    Lưu thay đổi
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reject Modal ── */}
+      {showReject && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full">
+            <div className="border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Từ chối kết nối</h2>
+              <button onClick={() => { setShowReject(false); setRejectReason(""); }} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Lý do từ chối</Label>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Nhập lý do..."
+                  className="w-full min-h-[100px] px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => { setShowReject(false); setRejectReason(""); }} className="flex-1 h-11">
+                  Hủy
+                </Button>
+                <Button
+                  disabled={actionLoading || !rejectReason.trim()}
+                  onClick={handleReject}
+                  className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {actionLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                  Xác nhận từ chối
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </InvestorShell>
   );
 }

@@ -6,25 +6,146 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Info } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  Plus,
+  FileQuestion,
+  CheckCircle2,
+  XCircle,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import {
+  GetInfoRequests,
+  CreateInfoRequest,
+  FulfillInfoRequest,
+  RejectInfoRequest,
+} from "@/services/connection/connection.api";
 
-export default function CounterCounterOfferPage() {
+export default function InfoRequestsPage() {
   const params = useParams();
-  const offerId = params.id as string;
-  const [amount, setAmount] = useState("275000");
-  const [equity, setEquity] = useState("5");
-  const [preMoney, setPreMoney] = useState("5200000");
-  const [perShare, setPerShare] = useState("55.00");
+  const connectionId = Number(params.id);
 
-  // Calculate difference
-  const originalAmount = 250000;
-  const counterAmount = 300000;
-  const yourAmount = parseInt(amount);
-  const difference = yourAmount - counterAmount;
-  const percentDiff = ((difference / counterAmount) * 100).toFixed(1);
+  const [requests, setRequests] = useState<IInfoRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Create form
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({ requestType: "", requestMessage: "" });
+  const [creating, setCreating] = useState(false);
+
+  // Fulfill modal
+  const [fulfillTarget, setFulfillTarget] = useState<number | null>(null);
+  const [fulfillForm, setFulfillForm] = useState({ responseMessage: "", responseDocumentIDs: "" });
+  const [fulfilling, setFulfilling] = useState(false);
+
+  // Reject modal
+  const [rejectTarget, setRejectTarget] = useState<number | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+
+  const fetchRequests = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = (await GetInfoRequests(connectionId)) as unknown as IBackendRes<IInfoRequest[]>;
+      if (res.success && res.data) {
+        setRequests(res.data);
+      } else {
+        setError(res.message || "Không thể tải danh sách yêu cầu.");
+      }
+    } catch {
+      setError("Có lỗi xảy ra. Vui lòng thử lại.");
+    } finally {
+      setLoading(false);
+    }
+  }, [connectionId]);
+
+  useEffect(() => {
+    if (connectionId) fetchRequests();
+  }, [connectionId, fetchRequests]);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreating(true);
+    try {
+      const res = (await CreateInfoRequest(connectionId, {
+        requestType: createForm.requestType,
+        requestMessage: createForm.requestMessage,
+      })) as unknown as IBackendRes<IInfoRequest>;
+      if (res.success) {
+        setShowCreate(false);
+        setCreateForm({ requestType: "", requestMessage: "" });
+        fetchRequests();
+      } else {
+        alert(res.message || "Không thể tạo yêu cầu.");
+      }
+    } catch {
+      alert("Có lỗi xảy ra.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleFulfill = async () => {
+    if (fulfillTarget === null) return;
+    setFulfilling(true);
+    try {
+      const res = (await FulfillInfoRequest(fulfillTarget, {
+        responseMessage: fulfillForm.responseMessage,
+        responseDocumentIDs: fulfillForm.responseDocumentIDs,
+      })) as unknown as IBackendRes<IInfoRequest>;
+      if (res.success) {
+        setFulfillTarget(null);
+        setFulfillForm({ responseMessage: "", responseDocumentIDs: "" });
+        fetchRequests();
+      } else {
+        alert(res.message || "Không thể hoàn thành.");
+      }
+    } catch {
+      alert("Có lỗi xảy ra.");
+    } finally {
+      setFulfilling(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (rejectTarget === null) return;
+    setRejecting(true);
+    try {
+      const res = (await RejectInfoRequest(rejectTarget, { reason: rejectReason })) as unknown as IBackendRes<IInfoRequest>;
+      if (res.success) {
+        setRejectTarget(null);
+        setRejectReason("");
+        fetchRequests();
+      } else {
+        alert(res.message || "Không thể từ chối.");
+      }
+    } catch {
+      alert("Có lỗi xảy ra.");
+    } finally {
+      setRejecting(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const s = status.toLowerCase();
+    if (s === "pending") return <Badge className="bg-yellow-100 text-yellow-700 border-0 text-xs">Pending</Badge>;
+    if (s === "fulfilled") return <Badge className="bg-green-100 text-green-700 border-0 text-xs">Fulfilled</Badge>;
+    if (s === "rejected") return <Badge className="bg-red-100 text-red-700 border-0 text-xs">Rejected</Badge>;
+    return <Badge className="bg-blue-100 text-blue-700 border-0 text-xs">{status}</Badge>;
+  };
+
+  const formatDate = (iso: string) => {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleDateString("vi-VN", {
+      day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+    });
+  };
 
   return (
     <InvestorShell>
@@ -32,287 +153,272 @@ export default function CounterCounterOfferPage() {
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-slate-600">
           <Link href="/investor/offers" className="hover:text-blue-600">
-            💰 Offers
+            🔗 Connections
           </Link>
           <span>/</span>
-          <Link href={`/investor/offers/${offerId}`} className="hover:text-blue-600">
-            Offer to TechVision AI
+          <Link href={`/investor/offers/${connectionId}`} className="hover:text-blue-600">
+            Connection #{connectionId}
           </Link>
           <span>/</span>
-          <span>Send Counter-Counter-Offer</span>
+          <span>Yêu cầu thông tin</span>
         </div>
 
-        {/* Back Button */}
-        <Link href={`/investor/offers/${offerId}`}>
+        {/* Back */}
+        <Link href={`/investor/offers/${connectionId}`}>
           <Button variant="ghost" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 -ml-2">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Offer Details
+            Quay lại chi tiết kết nối
           </Button>
         </Link>
 
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Send Counter-Counter-Offer</h1>
-          <p className="text-slate-600">
-            Propose alternative terms in response to TechVision AI's counter-offer of $300,000
-          </p>
-        </div>
-
-        {/* Info Alert */}
-        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg flex items-start gap-3">
-          <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+        <div className="flex items-center justify-between">
           <div>
-            <div className="font-bold text-blue-800">Responding to Their Counter-Offer</div>
-            <div className="text-sm text-blue-700 mt-1">
-              TechVision AI proposed $300,000 for 5% equity. You can propose your own terms below. Your counter-counter-offer will restart the negotiation with 7 days for their response.
-            </div>
+            <h1 className="text-3xl font-bold mb-2">Yêu cầu thông tin</h1>
+            <p className="text-slate-600">
+              Quản lý các yêu cầu thông tin cho Connection #{connectionId}
+            </p>
           </div>
+          <Button
+            onClick={() => setShowCreate(true)}
+            className="bg-purple-600 hover:bg-purple-700 text-white h-11 px-6"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Tạo yêu cầu mới
+          </Button>
         </div>
 
-        {/* Offer Comparison */}
-        <Card className="border-2 border-blue-200">
-          <CardContent className="p-6">
-            <div className="mb-4">
-              <h2 className="text-xl font-bold">Offer Comparison</h2>
-              <p className="text-sm text-slate-600">See how your counter-counter-offer compares to previous proposals</p>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              {/* Your Original Offer */}
-              <div className="bg-slate-50 p-6 rounded-lg border border-slate-200">
-                <div className="text-xs text-slate-500 uppercase font-medium mb-3">Your Original Offer</div>
-                <div className="text-4xl font-bold mb-1">$250,000</div>
-                <div className="text-lg text-slate-600 mb-4">5% equity</div>
-                <div className="space-y-1 text-sm text-slate-600">
-                  <div className="flex justify-between">
-                    <span>$5.0M pre-money</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>$2.50 per share</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Their Counter-Offer */}
-              <div className="bg-cyan-50 p-6 rounded-lg border-2 border-cyan-400">
-                <div className="text-xs text-cyan-700 uppercase font-medium mb-3">Their Counter-Offer</div>
-                <div className="text-4xl font-bold text-cyan-600 mb-1">$300,000</div>
-                <div className="text-lg text-cyan-700 mb-4">5% equity</div>
-                <div className="space-y-1 text-sm text-cyan-700">
-                  <div className="flex justify-between">
-                    <span>$6.0M pre-money</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>$3.00 per share</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Your Counter-Counter */}
-              <div className="bg-blue-50 p-6 rounded-lg border-2 border-blue-400">
-                <div className="text-xs text-blue-700 uppercase font-medium mb-3">Your Counter-Counter</div>
-                <div className="text-4xl font-bold text-blue-600 mb-1">${parseInt(amount).toLocaleString()}</div>
-                <div className="text-lg text-blue-700 mb-4">{equity}% equity</div>
-                <div className="space-y-1 text-sm text-blue-700">
-                  <div className="flex justify-between">
-                    <span>${parseInt(preMoney).toLocaleString()} pre-money</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>${perShare}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Difference Analysis */}
-            <div className="mt-6 pt-6 border-t border-slate-200 text-center">
-              <div className="text-sm text-slate-600 mb-2">Your Offer vs Their Counter</div>
-              <div className={`text-3xl font-bold ${difference < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                ${Math.abs(difference).toLocaleString()} ({percentDiff}%)
-              </div>
-              <div className="text-sm text-slate-600 mt-1">
-                {difference < 0 ? 'A middle-ground proposal' : 'Above their counter-offer'}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Counter-Offer Form */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <Card>
-              <CardContent className="p-6">
-                <h2 className="text-xl font-bold mb-6">Your Counter-Counter-Offer Terms</h2>
-
-                <div className="space-y-6">
-                  {/* Investment Amount */}
-                  <div>
-                    <Label className="text-sm font-medium mb-2 block">Investment Amount</Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
-                      <Input
-                        type="text"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))}
-                        className="pl-7 text-lg font-semibold"
-                      />
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">The amount you're willing to invest</p>
-                  </div>
-
-                  {/* Equity Percentage */}
-                  <div>
-                    <Label className="text-sm font-medium mb-2 block">Equity Percentage</Label>
-                    <div className="relative">
-                      <Input
-                        type="text"
-                        value={equity}
-                        onChange={(e) => setEquity(e.target.value)}
-                        className="pr-7 text-lg font-semibold"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">%</span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">Equity stake you're requesting</p>
-                  </div>
-
-                  {/* Valuation Details */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-sm font-medium mb-2 block">Pre-Money Valuation</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
-                        <Input
-                          type="text"
-                          value={preMoney}
-                          onChange={(e) => setPreMoney(e.target.value.replace(/[^0-9]/g, ""))}
-                          className="pl-7"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium mb-2 block">Price Per Share</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
-                        <Input
-                          type="text"
-                          value={perShare}
-                          onChange={(e) => setPerShare(e.target.value)}
-                          className="pl-7"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Offer Valid Until */}
-                  <div>
-                    <Label className="text-sm font-medium mb-2 block">Offer Valid Until</Label>
-                    <Input type="date" defaultValue="2024-01-31" />
-                    <p className="text-xs text-slate-500 mt-1">Standard negotiation period is 7 days</p>
-                  </div>
-
-                  {/* Additional Terms */}
-                  <div>
-                    <Label className="text-sm font-medium mb-2 block">
-                      Justification / Additional Notes <span className="text-slate-400 font-normal">(Optional)</span>
-                    </Label>
-                    <textarea
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm min-h-[120px]"
-                      placeholder="Explain your reasoning for this counter-offer..."
-                      defaultValue="We appreciate your updated proposal and the traction you've demonstrated. Based on comparable deals in the AI/ML space and current market conditions, we believe $275K represents a fair middle ground that values both your growth and our investment partnership. We're excited to move forward together."
-                    />
-                  </div>
-
-                  {/* Investment Terms Summary */}
-                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                    <h3 className="font-semibold text-sm mb-3">Investment Terms Summary</h3>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <div className="text-slate-600">Investment Type</div>
-                        <div className="font-semibold">SAFE Note</div>
-                      </div>
-                      <div>
-                        <div className="text-slate-600">Valuation Cap</div>
-                        <div className="font-semibold">${parseInt(preMoney).toLocaleString()}</div>
-                      </div>
-                      <div>
-                        <div className="text-slate-600">Discount Rate</div>
-                        <div className="font-semibold">20%</div>
-                      </div>
-                      <div>
-                        <div className="text-slate-600">Pro-rata Rights</div>
-                        <div className="font-semibold">Included</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        {/* Error */}
+        {error && (
+          <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            {error}
+            <button onClick={fetchRequests} className="ml-2 underline hover:no-underline">Thử lại</button>
           </div>
+        )}
 
-          {/* Summary & Actions */}
+        {/* Loading */}
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-slate-400">
+            <Loader2 className="w-6 h-6 animate-spin mr-2" />
+            Đang tải...
+          </div>
+        ) : requests.length === 0 ? (
+          <div className="text-center py-16">
+            <FileQuestion className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-500 text-lg">Chưa có yêu cầu thông tin nào.</p>
+            <Button onClick={() => setShowCreate(true)} variant="outline" className="mt-4">
+              <Plus className="w-4 h-4 mr-2" />
+              Tạo yêu cầu đầu tiên
+            </Button>
+          </div>
+        ) : (
           <div className="space-y-4">
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="font-bold mb-4">Offer Summary</h3>
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Your Investment</span>
-                    <span className="font-bold">${parseInt(amount).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Equity Stake</span>
-                    <span className="font-bold">{equity}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Pre-Money Val.</span>
-                    <span className="font-bold">${parseInt(preMoney).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Post-Money Val.</span>
-                    <span className="font-bold">${(parseInt(preMoney) + parseInt(amount)).toLocaleString()}</span>
-                  </div>
-                  <div className="pt-3 border-t border-slate-200">
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Valid Until</span>
-                      <span className="font-bold">Jan 31, 2024</span>
+            {requests.map((req) => (
+              <Card key={req.requestID} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-purple-100 text-purple-700 border-0 px-3 py-1">{req.requestType}</Badge>
+                      {getStatusBadge(req.requestStatus)}
+                      <span className="text-xs text-slate-400">#{req.requestID}</span>
                     </div>
+                    <span className="text-xs text-slate-500">{formatDate(req.requestedAt)}</span>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
 
-            <Card className="bg-green-50 border-green-200">
-              <CardContent className="p-6">
-                <h3 className="font-bold mb-2 text-green-800">💡 Negotiation Tip</h3>
-                <p className="text-sm text-green-700">
-                  Your offer is 8.3% below their counter-offer, showing willingness to meet in the middle. This demonstrates good faith while maintaining your valuation discipline.
-                </p>
-              </CardContent>
-            </Card>
+                  <p className="text-sm text-slate-700 mb-3">{req.requestMessage}</p>
 
-            <div className="space-y-3">
-              <Button className="w-full bg-green-600 text-white hover:bg-green-700 py-6 text-base">
-                📤 Send Counter-Counter-Offer
-              </Button>
-              <Button variant="outline" className="w-full">
-                Save as Draft
-              </Button>
-              <Link href={`/investor/offers/${offerId}`}>
-                <Button variant="ghost" className="w-full text-slate-600">
-                  Cancel
-                </Button>
-              </Link>
+                  {/* Response */}
+                  {req.responseMessage && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-3">
+                      <div className="text-xs text-green-600 uppercase font-medium mb-1">Phản hồi</div>
+                      <p className="text-sm text-slate-700">{req.responseMessage}</p>
+                      {req.responseDocumentIDs && (
+                        <p className="text-xs text-slate-500 mt-1">Tài liệu: {req.responseDocumentIDs}</p>
+                      )}
+                      {req.fulfilledAt && (
+                        <p className="text-xs text-slate-400 mt-1">Hoàn thành: {formatDate(req.fulfilledAt)}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Actions for pending requests */}
+                  {req.requestStatus.toLowerCase() === "pending" && (
+                    <div className="flex gap-2 pt-2 border-t border-slate-100">
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white gap-1"
+                        onClick={() => {
+                          setFulfillTarget(req.requestID);
+                          setFulfillForm({ responseMessage: "", responseDocumentIDs: "" });
+                        }}
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        Hoàn thành
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-red-600 border-red-300 hover:bg-red-50"
+                        onClick={() => {
+                          setRejectTarget(req.requestID);
+                          setRejectReason("");
+                        }}
+                      >
+                        <XCircle className="w-4 h-4" />
+                        Từ chối
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Create Info Request Modal ── */}
+      {showCreate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full">
+            <div className="border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Tạo yêu cầu thông tin</h2>
+              <button onClick={() => setShowCreate(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-
-            <div className="text-xs text-slate-500 text-center">
-              By sending this offer, you agree to our{" "}
-              <a href="#" className="text-blue-600 hover:underline">
-                Investment Terms
-              </a>
+            <div className="p-6">
+              <form onSubmit={handleCreate} className="space-y-5">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Loại yêu cầu</Label>
+                  <select
+                    value={createForm.requestType}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, requestType: e.target.value }))}
+                    className="w-full h-11 px-3 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Chọn loại...</option>
+                    <option value="Financial">Financial</option>
+                    <option value="Legal">Legal</option>
+                    <option value="Technical">Technical</option>
+                    <option value="Business">Business</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Nội dung yêu cầu</Label>
+                  <textarea
+                    value={createForm.requestMessage}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, requestMessage: e.target.value }))}
+                    placeholder="Mô tả thông tin bạn cần..."
+                    className="w-full min-h-[120px] px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <Button type="button" variant="outline" onClick={() => setShowCreate(false)} className="flex-1 h-11">
+                    Hủy
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={creating}
+                    className="flex-1 h-11 bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                    Gửi yêu cầu
+                  </Button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ── Fulfill Modal ── */}
+      {fulfillTarget !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full">
+            <div className="border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Hoàn thành yêu cầu</h2>
+              <button onClick={() => setFulfillTarget(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Phản hồi</Label>
+                <textarea
+                  value={fulfillForm.responseMessage}
+                  onChange={(e) => setFulfillForm((f) => ({ ...f, responseMessage: e.target.value }))}
+                  placeholder="Nhập phản hồi..."
+                  className="w-full min-h-[120px] px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">ID tài liệu đính kèm (tùy chọn)</Label>
+                <Input
+                  value={fulfillForm.responseDocumentIDs}
+                  onChange={(e) => setFulfillForm((f) => ({ ...f, responseDocumentIDs: e.target.value }))}
+                  placeholder="VD: doc-1, doc-2"
+                  className="h-11 border-slate-300"
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => setFulfillTarget(null)} className="flex-1 h-11">
+                  Hủy
+                </Button>
+                <Button
+                  disabled={fulfilling || !fulfillForm.responseMessage.trim()}
+                  onClick={handleFulfill}
+                  className="flex-1 h-11 bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {fulfilling && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                  Xác nhận
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reject Info Request Modal ── */}
+      {rejectTarget !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full">
+            <div className="border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Từ chối yêu cầu</h2>
+              <button onClick={() => { setRejectTarget(null); setRejectReason(""); }} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Lý do từ chối</Label>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Nhập lý do..."
+                  className="w-full min-h-[100px] px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => { setRejectTarget(null); setRejectReason(""); }} className="flex-1 h-11">
+                  Hủy
+                </Button>
+                <Button
+                  disabled={rejecting || !rejectReason.trim()}
+                  onClick={handleReject}
+                  className="flex-1 h-11 bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {rejecting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                  Xác nhận từ chối
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </InvestorShell>
   );
 }

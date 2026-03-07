@@ -1,228 +1,258 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, CheckCircle, Sparkles, DollarSign } from "lucide-react";
 import { StartupShell } from "@/components/startup/startup-shell";
-import { Badge } from "@/components/ui/badge";
-
-type StatCard = {
-  label: string;
-  value: string | number;
-  sublabel: string;
-  icon: React.ElementType;
-  iconColor: string;
-  trend?: string;
-  trendColor?: string;
-};
-
-type ConsultationItem = {
-  name: string;
-  role: string;
-  date: string;
-  time: string;
-  status: "Confirmed" | "Pending";
-  avatarColor: string;
-  avatarLetter: string;
-};
-
-type AIScore = {
-  label: string;
-  score: number;
-  color: string;
-};
-
-const statCards: StatCard[] = [
-  { 
-    label: "Yêu cầu tư vấn", 
-    value: 12, 
-    sublabel: "Tổng số yêu cầu",
-    icon: Calendar, 
-    iconColor: "bg-blue-50 text-blue-600" 
-  },
-  { 
-    label: "Đã chấp nhận", 
-    value: 8, 
-    sublabel: "+2 tuần này",
-    icon: CheckCircle, 
-    iconColor: "bg-green-50 text-green-600",
-    trend: "+2 tuần này",
-    trendColor: "text-green-600"
-  },
-  { 
-    label: "AI Score", 
-    value: "85/100", 
-    sublabel: "Đánh giá gần nhất",
-    icon: Sparkles, 
-    iconColor: "bg-purple-50 text-purple-600" 
-  },
-  { 
-    label: "Investors quan tâm", 
-    value: 15, 
-    sublabel: "+5 tháng này",
-    icon: DollarSign, 
-    iconColor: "bg-orange-50 text-orange-600",
-    trend: "+5 tháng này",
-    trendColor: "text-orange-600"
-  },
-];
-
-const consultations: ConsultationItem[] = [
-  { 
-    name: "Nguyễn Văn A", 
-    role: "Product Strategy", 
-    date: "2026-02-06", 
-    time: "14:00",
-    status: "Confirmed",
-    avatarColor: "bg-blue-500",
-    avatarLetter: "N"
-  },
-  { 
-    name: "Trần Thị B", 
-    role: "Marketing & Growth", 
-    date: "2026-02-08", 
-    time: "10:00",
-    status: "Confirmed",
-    avatarColor: "bg-purple-500",
-    avatarLetter: "T"
-  },
-  { 
-    name: "Lê Văn C", 
-    role: "Fundraising", 
-    date: "2026-02-10", 
-    time: "16:00",
-    status: "Pending",
-    avatarColor: "bg-green-500",
-    avatarLetter: "L"
-  },
-];
-
-const aiScores: AIScore[] = [
-  { label: "Market Potential", score: 90, color: "bg-pink-500" },
-  { label: "Team Strength", score: 85, color: "bg-purple-500" },
-  { label: "Product Innovation", score: 88, color: "bg-pink-600" },
-  { label: "Business Model", score: 78, color: "bg-purple-600" },
-];
+import Link from "next/link";
 
 export default function StartupDashboardPage() {
   return (
     <StartupShell>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-slate-600 mt-1">Tổng quan hoạt động của startup</p>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          {statCards.map((card) => (
-            <Card key={card.label} className="border-slate-200">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-3">
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${card.iconColor}`}>
-                    <card.icon className="w-6 h-6" />
+      <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="grid grid-cols-12 gap-6">
+          <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl p-6 shadow-sm border border-neutral-surface flex flex-col md:flex-row gap-6">
+            <div className="w-full md:w-48 h-48 rounded-xl bg-[#e6cc4c]/10 overflow-hidden shrink-0">
+              <img
+                alt="Startup brand visual"
+                className="w-full h-full object-cover"
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDPGo-MuNE1TA-f-CzA3CrxNhiTpXx6O33MdUq3W-IaDVQ7ym67WVsYzj_6y6DQg7FbffRXZWJQ18VrNJYBVodrdwsmss985qeqimmBjPdnV8vkYvC_Q0fjlVaghZCf_kvrqxGxP3dHivWdkDz8TKh0loaFMvqcs5oad2AIl1Y8j3vh7qi0ytZkwm8RLLxKFAiP7YQiEOYFqcO6_VLODJkRpYPEu1mAFYT3uLh98c8wUw33fLRLbsIZOwPUkI4ofRFvsVh95t_5Ghc"
+              />
+            </div>
+            <div className="flex-1 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <h1 className="text-2xl font-bold text-[#171611]">AISEP Startup Platform</h1>
+                  <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-[10px] font-black rounded-full border border-yellow-200 uppercase tracking-[0.1em]">CHƯA HOÀN THIỆN</span>
+                </div>
+                <p className="text-neutral-muted text-sm mb-6 leading-relaxed">Hồ sơ của bạn hiện đạt 65%. Hoàn thiện các mục còn thiếu để tăng 3x khả năng tiếp cận nhà đầu tư và nhận đánh giá AI chuyên sâu.</p>
+                <div className="space-y-2 mb-6">
+                  <div className="flex justify-between text-xs font-bold text-[#171611]">
+                    <span>Tiến độ hoàn thiện hồ sơ</span>
+                    <span className="text-[#171611]">65%</span>
+                  </div>
+                  <div className="w-full h-3 bg-[#f4f4f0] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#e6cc4c] rounded-full transition-all duration-1000 ease-out" style={{ width: '65%' }}></div>
                   </div>
                 </div>
-                <div>
-                  <p className="text-sm text-slate-600 mb-1">{card.label}</p>
-                  <p className="text-3xl font-bold text-slate-900 mb-1">{card.value}</p>
-                  {card.trend && (
-                    <p className={`text-sm ${card.trendColor}`}>{card.trend}</p>
-                  )}
-                  {!card.trend && (
-                    <p className="text-sm text-slate-500">{card.sublabel}</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button className="bg-[#e6cc4c] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 group">
+                  <span className="material-symbols-outlined text-lg group-hover:rotate-12 transition-transform">edit_note</span>
+                  Hoàn thiện hồ sơ
+                </button>
+                <button className="bg-[#f4f4f0] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:bg-neutral-200 transition-all flex items-center gap-2">
+                  <span className="material-symbols-outlined text-lg">visibility</span>
+                  Xem hồ sơ công khai
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="col-span-12 lg:col-span-4 bg-white rounded-2xl p-6 shadow-sm border border-neutral-surface">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-lg text-[#171611]">Thao tác nhanh</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { icon: "upload_file", label: "Tài liệu & IP", href: "/startup/documents" },
+                { icon: "psychology", label: "Đánh giá AI", href: "/startup/ai-evaluation" },
+                { icon: "group", label: "Tìm cố vấn", href: "/startup/experts" },
+                { icon: "handshake", label: "Kết nối nhà ĐT", href: "/startup/investors" },
+              ].map((item, idx) => (
+                <Link
+                  key={idx}
+                  href={item.href}
+                  className="flex flex-col items-center justify-center p-3 rounded-xl bg-[#f8f8f6] hover:bg-[#e6cc4c]/20 transition-all group border border-transparent hover:border-[#e6cc4c]/30"
+                >
+                  <span className="material-symbols-outlined text-neutral-muted group-hover:text-[#171611] mb-1 transition-colors">{item.icon}</span>
+                  <span className="text-xs font-bold text-[#171611] text-center leading-tight">{item.label}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {/* Upcoming Consultations */}
-        <Card className="border-slate-200">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold text-slate-900">Cuộc tư vấn sắp diễn ra</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {consultations.map((consultation, index) => (
-              <div key={index} className="flex items-center justify-between py-3 border-b last:border-b-0 border-slate-100">
+        <div className="grid grid-cols-12 gap-6">
+          <div className="col-span-12 md:col-span-5 lg:col-span-5 bg-[#e6cc4c]/10 p-6 rounded-2xl shadow-sm border-2 border-[#e6cc4c]/30 flex items-center justify-between group hover:bg-[#e6cc4c]/20 transition-all">
+            <div>
+              <p className="text-neutral-muted text-sm font-bold mb-1 uppercase tracking-widest">AI Score</p>
+              <div className="flex items-baseline gap-3">
+                <span className="text-4xl font-bold text-[#171611]">84</span>
+              </div>
+            </div>
+            <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+              <span className="material-symbols-outlined text-[#e6cc4c] text-3xl">auto_awesome</span>
+            </div>
+          </div>
+          <Link href="/startup/documents" className="col-span-12 md:col-span-4 lg:col-span-4 bg-[#e6cc4c]/10 p-6 rounded-2xl shadow-sm border-2 border-[#e6cc4c]/30 flex items-center justify-between group hover:bg-[#e6cc4c]/20 transition-all">
+            <div>
+              <p className="text-neutral-muted text-sm font-bold mb-1 uppercase tracking-widest">Documents</p>
+              <div className="flex items-baseline gap-3">
+                <span className="text-4xl font-bold text-[#171611]">12</span>
+                <span className="text-neutral-muted text-sm font-bold lowercase">Files</span>
+              </div>
+            </div>
+            <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+              <span className="material-symbols-outlined text-[#e6cc4c] text-3xl">folder_open</span>
+            </div>
+          </Link>
+          <div className="col-span-12 md:col-span-3 lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-neutral-surface flex items-center justify-between group hover:bg-[#f8f8f6] transition-colors">
+            <div>
+              <p className="text-neutral-muted text-sm font-bold mb-1 uppercase tracking-widest">Kết nối</p>
+              <div className="flex items-baseline gap-3">
+                <span className="text-4xl font-bold text-[#171611]">03</span>
+                <span className="text-neutral-muted text-sm font-bold lowercase tracking-tight">Hoạt động</span>
+              </div>
+            </div>
+            <div className="w-14 h-14 rounded-full bg-[#f4f4f0] flex items-center justify-center group-hover:bg-white transition-colors">
+              <span className="material-symbols-outlined text-neutral-muted text-3xl">handshake</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-12 gap-6">
+          <div className="col-span-12 bg-white rounded-2xl shadow-sm border border-neutral-surface overflow-hidden">
+            <div className="p-6 border-b border-neutral-surface flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <h3 className="font-bold text-lg text-[#171611]">Cần xử lý</h3>
+              <div className="flex gap-1 bg-[#f4f4f0] p-1 rounded-xl">
+                <button className="px-4 py-1.5 text-xs font-bold bg-white rounded-lg shadow-sm text-[#171611]">Consulting</button>
+                <button className="px-4 py-1.5 text-xs font-bold text-neutral-muted hover:text-[#171611] transition-colors">Documents</button>
+                <button className="px-4 py-1.5 text-xs font-bold text-neutral-muted hover:text-[#171611] transition-colors">Verification</button>
+              </div>
+            </div>
+            <div className="divide-y divide-neutral-surface">
+              <div className="p-4 flex items-center justify-between hover:bg-[#f8f8f6] transition-colors group">
                 <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-full ${consultation.avatarColor} text-white flex items-center justify-center text-lg font-semibold`}>
-                    {consultation.avatarLetter}
+                  <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center">
+                    <span className="material-symbols-outlined">forum</span>
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-900">{consultation.name}</p>
-                    <p className="text-sm text-slate-500">{consultation.role}</p>
+                    <p className="text-sm font-bold text-[#171611]">Lịch tư vấn với Mentor Nguyễn Văn A</p>
+                    <p className="text-xs text-neutral-muted font-medium italic">Ngày mai, 14:00 • Topic: Pitching Deck</p>
                   </div>
                 </div>
+                <button className="bg-[#e6cc4c] px-4 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Tham gia</button>
+              </div>
+              <div className="p-4 flex items-center justify-between hover:bg-[#f8f8f6] transition-colors group">
                 <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className="text-sm text-slate-900">{consultation.date} • {consultation.time}</p>
+                  <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <span className="material-symbols-outlined">description</span>
                   </div>
-                  <Badge 
-                    variant={consultation.status === "Confirmed" ? "default" : "secondary"}
-                    className={consultation.status === "Confirmed" 
-                      ? "bg-green-100 text-green-700 hover:bg-green-100" 
-                      : "bg-yellow-100 text-yellow-700 hover:bg-yellow-100"
-                    }
-                  >
-                    {consultation.status}
-                  </Badge>
+                  <div>
+                    <p className="text-sm font-bold text-[#171611]">Cập nhật Giấy phép Kinh doanh (Bản mới)</p>
+                    <p className="text-xs text-neutral-muted font-medium italic">Yêu cầu bởi Ban thẩm định</p>
+                  </div>
                 </div>
+                <button className="bg-[#e6cc4c] px-4 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Tải lên</button>
               </div>
-            ))}
-          </CardContent>
-        </Card>
+            </div>
+          </div>
+        </div>
 
-        {/* AI Evaluation Results */}
-        <Card className="border-slate-200 bg-gradient-to-br from-purple-50 to-pink-50">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-600" />
-              <CardTitle className="text-lg font-semibold text-slate-900">Kết quả đánh giá AI gần nhất</CardTitle>
+        <div className="grid grid-cols-12 gap-6">
+          <div className="col-span-12 lg:col-span-4 bg-white rounded-2xl shadow-sm border border-neutral-surface p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <span className="material-symbols-outlined text-[#e6cc4c]">auto_awesome</span>
+              <h3 className="font-bold text-lg text-[#171611]">AI Evaluation Summary</h3>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Left Side - Score and Description */}
-              <div className="flex flex-col">
-                <div className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600 mb-4">
-                  85/100
-                </div>
-                <p className="text-slate-700 leading-relaxed mb-4">
-                  Your startup shows strong potential in AI/ML market with solid technical foundation and clear product-market fit. Team expertise is impressive.
+            <div className="space-y-4">
+              <div className="bg-green-50 p-4 rounded-xl border border-green-100">
+                <p className="text-xs font-bold text-green-800 mb-2 flex items-center gap-1 uppercase tracking-tight">
+                  <span className="material-symbols-outlined text-sm">trending_up</span> Thế mạnh (Strengths)
                 </p>
-                <div className="flex items-center gap-4 text-sm text-slate-600">
-                  <div className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    <span>2026-02-04</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span>⏰</span>
-                    <span>10:30 AM</span>
-                  </div>
-                </div>
+                <ul className="text-xs text-green-700 space-y-1.5 list-disc ml-4 font-medium">
+                  <li>Mô hình kinh doanh có tính khả thi cao trên thị trường Việt Nam.</li>
+                  <li>Đội ngũ Founder có kinh nghiệm thực chiến trong lĩnh vực SaaS.</li>
+                </ul>
               </div>
-              
-              {/* Right Side - Metrics */}
-              <div className="space-y-4">
-                {aiScores.map((score) => (
-                  <div key={score.label}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-slate-700">{score.label}</span>
-                      <span className="text-sm font-bold text-slate-900">{score.score}/100</span>
-                    </div>
-                    <div className="w-full bg-white/50 rounded-full h-2.5">
-                      <div 
-                        className={`h-2.5 rounded-full ${score.color}`} 
-                        style={{ width: `${score.score}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                ))}
+              <div className="bg-red-50 p-4 rounded-xl border border-red-100">
+                <p className="text-xs font-bold text-red-800 mb-2 flex items-center gap-1 uppercase tracking-tight">
+                  <span className="material-symbols-outlined text-sm">warning</span> Rủi ro (Risks)
+                </p>
+                <ul className="text-xs text-red-700 space-y-1.5 list-disc ml-4 font-medium">
+                  <li>Chi phí marketing đang tăng nhanh.</li>
+                </ul>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl shadow-sm border border-neutral-surface overflow-hidden">
+            <div className="p-6 border-b border-neutral-surface flex items-center justify-between">
+              <h3 className="font-bold text-lg text-[#171611]">Tài liệu gần đây</h3>
+              <Link href="/startup/documents" className="text-[#e6cc4c] font-bold text-sm hover:underline tracking-tight">Quản lý kho</Link>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-[#f8f8f6]">
+                  <tr className="text-[10px] uppercase text-neutral-muted font-bold tracking-widest">
+                    <th className="px-6 py-3 tracking-[0.1em]">TÊN TÀI LIỆU</th>
+                    <th className="px-6 py-3 tracking-[0.1em]">LOẠI</th>
+                    <th className="px-6 py-3 tracking-[0.1em]">NGÀY TẢI</th>
+                    <th className="px-6 py-3 text-right pr-10">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-surface">
+                  {[
+                    { name: "Pitch_Deck_v2.pdf", type: "Tài liệu gọi vốn", date: "12/05/2024", icon: "picture_as_pdf", iconColor: "text-red-500" },
+                    { name: "Cap_Table_Seed.xlsx", type: "Tài chính", date: "10/05/2024", icon: "description", iconColor: "text-blue-500" },
+                  ].map((doc, idx) => (
+                    <tr key={idx} className="hover:bg-[#f8f8f6]/50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <span className={`material-symbols-outlined ${doc.iconColor}`}>{doc.icon}</span>
+                          <span className="text-sm font-bold text-[#171611]">{doc.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-xs font-bold text-neutral-muted uppercase tracking-tight">{doc.type}</td>
+                      <td className="px-6 py-4 text-xs font-bold text-neutral-muted tracking-tight">{doc.date}</td>
+                      <td className="px-6 py-4 text-right pr-6">
+                        <button className="material-symbols-outlined text-neutral-muted hover:text-[#171611] transition-colors p-1 rounded-lg hover:bg-[#f4f4f0]">more_vert</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-12 gap-6 pb-12">
+          <div className="col-span-12 bg-white rounded-2xl shadow-sm border border-neutral-surface p-6">
+            <h3 className="font-bold text-lg text-[#171611] mb-6 tracking-tight">Consulting & Advisors sessions</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                {
+                  name: "Dr. Anh Tuan",
+                  role: "Expert in FinTech & Blockchain",
+                  date: "14 May, 2024",
+                  status: "Đã hoàn thành",
+                  statusColor: "text-green-600",
+                  img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDSyd89CCj_zHc_LuQhWMmfq2Fe9NIXo7kap3iqhwQmj6hnZ6O9G9_TEa34oVVb9u8J5WLiZKx69vTFAGzAy-bhFnogecGAGCURhKAi82skiJ-lqbRY4oyNOkcPGFCpuJzHA_CY1eapDWvsmjvttoJFOY2UyF6XDh5BVzml3HhIGL0xmQAsEIg5td4Imhf83cA9Ksa2iMq1iLFJOYjkRWnuond7_4mFqlM6HrmkPr8BPArVgb-lQuIG9HHfZKUjbN28uwltwj3MkxM"
+                },
+                {
+                  name: "Ms. Linh Chi",
+                  role: "Marketing Strategy Specialist",
+                  date: "18 May, 2024",
+                  status: "Sắp diễn ra",
+                  statusColor: "text-[#e6cc4c]",
+                  img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDKY4d1Y63lERm80mlyRmr3m2Np_8yG6dWJUtCxN7kvLrLu89DM4CSm8QpBtvvwm3konSP-3BflEBvD1vqDcqq91_XkNfgpXBi-GPYd-hBFOCZXxz2lwC-9Czkenukr5SyakSEBVtFO25lNewwy9nxMzGyi50hodZ59AUpBSMAX5bRNom8hV9w2Ni1St46YJ1PH-4LxUjHCc1vVLoVNzGnhOEiEB8wmQvzY7Ci7l7jd4qiiMK_8yyL4A1qfApGUmiShlRKOIamZjWU"
+                }
+              ].map((advisor, idx) => (
+                <div key={idx} className="flex items-center justify-between p-4 bg-[#f8f8f6] rounded-xl hover:shadow-md transition-shadow group cursor-pointer border border-transparent hover:border-[#e6cc4c]/20">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-[#e6cc4c]/20 flex items-center justify-center overflow-hidden border-2 border-white shadow-sm group-hover:scale-105 transition-transform">
+                      <img alt={advisor.name} className="w-full h-full object-cover" src={advisor.img} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-[#171611]">{advisor.name}</p>
+                      <p className="text-xs text-neutral-muted font-medium italic">{advisor.role}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-bold text-[#171611]">{advisor.date}</p>
+                    <p className={`text-[10px] font-black uppercase tracking-wider ${advisor.statusColor}`}>{advisor.status}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     </StartupShell>
   );

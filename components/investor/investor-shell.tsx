@@ -7,7 +7,7 @@ import {
   TrendingUp,
   Building2,
   Star,
-  DollarSign,
+  Link2,
   LineChart,
   Lightbulb,
   Sparkles,
@@ -27,7 +27,7 @@ const navItems: NavItem[] = [
   { label: "Tổng quan", icon: TrendingUp, href: "/investor" },
   { label: "Startup", icon: Building2, href: "/investor/startups" },
   { label: "Watchlist", icon: Star, href: "/investor/watchlist" },
-  { label: "Investment/Offers", icon: DollarSign, href: "/investor/offers" },
+  { label: "Connections", icon: Link2, href: "/investor/offers" },
   { label: "AI Investment Trends", icon: LineChart, href: "/investor/analytics" },
   { label: "AI Recommendation", icon: Lightbulb, href: "/investor/recommendations" },
 ];
@@ -94,6 +94,7 @@ export function InvestorShell({ children }: InvestorShellProps) {
 
       <div className="flex-1 ml-64 flex flex-col">
         <InvestorHeader />
+        <div className="h-[73px]" />
         <main className="flex-1 p-8 bg-slate-50">{children}</main>
       </div>
     </div>

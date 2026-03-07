@@ -79,6 +79,7 @@ export function AdvisorShell({ children }: AdvisorShellProps) {
         onPasswordChangeClick={handlePasswordChangeClick}
         onLogout={handleLogout}
       />
+      <div className="h-[73px]" />
       <div className="flex">
         <aside className="w-64 bg-white border-r min-h-[calc(100vh-68px)] flex flex-col">
           <nav className="p-3 space-y-1">

@@ -1,11 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Star, Mail } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import {
+  Rocket,
+  MailCheck,
+  ShieldCheck,
+  HelpCircle,
+  Pencil,
+  ArrowLeft,
+  ArrowRight,
+  Loader2,
+  CheckCircle2,
+} from "lucide-react";
 import { ResendVerificationEmail, VerifyEmail } from "@/services/auth/auth.api";
 import { useAuth } from "@/context/context";
 
@@ -15,7 +23,6 @@ export default function VerifyEmailClient() {
   const { setUser, setAccessToken, setIsAuthen } = useAuth();
 
   const email = searchParams.get("email") || "";
-  const purpose = searchParams.get("purpose") || "forgot-password";
 
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [cooldown, setCooldown] = useState(60);
@@ -23,34 +30,27 @@ export default function VerifyEmailClient() {
   const [isResending, setIsResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [verifiedUserType, setVerifiedUserType] = useState("");
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const redirectByUserType = (userType: string) => {
-    switch (userType) {
-      case "Startup":
-        router.push("/startup");
-        break;
-      case "Investor":
-        router.push("/investor");
-        break;
-      case "Advisor":
-        router.push("/advisor");
-        break;
-      default:
-        router.push("/");
+  const getWorkspacePath = (userType: string | undefined) => {
+    switch ((userType ?? "").toLowerCase()) {
+      case "startup": return "/startup";
+      case "investor": return "/investor";
+      case "advisor":
+      case "expert": return "/advisor";
+      case "staff": return "/staff";
+      default: return "/";
     }
   };
 
   const handleChange = (index: number, value: string) => {
     if (value && !/^\d$/.test(value)) return;
-
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
-
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
+    if (value && index < 5) inputRefs.current[index + 1]?.focus();
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -64,12 +64,9 @@ export default function VerifyEmailClient() {
     const pastedData = e.clipboardData.getData("text").slice(0, 6);
     if (/^\d+$/.test(pastedData)) {
       const newOtp = [...otp];
-      for (let i = 0; i < 6; i++) {
-        newOtp[i] = pastedData[i] || "";
-      }
+      for (let i = 0; i < 6; i++) newOtp[i] = pastedData[i] || "";
       setOtp(newOtp);
-      const lastIndex = Math.min(pastedData.length - 1, 5);
-      inputRefs.current[lastIndex]?.focus();
+      inputRefs.current[Math.min(pastedData.length - 1, 5)]?.focus();
     }
   };
 
@@ -77,39 +74,39 @@ export default function VerifyEmailClient() {
     e.preventDefault();
     setError(null);
     setSuccessMessage(null);
-
     const otpCode = otp.join("");
     if (otpCode.length !== 6) return;
 
     setIsVerifying(true);
     try {
       const res = await VerifyEmail(email, otpCode);
-
       if (res.success && res.data) {
-        const { info, accessToken } = res.data;
+        // Safe destructuring to handle both IRegisterInfo and ILoginInfo-like structures
+        const data = res.data as any;
+        const info = data.info || data;
 
-        if (purpose === "register") {
-          setUser(info);
-          setAccessToken(accessToken);
-          setIsAuthen(true);
+        const finalUserID = info.userID || info.userId;
+        const finalEmail = info.email;
+        const finalUserType = info.userType;
+        const finalRoles = info.roles;
+        const finalAccessToken = data.accessToken;
 
-          if (typeof window !== "undefined") {
-            localStorage.setItem("accessToken", accessToken);
-          }
-
-          redirectByUserType(info.userType);
-        } else {
-          router.push(`/auth/reset-password?email=${encodeURIComponent(email)}`);
-        }
+        setUser({
+          userID: finalUserID,
+          email: finalEmail,
+          userType: finalUserType,
+          roles: finalRoles
+        });
+        setAccessToken(finalAccessToken);
+        setIsAuthen(true);
+        if (typeof window !== "undefined") localStorage.setItem("accessToken", finalAccessToken);
+        setVerifiedUserType(finalUserType || "");
+        setIsSuccess(true);
       } else {
         setError(res.message || "Xác thực OTP không thành công");
       }
     } catch (e: any) {
-      const message =
-        e?.response?.data?.message ||
-        e?.message ||
-        "Có lỗi xảy ra. Vui lòng thử lại.";
-      setError(message);
+      setError(e?.response?.data?.message || e?.message || "Có lỗi xảy ra. Vui lòng thử lại.");
     } finally {
       setIsVerifying(false);
     }
@@ -117,11 +114,9 @@ export default function VerifyEmailClient() {
 
   const handleResend = async () => {
     if (cooldown > 0 || isResending || !email) return;
-
     setError(null);
     setSuccessMessage(null);
     setIsResending(true);
-
     try {
       const res = await ResendVerificationEmail(email);
       if (res.success) {
@@ -133,67 +128,155 @@ export default function VerifyEmailClient() {
         setError(res.message || "Không thể gửi lại mã xác nhận");
       }
     } catch (e: any) {
-      const message =
-        e?.response?.data?.message ||
-        e?.message ||
-        "Có lỗi xảy ra. Vui lòng thử lại.";
-      setError(message);
+      setError(e?.response?.data?.message || e?.message || "Có lỗi xảy ra. Vui lòng thử lại.");
     } finally {
       setIsResending(false);
     }
   };
 
   useEffect(() => {
-    inputRefs.current[0]?.focus();
-  }, []);
+    if (!isSuccess) inputRefs.current[0]?.focus();
+  }, [isSuccess]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
-
-    const timer = setInterval(() => {
-      setCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-
+    const timer = setInterval(() => setCooldown((p) => (p > 0 ? p - 1 : 0)), 1000);
     return () => clearInterval(timer);
   }, [cooldown]);
 
+  /* ==========================================================
+   *  SCREEN 2 — Xác thực thành công
+   * ========================================================== */
+  if (isSuccess) {
+    return (
+      <div className="min-h-screen bg-[#f8f8f6] flex flex-col" style={{ fontFamily: "var(--font-be-vietnam-pro), sans-serif" }}>
+        {/* Centered logo */}
+        <div className="flex justify-center pt-10 pb-4">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FACC15] text-slate-900">
+              <Rocket className="h-6 w-6" />
+            </div>
+            <span className="text-xl font-extrabold tracking-tight text-slate-900 font-manrope">AISEP</span>
+          </Link>
+        </div>
+
+        {/* Main */}
+        <main className="flex-1 flex items-center justify-center px-4 pb-12">
+          <div className="max-w-[520px] w-full">
+            <div className="bg-white rounded-3xl shadow-xl border border-slate-100 px-8 py-12 md:px-12 md:py-14 text-center">
+              {/* Success icon */}
+              <div className="flex justify-center mb-8">
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-full bg-[#f0f042]/20 flex items-center justify-center">
+                    <div className="w-16 h-16 rounded-full bg-[#f0f042] flex items-center justify-center shadow-lg shadow-[#f0f042]/30">
+                      <ShieldCheck className="w-8 h-8 text-slate-900" />
+                    </div>
+                  </div>
+                  <div className="absolute -top-2 -left-3 w-6 h-6 rounded-full bg-[#f0f042]/15" />
+                  <div className="absolute -bottom-1 -right-4 w-5 h-5 rounded-full bg-[#f0f042]/10" />
+                </div>
+              </div>
+
+              <h2 className="text-3xl font-black text-slate-900 mb-4">Xác thực thành công!</h2>
+              <p className="text-slate-500 leading-relaxed mb-10 max-w-sm mx-auto">
+                Tài khoản của bạn đã sẵn sàng. Chào mừng bạn gia nhập hệ sinh thái khởi nghiệp{" "}
+                <span className="font-bold text-slate-900">AISEP</span>.
+              </p>
+
+              <Link
+                href={getWorkspacePath(verifiedUserType)}
+                className="w-full bg-[#f0f042] hover:bg-[#e6e632] text-slate-900 font-bold py-4 rounded-xl shadow-lg shadow-[#f0f042]/20 transition-all flex items-center justify-center gap-2"
+              >
+                <span>Vào Workspace của tôi</span>
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+
+              <Link href="/" className="inline-block mt-5 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors">
+                Quay về Trang chủ
+              </Link>
+            </div>
+          </div>
+        </main>
+
+        {/* Minimal footer */}
+        <footer className="py-8 px-4">
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex items-center gap-6 text-sm font-medium text-slate-400">
+              <button className="hover:text-slate-600 transition-colors">Điều khoản</button>
+              <button className="hover:text-slate-600 transition-colors">Bảo mật</button>
+              <button className="hover:text-slate-600 transition-colors">Liên hệ</button>
+            </div>
+            <p className="text-xs text-slate-400">© 2024 AISEP, Nền tảng hệ sinh thái khởi nghiệp AI.</p>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+              <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+              <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+            </div>
+          </div>
+        </footer>
+      </div>
+    );
+  }
+
+  /* ==========================================================
+   *  SCREEN 1 — Nhập mã OTP
+   * ========================================================== */
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center px-6 py-12">
-      <Card className="w-full max-w-lg shadow-lg bg-white">
-        <CardHeader className="space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Star className="w-6 h-6 text-white" />
+    <div className="min-h-screen bg-[#f8f8f6] flex flex-col" style={{ fontFamily: "var(--font-be-vietnam-pro), sans-serif" }}>
+      {/* ===== HEADER (giống landing page) ===== */}
+      <header className="fixed top-0 z-50 w-full border-b border-slate-200/60 bg-white">
+        <div className="mx-auto flex max-w-[1280px] items-center justify-between px-6 py-4 lg:px-10">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FACC15] text-slate-900">
+              <Rocket className="h-6 w-6" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">StartupHub</h1>
-              <p className="text-sm text-gray-600">Powered by AI</p>
+            <h2 className="text-xl font-extrabold tracking-tight text-slate-900 font-manrope">AISEP</h2>
+          </Link>
+
+          <div className="flex items-center gap-6">
+            <Link href="/about" className="hidden sm:block text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
+              Về chúng tôi
+            </Link>
+            <Link href="/faq" className="hidden sm:block text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
+              Cộng đồng
+            </Link>
+            <button className="flex items-center justify-center w-9 h-9 rounded-full bg-[#FACC15] text-slate-900 hover:opacity-90 transition-all">
+              <HelpCircle className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="h-[73px]" />
+
+      {/* ===== MAIN ===== */}
+      <main className="flex-1 flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-[520px] flex flex-col items-center">
+          {/* Card */}
+          <div className="w-full bg-white rounded-3xl shadow-xl border border-slate-100 px-8 py-10 md:px-12 md:py-12">
+            {/* Mail Icon */}
+            <div className="flex justify-center mb-6">
+              <div className="w-16 h-16 rounded-full bg-[#f0f042]/20 flex items-center justify-center">
+                <MailCheck className="w-8 h-8 text-slate-800" />
+              </div>
             </div>
-          </div>
 
-          <div className="flex justify-center pt-4">
-            <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center">
-              <Mail className="w-8 h-8 text-purple-600" />
+            {/* Heading */}
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-black text-slate-900 mb-3">Xác thực Email của bạn</h2>
+              <p className="text-slate-500 text-sm leading-relaxed">
+                Vui lòng nhập mã OTP 6 chữ số đã được gửi đến email:
+              </p>
+              <p className="text-slate-900 font-bold text-sm mt-1">{email || "(chưa có email)"}</p>
             </div>
-          </div>
 
-          <div className="text-center space-y-2 pt-2">
-            <h2 className="text-2xl font-bold text-gray-900">Kiểm tra email</h2>
-            <p className="text-base text-gray-700">Chúng tôi đã gửi mã xác nhận 6 số đến</p>
-            <p className="text-base font-bold text-gray-900">{email || "(chưa có email)"}</p>
-          </div>
-        </CardHeader>
-
-        <CardContent className="space-y-6">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <div className="flex gap-2 justify-center">
+            {/* OTP Input */}
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="flex gap-3 justify-center">
                 {otp.map((digit, index) => (
-                  <Input
+                  <input
                     key={index}
-                    ref={(el) => {
-                      inputRefs.current[index] = el;
-                    }}
+                    ref={(el) => { inputRefs.current[index] = el; }}
                     type="text"
                     inputMode="numeric"
                     maxLength={1}
@@ -201,47 +284,90 @@ export default function VerifyEmailClient() {
                     onChange={(e) => handleChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
                     onPaste={handlePaste}
-                    className="w-12 h-12 text-center text-lg font-semibold border-gray-300 focus-visible:ring-purple-500 focus-visible:border-purple-500"
+                    className="w-12 h-14 text-center text-xl font-bold border-2 border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#f0f042] focus:border-[#f0f042] transition-all"
                   />
                 ))}
               </div>
+
+              {error && <p className="text-sm text-red-600 text-center font-medium">{error}</p>}
+              {successMessage && <p className="text-sm text-green-600 text-center font-medium">{successMessage}</p>}
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={otp.join("").length !== 6 || isVerifying || !email}
+                className="w-full bg-[#f0f042] hover:bg-[#e6e632] text-slate-900 font-bold py-4 rounded-xl shadow-lg shadow-[#f0f042]/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isVerifying ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Đang xác thực...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Xác nhận</span>
+                    <CheckCircle2 className="w-5 h-5" />
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Resend */}
+            <div className="text-center mt-6">
+              <p className="text-sm text-slate-500">
+                Không nhận được mã?{" "}
+                {cooldown > 0 ? (
+                  <span className="font-semibold text-slate-400">Gửi lại sau ({cooldown}s)</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    className="font-bold text-slate-900 hover:underline disabled:text-slate-400 disabled:cursor-not-allowed"
+                    disabled={isResending || !email}
+                  >
+                    {isResending ? "Đang gửi lại..." : "Gửi lại"}
+                  </button>
+                )}
+              </p>
             </div>
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            {successMessage && <p className="text-sm text-green-600">{successMessage}</p>}
-
-            <Button
-              type="submit"
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white"
-              size="lg"
-              disabled={otp.join("").length !== 6 || isVerifying || !email}
-            >
-              {isVerifying ? "Đang xác thực..." : "Xác nhận"}
-            </Button>
-          </form>
-
-          <div className="text-center text-sm text-gray-600 space-y-1">
-            <p>
-              Không nhận được mã?{" "}
-              <button
-                type="button"
-                onClick={handleResend}
-                className={`font-medium ${cooldown > 0 || isResending ? "text-gray-400 cursor-not-allowed" : "text-blue-600 hover:text-blue-700 hover:underline"}`}
-                disabled={cooldown > 0 || isResending || !email}
+            {/* Change email */}
+            <div className="text-center mt-4">
+              <Link
+                href="/auth/register"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 hover:text-slate-900 underline underline-offset-2 transition-colors"
               >
-                {isResending ? "Đang gửi lại..." : "Gửi lại"}
-              </button>
-            </p>
-            {cooldown > 0 && <p className="text-xs text-gray-500">Bạn có thể gửi lại sau {cooldown}s</p>}
+                <Pencil className="w-3.5 h-3.5" />
+                Thay đổi địa chỉ email
+              </Link>
+            </div>
           </div>
-        </CardContent>
-      </Card>
 
-      <div className="flex gap-2 mt-8">
-        <div className="w-2 h-2 rounded-full bg-gray-300"></div>
-        <div className="w-2 h-2 rounded-full bg-gray-300"></div>
-        <div className="w-2 h-2 rounded-full bg-blue-600"></div>
-      </div>
+          {/* Back link */}
+          <Link
+            href="/auth/register"
+            className="mt-8 inline-flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Quay lại trang đăng ký
+          </Link>
+        </div>
+      </main>
+
+      {/* ===== FOOTER ===== */}
+      <footer className="w-full py-8 border-t border-slate-200 bg-white">
+        <div className="max-w-[1440px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-slate-400 text-xs">© 2024 AISEP Platform. All rights reserved.</p>
+          <div className="flex items-center gap-6">
+            <button className="text-slate-400 hover:text-[#f0f042] transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
+            </button>
+            <button className="text-slate-400 hover:text-[#f0f042] transition-colors">
+              <HelpCircle className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

@@ -258,16 +258,14 @@ export default function AdvisorRequestsPage() {
                     <Label className="text-sm font-medium text-slate-600">File dự án</Label>
                     <div className="flex items-center gap-2 mt-2">
                       <FileText className="w-4 h-4 text-slate-600" />
-                      <a
-                        href="#"
+                      <button
                         className="text-sm text-blue-600 hover:underline"
-                        onClick={(e) => {
-                          e.preventDefault();
+                        onClick={() => {
                           // TODO: Handle file download
                         }}
                       >
                         {selectedRequest.projectFile}
-                      </a>
+                      </button>
                     </div>
                   </div>
                 )}
