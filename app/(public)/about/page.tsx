@@ -21,6 +21,7 @@ import {
   BarChart,
 } from "lucide-react";
 import { useState } from "react";
+import { AnimatedNumber } from "@/lib/useCountUp";
 
 export default function AboutPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -189,15 +190,15 @@ export default function AboutPage() {
         <div className="mx-auto max-w-7xl px-6">
           <div className="grid grid-cols-3 gap-8 text-center">
             <div>
-              <p className="text-4xl font-black text-[#FACC15] mb-2">2026</p>
+              <p className="text-4xl font-black text-[#FACC15] mb-2"><AnimatedNumber value={2026} duration={1400} delay={0} /></p>
               <p className="text-sm font-medium text-slate-600">Năm thành lập</p>
             </div>
             <div>
-              <p className="text-4xl font-black text-[#FACC15] mb-2">5</p>
+              <p className="text-4xl font-black text-[#FACC15] mb-2"><AnimatedNumber value={5} duration={800} delay={200} /></p>
               <p className="text-sm font-medium text-slate-600">Thành viên đội ngũ</p>
             </div>
             <div>
-              <p className="text-4xl font-black text-[#FACC15] mb-2">100%</p>
+              <p className="text-4xl font-black text-[#FACC15] mb-2"><AnimatedNumber value={100} duration={1000} delay={400} />%</p>
               <p className="text-sm font-medium text-slate-600">Tâm huyết</p>
             </div>
           </div>

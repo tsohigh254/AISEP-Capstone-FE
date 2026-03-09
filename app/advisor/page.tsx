@@ -17,6 +17,7 @@ import {
   ArrowDown
 } from "lucide-react";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
+import { useCountUp } from "@/lib/useCountUp";
 
 type ConsultationRequest = {
   id: string;
@@ -131,6 +132,18 @@ function getCurrentDate() {
 
 export default function AdvisorDashboardPage() {
   const [selectedWeek, setSelectedWeek] = useState("Jan 22-28");
+  
+  // Top metrics - staggered top-to-bottom
+  const earnings = useCountUp(12450, 1400, 0);
+  const clients = useCountUp(23, 800, 150);
+  const sessions = useCountUp(156, 1200, 300);
+  const pending = useCountUp(7, 600, 450);
+  
+  // Weekly summary - staggered
+  const weeklySessions = useCountUp(12, 800, 0);
+  const weeklyHours = useCountUp(18, 800, 150);
+  const weeklyRating = useCountUp(49, 800, 300); // 4.9 * 10
+  const weeklyEarned = useCountUp(3200, 1000, 450);
 
   return (
     <AdvisorShell>
@@ -154,7 +167,7 @@ export default function AdvisorDashboardPage() {
                   <DollarSign className="w-5 h-5 text-slate-400" />
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <p className="text-3xl font-bold text-slate-900">$12,450</p>
+                  <p ref={earnings.ref} className="text-3xl font-bold text-slate-900">${earnings.count.toLocaleString()}</p>
                   <div className="flex items-center gap-1 text-sm text-green-600">
                     <ArrowUp className="w-4 h-4" />
                     <span>+18%</span>
@@ -177,7 +190,7 @@ export default function AdvisorDashboardPage() {
                   <Users className="w-5 h-5 text-slate-400" />
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <p className="text-3xl font-bold text-slate-900">23</p>
+                  <p ref={clients.ref} className="text-3xl font-bold text-slate-900">{clients.count}</p>
                   <p className="text-sm text-green-600">+3 new this week</p>
                 </div>
                 <button className="text-sm text-blue-600 hover:underline">
@@ -196,7 +209,7 @@ export default function AdvisorDashboardPage() {
                   <CheckCircle2 className="w-5 h-5 text-slate-400" />
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <p className="text-3xl font-bold text-slate-900">156</p>
+                  <p ref={sessions.ref} className="text-3xl font-bold text-slate-900">{sessions.count}</p>
                   <div className="flex items-center gap-1 text-sm text-yellow-600">
                     <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                     <span>94% satisfaction</span>
@@ -218,7 +231,7 @@ export default function AdvisorDashboardPage() {
                   <Clock className="w-5 h-5 text-slate-400" />
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <p className="text-3xl font-bold text-slate-900">7</p>
+                  <p ref={pending.ref} className="text-3xl font-bold text-slate-900">{pending.count}</p>
                   <p className="text-sm text-red-600">3 urgent</p>
                 </div>
                 <Button size="sm" className="w-full mt-2">
@@ -323,14 +336,14 @@ export default function AdvisorDashboardPage() {
                   <div>
                     <p className="text-sm text-slate-600 mb-1">Sessions Completed</p>
                     <div className="flex items-baseline gap-2">
-                      <p className="text-2xl font-bold text-slate-900">12</p>
+                      <p ref={weeklySessions.ref} className="text-2xl font-bold text-slate-900">{weeklySessions.count}</p>
                       <span className="text-sm text-green-600">+3</span>
                     </div>
                   </div>
                   <div>
                     <p className="text-sm text-slate-600 mb-1">Hours Worked</p>
                     <div className="flex items-baseline gap-2">
-                      <p className="text-2xl font-bold text-slate-900">18</p>
+                      <p ref={weeklyHours.ref} className="text-2xl font-bold text-slate-900">{weeklyHours.count}</p>
                       <span className="text-sm text-slate-500">3.8 avg</span>
                     </div>
                   </div>
@@ -339,7 +352,7 @@ export default function AdvisorDashboardPage() {
                     <div className="flex items-baseline gap-2">
                       <div className="flex items-center gap-1">
                         <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                        <p className="text-2xl font-bold text-slate-900">4.9</p>
+                        <p ref={weeklyRating.ref} className="text-2xl font-bold text-slate-900">{(weeklyRating.count / 10).toFixed(1)}</p>
                       </div>
                       <span className="text-sm text-slate-500">8 reviews</span>
                     </div>
@@ -347,7 +360,7 @@ export default function AdvisorDashboardPage() {
                   <div>
                     <p className="text-sm text-slate-600 mb-1">Earned</p>
                     <div className="flex items-baseline gap-2">
-                      <p className="text-2xl font-bold text-slate-900">$3,200</p>
+                      <p ref={weeklyEarned.ref} className="text-2xl font-bold text-slate-900">${weeklyEarned.count.toLocaleString()}</p>
                       <span className="text-sm text-green-600">+25%</span>
                     </div>
                   </div>

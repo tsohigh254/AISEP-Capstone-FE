@@ -13,6 +13,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import Link from "next/link";
+import { useCountUp } from "@/lib/useCountUp";
 
 type ActivityItem = {
   id: string;
@@ -54,6 +55,10 @@ const recentActivities: ActivityItem[] = [
 ];
 
 export default function InvestorDashboardPage() {
+  const totalInvest = useCountUp(250000, 1400, 0);
+  const portfolio = useCountUp(8, 800, 150);
+  const roi = useCountUp(185, 1200, 300); // 18.5 * 10
+
   return (
     <InvestorShell>
       <div className="space-y-6">
@@ -95,7 +100,7 @@ export default function InvestorDashboardPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <div className="text-3xl font-bold">$250,000</div>
+                <div ref={totalInvest.ref} className="text-3xl font-bold">${totalInvest.count.toLocaleString()}</div>
                 <div className="text-sm text-green-600 font-medium">
                   +12% so với tháng trước
                 </div>
@@ -113,7 +118,7 @@ export default function InvestorDashboardPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <div className="text-3xl font-bold">8 startups</div>
+                <div className="text-3xl font-bold"><span ref={portfolio.ref}>{portfolio.count}</span> startups</div>
                 <div className="text-sm text-slate-600">
                   Đang theo dõi 12 startup khác
                 </div>
@@ -131,7 +136,7 @@ export default function InvestorDashboardPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <div className="text-3xl font-bold">18.5%</div>
+                <div className="text-3xl font-bold"><span ref={roi.ref}>{(roi.count / 10).toFixed(1)}</span>%</div>
                 <div className="text-sm text-green-600 font-medium">
                   Vượt mục tiêu 15%
                 </div>

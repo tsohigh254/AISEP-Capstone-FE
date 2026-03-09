@@ -46,8 +46,8 @@ export function StartupHeader({
     try {
       const res = await GetNotifications({ pageSize: 10 }) as unknown as IBackendRes<IPaginatedRes<INotificationItem>>;
       if (res.success && res.data) {
-        setNotifications(res.data.items);
-        setUnreadCount(res.data.items.filter((n) => !n.isRead).length);
+        setNotifications(res.data.items ?? []);
+        setUnreadCount((res.data.items ?? []).filter((n) => !n.isRead).length);
       }
     } catch {
       // silent
@@ -190,10 +190,9 @@ export function StartupHeader({
         {/* Right Section: Actions & User Details */}
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
-            <button className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-500 hover:bg-[#e6cc4c]/10 hover:text-[#e6cc4c] transition-all relative">
+            <Link href="/startup/messaging" className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-500 hover:bg-[#e6cc4c]/10 hover:text-[#e6cc4c] transition-all relative">
               <span className="material-symbols-outlined text-[22px]">chat_bubble</span>
-              <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-red-500 rounded-full ring-2 ring-white dark:ring-slate-900"></span>
-            </button>
+            </Link>
 
             <div className="relative" ref={notiRef}>
               <button

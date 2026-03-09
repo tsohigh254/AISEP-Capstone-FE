@@ -10,6 +10,7 @@ import {
   Link2,
   LineChart,
   Lightbulb,
+  MessageSquare,
   Sparkles,
 } from "lucide-react";
 
@@ -28,6 +29,7 @@ const navItems: NavItem[] = [
   { label: "Startup", icon: Building2, href: "/investor/startups" },
   { label: "Watchlist", icon: Star, href: "/investor/watchlist" },
   { label: "Connections", icon: Link2, href: "/investor/offers" },
+  { label: "Tin nhắn", icon: MessageSquare, href: "/investor/messaging" },
   { label: "AI Investment Trends", icon: LineChart, href: "/investor/analytics" },
   { label: "AI Recommendation", icon: Lightbulb, href: "/investor/recommendations" },
 ];

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select } from "@/components/ui/select";
+import { AnimatedNumber } from "@/lib/useCountUp";
 import { 
   Calendar as CalendarIcon, 
   CheckCircle, 
@@ -244,25 +245,25 @@ export default function AdvisorSchedulePage() {
           <Card className="border-slate-200 bg-slate-50">
             <CardContent className="p-4">
               <p className="text-sm text-slate-600 mb-1">THIS WEEK</p>
-              <p className="text-3xl font-bold text-slate-900">{thisWeekCount}</p>
+              <AnimatedNumber value={thisWeekCount} duration={800} delay={0} className="text-3xl font-bold text-slate-900" />
             </CardContent>
           </Card>
           <Card className="border-slate-200 bg-slate-50">
             <CardContent className="p-4">
               <p className="text-sm text-slate-600 mb-1">THIS MONTH</p>
-              <p className="text-3xl font-bold text-slate-900">{thisMonthCount}</p>
+              <AnimatedNumber value={thisMonthCount} duration={800} delay={150} className="text-3xl font-bold text-slate-900" />
             </CardContent>
           </Card>
           <Card className="border-slate-200 bg-slate-50">
             <CardContent className="p-4">
               <p className="text-sm text-slate-600 mb-1">CONFIRMED</p>
-              <p className="text-3xl font-bold text-slate-900">{confirmedCount}</p>
+              <AnimatedNumber value={confirmedCount} duration={800} delay={300} className="text-3xl font-bold text-slate-900" />
             </CardContent>
           </Card>
           <Card className="border-slate-200 bg-slate-50">
             <CardContent className="p-4">
               <p className="text-sm text-slate-600 mb-1">PENDING</p>
-              <p className="text-3xl font-bold text-slate-900">{pendingCount}</p>
+              <AnimatedNumber value={pendingCount} duration={800} delay={450} className="text-3xl font-bold text-slate-900" />
             </CardContent>
           </Card>
         </div>

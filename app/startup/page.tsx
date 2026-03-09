@@ -1,9 +1,23 @@
 "use client";
 
+import { useState } from "react";
 import { StartupShell } from "@/components/startup/startup-shell";
 import Link from "next/link";
+import { useCountUp } from "@/lib/useCountUp";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function StartupDashboardPage() {
+  const [showProfile, setShowProfile] = useState(false);
+  const profileProgress = useCountUp(65, 1200, 0);
+  const aiScore = useCountUp(84, 1200, 150);
+  const docCount = useCountUp(12, 800, 300);
+  const connectCount = useCountUp(3, 600, 450);
+
   return (
     <StartupShell>
       <div className="space-y-6 animate-in fade-in duration-500">
@@ -26,10 +40,10 @@ export default function StartupDashboardPage() {
                 <div className="space-y-2 mb-6">
                   <div className="flex justify-between text-xs font-bold text-[#171611]">
                     <span>Tiến độ hoàn thiện hồ sơ</span>
-                    <span className="text-[#171611]">65%</span>
+                    <span ref={profileProgress.ref} className="text-[#171611]">{profileProgress.count}%</span>
                   </div>
                   <div className="w-full h-3 bg-[#f4f4f0] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#e6cc4c] rounded-full transition-all duration-1000 ease-out" style={{ width: '65%' }}></div>
+                    <div className="h-full bg-[#e6cc4c] rounded-full transition-all duration-1000 ease-out" style={{ width: `${profileProgress.count}%` }}></div>
                   </div>
                 </div>
               </div>
@@ -38,7 +52,10 @@ export default function StartupDashboardPage() {
                   <span className="material-symbols-outlined text-lg group-hover:rotate-12 transition-transform">edit_note</span>
                   Hoàn thiện hồ sơ
                 </button>
-                <button className="bg-[#f4f4f0] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:bg-neutral-200 transition-all flex items-center gap-2">
+                <button
+                  onClick={() => setShowProfile(true)}
+                  className="bg-[#f4f4f0] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:bg-neutral-200 transition-all flex items-center gap-2"
+                >
                   <span className="material-symbols-outlined text-lg">visibility</span>
                   Xem hồ sơ công khai
                 </button>
@@ -74,7 +91,7 @@ export default function StartupDashboardPage() {
             <div>
               <p className="text-neutral-muted text-sm font-bold mb-1 uppercase tracking-widest">AI Score</p>
               <div className="flex items-baseline gap-3">
-                <span className="text-4xl font-bold text-[#171611]">84</span>
+                <span ref={aiScore.ref} className="text-4xl font-bold text-[#171611]">{aiScore.count}</span>
               </div>
             </div>
             <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
@@ -85,7 +102,7 @@ export default function StartupDashboardPage() {
             <div>
               <p className="text-neutral-muted text-sm font-bold mb-1 uppercase tracking-widest">Documents</p>
               <div className="flex items-baseline gap-3">
-                <span className="text-4xl font-bold text-[#171611]">12</span>
+                <span ref={docCount.ref} className="text-4xl font-bold text-[#171611]">{docCount.count}</span>
                 <span className="text-neutral-muted text-sm font-bold lowercase">Files</span>
               </div>
             </div>
@@ -97,7 +114,7 @@ export default function StartupDashboardPage() {
             <div>
               <p className="text-neutral-muted text-sm font-bold mb-1 uppercase tracking-widest">Kết nối</p>
               <div className="flex items-baseline gap-3">
-                <span className="text-4xl font-bold text-[#171611]">03</span>
+                <span ref={connectCount.ref} className="text-4xl font-bold text-[#171611]">{String(connectCount.count).padStart(2, '0')}</span>
                 <span className="text-neutral-muted text-sm font-bold lowercase tracking-tight">Hoạt động</span>
               </div>
             </div>
@@ -254,6 +271,113 @@ export default function StartupDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* PUBLIC PROFILE DIALOG */}
+      <Dialog open={showProfile} onOpenChange={setShowProfile}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-0 rounded-2xl">
+          <div className="relative">
+            {/* Cover */}
+            <div className="h-32 bg-gradient-to-r from-[#e6cc4c]/60 to-[#e6cc4c]/20 rounded-t-2xl" />
+            {/* Avatar */}
+            <div className="absolute left-6 -bottom-10 w-20 h-20 rounded-2xl border-4 border-white shadow-lg overflow-hidden bg-[#e6cc4c]/10">
+              <img
+                alt="Startup logo"
+                className="w-full h-full object-cover"
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDPGo-MuNE1TA-f-CzA3CrxNhiTpXx6O33MdUq3W-IaDVQ7ym67WVsYzj_6y6DQg7FbffRXZWJQ18VrNJYBVodrdwsmss985qeqimmBjPdnV8vkYvC_Q0fjlVaghZCf_kvrqxGxP3dHivWdkDz8TKh0loaFMvqcs5oad2AIl1Y8j3vh7qi0ytZkwm8RLLxKFAiP7YQiEOYFqcO6_VLODJkRpYPEu1mAFYT3uLh98c8wUw33fLRLbsIZOwPUkI4ofRFvsVh95t_5Ghc"
+              />
+            </div>
+          </div>
+
+          <div className="px-6 pt-14 pb-6 space-y-6">
+            <DialogHeader className="text-left">
+              <div className="flex items-center gap-3 flex-wrap">
+                <DialogTitle className="text-2xl font-bold text-[#171611]">
+                  AISEP Startup Platform
+                </DialogTitle>
+                <span className="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-black rounded-full border border-green-200 uppercase tracking-[0.1em]">
+                  Đã xác thực
+                </span>
+              </div>
+              <p className="text-sm text-neutral-500 font-medium">
+                SaaS • Hệ sinh thái Khởi nghiệp • TP. Hồ Chí Minh
+              </p>
+            </DialogHeader>
+
+            {/* About */}
+            <div>
+              <h4 className="text-xs font-black text-neutral-400 uppercase tracking-widest mb-2">Giới thiệu</h4>
+              <p className="text-sm text-[#171611] leading-relaxed">
+                AISEP là nền tảng vận hành hệ sinh thái khởi nghiệp toàn diện, giúp kết nối Startup với Nhà đầu tư và Cố vấn chuyên nghiệp thông qua công nghệ Blockchain và AI.
+              </p>
+            </div>
+
+            {/* Key Metrics */}
+            <div>
+              <h4 className="text-xs font-black text-neutral-400 uppercase tracking-widest mb-3">Chỉ số nổi bật</h4>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-[#f8f8f6] rounded-xl p-4 text-center border border-neutral-100">
+                  <p className="text-2xl font-black text-[#171611]">84</p>
+                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mt-1">AI Score</p>
+                </div>
+                <div className="bg-[#f8f8f6] rounded-xl p-4 text-center border border-neutral-100">
+                  <p className="text-2xl font-black text-[#171611]">12</p>
+                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mt-1">Tài liệu</p>
+                </div>
+                <div className="bg-[#f8f8f6] rounded-xl p-4 text-center border border-neutral-100">
+                  <p className="text-2xl font-black text-[#171611]">65%</p>
+                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mt-1">Hoàn thiện</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Team */}
+            <div>
+              <h4 className="text-xs font-black text-neutral-400 uppercase tracking-widest mb-3">Đội ngũ sáng lập</h4>
+              <div className="flex flex-wrap gap-3">
+                {[
+                  { name: "Nguyễn Minh Tuấn", role: "CEO & Co-Founder" },
+                  { name: "Trần Thị Hồng", role: "CTO" },
+                  { name: "Lê Văn Khoa", role: "COO" },
+                ].map((member, idx) => (
+                  <div key={idx} className="flex items-center gap-3 bg-[#f8f8f6] px-4 py-3 rounded-xl border border-neutral-100">
+                    <div className="w-9 h-9 rounded-full bg-[#e6cc4c]/20 flex items-center justify-center text-xs font-black text-[#171611]">
+                      {member.name.split(" ").pop()?.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-[#171611]">{member.name}</p>
+                      <p className="text-[11px] text-neutral-400 font-medium">{member.role}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tags */}
+            <div>
+              <h4 className="text-xs font-black text-neutral-400 uppercase tracking-widest mb-3">Lĩnh vực</h4>
+              <div className="flex flex-wrap gap-2">
+                {["Blockchain", "SaaS", "B2B", "Startup Ecosystem", "AI"].map((tag) => (
+                  <span key={tag} className="px-3 py-1.5 bg-[#e6cc4c]/10 border border-[#e6cc4c]/20 rounded-full text-xs font-bold text-[#171611]">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Stage */}
+            <div className="flex items-center justify-between bg-[#e6cc4c]/10 border border-[#e6cc4c]/20 rounded-xl p-4">
+              <div>
+                <p className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Giai đoạn gọi vốn</p>
+                <p className="text-lg font-bold text-[#171611]">Pre-Seed → Seed</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Mục tiêu</p>
+                <p className="text-lg font-bold text-[#171611]">$500K</p>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </StartupShell>
   );
 }

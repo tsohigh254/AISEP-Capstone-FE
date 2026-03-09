@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { useState } from "react";
+import { AnimatedNumber } from "@/lib/useCountUp";
 
 type Startup = {
   id: number;
@@ -205,11 +206,15 @@ export default function CompareStartupsPage() {
                   <td className="px-6 py-4 font-medium text-slate-700">
                     AI Score
                   </td>
-                  {selectedStartups.map((startup) => (
+                  {selectedStartups.map((startup, idx) => (
                     <td key={startup.id} className="px-6 py-4">
-                      <span className="text-lg font-bold text-purple-600">
-                        {startup.aiScore}
-                      </span>
+                      <AnimatedNumber
+                        value={startup.aiScore * 10}
+                        duration={1000}
+                        delay={idx * 150}
+                        format={(n) => (n / 10).toFixed(1)}
+                        className="text-lg font-bold text-purple-600"
+                      />
                     </td>
                   ))}
                 </tr>
@@ -219,11 +224,15 @@ export default function CompareStartupsPage() {
                   <td className="px-6 py-4 font-medium text-slate-700">
                     Market Viability Score
                   </td>
-                  {selectedStartups.map((startup) => (
+                  {selectedStartups.map((startup, idx) => (
                     <td key={startup.id} className="px-6 py-4">
-                      <span className="text-lg font-bold text-purple-600">
-                        {startup.marketViabilityScore}
-                      </span>
+                      <AnimatedNumber
+                        value={startup.marketViabilityScore * 10}
+                        duration={1000}
+                        delay={idx * 150 + 200}
+                        format={(n) => (n / 10).toFixed(1)}
+                        className="text-lg font-bold text-purple-600"
+                      />
                     </td>
                   ))}
                 </tr>
@@ -233,11 +242,15 @@ export default function CompareStartupsPage() {
                   <td className="px-6 py-4 font-medium text-slate-700">
                     Team Score
                   </td>
-                  {selectedStartups.map((startup) => (
+                  {selectedStartups.map((startup, idx) => (
                     <td key={startup.id} className="px-6 py-4">
-                      <span className="text-lg font-bold text-purple-600">
-                        {startup.teamScore}
-                      </span>
+                      <AnimatedNumber
+                        value={startup.teamScore * 10}
+                        duration={1000}
+                        delay={idx * 150 + 400}
+                        format={(n) => (n / 10).toFixed(1)}
+                        className="text-lg font-bold text-purple-600"
+                      />
                     </td>
                   ))}
                 </tr>

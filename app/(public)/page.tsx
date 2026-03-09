@@ -31,6 +31,7 @@ import {
   Fingerprint,
 } from "lucide-react";
 import { useCallback, useState } from "react";
+import { AnimatedNumber } from "@/lib/useCountUp";
 
 export default function PublicHomePage() {
   const [activeRole, setActiveRole] = useState<"startup" | "investor" | "advisor">("startup");
@@ -512,11 +513,11 @@ export default function PublicHomePage() {
 
                   <div className="grid grid-cols-2 gap-4 sm:gap-10">
                     <div className="p-4 sm:p-6 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                      <p className="text-3xl sm:text-5xl font-black text-[#FACC15] mb-2">500+</p>
+                      <p className="text-3xl sm:text-5xl font-black text-[#FACC15] mb-2"><AnimatedNumber value={500} duration={1400} delay={0} />+</p>
                       <p className="text-sm font-extrabold text-slate-500 uppercase tracking-widest">Startup sẵn sàng</p>
                     </div>
                     <div className="p-4 sm:p-6 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                      <p className="text-3xl sm:text-5xl font-black text-[#FACC15] mb-2">100%</p>
+                      <p className="text-3xl sm:text-5xl font-black text-[#FACC15] mb-2"><AnimatedNumber value={100} duration={1000} delay={200} />%</p>
                       <p className="text-sm font-extrabold text-slate-500 uppercase tracking-widest">Hồ sơ xác thực</p>
                     </div>
                   </div>

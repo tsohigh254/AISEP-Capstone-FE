@@ -26,6 +26,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/advisor" },
   { label: "Consulting Request", icon: MessageSquare, href: "/advisor/requests" },
+  { label: "Tin nhắn", icon: MessageSquare, href: "/advisor/messaging" },
   { label: "Rating", icon: Star, href: "/advisor/feedback" },
   { label: "Report", icon: FileText, href: "/advisor/reports" },
 ];

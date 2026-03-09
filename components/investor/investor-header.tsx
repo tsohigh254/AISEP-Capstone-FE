@@ -41,8 +41,8 @@ export function InvestorHeader({
     try {
       const res = await GetNotifications({ pageSize: 10 }) as unknown as IBackendRes<IPaginatedRes<INotificationItem>>;
       if (res.success && res.data) {
-        setNotifications(res.data.items);
-        setUnreadCount(res.data.items.filter((n) => !n.isRead).length);
+        setNotifications(res.data.items ?? []);
+        setUnreadCount((res.data.items ?? []).filter((n) => !n.isRead).length);
       }
     } catch {
       // silent
