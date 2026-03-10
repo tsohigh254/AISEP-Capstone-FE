@@ -47,13 +47,15 @@ instance.interceptors.response.use(
   async function (error: AxiosError) {
     const originalRequest: any = error.config;
 
-    if (error.response?.status === 401 && !originalRequest?._retry) {
+    const isLogoutRequest = originalRequest?.url?.includes("/api/auth/logout");
+
+    if (error.response?.status === 401 && !originalRequest?._retry && !isLogoutRequest) {
       originalRequest._retry = true;
 
       try {
         const refreshResult = await callRefreshToken();
 
-        if (refreshResult && refreshResult.success && refreshResult.data) {
+        if (refreshResult && (refreshResult.success || (refreshResult as any).isSuccess) && refreshResult.data) {
           const { accessToken } = refreshResult.data;
 
           if (typeof window !== "undefined") {
@@ -66,7 +68,9 @@ instance.interceptors.response.use(
           return instance(originalRequest);
         }
       } catch (refreshError) {
-        return Promise.reject(refreshError);
+        // If refresh fails, don't throw another error, just let the original 401 pass through
+        // This avoids messy "Request failed with status code 401" in the console for the refresh-token call itself
+        console.warn("Token refresh failed. Redirecting to login or handling session end.");
       }
     }
 

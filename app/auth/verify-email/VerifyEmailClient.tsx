@@ -22,6 +22,7 @@ export default function VerifyEmailClient() {
   const searchParams = useSearchParams();
   const { setUser, setAccessToken, setIsAuthen } = useAuth();
 
+
   const email = searchParams.get("email") || "";
 
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
@@ -32,15 +33,49 @@ export default function VerifyEmailClient() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [verifiedUserType, setVerifiedUserType] = useState("");
+  const [verifiedRolesState, setVerifiedRolesState] = useState<string[]>([]);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const getWorkspacePath = (userType: string | undefined) => {
-    switch ((userType ?? "").toLowerCase()) {
+  const parseJwt = (token: string) => {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        window.atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const getWorkspacePath = (userType: string | undefined, roles?: string[]) => {
+    let type = (userType ?? "").toLowerCase();
+
+    // Fallback to roles if userType is empty
+    if (!type && roles && roles.length > 0) {
+      // Find the first role that matches one of our known dashboards
+      const knownRoles = ["startup", "investor", "advisor", "staff", "admin"];
+      const lowerRoles = roles.map(r => r.toLowerCase());
+
+      for (const known of knownRoles) {
+        if (lowerRoles.includes(known)) {
+          type = known;
+          break;
+        }
+      }
+    }
+
+    switch (type) {
       case "startup": return "/startup";
       case "investor": return "/investor";
       case "advisor":
       case "expert": return "/advisor";
       case "staff": return "/staff";
+      case "admin": return "/admin/users";
       default: return "/";
     }
   };
@@ -87,9 +122,31 @@ export default function VerifyEmailClient() {
 
         const finalUserID = info.userID || info.userId;
         const finalEmail = info.email;
-        const finalUserType = info.userType;
-        const finalRoles = info.roles;
+        let finalUserType = info.userType;
+        let finalRoles = info.roles;
         const finalAccessToken = data.accessToken;
+
+        // Fallback: Decode token if backend doesn't send user object fully
+        const decoded = parseJwt(finalAccessToken);
+        if (decoded) {
+          const netCoreRoleClaim = "http://schemas.microsoft.com/ws/2008/06/identity/claims/role";
+          if (decoded[netCoreRoleClaim]) {
+            const rolesFromToken = Array.isArray(decoded[netCoreRoleClaim])
+              ? decoded[netCoreRoleClaim]
+              : [decoded[netCoreRoleClaim]];
+            finalRoles = finalRoles && finalRoles.length > 0 ? finalRoles : rolesFromToken;
+          } else if (decoded.role) {
+            const rolesFromToken = Array.isArray(decoded.role) ? decoded.role : [decoded.role];
+            finalRoles = finalRoles && finalRoles.length > 0 ? finalRoles : rolesFromToken;
+          } else if (decoded.roles) {
+            const rolesFromToken = Array.isArray(decoded.roles) ? decoded.roles : [decoded.roles];
+            finalRoles = finalRoles && finalRoles.length > 0 ? finalRoles : rolesFromToken;
+          }
+
+          if (!finalUserType && decoded.userType) {
+            finalUserType = decoded.userType;
+          }
+        }
 
         setUser({
           userID: finalUserID,
@@ -101,6 +158,7 @@ export default function VerifyEmailClient() {
         setIsAuthen(true);
         if (typeof window !== "undefined") localStorage.setItem("accessToken", finalAccessToken);
         setVerifiedUserType(finalUserType || "");
+        setVerifiedRolesState(finalRoles || []);
         setIsSuccess(true);
       } else {
         setError(res.message || "Xác thực OTP không thành công");
@@ -184,7 +242,7 @@ export default function VerifyEmailClient() {
               </p>
 
               <Link
-                href={getWorkspacePath(verifiedUserType)}
+                href={getWorkspacePath(verifiedUserType, verifiedRolesState)}
                 className="w-full bg-[#f0f042] hover:bg-[#e6e632] text-slate-900 font-bold py-4 rounded-xl shadow-lg shadow-[#f0f042]/20 transition-all flex items-center justify-center gap-2"
               >
                 <span>Vào Workspace của tôi</span>
