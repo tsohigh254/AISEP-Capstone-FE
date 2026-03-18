@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { Users, Plus, User, Edit2, Trash2 } from "lucide-react";
 import { TeamMemberModal } from "@/components/startup/team-member-modal";
 
 interface TeamMember {
@@ -75,7 +76,7 @@ export default function StartupTeamPage() {
                 <div className="p-6 border-b border-neutral-surface bg-[#fdfbe9]/30 flex items-center justify-between">
                     <div>
                         <h3 className="font-black text-[#171611] text-lg flex items-center gap-2">
-                            <span className="material-symbols-outlined text-[#e6cc4c]">groups</span>
+                            <Users className="w-5 h-5 text-[#e6cc4c]" />
                             Đội ngũ sáng lập & nhân sự chủ chốt
                         </h3>
                         <p className="text-sm text-neutral-muted mt-1 font-bold">Giới thiệu những con người đứng sau sự thành công của dự án.</p>
@@ -84,7 +85,7 @@ export default function StartupTeamPage() {
                         onClick={handleAddMember}
                         className="bg-[#e6cc4c] hover:bg-[#d4ba3d] text-white text-sm font-black px-5 py-2.5 rounded-2xl shadow-lg shadow-[#e6cc4c]/20 flex items-center gap-2 transition-all active:scale-95"
                     >
-                        <span className="material-symbols-outlined text-lg font-black">add</span>
+                        <Plus className="w-5 h-5" />
                         Thêm thành viên
                     </button>
                 </div>
@@ -108,7 +109,7 @@ export default function StartupTeamPage() {
                                                 {member.avatar ? (
                                                     <img alt={member.name} className="w-full h-full object-cover" src={member.avatar} />
                                                 ) : (
-                                                    <span className="material-symbols-outlined text-neutral-muted">person</span>
+                                                    <User className="w-6 h-6 text-neutral-muted" />
                                                 )}
                                             </div>
                                             <div className="space-y-1.5 min-w-0">
@@ -151,13 +152,13 @@ export default function StartupTeamPage() {
                                                 onClick={() => handleEditMember(member)}
                                                 className="w-9 h-9 flex items-center justify-center rounded-xl text-neutral-muted hover:bg-[#e6cc4c]/10 hover:text-[#171611] transition-all active:scale-90"
                                             >
-                                                <span className="material-symbols-outlined text-xl">edit</span>
+                                                <Edit2 className="w-5 h-5" />
                                             </button>
                                             <button
                                                 onClick={() => member.id && handleDeleteMember(member.id)}
                                                 className="w-9 h-9 flex items-center justify-center rounded-xl text-neutral-muted hover:bg-red-50 hover:text-red-500 transition-all active:scale-90"
                                             >
-                                                <span className="material-symbols-outlined text-xl">delete</span>
+                                                <Trash2 className="w-5 h-5" />
                                             </button>
                                         </div>
                                     </td>

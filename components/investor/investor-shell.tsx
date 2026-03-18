@@ -17,6 +17,7 @@ import {
 import { InvestorHeader } from "@/components/investor/investor-header";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { AuthGuard } from "@/components/auth-guard";
 
 type NavItem = {
   label: string;
@@ -47,15 +48,14 @@ export function InvestorShell({ children }: InvestorShellProps) {
     };
 
   return (
+    <AuthGuard allowedRoles={["Investor"]}>
     <div className="min-h-screen bg-slate-50 text-slate-900 flex">
       <aside className="w-64 bg-white min-h-screen flex flex-col fixed left-0 top-0 bottom-0 border-r">
         <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-            <Sparkles className="w-6 h-6 text-white" />
-          </div>
+          <img src="/AISEP_Logo.png" alt="AISEP" className="w-12 h-12 rounded-full object-contain" />
           <div>
-            <h1 className="text-slate-900 text-lg font-bold">StartupHub</h1>
-            <p className="text-xs text-slate-500">Dashboard</p>
+            <h1 className="text-slate-900 text-lg font-bold">AISEP</h1>
+            <p className="text-xs text-slate-500">Investor</p>
           </div>
         </div>
         <nav className="px-3 space-y-1 flex-1">
@@ -100,6 +100,7 @@ export function InvestorShell({ children }: InvestorShellProps) {
         <main className="flex-1 p-8 bg-slate-50">{children}</main>
       </div>
     </div>
+    </AuthGuard>
   );
 }
 

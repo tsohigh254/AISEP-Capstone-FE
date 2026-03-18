@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DollarSign, Info } from "lucide-react";
 
 export default function StartupFundingPage() {
     const [form, setForm] = useState({
@@ -20,7 +21,7 @@ export default function StartupFundingPage() {
             <section className="bg-white rounded-[24px] shadow-sm border border-neutral-surface overflow-hidden">
                 <div className="p-8 border-b border-neutral-surface bg-[#fdfbe9]/30">
                     <h3 className="font-black text-[#171611] text-lg flex items-center gap-2">
-                        <span className="material-symbols-outlined text-[#e6cc4c]">payments</span>
+                        <DollarSign className="w-5 h-5 text-[#e6cc4c]" />
                         Thông tin gọi vốn
                     </h3>
                     <p className="text-sm text-neutral-muted mt-1 font-medium">Cung cấp các thông số tài chính để nhà đầu tư có cái nhìn tổng quan về nhu cầu vốn của bạn.</p>
@@ -98,7 +99,7 @@ export default function StartupFundingPage() {
                         </div>
                     </div>
                     <div className="bg-[#fdfbe9] border border-[#e6cc4c]/20 p-5 rounded-2xl flex gap-3">
-                        <span className="material-symbols-outlined text-[#e6cc4c]">info</span>
+                        <Info className="w-5 h-5 text-[#e6cc4c]" />
                         <p className="text-xs text-neutral-muted leading-relaxed font-bold italic">
                             Các trường có dấu <span className="text-red-500">*</span> là thông tin bắt buộc để hồ sơ có thể được gửi duyệt. Thông tin tài chính chính xác sẽ giúp AI của AISEP đánh giá startup của bạn tốt hơn.
                         </p>

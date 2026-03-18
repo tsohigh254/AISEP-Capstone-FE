@@ -19,6 +19,8 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Login } from "@/services/auth/auth.api";
+import { GetMe } from "@/services/user/user.api";
+import { GetAdvisorProfile } from "@/services/advisor/advisor.api";
 import { useAuth } from "@/context/context";
 
 const parseJwt = (token: string) => {
@@ -41,7 +43,6 @@ export default function LoginPage() {
   const router = useRouter();
   const { setUser, setAccessToken, setIsAuthen } = useAuth();
 
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -184,7 +185,41 @@ export default function LoginPage() {
           localStorage.setItem("accessToken", token);
         }
 
-        redirectByUserType(targetUserType, targetRoles);
+        // --- Advisor Flow Mapping ---
+        if (targetUserType?.toLowerCase() === "advisor") {
+          try {
+            // 1. Verify user status
+            const userMeRes = await GetMe();
+            const userData = userMeRes?.data;
+            
+            if (!userMeRes.success || !userData || !userData.isActive) {
+              setError("Tài khoản của bạn chưa được kích hoạt hoặc bị khóa.");
+              setIsLoading(false);
+              return;
+            }
+
+            // 2. Check Advisor profile
+            try {
+              const advisorProfileRes = await GetAdvisorProfile();
+              if (advisorProfileRes.success && advisorProfileRes.data) {
+                router.push("/advisor");
+              } else {
+                router.push("/advisor/onboarding");
+              }
+            } catch (profileErr: any) {
+              if (profileErr?.response?.status === 404) {
+                router.push("/advisor/onboarding");
+              } else {
+                router.push("/advisor"); // Fallback to dashboard on other errors
+              }
+            }
+          } catch (meErr: any) {
+            setError("Không thể xác thực thông tin người dùng.");
+            setIsLoading(false);
+          }
+        } else {
+          redirectByUserType(targetUserType, targetRoles);
+        }
       } else {
         setError(res?.message || "Đăng nhập không thành công");
       }
@@ -201,57 +236,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[#f8f8f6] flex flex-col" style={{ fontFamily: "var(--font-be-vietnam-pro), sans-serif" }}>
-      {/* ===== HEADER ===== */}
-      <header className="fixed top-0 z-50 w-full border-b border-slate-200/60 bg-white font-manrope">
-        <div className="mx-auto flex max-w-[1280px] items-center justify-between px-6 py-4 lg:px-10">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FACC15] text-slate-900">
-              <Rocket className="h-6 w-6" />
-            </div>
-            <h2 className="text-xl font-extrabold tracking-tight text-slate-900">AISEP</h2>
-          </Link>
-
-          <nav className="hidden lg:flex items-center gap-8">
-            <Link href="/#features" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">Tính năng</Link>
-            <Link href="/#roles" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">Dành cho ai</Link>
-            <Link href="/#trust" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">Bảo mật</Link>
-            <Link href="/about" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">Về chúng tôi</Link>
-            <Link href="/faq" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">FAQ</Link>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <span className="hidden sm:inline text-sm font-semibold text-slate-600">Chưa có tài khoản?</span>
-            <Link
-              href="/auth/register"
-              className="hidden sm:flex items-center justify-center px-6 py-2.5 text-sm font-bold bg-slate-900 text-white rounded-lg hover:opacity-90 transition-all"
-            >
-              Đăng ký ngay
-            </Link>
-            <button
-              className="lg:hidden flex items-center justify-center w-10 h-10 rounded-lg hover:bg-slate-100 transition-colors"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-slate-100 bg-white px-6 py-4 space-y-3">
-            <Link href="/#features" className="block text-sm font-semibold text-slate-600 hover:text-slate-900 py-2" onClick={() => setMobileMenuOpen(false)}>Tính năng</Link>
-            <Link href="/#roles" className="block text-sm font-semibold text-slate-600 hover:text-slate-900 py-2" onClick={() => setMobileMenuOpen(false)}>Dành cho ai</Link>
-            <Link href="/#trust" className="block text-sm font-semibold text-slate-600 hover:text-slate-900 py-2" onClick={() => setMobileMenuOpen(false)}>Bảo mật</Link>
-            <Link href="/about" className="block text-sm font-semibold text-slate-600 hover:text-slate-900 py-2" onClick={() => setMobileMenuOpen(false)}>Về chúng tôi</Link>
-            <Link href="/faq" className="block text-sm font-semibold text-slate-600 hover:text-slate-900 py-2" onClick={() => setMobileMenuOpen(false)}>FAQ</Link>
-            <div className="flex gap-3 pt-3 border-t border-slate-100">
-              <Link href="/auth/register" className="flex-1 text-center px-4 py-2.5 text-sm font-bold bg-slate-900 text-white rounded-lg" onClick={() => setMobileMenuOpen(false)}>Đăng ký ngay</Link>
-            </div>
-          </div>
-        )}
-      </header>
-
       <div className="h-[73px]" />
 
       {/* ===== MAIN ===== */}

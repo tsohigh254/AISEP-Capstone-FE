@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Check, ArrowLeft, Shield, Mail, Rocket } from "lucide-react";
 import { ChangePasswordModal, SuccessModal } from "@/components/startup/change-password-modal";
 
 export default function StartupSettingsPage() {
@@ -36,7 +37,7 @@ export default function StartupSettingsPage() {
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[110] animate-in slide-in-from-top-4 duration-500">
           <div className="bg-white/90 backdrop-blur-md border border-neutral-100 px-6 py-3 rounded-2xl shadow-xl flex items-center gap-3">
             <div className="w-6 h-6 rounded-full bg-[#10b981]/20 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[#10b981] text-base font-black">check</span>
+              <Check className="w-4 h-4 text-[#10b981]" />
             </div>
             <p className="text-sm font-black text-[#171611]">Mật khẩu đã được cập nhật thành công.</p>
           </div>
@@ -53,7 +54,7 @@ export default function StartupSettingsPage() {
             onClick={() => router.back()}
             className="p-2 hover:bg-neutral-surface rounded-full transition-colors flex items-center justify-center"
           >
-            <span className="material-symbols-outlined text-neutral-muted">arrow_back</span>
+            <ArrowLeft className="w-6 h-6 text-neutral-muted" />
           </button>
           <div>
             <h1 className="text-2xl font-black text-[#171611] tracking-tight">Cài đặt tài khoản & Bảo mật</h1>
@@ -65,7 +66,7 @@ export default function StartupSettingsPage() {
         <section className="bg-white rounded-[32px] shadow-sm border border-neutral-surface overflow-hidden">
           <div className="p-6 border-b border-neutral-surface bg-[#e6cc4c]/5">
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#e6cc4c] font-black">shield</span>
+              <Shield className="w-5 h-5 text-[#e6cc4c]" />
               <h3 className="font-black text-lg text-[#171611]">Bảo mật</h3>
             </div>
           </div>
@@ -90,7 +91,7 @@ export default function StartupSettingsPage() {
         <section className="bg-white rounded-[32px] shadow-sm border border-neutral-surface overflow-hidden">
           <div className="p-6 border-b border-neutral-surface bg-[#e6cc4c]/5">
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#e6cc4c] font-black">mail</span>
+              <Mail className="w-5 h-5 text-[#e6cc4c]" />
               <h3 className="font-black text-lg text-[#171611]">Tùy chọn Email</h3>
             </div>
           </div>
@@ -101,7 +102,7 @@ export default function StartupSettingsPage() {
                   "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
                   emailPrefs.system ? "bg-[#e6cc4c] border-[#e6cc4c] text-white" : "border-neutral-surface bg-white"
                 )}>
-                  {emailPrefs.system && <span className="material-symbols-outlined text-sm font-black">check</span>}
+                  {emailPrefs.system && <Check className="w-4 h-4" />}
                 </div>
               </div>
               <div className="space-y-1">
@@ -118,7 +119,7 @@ export default function StartupSettingsPage() {
                   "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
                   emailPrefs.newsletter ? "bg-[#e6cc4c] border-[#e6cc4c] text-white" : "border-neutral-surface bg-white"
                 )}>
-                  {emailPrefs.newsletter && <span className="material-symbols-outlined text-sm font-black">check</span>}
+                  {emailPrefs.newsletter && <Check className="w-4 h-4" />}
                 </div>
               </div>
               <div className="space-y-1">
@@ -135,7 +136,7 @@ export default function StartupSettingsPage() {
                   "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
                   emailPrefs.advisor ? "bg-[#e6cc4c] border-[#e6cc4c] text-white" : "border-neutral-surface bg-white"
                 )}>
-                  {emailPrefs.advisor && <span className="material-symbols-outlined text-sm font-black">check</span>}
+                  {emailPrefs.advisor && <Check className="w-4 h-4" />}
                 </div>
               </div>
               <div className="space-y-1">
@@ -156,7 +157,7 @@ export default function StartupSettingsPage() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-6 border-t border-neutral-surface pt-8">
             <div className="flex items-center gap-3">
               <div className="bg-[#e6cc4c]/20 p-2 rounded-xl">
-                <span className="material-symbols-outlined text-[#e6cc4c] text-2xl font-black">rocket_launch</span>
+                <Rocket className="w-6 h-6 text-[#e6cc4c]" />
               </div>
               <p className="text-sm font-black text-[#171611] opacity-80">AISEP Startup Platform © 2024</p>
             </div>

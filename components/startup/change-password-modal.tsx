@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Lock, X, Eye, EyeOff, Check } from "lucide-react";
 
 interface ChangePasswordModalProps {
     isOpen: boolean;
@@ -51,12 +52,12 @@ export function ChangePasswordModal({ isOpen, onClose, onSuccess }: ChangePasswo
                 <DialogHeader className="p-6 border-b border-neutral-surface flex flex-row items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-[#e6cc4c]/10 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-[#e6cc4c] font-black">lock_reset</span>
+                            <Lock className="w-5 h-5 text-[#e6cc4c]" />
                         </div>
                         <DialogTitle className="text-xl font-black text-[#171611]">Thay đổi mật khẩu</DialogTitle>
                     </div>
                     <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-neutral-surface flex items-center justify-center transition-colors">
-                        <span className="material-symbols-outlined text-neutral-muted text-xl">close</span>
+                        <X className="w-5 h-5 text-neutral-muted" />
                     </button>
                 </DialogHeader>
 
@@ -76,7 +77,7 @@ export function ChangePasswordModal({ isOpen, onClose, onSuccess }: ChangePasswo
                                 onClick={() => setShowPassword(!showPassword)}
                                 className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-muted hover:text-[#171611] transition-colors"
                             >
-                                <span className="material-symbols-outlined text-[20px]">{showPassword ? "visibility" : "visibility_off"}</span>
+                                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                             </button>
                         </div>
                     </div>
@@ -88,11 +89,9 @@ export function ChangePasswordModal({ isOpen, onClose, onSuccess }: ChangePasswo
                                 type="password"
                                 value={formData.new}
                                 onChange={(e) => setFormData(prev => ({ ...prev, new: e.target.value }))}
-                                className="w-full h-12 px-5 bg-[#f8f8f6] border border-neutral-200 rounded-2xl focus:ring-2 focus:ring-[#e6cc4c]/30 outline-none transition-all font-bold placeholder:text-neutral-muted/60 text-sm"
-                                placeholder="Nhập mật khẩu mới"
-                            />
+                                />
                             <button type="button" className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-muted hover:text-[#171611]">
-                                <span className="material-symbols-outlined text-[20px]">visibility</span>
+                                <Eye className="w-5 h-5" />
                             </button>
                         </div>
                         {formData.new && (
@@ -152,13 +151,13 @@ export function SuccessModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
             <DialogContent className="max-w-[440px] bg-white rounded-[40px] p-0 border-none overflow-hidden shadow-2xl">
                 <div className="p-4 flex justify-end">
                     <button onClick={onClose} className="w-10 h-10 rounded-full hover:bg-neutral-surface flex items-center justify-center transition-colors">
-                        <span className="material-symbols-outlined text-neutral-muted text-2xl">close</span>
+                        <X className="w-6 h-6 text-neutral-muted" />
                     </button>
                 </div>
                 <div className="px-8 pb-12 flex flex-col items-center text-center">
                     <div className="w-24 h-24 bg-[#10b981]/10 rounded-full flex items-center justify-center mb-8 relative">
                         <div className="absolute inset-0 bg-[#10b981]/5 rounded-full animate-pulse"></div>
-                        <span className="material-symbols-outlined text-[#10b981] text-5xl font-black relative z-10">check</span>
+                        <Check className="w-12 h-12 text-[#10b981] relative z-10" />
                     </div>
                     <h3 className="text-2xl font-black text-[#171611] mb-4 tracking-tight">Cập nhật mật khẩu thành công</h3>
                     <p className="text-neutral-muted text-sm font-bold leading-relaxed mb-10 max-w-[280px]">

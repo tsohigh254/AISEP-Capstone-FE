@@ -43,7 +43,8 @@
   --color-sidebar-ring: var(--sidebar-ring);
 
   --font-manrope: var(--font-manrope);
-  --font-be-vietnam-pro: var(--font-be-vietnam-pro);
+  --font-plus-jakarta-sans: var(--font-plus-jakarta-sans);
+  --font-syne: var(--font-syne);
 }
 
 :root {
@@ -130,8 +131,12 @@
   font-family: var(--font-manrope), 'Manrope', sans-serif;
 }
 
-.font-be-vietnam-pro {
-  font-family: var(--font-be-vietnam-pro), 'Be Vietnam Pro', sans-serif;
+.font-plus-jakarta-sans {
+  font-family: var(--font-plus-jakarta-sans), 'Plus Jakarta Sans', sans-serif;
+}
+
+.font-syne {
+  font-family: var(--font-syne), 'Syne', sans-serif;
 }
 
 .glass-nav {

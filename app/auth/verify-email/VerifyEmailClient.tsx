@@ -208,15 +208,7 @@ export default function VerifyEmailClient() {
   if (isSuccess) {
     return (
       <div className="min-h-screen bg-[#f8f8f6] flex flex-col" style={{ fontFamily: "var(--font-be-vietnam-pro), sans-serif" }}>
-        {/* Centered logo */}
-        <div className="flex justify-center pt-10 pb-4">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FACC15] text-slate-900">
-              <Rocket className="h-6 w-6" />
-            </div>
-            <span className="text-xl font-extrabold tracking-tight text-slate-900 font-manrope">AISEP</span>
-          </Link>
-        </div>
+      <div className="h-16" />
 
         {/* Main */}
         <main className="flex-1 flex items-center justify-center px-4 pb-12">
@@ -281,30 +273,6 @@ export default function VerifyEmailClient() {
    * ========================================================== */
   return (
     <div className="min-h-screen bg-[#f8f8f6] flex flex-col" style={{ fontFamily: "var(--font-be-vietnam-pro), sans-serif" }}>
-      {/* ===== HEADER (giống landing page) ===== */}
-      <header className="fixed top-0 z-50 w-full border-b border-slate-200/60 bg-white">
-        <div className="mx-auto flex max-w-[1280px] items-center justify-between px-6 py-4 lg:px-10">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FACC15] text-slate-900">
-              <Rocket className="h-6 w-6" />
-            </div>
-            <h2 className="text-xl font-extrabold tracking-tight text-slate-900 font-manrope">AISEP</h2>
-          </Link>
-
-          <div className="flex items-center gap-6">
-            <Link href="/about" className="hidden sm:block text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
-              Về chúng tôi
-            </Link>
-            <Link href="/faq" className="hidden sm:block text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
-              Cộng đồng
-            </Link>
-            <button className="flex items-center justify-center w-9 h-9 rounded-full bg-[#FACC15] text-slate-900 hover:opacity-90 transition-all">
-              <HelpCircle className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </header>
-
       <div className="h-[73px]" />
 
       {/* ===== MAIN ===== */}

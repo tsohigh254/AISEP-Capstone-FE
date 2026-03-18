@@ -12,8 +12,6 @@ import {
   ShieldCheck,
   Globe,
   HelpCircle,
-  Menu,
-  X,
   Loader2,
   AlertCircle,
   MailCheck,
@@ -26,7 +24,6 @@ type Step = "email" | "otp-sent" | "enter-otp";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   /* shared */
   const [email, setEmail] = useState("");
@@ -201,51 +198,6 @@ export default function ForgotPasswordPage() {
    * ============================================================ */
   return (
     <div className="min-h-screen bg-[#f8f8f6] flex flex-col" style={{ fontFamily: "var(--font-be-vietnam-pro), sans-serif" }}>
-      {/* ===== HEADER ===== */}
-      <header className="fixed top-0 z-50 w-full border-b border-slate-200/60 bg-white font-manrope">
-        <div className="mx-auto flex max-w-[1440px] items-center justify-between px-6 h-16">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#FACC15] text-slate-900">
-              <Rocket className="h-5 w-5" />
-            </div>
-            <h1 className="text-xl font-black tracking-tight text-slate-900">AISEP</h1>
-          </Link>
-
-          <nav className="hidden md:flex items-center gap-8">
-            <Link href="/about" className="text-sm font-medium text-slate-600 hover:text-[#f0f042] transition-colors">Về chúng tôi</Link>
-            <Link href="/faq" className="text-sm font-medium text-slate-600 hover:text-[#f0f042] transition-colors">Cộng đồng</Link>
-            <Link href="/#trust" className="text-sm font-medium text-slate-600 hover:text-[#f0f042] transition-colors">Tin tức</Link>
-            <div className="h-4 w-px bg-slate-200 mx-2" />
-            <span className="text-sm font-bold text-slate-900">Chưa có tài khoản?</span>
-            <Link
-              href="/auth/register"
-              className="bg-slate-900 text-white px-5 py-2 rounded-lg text-sm font-bold hover:opacity-90 transition-opacity"
-            >
-              Đăng ký ngay
-            </Link>
-          </nav>
-
-          <button
-            className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg hover:bg-slate-100 transition-colors"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle menu"
-          >
-            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </button>
-        </div>
-
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-slate-100 bg-white px-6 py-4 space-y-3">
-            <Link href="/about" className="block text-sm font-medium text-slate-600 hover:text-slate-900 py-2" onClick={() => setMobileMenuOpen(false)}>Về chúng tôi</Link>
-            <Link href="/faq" className="block text-sm font-medium text-slate-600 hover:text-slate-900 py-2" onClick={() => setMobileMenuOpen(false)}>Cộng đồng</Link>
-            <Link href="/#trust" className="block text-sm font-medium text-slate-600 hover:text-slate-900 py-2" onClick={() => setMobileMenuOpen(false)}>Tin tức</Link>
-            <div className="flex gap-3 pt-3 border-t border-slate-100">
-              <Link href="/auth/register" className="flex-1 text-center px-4 py-2.5 text-sm font-bold bg-slate-900 text-white rounded-lg" onClick={() => setMobileMenuOpen(false)}>Đăng ký ngay</Link>
-            </div>
-          </div>
-        )}
-      </header>
-
       <div className="h-16" />
 
       {/* ===== MAIN ===== */}

@@ -4,12 +4,29 @@ import { useState } from "react";
 import { StartupShell } from "@/components/startup/startup-shell";
 import Link from "next/link";
 import { useCountUp } from "@/lib/useCountUp";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { 
+  FileEdit, 
+  Eye, 
+  FileUp, 
+  Brain, 
+  Users, 
+  Handshake, 
+  Sparkles, 
+  FolderOpen, 
+  MessageSquare, 
+  FileText, 
+  TrendingUp, 
+  AlertTriangle, 
+  FileDown, 
+  MoreVertical 
+} from "lucide-react";
 
 export default function StartupDashboardPage() {
   const [showProfile, setShowProfile] = useState(false);
@@ -49,14 +66,14 @@ export default function StartupDashboardPage() {
               </div>
               <div className="flex flex-wrap gap-3">
                 <button className="bg-[#e6cc4c] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 group">
-                  <span className="material-symbols-outlined text-lg group-hover:rotate-12 transition-transform">edit_note</span>
+                  <FileEdit className="w-5 h-5 group-hover:rotate-12 transition-transform" />
                   Hoàn thiện hồ sơ
                 </button>
                 <button
                   onClick={() => setShowProfile(true)}
                   className="bg-[#f4f4f0] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:bg-neutral-200 transition-all flex items-center gap-2"
                 >
-                  <span className="material-symbols-outlined text-lg">visibility</span>
+                  <Eye className="w-5 h-5" />
                   Xem hồ sơ công khai
                 </button>
               </div>
@@ -68,18 +85,20 @@ export default function StartupDashboardPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { icon: "upload_file", label: "Tài liệu & IP", href: "/startup/documents" },
-                { icon: "psychology", label: "Đánh giá AI", href: "/startup/ai-evaluation" },
-                { icon: "group", label: "Tìm cố vấn", href: "/startup/experts" },
-                { icon: "handshake", label: "Kết nối nhà ĐT", href: "/startup/investors" },
+                { icon: FileUp, label: "Tài liệu & IP", href: "/startup/documents", color: "text-blue-500", bg: "bg-blue-50" },
+                { icon: Brain, label: "Đánh giá AI", href: "/startup/ai-evaluation", color: "text-purple-500", bg: "bg-purple-50" },
+                { icon: Users, label: "Tìm cố vấn", href: "/startup/experts", color: "text-orange-500", bg: "bg-orange-50" },
+                { icon: Handshake, label: "Kết nối nhà ĐT", href: "/startup/investors", color: "text-emerald-500", bg: "bg-emerald-50" },
               ].map((item, idx) => (
                 <Link
                   key={idx}
                   href={item.href}
-                  className="flex flex-col items-center justify-center p-3 rounded-xl bg-[#f8f8f6] hover:bg-[#e6cc4c]/20 transition-all group border border-transparent hover:border-[#e6cc4c]/30"
+                  className="flex flex-col items-center justify-center p-4 rounded-2xl bg-[#f8f8f6] hover:bg-white hover:shadow-xl hover:shadow-black/5 transition-all group border border-transparent hover:border-neutral-surface"
                 >
-                  <span className="material-symbols-outlined text-neutral-muted group-hover:text-[#171611] mb-1 transition-colors">{item.icon}</span>
-                  <span className="text-xs font-bold text-[#171611] text-center leading-tight">{item.label}</span>
+                  <div className={cn("size-10 rounded-xl flex items-center justify-center mb-2 transition-transform group-hover:scale-110", item.bg)}>
+                    <item.icon className={cn("w-5 h-5 transition-colors", item.color)} />
+                  </div>
+                  <span className="text-[11px] font-black text-[#171611] text-center leading-tight uppercase tracking-tight">{item.label}</span>
                 </Link>
               ))}
             </div>
@@ -95,7 +114,7 @@ export default function StartupDashboardPage() {
               </div>
             </div>
             <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-              <span className="material-symbols-outlined text-[#e6cc4c] text-3xl">auto_awesome</span>
+              <Sparkles className="w-7 h-7 text-[#e6cc4c]" />
             </div>
           </div>
           <Link href="/startup/documents" className="col-span-12 md:col-span-4 lg:col-span-4 bg-[#e6cc4c]/10 p-6 rounded-2xl shadow-sm border-2 border-[#e6cc4c]/30 flex items-center justify-between group hover:bg-[#e6cc4c]/20 transition-all">
@@ -107,7 +126,7 @@ export default function StartupDashboardPage() {
               </div>
             </div>
             <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-              <span className="material-symbols-outlined text-[#e6cc4c] text-3xl">folder_open</span>
+              <FolderOpen className="w-7 h-7 text-[#e6cc4c]" />
             </div>
           </Link>
           <div className="col-span-12 md:col-span-3 lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-neutral-surface flex items-center justify-between group hover:bg-[#f8f8f6] transition-colors">
@@ -119,7 +138,7 @@ export default function StartupDashboardPage() {
               </div>
             </div>
             <div className="w-14 h-14 rounded-full bg-[#f4f4f0] flex items-center justify-center group-hover:bg-white transition-colors">
-              <span className="material-symbols-outlined text-neutral-muted text-3xl">handshake</span>
+              <Handshake className="w-7 h-7 text-neutral-muted" />
             </div>
           </div>
         </div>
@@ -138,7 +157,7 @@ export default function StartupDashboardPage() {
               <div className="p-4 flex items-center justify-between hover:bg-[#f8f8f6] transition-colors group">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center">
-                    <span className="material-symbols-outlined">forum</span>
+                    <MessageSquare className="w-5 h-5" />
                   </div>
                   <div>
                     <p className="text-sm font-bold text-[#171611]">Lịch tư vấn với Mentor Nguyễn Văn A</p>
@@ -150,7 +169,7 @@ export default function StartupDashboardPage() {
               <div className="p-4 flex items-center justify-between hover:bg-[#f8f8f6] transition-colors group">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
-                    <span className="material-symbols-outlined">description</span>
+                    <FileText className="w-5 h-5" />
                   </div>
                   <div>
                     <p className="text-sm font-bold text-[#171611]">Cập nhật Giấy phép Kinh doanh (Bản mới)</p>
@@ -166,13 +185,13 @@ export default function StartupDashboardPage() {
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-12 lg:col-span-4 bg-white rounded-2xl shadow-sm border border-neutral-surface p-6">
             <div className="flex items-center gap-2 mb-6">
-              <span className="material-symbols-outlined text-[#e6cc4c]">auto_awesome</span>
+              <Sparkles className="w-5 h-5 text-[#e6cc4c]" />
               <h3 className="font-bold text-lg text-[#171611]">AI Evaluation Summary</h3>
             </div>
             <div className="space-y-4">
               <div className="bg-green-50 p-4 rounded-xl border border-green-100">
                 <p className="text-xs font-bold text-green-800 mb-2 flex items-center gap-1 uppercase tracking-tight">
-                  <span className="material-symbols-outlined text-sm">trending_up</span> Thế mạnh (Strengths)
+                  <TrendingUp className="w-4 h-4" /> Thế mạnh (Strengths)
                 </p>
                 <ul className="text-xs text-green-700 space-y-1.5 list-disc ml-4 font-medium">
                   <li>Mô hình kinh doanh có tính khả thi cao trên thị trường Việt Nam.</li>
@@ -181,7 +200,7 @@ export default function StartupDashboardPage() {
               </div>
               <div className="bg-red-50 p-4 rounded-xl border border-red-100">
                 <p className="text-xs font-bold text-red-800 mb-2 flex items-center gap-1 uppercase tracking-tight">
-                  <span className="material-symbols-outlined text-sm">warning</span> Rủi ro (Risks)
+                  <AlertTriangle className="w-4 h-4" /> Rủi ro (Risks)
                 </p>
                 <ul className="text-xs text-red-700 space-y-1.5 list-disc ml-4 font-medium">
                   <li>Chi phí marketing đang tăng nhanh.</li>
@@ -206,20 +225,22 @@ export default function StartupDashboardPage() {
                 </thead>
                 <tbody className="divide-y divide-neutral-surface">
                   {[
-                    { name: "Pitch_Deck_v2.pdf", type: "Tài liệu gọi vốn", date: "12/05/2024", icon: "picture_as_pdf", iconColor: "text-red-500" },
-                    { name: "Cap_Table_Seed.xlsx", type: "Tài chính", date: "10/05/2024", icon: "description", iconColor: "text-blue-500" },
+                    { name: "Pitch_Deck_v2.pdf", type: "Tài liệu gọi vốn", date: "12/05/2024", icon: FileText, iconColor: "text-red-500" },
+                    { name: "Cap_Table_Seed.xlsx", type: "Tài chính", date: "10/05/2024", icon: FileText, iconColor: "text-blue-500" },
                   ].map((doc, idx) => (
                     <tr key={idx} className="hover:bg-[#f8f8f6]/50 transition-colors group">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <span className={`material-symbols-outlined ${doc.iconColor}`}>{doc.icon}</span>
+                          <doc.icon className={cn("w-5 h-5", doc.iconColor)} />
                           <span className="text-sm font-bold text-[#171611]">{doc.name}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-xs font-bold text-neutral-muted uppercase tracking-tight">{doc.type}</td>
                       <td className="px-6 py-4 text-xs font-bold text-neutral-muted tracking-tight">{doc.date}</td>
                       <td className="px-6 py-4 text-right pr-6">
-                        <button className="material-symbols-outlined text-neutral-muted hover:text-[#171611] transition-colors p-1 rounded-lg hover:bg-[#f4f4f0]">more_vert</button>
+                        <button className="text-neutral-muted hover:text-[#171611] transition-colors p-1 rounded-lg hover:bg-[#f4f4f0]">
+                          <MoreVertical className="w-5 h-5" />
+                        </button>
                       </td>
                     </tr>
                   ))}

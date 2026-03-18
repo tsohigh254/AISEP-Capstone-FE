@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { notFound } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import Link from "next/link";
 import {
@@ -12,12 +13,20 @@ import {
     MessageSquare,
     HelpCircle,
     CheckCircle2,
-    Search
+    Search,
+    Settings,
+    History as LucideHistory,
+    TrendingUp
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
-export default function MentorshipRequestDetailsPage() {
+export default function MentorshipRequestDetailsPage({ params }: { params: { id: string } }) {
+    // Logic: Nếu ID không hợp lệ (ví dụ: không bắt đầu bằng REQ-), hiển thị 404
+    if (!params.id.startsWith("REQ-")) {
+        notFound();
+    }
+
     // Mock data for the request
     const request = {
         id: "REQ-2849",
@@ -81,7 +90,7 @@ export default function MentorshipRequestDetailsPage() {
                             <div className="flex items-center justify-between mb-8">
                                 <div className="flex items-center gap-4">
                                     <div className="size-10 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 flex items-center justify-center">
-                                        <span className="material-symbols-outlined text-[#eec54e] text-[22px]">settings</span>
+                                        <Settings className="size-5 text-[#eec54e]" />
                                     </div>
                                     <h2 className="text-[22px] font-black text-slate-900 dark:text-white tracking-tight">Chi tiết thách thức</h2>
                                 </div>
@@ -123,7 +132,7 @@ export default function MentorshipRequestDetailsPage() {
                         <div className="bg-white dark:bg-slate-900 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm p-10">
                             <div className="flex items-center gap-4 mb-10">
                                 <div className="size-10 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-[#eec54e] text-[22px]">history</span>
+                                    <LucideHistory className="size-5 text-[#eec54e]" />
                                 </div>
                                 <h2 className="text-[22px] font-black text-slate-900 dark:text-white tracking-tight">Lịch sử cập nhật trạng thái</h2>
                             </div>
@@ -160,13 +169,13 @@ export default function MentorshipRequestDetailsPage() {
                                     <h3 className="text-[18px] font-bold text-slate-900 dark:text-white leading-tight">{request.advisor.name}</h3>
                                     <p className="text-[12px] text-slate-500 font-medium mt-1">{request.advisor.title}</p>
                                     <div className="flex items-center gap-1 mt-2">
-                                        <span className="material-symbols-outlined text-yellow-400 text-[18px] fill-current">star</span>
+                                        <TrendingUp className="size-4 text-yellow-400 fill-current" />
                                         <span className="text-[13px] font-black text-slate-900 dark:text-white">{request.advisor.rating}</span>
                                     </div>
                                 </div>
                             </div>
                             <Button className="w-full h-14 rounded-2xl border-2 border-slate-50 hover:border-[#eec54e]/20 hover:bg-[#eec54e]/5 bg-white text-slate-900 font-black text-[14px] transition-all gap-3 shadow-sm group">
-                                <span className="material-symbols-outlined text-[20px] text-slate-900 group-hover:text-[#eec54e] transition-colors">chat_bubble</span>
+                                <MessageSquare className="size-5 text-slate-900 group-hover:text-[#eec54e] transition-colors" />
                                 <span>Nhắn tin cho chuyên gia</span>
                             </Button>
                         </div>
@@ -178,7 +187,7 @@ export default function MentorshipRequestDetailsPage() {
                                 <div className="flex items-center justify-between p-4 bg-[#f8fafc] dark:bg-slate-800/50 rounded-2xl border border-slate-50/50">
                                     <div className="flex items-center gap-4">
                                         <div className="size-10 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm">
-                                            <span className="material-symbols-outlined text-slate-400 text-[22px]">videocam</span>
+                                            <Video className="size-5 text-slate-400" />
                                         </div>
                                         <span className="text-[13px] font-bold text-slate-500">Hình thức</span>
                                     </div>
@@ -188,7 +197,7 @@ export default function MentorshipRequestDetailsPage() {
                                 <div className="flex items-center justify-between p-4 bg-[#f8fafc] dark:bg-slate-800/50 rounded-2xl border border-slate-50/50">
                                     <div className="flex items-center gap-4">
                                         <div className="size-10 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm">
-                                            <span className="material-symbols-outlined text-slate-400 text-[22px]">schedule</span>
+                                            <Clock className="size-5 text-slate-400" />
                                         </div>
                                         <span className="text-[13px] font-bold text-slate-500">Thời lượng</span>
                                     </div>
@@ -198,7 +207,7 @@ export default function MentorshipRequestDetailsPage() {
                                 <div className="flex items-center justify-between p-4 bg-yellow-50/50 dark:bg-yellow-500/5 rounded-2xl border border-yellow-100/50">
                                     <div className="flex items-center gap-4">
                                         <div className="size-10 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm">
-                                            <span className="material-symbols-outlined text-[#eec54e] text-[22px]">payments</span>
+                                            <DollarSign className="size-5 text-[#eec54e]" />
                                         </div>
                                         <span className="text-[13px] font-bold text-slate-500">Phí tư vấn</span>
                                     </div>
@@ -210,7 +219,7 @@ export default function MentorshipRequestDetailsPage() {
                         {/* Help Box */}
                         <div className="bg-[#171611] rounded-[32px] p-8 text-white">
                             <div className="flex items-center gap-3 mb-4">
-                                <span className="material-symbols-outlined text-yellow-400 text-[24px]">help</span>
+                                <HelpCircle className="size-6 text-yellow-400" />
                                 <h3 className="text-[18px] font-bold">Trợ giúp</h3>
                             </div>
                             <p className="text-[13px] text-white/60 font-medium leading-relaxed mb-6">Chuyên gia thường phản hồi trong vòng 24-48h. Nếu có thắc mắc, vui lòng liên hệ CSKH.</p>

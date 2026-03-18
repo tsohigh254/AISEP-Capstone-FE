@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import Image from "next/image";
@@ -30,12 +30,12 @@ import {
   Users,
   Fingerprint,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { AnimatedNumber } from "@/lib/useCountUp";
+import { Footer } from "@/components/layout";
 
 export default function PublicHomePage() {
   const [activeRole, setActiveRole] = useState<"startup" | "investor" | "advisor">("startup");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const scrollToSection = useCallback((id: string) => {
     const el = document.getElementById(id);
@@ -45,126 +45,187 @@ export default function PublicHomePage() {
   }, []);
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col overflow-x-hidden font-manrope bg-[#FEFCE8] text-slate-900">
-      {/* ===== HEADER ===== */}
-      <header className="fixed top-0 z-50 w-full border-b border-slate-200/60 bg-white">
-        <div className="mx-auto flex max-w-[1280px] items-center justify-between px-6 py-4 lg:px-10">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FACC15] text-slate-900">
-              <Rocket className="h-6 w-6" />
-            </div>
-            <h2 className="text-xl font-extrabold tracking-tight text-slate-900">AISEP</h2>
-          </div>
-
-          <nav className="hidden lg:flex items-center gap-8">
-            <button className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors" onClick={() => scrollToSection("features")}>Tính năng</button>
-            <button className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors" onClick={() => scrollToSection("roles")}>Dành cho ai</button>
-            <button className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors" onClick={() => scrollToSection("trust")}>Bảo mật</button>
-            <Link href="/about" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">Về chúng tôi</Link>
-            <Link href="/faq" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">FAQ</Link>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/auth/login"
-              className="hidden sm:flex items-center justify-center px-5 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-all"
-            >
-              Đăng nhập
-            </Link>
-            <Link
-              href="/auth/register"
-              className="hidden sm:flex items-center justify-center px-6 py-2.5 text-sm font-bold bg-[#FACC15] text-slate-900 rounded-lg hover:shadow-lg hover:scale-[1.02] transition-all"
-            >
-              Đăng ký
-            </Link>
-            <button
-              className="lg:hidden flex items-center justify-center w-10 h-10 rounded-lg hover:bg-slate-100 transition-colors"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-slate-100 bg-white px-6 py-4 space-y-3 animate-in slide-in-from-top-2">
-            <button className="block text-sm font-semibold text-slate-600 hover:text-slate-900 py-2 text-left w-full" onClick={() => { scrollToSection("features"); setMobileMenuOpen(false); }}>Tính năng</button>
-            <button className="block text-sm font-semibold text-slate-600 hover:text-slate-900 py-2 text-left w-full" onClick={() => { scrollToSection("roles"); setMobileMenuOpen(false); }}>Dành cho ai</button>
-            <button className="block text-sm font-semibold text-slate-600 hover:text-slate-900 py-2 text-left w-full" onClick={() => { scrollToSection("trust"); setMobileMenuOpen(false); }}>Bảo mật</button>
-            <Link href="/about" className="block text-sm font-semibold text-slate-600 hover:text-slate-900 py-2 text-left w-full" onClick={() => setMobileMenuOpen(false)}>Về chúng tôi</Link>
-            <Link href="/faq" className="block text-sm font-semibold text-slate-600 hover:text-slate-900 py-2 text-left w-full" onClick={() => setMobileMenuOpen(false)}>FAQ</Link>
-            <div className="flex gap-3 pt-3 border-t border-slate-100">
-              <Link href="/auth/login" className="flex-1 text-center px-4 py-2.5 text-sm font-bold text-slate-700 border border-slate-200 rounded-lg" onClick={() => setMobileMenuOpen(false)}>Đăng nhập</Link>
-              <Link href="/auth/register" className="flex-1 text-center px-4 py-2.5 text-sm font-bold bg-[#FACC15] text-slate-900 rounded-lg" onClick={() => setMobileMenuOpen(false)}>Đăng ký</Link>
-            </div>
-          </div>
-        )}
-      </header>
-
-      <div className="h-[73px]" />
+    <div className="relative flex min-h-screen w-full flex-col overflow-x-hidden font-manrope bg-[#FEFDF2] text-[#0F172A]">
+      <div className="h-[100px]" />
 
       <main className="flex-1">
-        {/* ===== HERO SECTION ===== */}
-        <section className="relative mx-auto max-w-[1280px] px-4 sm:px-6 py-10 sm:py-16 lg:px-10 lg:py-24">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div className="flex flex-col gap-8">
-              <div className="space-y-4">
-                <h1 className="text-3xl sm:text-4xl font-black leading-[1.1] tracking-tight text-slate-900 lg:text-6xl">
-                  Nền tảng vận hành Hệ sinh thái Khởi nghiệp toàn diện
+        {/* ===== PREMIUM HERO SECTION ===== */}
+        <section className="relative mx-auto max-w-[1280px] px-6 py-12 lg:py-24">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            {/* Left Column */}
+            <div className="flex flex-col gap-10 max-w-xl">
+              <div className="space-y-6">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-white border border-slate-200 rounded-full shadow-sm">
+                  <span className="flex h-2 w-2 rounded-full bg-[#FACC15]"></span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">AI-Powered Ecosystem</span>
+                </div>
+                <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-[#0F172A] tracking-[-0.02em] leading-[1.2] sm:leading-[1.1] lg:leading-[1.05] font-plus-jakarta-sans overflow-visible">
+                  Nền tảng AI toàn diện <br />
+                  cho hệ sinh thái <br />
+                  <span className="text-[#FACC15] drop-shadow-sm text-4xl sm:text-6xl lg:text-7xl font-plus-jakarta-sans font-extrabold bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent inline-block py-2 leading-tight mt-1">Khởi nghiệp</span>
                 </h1>
-                <p className="text-lg font-medium text-slate-500">
-                  A comprehensive startup ecosystem operation platform.
+                <p className="text-lg sm:text-xl font-medium text-slate-600 leading-relaxed">
+                  Kết nối <span className="text-slate-900 font-bold italic">Startup</span>, <span className="text-slate-900 font-bold italic">Investor</span> và <span className="text-slate-900 font-bold italic">Advisor</span> trên một nền tảng minh bạch, bảo mật và hỗ trợ đánh giá thông minh.
                 </p>
               </div>
 
               <div className="flex flex-wrap gap-3">
-                <div className="flex items-center gap-2 rounded-full bg-[#FACC15]/10 px-4 py-2 border border-[#FACC15]/20">
-                  <ShieldCheck className="h-4 w-4 text-slate-800" />
-                  <span className="text-sm font-semibold text-slate-800">Minh bạch quy trình</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-full bg-[#FACC15]/10 px-4 py-2 border border-[#FACC15]/20">
-                  <Lock className="h-4 w-4 text-slate-800" />
-                  <span className="text-sm font-semibold text-slate-800">Bảo vệ tính toàn vẹn tài liệu</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-full bg-[#FACC15]/10 px-4 py-2 border border-[#FACC15]/20">
-                  <Network className="h-4 w-4 text-slate-800" />
-                  <span className="text-sm font-semibold text-slate-800">Kết nối &amp; cố vấn có kiểm soát</span>
-                </div>
+                {[
+                  { icon: Shield, text: "Minh bạch quy trình" },
+                  { icon: Lock, text: "Xác thực tài liệu" },
+                  { icon: Network, text: "Kết nối có kiểm soát" }
+                ].map((badge, idx) => (
+                  <div key={idx} className="flex items-center gap-2 rounded-full bg-white px-4 py-2 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                    <badge.icon className="h-4 w-4 text-[#FACC15]" />
+                    <span className="text-xs font-bold text-[#0F172A]">{badge.text}</span>
+                  </div>
+                ))}
               </div>
 
-              <div className="flex flex-wrap gap-4">
-                <Link
-                  href="/auth/register"
-                  className="flex min-w-[160px] items-center justify-center rounded-xl bg-[#FACC15] px-8 py-4 text-base font-bold text-slate-900 shadow-xl shadow-[#FACC15]/20 hover:shadow-[#FACC15]/40 hover:-translate-y-0.5 transition-all"
-                >
-                  Bắt đầu ngay
-                </Link>
-                <button
-                  onClick={() => scrollToSection("features")}
-                  className="flex min-w-[160px] items-center justify-center rounded-xl border-2 border-slate-200 bg-white px-8 py-4 text-base font-bold text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"
-                >
-                  Xem nền tảng
-                </button>
+              <div className="space-y-6">
+                <div className="flex flex-wrap gap-4">
+                  <Link
+                    href="/auth/register"
+                    className="flex min-w-[180px] items-center justify-center rounded-xl bg-[#FACC15] px-8 py-5 text-base font-black text-slate-900 shadow-2xl shadow-[#FACC15]/30 hover:shadow-[#FACC15]/50 hover:-translate-y-1 transition-all"
+                  >
+                    Bắt đầu ngay
+                  </Link>
+                  <button
+                    onClick={() => scrollToSection("features")}
+                    className="flex min-w-[180px] items-center justify-center rounded-xl border-2 border-slate-200 bg-white px-8 py-5 text-base font-black text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer"
+                  >
+                    Xem nền tảng
+                  </button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex -space-x-2">
+                    {[1, 2, 3, 4].map(n => (
+                      <div key={n} className="w-8 h-8 rounded-full border-2 border-[#FEFDF2] bg-slate-200 overflow-hidden">
+                        <img src={`https://i.pravatar.cc/100?u=${n}`} alt="user" />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                    AI Evaluation • Blockchain Verification • Structured Consulting
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="relative">
-              <div className="aspect-video w-full rounded-2xl bg-gradient-to-br from-[#FACC15]/30 to-slate-200 overflow-hidden shadow-2xl border-8 border-white">
-                <div
-                  className="absolute inset-0 bg-cover bg-center mix-blend-overlay opacity-60"
-                  style={{
-                    backgroundImage:
-                      "url('https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=1000')",
-                  }}
-                />
-                <div className="relative h-full w-full p-6 flex flex-col justify-end bg-gradient-to-t from-slate-900/40 to-transparent">
-                  <div className="w-1/2 h-4 bg-white/30 rounded mb-2"></div>
-                  <div className="w-1/3 h-4 bg-white/20 rounded"></div>
+            {/* Right Column: Premium Dashboard Mockup */}
+            <div className="relative lg:h-[600px] flex items-center justify-center">
+              {/* Decorative Blur Gradients */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-gradient-to-tr from-[#FACC15]/20 via-transparent to-slate-200/30 rounded-full blur-3xl -z-10"></div>
+              
+              {/* Main App Frame */}
+              <div className="w-full relative z-10 animate-in zoom-in-95 duration-1000">
+                {/* Background Card */}
+                <div className="absolute -top-6 -left-6 w-full h-full bg-white/50 backdrop-blur-sm rounded-3xl border border-white/50 -rotate-2 -z-10"></div>
+                
+                {/* Main Dashboard UI Mockup */}
+                <div className="bg-white rounded-[2rem] shadow-2xl border border-slate-200/60 overflow-hidden ring-1 ring-slate-900/5">
+                  {/* Mockup Title Bar */}
+                  <div className="bg-slate-50/80 border-b border-slate-100 px-6 py-4 flex items-center justify-between">
+                    <div className="flex gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-slate-300"></div>
+                      <div className="w-2.5 h-2.5 rounded-full bg-slate-300"></div>
+                      <div className="w-2.5 h-2.5 rounded-full bg-slate-300"></div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-32 h-2.5 bg-slate-200 rounded-full"></div>
+                      <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center">
+                        <Fingerprint className="h-4 w-4 text-[#FACC15]" />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Mockup Content */}
+                  <div className="p-8 grid grid-cols-12 gap-6">
+                    {/* Stats Widget */}
+                    <div className="col-span-12 md:col-span-8 space-y-6">
+                      <div className="bg-[#0F172A] text-white p-6 rounded-2xl space-y-4 shadow-xl">
+                        <div className="flex justify-between items-start">
+                          <h4 className="text-sm font-bold uppercase tracking-widest text-slate-400">Startup AI Evaluation</h4>
+                          <BadgeCheck className="h-5 w-5 text-[#FACC15]" />
+                        </div>
+                        <div className="flex items-end gap-3">
+                          <span className="text-4xl font-black">94.8</span>
+                          <span className="text-xs font-bold bg-[#FACC15] text-slate-900 px-2 py-0.5 rounded-md mb-1">GRADE A</span>
+                        </div>
+                        <div className="flex gap-2 h-1.5 pt-2">
+                          {[60, 80, 40, 95, 70].map((w, i) => (
+                            <div key={i} className="flex-1 bg-white/10 rounded-full overflow-hidden">
+                              <div className="h-full bg-[#FACC15]" style={{ width: `${w}%` }}></div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      {/* Interaction Flow Widget */}
+                      <div className="bg-slate-50 border border-slate-100 p-6 rounded-2xl space-y-4">
+                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">Verification Pipeline</h4>
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-slate-200">
+                            <FileText className="h-5 w-5 text-slate-400" />
+                          </div>
+                          <div className="w-8 h-px bg-slate-200"></div>
+                          <div className="w-10 h-10 rounded-full bg-[#FACC15]/20 flex items-center justify-center border border-[#FACC15]/30">
+                            <ShieldCheck className="h-5 w-5 text-slate-900" />
+                          </div>
+                          <div className="w-8 h-px bg-slate-200"></div>
+                          <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center border border-green-200">
+                            <BadgeCheck className="h-5 w-5 text-green-500" />
+                          </div>
+                        </div>
+                        <div className="pt-2">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">Blockchain Proof</span>
+                            <span className="text-[10px] font-bold text-[#FACC15]">TX-09124-SEC</span>
+                          </div>
+                          <div className="w-full bg-slate-200 h-1 rounded-full overflow-hidden">
+                            <div className="w-[85%] h-full bg-[#FACC15]"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Ecosystem Widget */}
+                    <div className="col-span-12 md:col-span-4 bg-slate-50 border border-slate-100 p-6 rounded-2xl flex flex-col items-center justify-center text-center space-y-4">
+                      <div className="w-16 h-16 rounded-2xl bg-white shadow-xl shadow-slate-200/50 flex items-center justify-center">
+                        <Users className="h-8 w-8 text-[#FACC15]" />
+                      </div>
+                      <div>
+                        <p className="text-xl font-black text-[#0F172A]">82</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Connect Advisors</p>
+                      </div>
+                      <div className="w-full h-px bg-slate-200"></div>
+                      <div className="flex -space-x-1.5">
+                        {[5, 6, 7].map(n => (
+                          <div key={n} className="w-6 h-6 rounded-full border-2 border-white bg-slate-100 overflow-hidden">
+                            <img src={`https://i.pravatar.cc/100?u=${n}`} alt="user" />
+                          </div>
+                        ))}
+                      </div>
+                      <button className="w-full py-2 bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase text-slate-700 hover:bg-slate-50 transition-colors">
+                        View Network
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Floating Elements for Premium Feel */}
+                <div className="absolute -bottom-10 -right-10 w-48 p-4 bg-white rounded-2xl shadow-2xl border border-slate-100 animate-bounce-slow hidden md:block">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center shadow-lg shadow-green-200">
+                      <Lock className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase">Status</p>
+                      <p className="text-xs font-bold text-slate-900">Document Verified</p>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="absolute -bottom-6 -left-6 hidden md:block w-48 h-48 bg-[#FACC15] rounded-2xl -z-10 opacity-20 blur-2xl"></div>
             </div>
           </div>
         </section>
@@ -277,9 +338,7 @@ export default function PublicHomePage() {
 
           <div className="max-w-7xl mx-auto relative z-10">
             <div className="flex items-center gap-3 mb-12 justify-center md:justify-start">
-              <div className="w-12 h-12 bg-[#FACC15] rounded-xl flex items-center justify-center text-slate-900 shadow-lg shadow-[#FACC15]/20">
-                <Network className="h-7 w-7" />
-              </div>
+              <img src="/AISEP_Logo.png" alt="AISEP" className="w-14 h-14 rounded-full object-contain shadow-lg shadow-[#FACC15]/20" />
               <span className="text-2xl font-black tracking-tighter uppercase">AISEP</span>
             </div>
 
@@ -676,60 +735,7 @@ export default function PublicHomePage() {
         </section>
       </main>
 
-      {/* ===== FOOTER ===== */}
-      <footer className="bg-slate-950 text-white py-12 sm:py-20 px-4 sm:px-6 border-t border-white/5">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 sm:gap-16">
-          <div className="col-span-1">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="w-8 h-8 bg-[#FACC15] rounded-lg flex items-center justify-center text-slate-900">
-                <Network className="h-4 w-4" />
-              </div>
-              <h1 className="text-xl font-black tracking-tighter uppercase">AISEP</h1>
-            </div>
-            <p className="text-slate-400 font-medium leading-relaxed">
-              Chuẩn hóa dữ liệu doanh nghiệp và kết nối đầu tư thông minh.
-            </p>
-          </div>
-
-          <div>
-            <h5 className="text-[#FACC15] font-black uppercase tracking-widest text-xs mb-8">Hệ sinh thái</h5>
-            <ul className="space-y-4 font-bold text-slate-300">
-              <li><button className="hover:text-[#FACC15] transition-colors text-left" onClick={() => scrollToSection("roles")}>Dành cho Startup</button></li>
-              <li><button className="hover:text-[#FACC15] transition-colors text-left" onClick={() => scrollToSection("roles")}>Dành cho Nhà đầu tư</button></li>
-              <li><button className="hover:text-[#FACC15] transition-colors text-left" onClick={() => scrollToSection("roles")}>Dành cho Cố vấn</button></li>
-            </ul>
-          </div>
-
-          <div>
-            <h5 className="text-[#FACC15] font-black uppercase tracking-widest text-xs mb-8">Sản phẩm</h5>
-            <ul className="space-y-4 font-bold text-slate-300">
-              <li><button className="hover:text-[#FACC15] transition-colors text-left" onClick={() => scrollToSection("features")}>Xác thực Blockchain</button></li>
-              <li><button className="hover:text-[#FACC15] transition-colors text-left" onClick={() => scrollToSection("features")}>Chỉ số tín nhiệm</button></li>
-              <li><button className="hover:text-[#FACC15] transition-colors text-left" onClick={() => scrollToSection("features")}>Báo cáo thị trường</button></li>
-            </ul>
-          </div>
-
-          <div>
-            <h5 className="text-[#FACC15] font-black uppercase tracking-widest text-xs mb-8">Liên hệ</h5>
-            <ul className="space-y-4 font-bold text-slate-300">
-              <li className="flex items-center gap-3"><Mail className="h-5 w-5 text-[#FACC15]" /> contact@aisep.vn</li>
-              <li className="flex items-center gap-3"><MapPin className="h-5 w-5 text-[#FACC15]" /> TP. Hồ Chí Minh, Việt Nam</li>
-            </ul>
-          </div>
-        </div>
-
-        <div className="max-w-7xl mx-auto mt-12 sm:mt-20 pt-8 sm:pt-10 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 sm:gap-6">
-          <p className="text-sm font-bold text-slate-500">© 2024 AISEP. Tất cả quyền được bảo lưu.</p>
-          <div className="flex gap-8">
-            <button className="text-slate-500 hover:text-[#FACC15] transition-colors">
-              <BarChart className="h-5 w-5" />
-            </button>
-            <button className="text-slate-500 hover:text-[#FACC15] transition-colors">
-              <AtSign className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

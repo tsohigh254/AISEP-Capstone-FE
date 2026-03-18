@@ -48,7 +48,6 @@ const faqData = [
 ];
 
 export default function FAQPage() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   const toggleFaq = (index: number) => {
@@ -57,63 +56,6 @@ export default function FAQPage() {
 
   return (
     <div className="relative flex min-h-screen w-full flex-col overflow-x-hidden font-manrope bg-[#FEFCE8] text-slate-900">
-      {/* ===== HEADER ===== */}
-      <header className="fixed top-0 z-50 w-full border-b border-slate-200/60 bg-white">
-        <div className="mx-auto flex max-w-[1280px] items-center justify-between px-6 py-4 lg:px-10">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FACC15] text-slate-900">
-              <Rocket className="h-6 w-6" />
-            </div>
-            <h2 className="text-xl font-extrabold tracking-tight text-slate-900">AISEP</h2>
-          </Link>
-
-          <nav className="hidden lg:flex items-center gap-8">
-            <Link href="/#features" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">Tính năng</Link>
-            <Link href="/#roles" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">Dành cho ai</Link>
-            <Link href="/#trust" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">Bảo mật</Link>
-            <Link href="/about" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">Về chúng tôi</Link>
-            <span className="text-sm font-semibold text-[#FACC15] cursor-default">FAQ</span>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/auth/login"
-              className="hidden sm:flex items-center justify-center px-5 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-all"
-            >
-              Đăng nhập
-            </Link>
-            <Link
-              href="/auth/register"
-              className="hidden sm:flex items-center justify-center px-6 py-2.5 text-sm font-bold bg-[#FACC15] text-slate-900 rounded-lg hover:shadow-lg hover:scale-[1.02] transition-all"
-            >
-              Đăng ký
-            </Link>
-            <button
-              className="lg:hidden flex items-center justify-center w-10 h-10 rounded-lg hover:bg-slate-100 transition-colors"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-slate-100 bg-white px-6 py-4 space-y-3">
-            <Link href="/#features" className="block text-sm font-semibold text-slate-600 hover:text-slate-900 py-2" onClick={() => setMobileMenuOpen(false)}>Tính năng</Link>
-            <Link href="/#roles" className="block text-sm font-semibold text-slate-600 hover:text-slate-900 py-2" onClick={() => setMobileMenuOpen(false)}>Dành cho ai</Link>
-            <Link href="/#trust" className="block text-sm font-semibold text-slate-600 hover:text-slate-900 py-2" onClick={() => setMobileMenuOpen(false)}>Bảo mật</Link>
-            <Link href="/about" className="block text-sm font-semibold text-slate-600 hover:text-slate-900 py-2" onClick={() => setMobileMenuOpen(false)}>Về chúng tôi</Link>
-            <span className="block text-sm font-semibold text-[#FACC15] py-2">FAQ</span>
-            <div className="flex gap-3 pt-3 border-t border-slate-100">
-              <Link href="/auth/login" className="flex-1 text-center px-4 py-2.5 text-sm font-bold text-slate-700 border border-slate-200 rounded-lg" onClick={() => setMobileMenuOpen(false)}>Đăng nhập</Link>
-              <Link href="/auth/register" className="flex-1 text-center px-4 py-2.5 text-sm font-bold bg-[#FACC15] text-slate-900 rounded-lg" onClick={() => setMobileMenuOpen(false)}>Đăng ký</Link>
-            </div>
-          </div>
-        )}
-      </header>
-
       <div className="h-[73px]" />
 
       {/* ===== FAQ CONTENT ===== */}
@@ -169,9 +111,7 @@ export default function FAQPage() {
         <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 sm:gap-16">
           <div className="col-span-1">
             <div className="flex items-center gap-3 mb-8">
-              <div className="w-8 h-8 bg-[#FACC15] rounded-lg flex items-center justify-center text-slate-900">
-                <Network className="h-4 w-4" />
-              </div>
+              <img src="/AISEP_Logo.png" alt="AISEP" className="w-10 h-10 rounded-full object-contain" />
               <h1 className="text-xl font-black tracking-tighter uppercase">AISEP</h1>
             </div>
             <p className="text-slate-400 font-medium leading-relaxed">

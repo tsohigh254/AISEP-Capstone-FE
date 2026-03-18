@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import React from "react";
+import { AuthGuard } from "@/components/auth-guard";
 
 type StartupShellProps = {
   children: React.ReactNode;
@@ -22,12 +23,14 @@ type StartupShellProps = {
 
 export function StartupShell({ children }: StartupShellProps) {
   return (
-    <div className="min-h-screen bg-[#f8f8f6] text-[#171611] font-be-vietnam-pro selection:bg-[#e6cc4c]/30">
-      <StartupHeader />
-      <div className="h-[80px]" />
-      <main className="min-h-[calc(100vh-80px)] pb-12 w-full max-w-[1440px] mx-auto px-6 pt-8">
-        {children}
-      </main>
-    </div>
+    <AuthGuard allowedRoles={["Startup"]}>
+      <div className="min-h-screen bg-[#f8f8f6] text-[#171611] font-be-vietnam-pro selection:bg-[#e6cc4c]/30">
+        <StartupHeader />
+        <div className="h-[80px]" />
+        <main className="min-h-[calc(100vh-80px)] pb-12 w-full max-w-[1440px] mx-auto px-6 pt-8">
+          {children}
+        </main>
+      </div>
+    </AuthGuard>
   );
 }

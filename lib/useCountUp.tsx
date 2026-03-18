@@ -10,7 +10,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
  */
 export function useCountUp(end: number, duration = 1200, delay = 0) {
   const [count, setCount] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
+  const ref = useRef<any>(null);
   const started = useRef(false);
 
   const animate = useCallback(() => {

@@ -1,6 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { 
+  ChevronRight, 
+  Search, 
+  Brain, 
+  User, 
+  Rocket, 
+  ShieldAlert, 
+  MoreVertical, 
+  Paperclip, 
+  Send, 
+  Share2, 
+  Plus, 
+  DollarSign 
+} from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -118,11 +132,11 @@ const avatarBg: Record<RoleBadge, string> = {
   "Admin":       "bg-amber-100 text-amber-600",
 };
 
-const avatarIcon: Record<RoleBadge, string> = {
-  "Cố vấn":     "psychology",
-  "Nhà đầu tư": "person",
-  "Startup":     "rocket",
-  "Admin":       "admin_panel_settings",
+const avatarIcon: Record<RoleBadge, any> = {
+  "Cố vấn":     Brain,
+  "Nhà đầu tư": User,
+  "Startup":     Rocket,
+  "Admin":       ShieldAlert,
 };
 
 function getInitials(name: string) {
@@ -157,7 +171,7 @@ export function MessagingContent() {
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-xs font-medium text-slate-400 mb-4">
         <span className="hover:text-[#e6cc4c] transition-colors cursor-pointer">Workspace</span>
-        <span className="material-symbols-outlined text-sm">chevron_right</span>
+        <ChevronRight className="w-4 h-4" />
         <span className="text-slate-600 font-semibold">Tin nhắn</span>
       </nav>
 
@@ -167,7 +181,7 @@ export function MessagingContent() {
           {/* Search */}
           <div className="mb-6">
             <div className="relative mb-4">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
               <input
                 className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#e6cc4c]/30 focus:border-[#e6cc4c]/30 transition-all shadow-sm"
                 placeholder="Tìm kiếm hội thoại..."
@@ -228,7 +242,10 @@ export function MessagingContent() {
                       </div>
                     ) : (
                       <div className={`size-12 rounded-full ${avatarBg[conv.roleBadge]} flex items-center justify-center`}>
-                        <span className="material-symbols-outlined">{avatarIcon[conv.roleBadge]}</span>
+                        {(() => {
+                          const Icon = avatarIcon[conv.roleBadge];
+                          return <Icon className="w-6 h-6" />;
+                        })()}
                       </div>
                     )}
                     {conv.online !== undefined && (
@@ -286,7 +303,10 @@ export function MessagingContent() {
                   <img alt={selected.name} className="size-10 rounded-full object-cover border-2 border-white shadow-sm" src={selected.avatar} />
                 ) : (
                   <div className={`size-10 rounded-full ${avatarBg[selected.roleBadge]} flex items-center justify-center text-sm`}>
-                    {selected.initials || <span className="material-symbols-outlined text-lg">{avatarIcon[selected.roleBadge]}</span>}
+                    {selected.initials || (() => {
+                      const Icon = avatarIcon[selected.roleBadge];
+                      return <Icon className="w-5 h-5" />;
+                    })()}
                   </div>
                 )}
                 <div>
@@ -306,7 +326,7 @@ export function MessagingContent() {
               </div>
               <div className="flex items-center gap-1">
                 <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-lg transition-colors">
-                  <span className="material-symbols-outlined text-xl">more_vert</span>
+                  <MoreVertical className="w-5 h-5" />
                 </button>
               </div>
             </div>
@@ -333,7 +353,7 @@ export function MessagingContent() {
             <div className="px-6 py-4 border-t border-slate-200">
               <div className="flex items-center gap-2">
                 <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-lg transition-colors">
-                  <span className="material-symbols-outlined text-xl">attach_file</span>
+                  <Paperclip className="w-5 h-5" />
                 </button>
                 <input
                   className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[#e6cc4c]/30 focus:border-[#e6cc4c]/30 transition-all"
@@ -343,8 +363,8 @@ export function MessagingContent() {
                   onChange={(e) => setMessageInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && messageInput.trim()) setMessageInput(""); }}
                 />
-                <button className="p-2.5 bg-[#e6cc4c] text-slate-900 rounded-xl hover:shadow-lg transition-all">
-                  <span className="material-symbols-outlined text-xl">send</span>
+                <button className="p-2.5 bg-[#e6cc4c] text-slate-900 rounded-xl hover:shadow-lg transition-all flex items-center justify-center">
+                  <Send className="w-5 h-5" />
                 </button>
               </div>
             </div>
@@ -357,9 +377,9 @@ export function MessagingContent() {
             </div>
             <div className="relative z-10 flex flex-col items-center text-center max-w-lg">
               <div className="size-24 bg-white rounded-3xl shadow-xl flex items-center justify-center mb-8 rotate-3 relative">
-                <span className="material-symbols-outlined text-5xl text-[#e6cc4c]" style={{ fontVariationSettings: "'wght' 200, 'FILL' 1" }}>hub</span>
+                <Share2 className="w-12 h-12 text-[#e6cc4c]" />
                 <div className="absolute -top-3 -right-3 size-10 bg-[#e6cc4c] rounded-full shadow-lg flex items-center justify-center -rotate-3 border-4 border-[#fcfcf7]">
-                  <span className="material-symbols-outlined text-slate-900 text-xl font-bold">add</span>
+                  <Plus className="w-5 h-5 text-slate-900" />
                 </div>
               </div>
               <h3 className="text-3xl font-bold text-slate-900 mb-4 tracking-tight">Trung tâm Kết nối AISEP</h3>
@@ -369,19 +389,19 @@ export function MessagingContent() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
                 <button className="group p-5 bg-white border border-slate-200 rounded-2xl hover:border-[#e6cc4c] hover:shadow-lg hover:-translate-y-1 transition-all flex flex-col items-center gap-3">
                   <div className="size-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                    <span className="material-symbols-outlined">payments</span>
+                    <DollarSign className="w-6 h-6" />
                   </div>
                   <span className="text-sm font-bold text-slate-700">Chat với Nhà đầu tư</span>
                 </button>
                 <button className="group p-5 bg-white border border-slate-200 rounded-2xl hover:border-[#e6cc4c] hover:shadow-lg hover:-translate-y-1 transition-all flex flex-col items-center gap-3">
                   <div className="size-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-colors">
-                    <span className="material-symbols-outlined">rocket_launch</span>
+                    <Rocket className="w-6 h-6" />
                   </div>
                   <span className="text-sm font-bold text-slate-700">Kết nối Startup</span>
                 </button>
                 <button className="group p-5 bg-white border border-slate-200 rounded-2xl hover:border-[#e6cc4c] hover:shadow-lg hover:-translate-y-1 transition-all flex flex-col items-center gap-3">
                   <div className="size-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                    <span className="material-symbols-outlined">psychology</span>
+                    <Brain className="w-6 h-6" />
                   </div>
                   <span className="text-sm font-bold text-slate-700">Nhắn tin Cố vấn</span>
                 </button>

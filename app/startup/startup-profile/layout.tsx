@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { ChevronRight } from "lucide-react";
 import { StartupShell } from "@/components/startup/startup-shell";
 import { StartupProfileFooter } from "@/components/startup/startup-profile-footer";
 
@@ -25,7 +26,7 @@ export default function StartupProfileLayout({ children }: { children: React.Rea
                 {/* Breadcrumbs */}
                 <div className="flex items-center gap-2 text-sm">
                     <span className="text-neutral-muted">Hồ sơ Startup</span>
-                    <span className="material-symbols-outlined text-xs text-neutral-muted">chevron_right</span>
+                    <ChevronRight className="w-4 h-4 text-neutral-muted" />
                     <span className="font-bold text-[#171611]">{currentTab.label}</span>
                 </div>
 

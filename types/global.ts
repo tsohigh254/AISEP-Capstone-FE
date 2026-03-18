@@ -80,6 +80,35 @@ declare global {
         website: string
     }
 
+    interface IAdvisorProfile {
+        advisorID: number
+        userId: number
+        fullName: string
+        title: string
+        company: string
+        bio: string
+        website: string
+        linkedInURL: string
+        mentorshipPhilosophy: string
+        profilePhotoURL: string
+        experienceYears: number
+        items: string[]
+        createdAt: string
+        updatedAt: string
+    }
+
+    interface ICreateAdvisor {
+        fullName: string
+        title?: string
+        company?: string
+        bio?: string
+        website?: string
+        linkedInURL?: string
+        mentorshipPhilosophy?: string
+        profilePhotoURL?: File | string
+        items?: string[]
+    }
+
     interface IPaging {
         page: number
         pageSize: number

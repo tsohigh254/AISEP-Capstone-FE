@@ -128,32 +128,7 @@ function ResetPasswordContent() {
   if (isSuccess) {
     return (
       <div className="min-h-screen bg-[#f8f8f6] flex flex-col" style={{ fontFamily: "var(--font-be-vietnam-pro), sans-serif" }}>
-        {/* Header */}
-        <header className="w-full border-b border-slate-200/60 bg-white sticky top-0 z-50">
-          <div className="max-w-[1440px] mx-auto px-6 lg:px-10 h-14 flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FACC15] text-slate-900">
-                <Rocket className="h-4 w-4" />
-              </div>
-              <span className="text-lg font-bold tracking-tight text-slate-900 font-manrope">AISEP</span>
-            </Link>
-            <div className="hidden md:flex items-center gap-9">
-              <Link href="/about" className="text-sm font-medium text-slate-700 hover:text-[#f0f042] transition-colors">Về chúng tôi</Link>
-              <Link href="/#features" className="text-sm font-medium text-slate-700 hover:text-[#f0f042] transition-colors">Tính năng</Link>
-              <Link href="/faq" className="text-sm font-medium text-slate-700 hover:text-[#f0f042] transition-colors">Cộng đồng</Link>
-            </div>
-            <div className="flex gap-2">
-              <Link href="/auth/register" className="hidden sm:flex items-center justify-center px-4 h-10 bg-[#FACC15] text-slate-900 text-sm font-bold rounded-lg hover:opacity-90 transition-opacity">
-                Đăng ký
-              </Link>
-              <Link href="/auth/login" className="hidden sm:flex items-center justify-center px-4 h-10 bg-slate-100 text-slate-900 text-sm font-bold rounded-lg hover:bg-slate-200 transition-colors">
-                Đăng nhập
-              </Link>
-            </div>
-          </div>
-        </header>
-
-        {/* Main */}
+      <div className="h-14" />
         <main className="flex-1 flex flex-col items-center justify-center px-4 py-12">
           <div className="max-w-[480px] w-full">
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-8 text-center flex flex-col items-center gap-6">
@@ -216,25 +191,7 @@ function ResetPasswordContent() {
    * ============================================================== */
   return (
     <div className="min-h-screen bg-[#f8f8f6] flex flex-col" style={{ fontFamily: "var(--font-be-vietnam-pro), sans-serif" }}>
-      {/* Header — minimal auth style */}
-      <header className="w-full px-6 py-4 lg:px-20 flex items-center justify-between border-b border-slate-200/50 bg-white backdrop-blur-md sticky top-0 z-50">
-        <Link href="/" className="flex items-center gap-2 group cursor-pointer">
-          <div className="bg-[#FACC15] p-1.5 rounded-lg flex items-center justify-center text-slate-900">
-            <Rocket className="h-5 w-5" />
-          </div>
-          <h2 className="text-slate-900 text-xl font-black leading-tight tracking-tight font-manrope">AISEP</h2>
-        </Link>
-        <div className="flex items-center gap-6">
-          <button className="hidden md:block text-slate-600 text-sm font-medium hover:text-[#f0f042] transition-colors">
-            Hỗ trợ
-          </button>
-          <div className="h-4 w-px bg-slate-200 hidden md:block" />
-          <button className="text-slate-600 text-sm font-medium hover:text-slate-900 flex items-center gap-1 transition-colors">
-            <Globe className="w-4 h-4" />
-            Tiếng Việt
-          </button>
-        </div>
-      </header>
+      <div className="h-14" />
 
       {/* Main */}
       <main className="flex-1 flex items-center justify-center p-6 md:p-12">

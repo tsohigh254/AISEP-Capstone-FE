@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bell, ChevronDown, User, Key, LogOut, Check, Trash2, Loader2 } from "lucide-react";
+import { Bell, ChevronDown, User, Key, LogOut, Check, Trash2, Loader2, MessageSquare, LayoutGrid, CheckCheck, Building, Settings, FileText, Brain, Users, Handshake, FileUp } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -142,9 +142,7 @@ export function StartupHeader({
         {/* Left Section: Logo & Nav */}
         <div className="flex items-center gap-12">
           <Link href="/startup" className="flex items-center gap-4 cursor-pointer group">
-            <div className="bg-[#e6cc4c] w-10 h-10 rounded-xl shadow-[0_4px_12px_rgba(230,204,76,0.15)] flex items-center justify-center group-hover:scale-110 transition-all duration-300">
-              <span className="material-symbols-outlined text-white text-[28px] font-bold leading-none">rocket_launch</span>
-            </div>
+            <img src="/AISEP_Logo.png" alt="AISEP" className="w-12 h-12 rounded-full object-contain group-hover:scale-110 transition-all duration-300" />
             <div className="flex items-baseline gap-1.5">
               <h2 className="text-[#171611] text-[22px] font-black tracking-tighter font-manrope">AISEP</h2>
               <span className="text-[#878164] text-xl font-medium font-manrope">Startup</span>
@@ -191,7 +189,7 @@ export function StartupHeader({
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
             <Link href="/startup/messaging" className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-500 hover:bg-[#e6cc4c]/10 hover:text-[#e6cc4c] transition-all relative">
-              <span className="material-symbols-outlined text-[22px]">chat_bubble</span>
+              <MessageSquare className="w-5 h-5" />
             </Link>
 
             <div className="relative" ref={notiRef}>
@@ -199,7 +197,7 @@ export function StartupHeader({
                 className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-500 hover:bg-[#e6cc4c]/10 hover:text-[#e6cc4c] transition-all relative"
                 onClick={handleToggleNoti}
               >
-                <span className="material-symbols-outlined text-[22px]">notifications</span>
+                <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
                   <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-red-500 rounded-full ring-2 ring-white dark:ring-slate-900"></span>
                 )}
@@ -210,7 +208,7 @@ export function StartupHeader({
                   <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-surface bg-[#f8f8f6]">
                     <h3 className="font-bold text-[#171611] text-sm uppercase tracking-widest">Thông báo</h3>
                     <button onClick={handleMarkAllRead} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-black">
-                      <span className="material-symbols-outlined text-sm">done_all</span> Đọc tất cả
+                      <CheckCheck className="w-4 h-4" /> Đọc tất cả
                     </button>
                   </div>
                   <div className="max-h-80 overflow-y-auto divide-y divide-neutral-surface">
@@ -231,7 +229,7 @@ export function StartupHeader({
                             <p className="text-[10px] font-black text-neutral-muted mt-2 uppercase tracking-widest opacity-60">{new Date(item.createdAt).toLocaleDateString("vi-VN")}</p>
                           </div>
                           <button onClick={(e) => { e.stopPropagation(); handleDeleteNoti(item.notificationId); }} className="opacity-0 group-hover:opacity-100 text-neutral-muted hover:text-red-500 transition-all p-1">
-                            <span className="material-symbols-outlined text-xl">delete</span>
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       ))
@@ -257,7 +255,7 @@ export function StartupHeader({
                 )}
                 onClick={() => setIsGridOpen(!isGridOpen)}
               >
-                <span className="material-symbols-outlined text-[22px]">grid_view</span>
+                <LayoutGrid className="w-5 h-5" />
               </button>
 
               {isGridOpen && (
@@ -265,10 +263,10 @@ export function StartupHeader({
                   <div className="w-64 bg-white rounded-[24px] shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-neutral-surface/50 overflow-hidden p-2">
                     <div className="grid grid-cols-1 gap-1">
                       {[
-                        { icon: "description", label: "Tài liệu & IP", href: "/startup/documents" },
-                        { icon: "psychology", label: "Đánh giá AI", href: "/startup/ai-evaluation" },
-                        { icon: "groups", label: "Tìm cố vấn", href: "/startup/experts" },
-                        { icon: "handshake", label: "Kết nối nhà ĐT", href: "/startup/investors" },
+                        { icon: FileUp, label: "Tài liệu & IP", href: "/startup/documents", color: "text-blue-500", bg: "bg-blue-50" },
+                        { icon: Brain, label: "Đánh giá AI", href: "/startup/ai-evaluation", color: "text-purple-500", bg: "bg-purple-50" },
+                        { icon: Users, label: "Tìm cố vấn", href: "/startup/experts", color: "text-orange-500", bg: "bg-orange-50" },
+                        { icon: Handshake, label: "Kết nối nhà ĐT", href: "/startup/investors", color: "text-emerald-500", bg: "bg-emerald-50" },
                       ].map((item) => (
                         <Link
                           key={item.href}
@@ -276,8 +274,8 @@ export function StartupHeader({
                           className="flex items-center gap-4 px-4 py-3 hover:bg-[#f4f4f0]/80 rounded-[18px] transition-all group/grid"
                           onClick={() => setIsGridOpen(false)}
                         >
-                          <div className="w-10 h-10 rounded-xl bg-[#f8f8f6] flex items-center justify-center group-hover/grid:bg-white group-hover/grid:shadow-sm transition-all">
-                            <span className="material-symbols-outlined text-[22px] text-[#171611] group-hover/grid:text-[#e6cc4c] transition-colors">{item.icon}</span>
+                          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center transition-all group-hover/grid:shadow-sm", item.bg, "group-hover/grid:bg-white")}>
+                            <item.icon className={cn("w-5 h-5 transition-colors", item.color)} />
                           </div>
                           <span className="text-sm font-black text-[#171611] tracking-tight">{item.label}</span>
                         </Link>
@@ -313,9 +311,9 @@ export function StartupHeader({
             {isDropdownOpen && (
               <div className="absolute right-0 top-full mt-4 w-52 bg-white rounded-[20px] shadow-[0_10px_40px_rgba(0,0,0,0.1)] border border-neutral-surface/50 overflow-hidden z-[60] py-3 animate-in fade-in slide-in-from-top-2 duration-200">
                 {[
-                  { icon: "person", label: "Hồ sơ của tôi", href: "/startup/profile" },
-                  { icon: "business", label: "Hồ sơ startup", href: "/startup/startup-profile" },
-                  { icon: "settings", label: "Cài đặt tài khoản", href: "/startup/settings" },
+                  { icon: User, label: "Hồ sơ của tôi", href: "/startup/profile" },
+                  { icon: Building, label: "Hồ sơ startup", href: "/startup/startup-profile" },
+                  { icon: Settings, label: "Cài đặt tài khoản", href: "/startup/settings" },
                 ].map((link) => (
                   <Link
                     key={link.href}
@@ -323,9 +321,7 @@ export function StartupHeader({
                     className="flex items-center gap-3 px-5 py-2.5 hover:bg-[#f4f4f0]/60 transition-colors group/item"
                     onClick={() => setIsDropdownOpen(false)}
                   >
-                    <span className="material-symbols-outlined text-[22px] text-[#171611] opacity-70 group-hover/item:opacity-100 transition-opacity">
-                      {link.icon}
-                    </span>
+                    <link.icon className="w-5 h-5 text-[#171611] opacity-70 group-hover/item:opacity-100 transition-opacity" />
                     <span className="text-[13px] font-bold text-[#171611] opacity-80 group-hover/item:opacity-100 transition-opacity">
                       {link.label}
                     </span>
@@ -336,9 +332,7 @@ export function StartupHeader({
                   onClick={handleLogout}
                   className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-red-50/50 transition-colors group/item"
                 >
-                  <span className="material-symbols-outlined text-[22px] text-[#ef4444] opacity-80 group-hover/item:opacity-100 transition-opacity rotate-180">
-                    logout
-                  </span>
+                  <LogOut className="w-5 h-5 text-[#ef4444] opacity-80 group-hover/item:opacity-100 transition-opacity" />
                   <span className="text-[13px] font-bold text-[#ef4444] opacity-80 group-hover/item:opacity-100 transition-opacity text-left">
                     Đăng xuất
                   </span>

@@ -17,7 +17,8 @@ import {
     Users,
     DollarSign,
     Target,
-    HelpCircle
+    HelpCircle,
+    UserPlus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -97,9 +98,9 @@ export default function InvestorDetailsPage() {
                         </div>
                         <Button
                             onClick={() => setIsRequestModalOpen(true)}
-                            className="h-16 px-10 rounded-[20px] bg-[#eec54e] hover:bg-[#d4ae3d] text-white font-black text-[15px] uppercase tracking-widest shadow-xl shadow-yellow-500/20 transition-all gap-4 shrink-0 group"
+                            className="h-16 px-10 rounded-[20px] bg-[#eec54e] hover:bg-[#d4ae3d] text-white font-black text-[15px] uppercase tracking-widest shadow-xl shadow-yellow-500/20 transition-all gap-4 shrink-0 group font-black"
                         >
-                            <span className="material-symbols-outlined text-[24px] transition-transform group-hover:scale-110">person_add</span>
+                            <UserPlus className="w-6 h-6 transition-transform group-hover:scale-110" />
                             <span>Gửi lời mời kết nối</span>
                         </Button>
                     </div>
@@ -282,7 +283,7 @@ export default function InvestorDetailsPage() {
                 {/* Footer Credits */}
                 <div className="text-center pt-20">
                     <div className="flex items-center justify-center gap-2 mb-6">
-                        <img src="/logo-aisep.png" alt="" className="size-8 grayscale opacity-50" />
+                        <img src="/AISEP_Logo.png" alt="AISEP" className="size-10 rounded-full grayscale opacity-50" />
                         <span className="text-[18px] font-black text-slate-300 uppercase tracking-widest">AISEP</span>
                     </div>
                     <p className="text-[11px] font-black text-slate-300 uppercase tracking-[0.3em]">© 2026 AISEP STARTUP WORKSPACE • HỆ THỐNG KẾT NỐI NHÀ ĐẦU TƯ & QUỸ ĐẦU TƯ</p>

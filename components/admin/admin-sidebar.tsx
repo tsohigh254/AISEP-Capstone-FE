@@ -4,23 +4,23 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { LogOut, Loader2 } from "lucide-react";
+import { LogOut, Loader2, User, Lock, Activity, Settings } from "lucide-react";
 import { useAuth } from "@/context/context";
 import { Logout } from "@/services/auth/auth.api";
 
 const menuItems = [
     {
-        icon: "person",
+        icon: User,
         label: "Người dùng",
         href: "/admin/users",
     },
     {
-        icon: "security",
+        icon: Lock,
         label: "Vai trò & Quyền",
         href: "/admin/roles",
     },
     {
-        icon: "monitoring",
+        icon: Activity,
         label: "Giám sát",
         href: "/admin/monitoring",
     },
@@ -28,7 +28,7 @@ const menuItems = [
 
 const configItems = [
     {
-        icon: "settings",
+        icon: Settings,
         label: "Cài đặt hệ thống",
         href: "/admin/settings",
     },
@@ -67,9 +67,7 @@ export function AdminSidebar() {
             {/* Logo Section */}
             <div className="p-8">
                 <Link href="/admin/users" className="flex items-center gap-4 group">
-                    <div className="bg-[#e6cc4c] w-12 h-12 rounded-2xl shadow-[0_8px_20px_rgba(230,204,76,0.2)] flex items-center justify-center group-hover:scale-110 transition-all duration-500 transform group-hover:rotate-6">
-                        <span className="material-symbols-outlined text-white text-[32px] font-bold leading-none">smart_toy</span>
-                    </div>
+                    <img src="/AISEP_Logo.png" alt="AISEP" className="w-14 h-14 rounded-full object-contain group-hover:scale-110 transition-all duration-500 transform group-hover:rotate-6" />
                     <div className="flex flex-col">
                         <h2 className="text-[#171611] text-2xl font-black tracking-tighter font-manrope leading-none">AISEP Admin</h2>
                         <span className="text-[#878164] text-[13px] font-bold font-manrope mt-1 tracking-tight">Hệ thống quản trị</span>
@@ -92,12 +90,15 @@ export function AdminSidebar() {
                                     : "text-slate-400 hover:text-[#171611] hover:bg-slate-50"
                             )}
                         >
-                            <span className={cn(
-                                "material-symbols-outlined text-[24px] transition-all duration-300",
-                                pathname.startsWith(item.href) ? "text-[#e6cc4c] scale-110" : "group-hover:text-[#e6cc4c]"
-                            )}>
-                                {item.icon}
-                            </span>
+                            {(() => {
+                                const Icon = item.icon;
+                                return (
+                                    <Icon className={cn(
+                                        "w-6 h-6 transition-all duration-300",
+                                        pathname.startsWith(item.href) ? "text-[#e6cc4c] scale-110" : "group-hover:text-[#e6cc4c]"
+                                    )} />
+                                );
+                            })()}
                             <span className="font-bold text-[15px] tracking-tight">{item.label}</span>
                             {pathname.startsWith(item.href) && (
                                 <div className="absolute right-4 w-1.5 h-1.5 rounded-full bg-[#e6cc4c] shadow-[0_0_8px_#e6cc4c]" />
@@ -121,12 +122,15 @@ export function AdminSidebar() {
                                         : "text-slate-400 hover:text-[#171611] hover:bg-slate-50"
                                 )}
                             >
-                                <span className={cn(
-                                    "material-symbols-outlined text-[24px] transition-all duration-300",
-                                    pathname.startsWith(item.href) ? "text-[#e6cc4c] scale-110" : "group-hover:text-[#e6cc4c]"
-                                )}>
-                                    {item.icon}
-                                </span>
+                                {(() => {
+                                    const Icon = item.icon;
+                                    return (
+                                        <Icon className={cn(
+                                            "w-6 h-6 transition-all duration-300",
+                                            pathname.startsWith(item.href) ? "text-[#e6cc4c] scale-110" : "group-hover:text-[#e6cc4c]"
+                                        )} />
+                                    );
+                                })()}
                                 <span className="font-bold text-[15px] tracking-tight">{item.label}</span>
                             </Link>
                         ))}

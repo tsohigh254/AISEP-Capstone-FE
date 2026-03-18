@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
+import { Shield, Cloud } from "lucide-react";
 
 export function StartupProfileFooter() {
     const pathname = usePathname();
@@ -11,7 +12,7 @@ export function StartupProfileFooter() {
     const saveLabel = "Lưu thay đổi";
     const submitLabel = isKyc ? "Gửi duyệt hồ sơ" : "Gửi duyệt";
     const securityText = isKyc ? "Dữ liệu được bảo mật bởi AISEP Security" : "Tự động lưu lúc 14:20";
-    const securityIcon = isKyc ? "shield" : "cloud_done";
+    const SecurityIcon = isKyc ? Shield : Cloud;
 
     // Check if current page is KYC to apply different button styles if needed
     const isSubmitDisabled = pathname.includes("/funding") || pathname.includes("/info");
@@ -21,7 +22,7 @@ export function StartupProfileFooter() {
             <div className="max-w-[1440px] mx-auto flex items-center justify-between px-6">
                 <div className="flex items-center gap-3 text-neutral-muted">
                     <div className="w-8 h-8 rounded-full bg-neutral-surface flex items-center justify-center">
-                        <span className="material-symbols-outlined text-[18px] opacity-70">{securityIcon}</span>
+                        <SecurityIcon className="w-4 h-4 opacity-70" />
                     </div>
                     <span className="text-xs font-black uppercase tracking-widest opacity-60">{securityText}</span>
                 </div>

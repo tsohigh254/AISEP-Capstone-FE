@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { Info, Layers, Globe } from "lucide-react";
 
 export default function StartupInfoPage() {
     const [form, setForm] = useState({
@@ -28,7 +29,7 @@ export default function StartupInfoPage() {
             {/* General Info Section */}
             <section className="bg-white rounded-[24px] shadow-sm border border-neutral-surface overflow-hidden">
                 <div className="p-6 border-b border-neutral-surface bg-[#fdfbe9]/30 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[#e6cc4c]">info</span>
+                    <Info className="w-5 h-5 text-[#e6cc4c]" />
                     <h3 className="font-black text-[#171611] text-lg">Thông tin chung</h3>
                 </div>
                 <div className="p-8 space-y-6">
@@ -69,7 +70,7 @@ export default function StartupInfoPage() {
             {/* Industry & Stage Section */}
             <section className="bg-white rounded-[24px] shadow-sm border border-neutral-surface overflow-hidden">
                 <div className="p-6 border-b border-neutral-surface bg-[#fdfbe9]/30 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[#e6cc4c]">category</span>
+                    <Layers className="w-5 h-5 text-[#e6cc4c]" />
                     <h3 className="font-black text-[#171611] text-lg">Ngành & giai đoạn</h3>
                 </div>
                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -134,7 +135,7 @@ export default function StartupInfoPage() {
             {/* Location & Links Section */}
             <section className="bg-white rounded-[24px] shadow-sm border border-neutral-surface overflow-hidden">
                 <div className="p-6 border-b border-neutral-surface bg-[#fdfbe9]/30 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[#e6cc4c]">public</span>
+                    <Globe className="w-5 h-5 text-[#e6cc4c]" />
                     <h3 className="font-black text-[#171611] text-lg">Địa điểm & liên kết</h3>
                 </div>
                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -164,7 +165,7 @@ export default function StartupInfoPage() {
                     <div className="space-y-2">
                         <label className="text-sm font-black text-[#171611]">Website <span className="text-red-500">*</span></label>
                         <div className="relative">
-                            <span className="absolute left-5 top-1/2 -translate-y-1/2 material-symbols-outlined text-neutral-muted">language</span>
+                            <Globe className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-muted w-5 h-5" />
                             <input
                                 name="website"
                                 type="url"

@@ -5,6 +5,27 @@ import { StartupShell } from "@/components/startup/startup-shell";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { 
+  ChevronRight, 
+  FileText, 
+  User, 
+  Calendar, 
+  Database, 
+  Share2, 
+  Upload, 
+  EyeOff, 
+  Download, 
+  ShieldCheck, 
+  Copy, 
+  ExternalLink, 
+  CheckCircle2, 
+  ShieldAlert, 
+  MoreVertical, 
+  Brain, 
+  Sparkles, 
+  ArrowRight, 
+  History as LucideHistory 
+} from "lucide-react";
 
 const versions = [
     {
@@ -51,9 +72,9 @@ export default function DocumentDetailPage() {
                 {/* Breadcrumbs */}
                 <nav className="flex items-center gap-2 text-xs font-medium text-slate-400">
                     <Link href="/startup" className="hover:text-primary transition-colors">Workspace</Link>
-                    <span className="material-symbols-outlined text-sm">chevron_right</span>
+                    <ChevronRight className="w-4 h-4" />
                     <Link href="/startup/documents" className="hover:text-primary transition-colors">Tài liệu & IP</Link>
-                    <span className="material-symbols-outlined text-sm">chevron_right</span>
+                    <ChevronRight className="w-4 h-4" />
                     <span className="text-slate-600">Chi tiết tài liệu</span>
                 </nav>
 
@@ -61,21 +82,21 @@ export default function DocumentDetailPage() {
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
                     <div className="flex items-start gap-5">
                         <div className="size-16 bg-red-50 rounded-2xl flex items-center justify-center text-red-500 shrink-0 shadow-sm border border-red-100/50">
-                            <span className="material-symbols-outlined text-4xl">picture_as_pdf</span>
+                            <FileText className="w-10 h-10" />
                         </div>
                         <div className="space-y-1.5 min-w-0">
                             <h1 className="text-2xl font-bold text-slate-900 tracking-tight truncate">Business_Plan_2026.pdf</h1>
                             <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-slate-500">
                                 <span className="flex items-center gap-2 font-medium whitespace-nowrap">
-                                    <span className="material-symbols-outlined text-lg opacity-60">person</span>
+                                    <User className="w-4 h-4 opacity-60" />
                                     Chủ sở hữu: <span className="text-slate-900 font-bold">Nguyễn Văn A (Founder)</span>
                                 </span>
                                 <span className="flex items-center gap-2 font-medium whitespace-nowrap">
-                                    <span className="material-symbols-outlined text-lg opacity-60">calendar_today</span>
+                                    <Calendar className="w-4 h-4 opacity-60" />
                                     Ngày tạo: <span className="text-slate-900 font-bold">12/01/2026</span>
                                 </span>
                                 <span className="flex items-center gap-2 font-medium whitespace-nowrap">
-                                    <span className="material-symbols-outlined text-lg opacity-60">database</span>
+                                    <Database className="w-4 h-4 opacity-60" />
                                     Dung lượng: <span className="text-slate-900 font-bold">4.8 MB</span>
                                 </span>
                             </div>
@@ -83,11 +104,11 @@ export default function DocumentDetailPage() {
                     </div>
                     <div className="flex items-center gap-3">
                         <Button variant="outline" className="h-11 px-5 rounded-xl border-neutral-surface font-black text-[#171611] hover:bg-neutral-surface/50 flex items-center gap-2 transition-all">
-                            <span className="material-symbols-outlined text-lg">share</span>
+                            <Share2 className="w-5 h-5" />
                             Chia sẻ
                         </Button>
                         <Button className="h-11 px-5 rounded-xl bg-[#e6cc4c] hover:bg-[#d4ba3d] text-[#171611] font-black shadow-lg shadow-[#e6cc4c]/10 flex items-center gap-2 transition-all active:scale-95">
-                            <span className="material-symbols-outlined text-lg font-black">upload</span>
+                            <Upload className="w-5 h-5 font-black" />
                             Tải phiên bản mới
                         </Button>
                     </div>
@@ -103,11 +124,11 @@ export default function DocumentDetailPage() {
                             </div>
                             <div className="aspect-[3/4] p-10 flex flex-col items-center justify-center text-center space-y-6 relative group">
                                 <div className="size-24 bg-neutral-surface/50 rounded-full flex items-center justify-center transition-transform group-hover:scale-110">
-                                    <span className="material-symbols-outlined text-5xl text-neutral-muted/40">visibility_off</span>
+                                    <EyeOff className="w-12 h-12 text-neutral-muted/40" />
                                 </div>
                                 <p className="text-sm font-bold text-neutral-muted max-w-[200px] leading-relaxed italic">Bản xem trước hiện không khả dụng cho tệp này.</p>
                                 <Button className="bg-[#171611] hover:bg-black text-white px-8 h-12 rounded-2xl font-black text-sm flex items-center gap-2 transition-all">
-                                    <span className="material-symbols-outlined text-lg">download</span>
+                                    <Download className="w-5 h-5" />
                                     Tải xuống tệp gốc
                                 </Button>
                             </div>
@@ -118,7 +139,7 @@ export default function DocumentDetailPage() {
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="size-10 bg-[#10b981]/10 rounded-xl flex items-center justify-center text-[#10b981]">
-                                        <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>verified_user</span>
+                                        <ShieldCheck className="w-6 h-6" />
                                     </div>
                                     <div>
                                         <h3 className="font-black text-[#171611] tracking-tight">Bảo vệ IP (Blockchain)</h3>
@@ -131,7 +152,7 @@ export default function DocumentDetailPage() {
                                     <p className="text-[10px] text-neutral-muted font-black uppercase tracking-widest pl-1">Mã Hash (SHA-256)</p>
                                     <div className="flex items-center gap-2 bg-neutral-surface/30 p-3 rounded-xl border border-neutral-surface/50 group-hover:border-[#10b981]/20 transition-all">
                                         <code className="text-[11px] font-black text-neutral-muted truncate flex-1 font-mono">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>
-                                        <button className="text-neutral-muted hover:text-[#e6cc4c] transition-colors"><span className="material-symbols-outlined text-base">content_copy</span></button>
+                                        <button className="text-neutral-muted hover:text-[#e6cc4c] transition-colors"><Copy className="w-4 h-4" /></button>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
@@ -146,7 +167,7 @@ export default function DocumentDetailPage() {
                                 </div>
                             </div>
                             <Button variant="ghost" className="w-full h-10 rounded-xl bg-neutral-surface/40 hover:bg-neutral-surface transition-all font-black text-[11px] uppercase tracking-widest flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">open_in_new</span>
+                                <ExternalLink className="w-5 h-5" />
                                 Xem trên Blockchain Explorer
                             </Button>
                         </div>
@@ -197,17 +218,15 @@ export default function DocumentDetailPage() {
                                                         "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tight whitespace-nowrap",
                                                         v.status === "Verified" ? "bg-[#10b981]/10 text-[#10b981]" : "bg-amber-50 text-amber-700 border border-amber-100/50"
                                                     )}>
-                                                        <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: v.status === "Verified" ? "'FILL' 1" : "" }}>
-                                                            {v.status === "Verified" ? "verified" : "gpp_maybe"}
-                                                        </span>
+                                                        {v.status === "Verified" ? <CheckCircle2 className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
                                                         {v.status}
                                                     </span>
                                                 </td>
                                                 <td className="px-8 py-4 text-right">
                                                     <div className="flex items-center justify-end gap-1">
-                                                        <button className="p-2 text-slate-400 hover:text-primary transition-all"><span className="material-symbols-outlined">download</span></button>
+                                                        <button className="p-2 text-slate-400 hover:text-primary transition-all"><Download className="w-5 h-5" /></button>
                                                         {!v.isCurrent && (
-                                                            <button className="p-2 text-slate-400 hover:text-slate-900 transition-all"><span className="material-symbols-outlined">more_vert</span></button>
+                                                            <button className="p-2 text-slate-400 hover:text-slate-900 transition-all"><MoreVertical className="w-5 h-5" /></button>
                                                         )}
                                                     </div>
                                                 </td>
@@ -222,12 +241,12 @@ export default function DocumentDetailPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="p-8 bg-slate-900 text-white rounded-2xl shadow-xl relative overflow-hidden group">
                                 <div className="absolute -bottom-6 -right-6 opacity-5 group-hover:scale-110 transition-transform text-white">
-                                    <span className="material-symbols-outlined text-9xl rotate-12">psychology</span>
+                                    <Brain className="w-32 h-32 rotate-12" />
                                 </div>
                                 <div className="relative z-10 space-y-4">
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mb-1">AI Insight</p>
                                     <h4 className="text-xl font-bold flex items-center gap-3 tracking-tight">
-                                        <span className="material-symbols-outlined text-primary text-3xl">auto_awesome</span>
+                                        <Sparkles className="w-8 h-8 text-[#e6cc4c]" />
                                         Phân tích Tài liệu
                                     </h4>
                                     <p className="text-[13px] text-slate-300 font-medium leading-relaxed pr-4">
@@ -235,7 +254,7 @@ export default function DocumentDetailPage() {
                                     </p>
                                     <button className="pt-2 text-primary text-[13px] font-bold flex items-center gap-2 hover:gap-4 transition-all uppercase tracking-wider group/btn">
                                         Xem so sánh ngay
-                                        <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                                        <ArrowRight className="w-5 h-5" />
                                     </button>
                                 </div>
                             </div>
@@ -243,7 +262,7 @@ export default function DocumentDetailPage() {
                             <div className="p-8 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center space-y-5">
                                 <div className="flex items-center gap-5">
                                     <div className="size-14 rounded-2xl bg-slate-50 text-slate-400 flex items-center justify-center shrink-0 border border-slate-100">
-                                        <span className="material-symbols-outlined text-3xl">history_edu</span>
+                                        <LucideHistory className="w-8 h-8" />
                                     </div>
                                     <div className="space-y-0.5">
                                         <h4 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Lịch sử Chỉnh sửa</h4>

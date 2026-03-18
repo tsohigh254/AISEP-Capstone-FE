@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { UserPlus, Edit2, Camera, Link2 } from "lucide-react";
 
 interface TeamMember {
     id?: string;
@@ -85,7 +86,7 @@ export function TeamMemberModal({ isOpen, onClose, onSave, member }: TeamMemberM
                 <DialogHeader className="p-8 border-b border-neutral-surface bg-[#fdfbe9]/30">
                     <DialogTitle className="text-2xl font-black text-[#171611] tracking-tight flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-[#e6cc4c] flex items-center justify-center text-white">
-                            <span className="material-symbols-outlined font-black">{member ? "edit" : "person_add"}</span>
+                            {member ? <Edit2 className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
                         </div>
                         {member ? "Chỉnh sửa thành viên" : "Thêm thành viên mới"}
                     </DialogTitle>
@@ -100,7 +101,7 @@ export function TeamMemberModal({ isOpen, onClose, onSave, member }: TeamMemberM
                                 {formData.avatar ? (
                                     <img src={formData.avatar} alt="Preview" className="w-full h-full object-cover" />
                                 ) : (
-                                    <span className="material-symbols-outlined text-neutral-muted text-4xl opacity-40">add_a_photo</span>
+                                    <Camera className="w-8 h-8 text-neutral-muted opacity-40" />
                                 )}
                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                                     <span className="text-white text-[10px] font-black uppercase tracking-widest">Thay đổi</span>
@@ -154,7 +155,7 @@ export function TeamMemberModal({ isOpen, onClose, onSave, member }: TeamMemberM
                         <div className="space-y-2">
                             <Label htmlFor="linkedin" className="text-sm font-black text-[#171611]">LinkedIn URL</Label>
                             <div className="relative">
-                                <span className="absolute left-5 top-1/2 -translate-y-1/2 material-symbols-outlined text-neutral-muted text-lg">link</span>
+                                <Link2 className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-muted w-5 h-5" />
                                 <Input
                                     id="linkedin"
                                     name="linkedin"
