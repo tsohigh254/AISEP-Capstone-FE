@@ -120,7 +120,7 @@ export function StartupHeader({
     try {
       const res = await Logout();
 
-      if (!res.success) {
+      if (!res.isSuccess && res.statusCode !== 200) {
         console.error(res.message || "Logout không thành công");
       }
     } catch (e) {
