@@ -159,9 +159,9 @@ export default function ConnectionDetailPage() {
 
   const getInfoRequestStatusBadge = (status: string) => {
     const s = status.toLowerCase();
-    if (s === "pending") return <Badge className="bg-yellow-100 text-yellow-700 border-0 text-xs">Pending</Badge>;
-    if (s === "fulfilled") return <Badge className="bg-green-100 text-green-700 border-0 text-xs">Fulfilled</Badge>;
-    if (s === "rejected") return <Badge className="bg-red-100 text-red-700 border-0 text-xs">Rejected</Badge>;
+    if (s === "pending") return <Badge className="bg-yellow-100 text-yellow-700 border-0 text-xs">Đang chờ</Badge>;
+    if (s === "fulfilled") return <Badge className="bg-green-100 text-green-700 border-0 text-xs">Đã hoàn thành</Badge>;
+    if (s === "rejected") return <Badge className="bg-red-100 text-red-700 border-0 text-xs">Đã từ chối</Badge>;
     return <Badge className="bg-blue-100 text-blue-700 border-0 text-xs">{status}</Badge>;
   };
 
@@ -199,10 +199,10 @@ export default function ConnectionDetailPage() {
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-slate-600">
           <Link href="/investor/offers" className="hover:text-blue-600">
-            🔗 Connections
+            🔗 Kết nối
           </Link>
           <span>/</span>
-          <span>Connection #{conn.connectionID}</span>
+          <span>Kết nối #{conn.connectionID}</span>
         </div>
 
         {/* Back Button */}
@@ -229,11 +229,11 @@ export default function ConnectionDetailPage() {
                   )}
                 </div>
                 {conn.investorName && (
-                  <p className="text-sm text-slate-500">Investor: {conn.investorName}</p>
+                  <p className="text-sm text-slate-500">Nhà đầu tư: {conn.investorName}</p>
                 )}
               </div>
               <div className="text-right text-sm text-slate-500 space-y-1">
-                <div>Connection #{conn.connectionID}</div>
+                <div>Kết nối #{conn.connectionID}</div>
               </div>
             </div>
 
@@ -252,7 +252,7 @@ export default function ConnectionDetailPage() {
                 <div className="text-sm font-semibold">{conn.matchScore > 0 ? `${conn.matchScore}%` : "—"}</div>
               </div>
               <div>
-                <div className="text-xs text-slate-500 uppercase font-medium mb-2">Documents</div>
+                <div className="text-xs text-slate-500 uppercase font-medium mb-2">Tài liệu</div>
                 <div className="text-sm font-semibold">{conn.attachedDocumentIDs || "Không có"}</div>
               </div>
             </div>
@@ -415,7 +415,7 @@ export default function ConnectionDetailPage() {
                   <div className="pt-4 border-t border-slate-200">
                     <Link href="/investor/offers">
                       <Button variant="link" className="w-full justify-start text-blue-600 p-0">
-                        ← Quay lại danh sách Connections
+                        ← Quay lại danh sách kết nối
                       </Button>
                     </Link>
                   </div>

@@ -259,28 +259,24 @@ export function StartupHeader({
               </button>
 
               {isGridOpen && (
-                <div className="absolute right-0 top-full pt-4 z-[60] animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="w-64 bg-white rounded-[24px] shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-neutral-surface/50 overflow-hidden p-2">
-                    <div className="grid grid-cols-1 gap-1">
-                      {[
-                        { icon: FileUp, label: "Tài liệu & IP", href: "/startup/documents", color: "text-blue-500", bg: "bg-blue-50" },
-                        { icon: Brain, label: "Đánh giá AI", href: "/startup/ai-evaluation", color: "text-purple-500", bg: "bg-purple-50" },
-                        { icon: Users, label: "Tìm cố vấn", href: "/startup/experts", color: "text-orange-500", bg: "bg-orange-50" },
-                        { icon: Handshake, label: "Kết nối nhà ĐT", href: "/startup/investors", color: "text-emerald-500", bg: "bg-emerald-50" },
-                      ].map((item) => (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className="flex items-center gap-4 px-4 py-3 hover:bg-[#f4f4f0]/80 rounded-[18px] transition-all group/grid"
-                          onClick={() => setIsGridOpen(false)}
-                        >
-                          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center transition-all group-hover/grid:shadow-sm", item.bg, "group-hover/grid:bg-white")}>
-                            <item.icon className={cn("w-5 h-5 transition-colors", item.color)} />
-                          </div>
-                          <span className="text-sm font-black text-[#171611] tracking-tight">{item.label}</span>
-                        </Link>
-                      ))}
-                    </div>
+                <div className="absolute right-0 top-full pt-2 z-[60] animate-in fade-in slide-in-from-top-1 duration-150">
+                  <div className="w-52 bg-white rounded-xl shadow-lg shadow-black/8 border border-neutral-surface/60 py-1.5">
+                    {[
+                      { icon: FileUp, label: "Tài liệu & IP", href: "/startup/documents" },
+                      { icon: Brain, label: "Đánh giá AI", href: "/startup/ai-evaluation" },
+                      { icon: Users, label: "Tìm cố vấn", href: "/startup/experts" },
+                      { icon: Handshake, label: "Kết nối nhà ĐT", href: "/startup/investors" },
+                    ].map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className="flex items-center gap-3 px-3.5 py-2 mx-1.5 rounded-lg text-[#171611]/70 hover:text-[#171611] hover:bg-[#f4f4f0] active:bg-[#e6cc4c]/15 transition-colors group/grid"
+                        onClick={() => setIsGridOpen(false)}
+                      >
+                        <item.icon className="w-4 h-4 shrink-0 opacity-60 group-hover/grid:opacity-100 transition-opacity" />
+                        <span className="text-[13px] font-bold tracking-tight">{item.label}</span>
+                      </Link>
+                    ))}
                   </div>
                 </div>
               )}
@@ -292,7 +288,7 @@ export function StartupHeader({
           {/* User Profile Card */}
           <div className="flex items-center gap-3 relative" ref={dropdownRef}>
             <div className="text-right flex flex-col items-end justify-center">
-              <p className="text-sm font-black text-slate-900 dark:text-white tracking-tight leading-none mb-1">Founder Tech</p>
+              <p className="text-sm font-black text-slate-900 dark:text-white tracking-tight leading-none mb-1">{displayUserName}</p>
               <div className="px-1.5 py-0.5 bg-[#fdf8e6] dark:bg-[#e6cc4c]/10 rounded-md border border-[#e6cc4c]/30">
                 <p className="text-[9px] text-[#878164] font-black uppercase tracking-wider leading-none">PRO ACCOUNT</p>
               </div>

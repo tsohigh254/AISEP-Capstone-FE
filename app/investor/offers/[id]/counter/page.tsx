@@ -134,9 +134,9 @@ export default function InfoRequestsPage() {
 
   const getStatusBadge = (status: string) => {
     const s = status.toLowerCase();
-    if (s === "pending") return <Badge className="bg-yellow-100 text-yellow-700 border-0 text-xs">Pending</Badge>;
-    if (s === "fulfilled") return <Badge className="bg-green-100 text-green-700 border-0 text-xs">Fulfilled</Badge>;
-    if (s === "rejected") return <Badge className="bg-red-100 text-red-700 border-0 text-xs">Rejected</Badge>;
+    if (s === "pending") return <Badge className="bg-yellow-100 text-yellow-700 border-0 text-xs">Đang chờ</Badge>;
+    if (s === "fulfilled") return <Badge className="bg-green-100 text-green-700 border-0 text-xs">Đã hoàn thành</Badge>;
+    if (s === "rejected") return <Badge className="bg-red-100 text-red-700 border-0 text-xs">Đã từ chối</Badge>;
     return <Badge className="bg-blue-100 text-blue-700 border-0 text-xs">{status}</Badge>;
   };
 
@@ -153,11 +153,11 @@ export default function InfoRequestsPage() {
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-slate-600">
           <Link href="/investor/offers" className="hover:text-blue-600">
-            🔗 Connections
+            🔗 Kết nối
           </Link>
           <span>/</span>
           <Link href={`/investor/offers/${connectionId}`} className="hover:text-blue-600">
-            Connection #{connectionId}
+            Kết nối #{connectionId}
           </Link>
           <span>/</span>
           <span>Yêu cầu thông tin</span>
@@ -297,11 +297,11 @@ export default function InfoRequestsPage() {
                     required
                   >
                     <option value="">Chọn loại...</option>
-                    <option value="Financial">Financial</option>
-                    <option value="Legal">Legal</option>
-                    <option value="Technical">Technical</option>
-                    <option value="Business">Business</option>
-                    <option value="Other">Other</option>
+                    <option value="Financial">Tài chính</option>
+                    <option value="Legal">Pháp lý</option>
+                    <option value="Technical">Kỹ thuật</option>
+                    <option value="Business">Kinh doanh</option>
+                    <option value="Other">Khác</option>
                   </select>
                 </div>
                 <div className="space-y-2">

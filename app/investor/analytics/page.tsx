@@ -34,7 +34,7 @@ export default function InvestorAnalyticsPage() {
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-slate-900">AI Investment Trends</h1>
-          <p className="text-slate-600 mt-1">Hỏi AI về xu hướng đầu tư và market insights</p>
+          <p className="text-slate-600 mt-1">Hỏi AI về xu hướng đầu tư và cơ hội thị trường</p>
         </div>
 
         {/* Main Content - Centered */}
@@ -48,14 +48,14 @@ export default function InvestorAnalyticsPage() {
 
           {/* Title */}
           <h2 className="text-3xl font-bold text-slate-900 mb-4">
-            AI Investment Analyst
+            Chuyên gia Phân tích Đầu tư AI
           </h2>
 
           {/* Description */}
           <p className="text-center text-slate-600 max-w-2xl mb-8">
-            Đặt câu hỏi về xu hướng đầu tư, market trends, sector analysis,
+            Đặt câu hỏi về xu hướng đầu tư, tình hình thị trường, phân tích lĩnh vực,
             <br />
-            và nhận insights từ AI
+            và nhận thông tin chiến lược từ AI
           </p>
 
           {/* Quick Action Buttons */}
@@ -78,7 +78,7 @@ export default function InvestorAnalyticsPage() {
           <div className="flex gap-3 items-center">
             <Input
               type="text"
-              placeholder="Hỏi về xu hướng đầu tư, market trends, sectors..."
+              placeholder="Hỏi về xu hướng đầu tư, tình hình thị trường, lĩnh vực..."
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyPress={(e) => e.key === "Enter" && handleSend()}
@@ -90,7 +90,7 @@ export default function InvestorAnalyticsPage() {
               className="h-12 px-6 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send className="w-5 h-5 mr-2" />
-              Send
+              Gửi
             </Button>
           </div>
         </div>

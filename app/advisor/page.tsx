@@ -1,234 +1,155 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { 
-  DollarSign, 
-  Users, 
-  Clock,
-  Star,
-  MoreVertical,
-  ChevronDown,
-  Eye,
-  MessageSquare,
-  FileText,
-  Sparkles,
-  Search,
-  Building
-} from "lucide-react";
+import { useState } from "react";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
+import Link from "next/link";
 import { useCountUp } from "@/lib/useCountUp";
 import { cn } from "@/lib/utils";
-import { GetAdvisorProfile } from "@/services/advisor/advisor.api";
-import { useAuth } from "@/context/context";
+import {
+  FileEdit,
+  Eye,
+  Clock,
+  Calendar,
+  Star,
+  MessageSquare,
+  FileText,
+  TrendingUp,
+  AlertTriangle,
+  MoreVertical,
+  Sparkles,
+  ShieldCheck,
+  DollarSign,
+  CheckCircle,
+  XCircle,
+  Video,
+  Phone,
+  Users,
+  Settings,
+  Target,
+} from "lucide-react";
 
-type ConsultationRequest = {
-  id: string;
-  status: "URGENT" | "NEW";
-  company: string;
-  stage: string;
-  category: string;
-  description: string;
-  duration: string;
-  date?: string;
-  requester: string;
-  timeAgo: string;
-  rate: string;
-};
+// --- Dummy Data ---
 
-type WeeklyMetric = {
-  label: string;
-  value: string;
-  change?: string;
-  changeType?: "positive" | "negative";
-  subtitle?: string;
-};
-
-type Review = {
-  id: string;
-  rating: number;
-  comment: string;
-  reviewer: string;
-  timeAgo: string;
-};
-
-const consultationRequests: ConsultationRequest[] = [
+const upcomingSchedule = [
   {
-    id: "1",
-    status: "URGENT",
-    company: "FinTech AI",
-    stage: "Seed",
-    category: "FinTech",
-    description: "Initial consultation on fundraising strategy",
-    duration: "1-hour consultation",
-    date: "Feb 2, 2PM",
-    requester: "Sarah Johnson",
-    timeAgo: "2 hours ago",
-    rate: "$250/hr",
+    startup: "FinNext",
+    topic: "Fundraising readiness review",
+    date: "Mar 20, 2026",
+    time: "10:00 AM",
+    duration: "60 min",
+    type: "Online",
+    typeIcon: Video,
+    status: "Scheduled",
+    statusColor: "text-blue-600",
+    note: "Seed round preparation",
   },
   {
-    id: "2",
-    status: "NEW",
-    company: "HealthTech Solutions",
-    stage: "Pre-seed",
-    category: "HealthTech",
-    description: "Product-market fit guidance for our healthcare app",
-    duration: "3-month mentorship",
-    requester: "Mike Rodriguez",
-    timeAgo: "5 hours ago",
-    rate: "$200/hr",
+    startup: "MedScan AI",
+    topic: "Go-to-market mentoring",
+    date: "Mar 20, 2026",
+    time: "2:00 PM",
+    duration: "90 min",
+    type: "Call",
+    typeIcon: Phone,
+    status: "Requested",
+    statusColor: "text-amber-600",
+    note: "Rural clinic expansion strategy",
   },
   {
-    id: "3",
-    status: "NEW",
-    company: "EduPlatform",
-    stage: "Series A",
-    category: "EdTech",
-    description: "Scaling strategy consultation",
-    duration: "2-hour consultation",
-    requester: "David Chen",
-    timeAgo: "1 day ago",
-    rate: "$300/hr",
+    startup: "EduPlatform",
+    topic: "Pitch deck refinement",
+    date: "Mar 21, 2026",
+    time: "9:30 AM",
+    duration: "60 min",
+    type: "Online",
+    typeIcon: Video,
+    status: "Accepted",
+    statusColor: "text-green-600",
+    note: "Investor demo preparation",
   },
 ];
 
-const weeklyData = [
-  { day: "Mon", value: 4 },
-  { day: "Tue", value: 5 },
-  { day: "Wed", value: 2 },
-  { day: "Thu", value: 1 },
-  { day: "Fri", value: 0 },
-  { day: "Sat", value: 0 },
-  { day: "Sun", value: 0 },
+const pendingReports = [
+  { startup: "FinTech Innovator", date: "Mar 15, 2026", topic: "AI Architecture Consulting", deadline: "Overdue", deadlineColor: "text-red-600", deadlineBg: "bg-red-50" },
+  { startup: "HealthTech Connect", date: "Mar 17, 2026", topic: "Product-market fit assessment", deadline: "Due today", deadlineColor: "text-amber-600", deadlineBg: "bg-amber-50" },
 ];
 
-const latestReviews: Review[] = [
-  {
-    id: "1",
-    rating: 5,
-    comment: "Excellent guidance on our fundraising strategy. Dr. Chen's insights were invaluable!",
-    reviewer: "Sarah Johnson",
-    timeAgo: "2 days ago",
-  },
-  {
-    id: "2",
-    rating: 5,
-    comment: "Very professional and helpful. Highly recommend!",
-    reviewer: "Mike Rodriguez",
-    timeAgo: "3 days ago",
-  },
+const recentRatings = [
+  { startup: "AgriLink", rating: 5, review: "Extremely actionable advice on investor prep. Our pitch improved significantly.", topic: "Investor prep session", date: "Mar 16, 2026" },
+  { startup: "FinNext", rating: 5, review: "Deep understanding of fintech landscape. Roadmap feedback was on point.", topic: "Fundraising readiness", date: "Mar 12, 2026" },
 ];
 
+// --- Component ---
 
 export default function AdvisorDashboardPage() {
-  const router = useRouter();
-  const { user } = useAuth();
-  const [selectedWeek, setSelectedWeek] = useState("Jan 22-28");
-  const [isCheckingProfile, setIsCheckingProfile] = useState(true);
-  
-  // Profile existence check
-  useEffect(() => {
-    const checkProfile = async () => {
-      try {
-        const res = await GetAdvisorProfile();
-        // Even if no profile (404/failure), we still allow entering dashboard
-        // The hero section will show the "Complete Profile" status
-        setIsCheckingProfile(false);
-      } catch (err: any) {
-        // Just let them in
-        setIsCheckingProfile(false);
-      }
-    };
-    
-    if (user?.userType?.toLowerCase() === "advisor") {
-      checkProfile();
-    } else {
-      setIsCheckingProfile(false);
-    }
-  }, [user, router]);
+  const [activeTab, setActiveTab] = useState<"today" | "week" | "pending">("today");
 
-  // Top metrics
-  const earnings = useCountUp(12450, 1400, 0);
-  const clients = useCountUp(23, 800, 150);
-  const sessions = useCountUp(156, 1200, 300);
-  const pending = useCountUp(7, 600, 450);
-  
-  // Weekly summary
-  const weeklySessions = useCountUp(12, 800, 0);
-  const weeklyHours = useCountUp(18, 800, 150);
-  const weeklyRating = useCountUp(49, 800, 300);
-  const weeklyEarned = useCountUp(3200, 1000, 450);
-
-  if (isCheckingProfile) {
-    return (
-      <div className="min-h-screen bg-[#f8f8f6] flex items-center justify-center font-plus-jakarta-sans">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-[#f0f042] border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm font-black uppercase tracking-widest text-neutral-400">Verifying Profile...</p>
-        </div>
-      </div>
-    );
-  }
+  const totalConsult = useCountUp(124, 1200, 0);
+  const newRequests = useCountUp(5, 800, 150);
+  const activeConns = useCountUp(8, 600, 450);
 
   return (
     <AdvisorShell>
       <div className="space-y-6 animate-in fade-in duration-500">
-        {/* Hero Section */}
+
+        {/* ═══════════════════════════════════════════════════
+            ROW 1 — Hero Card (8 cols) + Quick Actions (4 cols)
+        ═══════════════════════════════════════════════════ */}
         <div className="grid grid-cols-12 gap-6">
-          <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl p-6 shadow-sm border border-neutral-surface flex flex-col md:flex-row gap-6 group hover:shadow-md transition-all">
-            <div className="w-full md:w-48 h-48 rounded-xl bg-[#e6cc4c]/10 overflow-hidden shrink-0 relative border-2 border-[#e6cc4c]/10">
+          {/* Hero Card */}
+          <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl p-6 shadow-sm border border-neutral-surface flex flex-col md:flex-row gap-6">
+            <div className="w-full md:w-48 h-48 rounded-xl bg-[#e6cc4c]/10 overflow-hidden shrink-0">
               <img
-                alt="Advisor profile"
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDSyd89CCj_zHc_LuQhWMmfq2Fe9NIXo7kap3iqhwQmj6hnZ6O9G9_TEa34oVVb9u8J5WLiZKx69vTFAGzAy-bhFnogecGAGCURhKAi82skiJ-lqbRY4oyNOkcPGFCpuJzHA_CY1eapDWvsmjvttoJFOY2UyF6XDh5BVzml3HhIGL0xmQAsEIg5td4Imhf83cA9Ksa2iMq1iLFJOYjkRWnuond7_4mFqlM6HrmkPr8BPArVgb-lQuIG9HHfZKUjbN28uwltwj3MkxM"
+                alt="Advisor workspace"
+                className="w-full h-full object-cover"
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDPGo-MuNE1TA-f-CzA3CrxNhiTpXx6O33MdUq3W-IaDVQ7ym67WVsYzj_6y6DQg7FbffRXZWJQ18VrNJYBVodrdwsmss985qeqimmBjPdnV8vkYvC_Q0fjlVaghZCf_kvrqxGxP3dHivWdkDz8TKh0loaFMvqcs5oad2AIl1Y8j3vh7qi0ytZkwm8RLLxKFAiP7YQiEOYFqcO6_VLODJkRpYPEu1mAFYT3uLh98c8wUw33fLRLbsIZOwPUkI4ofRFvsVh95t_5Ghc"
               />
-              <div className="absolute top-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded-lg text-[9px] font-black text-[#e6cc4c] border border-[#e6cc4c]/20 uppercase">PRO ADVISOR</div>
             </div>
             <div className="flex-1 flex flex-col justify-between">
               <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-2xl font-bold text-[#171611]">Dr. Anh Tuan</h1>
-                  <span className="px-3 py-1 bg-[#fdf8e6] text-[#878164] text-[10px] font-black rounded-full border border-[#e6cc4c]/30 uppercase tracking-[0.1em]">Verified Expert</span>
+                <div className="flex items-center gap-3 mb-2 flex-wrap">
+                  <h1 className="text-2xl font-bold text-[#171611]">Advisor Dashboard</h1>
+                  <span className="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-black rounded-full border border-green-200 uppercase tracking-[0.1em] flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3" /> VERIFIED
+                  </span>
                 </div>
-                <p className="text-[#878164] text-sm font-bold uppercase tracking-widest mb-4">Expert in FinTech & Blockchain</p>
-                <p className="text-neutral-muted text-sm mb-6 leading-relaxed max-w-xl">
-                  Bạn đang đứng trong top 5% chuyên gia có tỷ lệ đánh giá cao nhất hệ thống. Hãy tiếp tục duy trì tương tác để nâng hạng mức độ ưu tiên trong các yêu cầu tư vấn mới.
+                <p className="text-neutral-muted text-sm mb-6 leading-relaxed">
+                  Manage consulting requests, upcoming sessions, reports, and performance. You have <strong>5 new requests</strong> and <strong>2 pending reports</strong> this week.
                 </p>
-
-                <div className="space-y-2 mb-8 max-w-md">
-                  <div className="flex justify-between items-end">
-                    <span className="text-[11px] font-black text-[#878164] uppercase tracking-wider">Tiến độ hoàn thiện hồ sơ</span>
-                    <span className="text-xs font-black text-[#171611]">85%</span>
+                <div className="space-y-2 mb-6">
+                  <div className="flex justify-between text-xs font-bold text-[#171611]">
+                    <span>Profile Completeness</span>
+                    <span>90%</span>
                   </div>
-                  <div className="w-full h-2 bg-[#f4f4f0] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#171611] rounded-full" style={{ width: '85%' }}></div>
+                  <div className="w-full h-3 bg-[#f4f4f0] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#e6cc4c] rounded-full transition-all duration-1000 ease-out" style={{ width: "90%" }}></div>
                   </div>
                 </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <button className="px-6 py-3 bg-[#e6cc4c] text-[#171611] text-[11px] font-black uppercase tracking-widest rounded-xl hover:shadow-lg hover:shadow-[#e6cc4c]/20 transition-all flex items-center gap-2 group/btn">
-                    <Star className="w-4 h-4 fill-current" />
-                    Hoàn thiện hồ sơ
-                  </button>
-                  <button className="px-6 py-3 bg-white border-2 border-neutral-surface text-[#171611] text-[11px] font-black uppercase tracking-widest rounded-xl hover:bg-neutral-surface/20 transition-all flex items-center gap-2">
-                    <Eye className="w-4 h-4" />
-                    Xem hồ sơ công khai
-                  </button>
-                </div>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Link href="/advisor/requests" className="bg-[#e6cc4c] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 group">
+                  <MessageSquare className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                  View Requests
+                </Link>
+                <Link href="/advisor/availability" className="bg-[#f4f4f0] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:bg-neutral-200 transition-all flex items-center gap-2">
+                  <Clock className="w-5 h-5" />
+                  Set Availability
+                </Link>
               </div>
             </div>
           </div>
+
+          {/* Quick Actions — 2x2 grid */}
           <div className="col-span-12 lg:col-span-4 bg-white rounded-2xl p-6 shadow-sm border border-neutral-surface">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-bold text-lg text-[#171611]">Thao tác nhanh</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-lg text-[#171611]">Quick Actions</h3>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { icon: Clock, label: "Lịch rảnh", href: "/advisor/schedule", color: "text-blue-500", bg: "bg-blue-50" },
-                { icon: Eye, label: "Xem hồ sơ", href: "/advisor/profile", color: "text-purple-500", bg: "bg-purple-50" },
-                { icon: MessageSquare, label: "Tin nhắn", href: "/advisor/messaging", color: "text-orange-500", bg: "bg-orange-50" },
-                { icon: FileText, label: "Yêu cầu mới", href: "/advisor/requests", color: "text-emerald-500", bg: "bg-emerald-50" },
+                { icon: MessageSquare, label: "View Requests", href: "/advisor/requests", color: "text-blue-500", bg: "bg-blue-50" },
+                { icon: Calendar, label: "My Schedule", href: "/advisor/schedule", color: "text-purple-500", bg: "bg-purple-50" },
+                { icon: FileText, label: "Submit Report", href: "/advisor/reports", color: "text-orange-500", bg: "bg-orange-50" },
+                { icon: Star, label: "View Feedback", href: "/advisor/reviews", color: "text-emerald-500", bg: "bg-emerald-50" },
               ].map((item, idx) => (
                 <Link
                   key={idx}
@@ -245,206 +166,241 @@ export default function AdvisorDashboardPage() {
           </div>
         </div>
 
-        {/* Stats Grid */}
+        {/* ═══════════════════════════════════════════════════
+            ROW 2 — 3 KPI Cards (5 + 4 + 3 cols)
+        ═══════════════════════════════════════════════════ */}
         <div className="grid grid-cols-12 gap-6">
-          <div className="col-span-12 md:col-span-4 bg-white p-6 rounded-2xl shadow-sm border border-neutral-surface flex items-center justify-between group hover:bg-[#fdf8e6] hover:border-[#e6cc4c]/30 transition-all">
+          <div className="col-span-12 md:col-span-5 lg:col-span-5 bg-[#e6cc4c]/10 p-6 rounded-2xl shadow-sm border-2 border-[#e6cc4c]/30 flex items-center justify-between group hover:bg-[#e6cc4c]/20 transition-all">
             <div>
-              <p className="text-[#878164] text-[11px] font-black mb-1 uppercase tracking-widest">TỔNG THU NHẬP</p>
-              <div className="flex items-baseline gap-1">
-                <span ref={earnings.ref} className="text-3xl font-bold text-[#171611]">{earnings.count.toLocaleString()}</span>
-                <span className="text-sm font-bold text-[#878164] ml-1">$</span>
+              <p className="text-neutral-muted text-sm font-bold mb-1 uppercase tracking-widest">Total Consultations</p>
+              <div className="flex items-baseline gap-3">
+                <span ref={totalConsult.ref} className="text-4xl font-bold text-[#171611]">{totalConsult.count}</span>
+                <span className="text-neutral-muted text-sm font-bold lowercase">sessions</span>
               </div>
             </div>
-            <div className="w-12 h-12 rounded-full bg-[#fdf8e6] flex items-center justify-center border border-[#e6cc4c]/20 group-hover:scale-110 transition-transform">
-              <Sparkles className="w-6 h-6 text-[#e6cc4c]" />
+            <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+              <Sparkles className="w-7 h-7 text-[#e6cc4c]" />
             </div>
           </div>
 
-          <div className="col-span-12 md:col-span-4 bg-white p-6 rounded-2xl shadow-sm border border-neutral-surface flex items-center justify-between group hover:bg-[#f4f4f0] transition-all">
+          <Link href="/advisor/requests" className="col-span-12 md:col-span-4 lg:col-span-4 bg-[#e6cc4c]/10 p-6 rounded-2xl shadow-sm border-2 border-[#e6cc4c]/30 flex items-center justify-between group hover:bg-[#e6cc4c]/20 transition-all">
             <div>
-              <p className="text-[#878164] text-[11px] font-black mb-1 uppercase tracking-widest">SESSIONS HOÀN THÀNH</p>
-              <div className="flex items-baseline gap-2">
-                <span ref={sessions.ref} className="text-3xl font-bold text-[#171611]">{sessions.count}</span>
-                <span className="text-[11px] font-bold text-slate-400 lowercase">buổi tư vấn</span>
+              <p className="text-neutral-muted text-sm font-bold mb-1 uppercase tracking-widest">New Requests</p>
+              <div className="flex items-baseline gap-3">
+                <span ref={newRequests.ref} className="text-4xl font-bold text-[#171611]">{newRequests.count}</span>
+                <span className="text-neutral-muted text-sm font-bold lowercase">pending</span>
               </div>
             </div>
-            <div className="w-12 h-12 rounded-full bg-[#f4f4f0] flex items-center justify-center border border-neutral-surface group-hover:scale-110 transition-transform">
-              <FileText className="w-6 h-6 text-slate-400" />
+            <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+              <MessageSquare className="w-7 h-7 text-[#e6cc4c]" />
             </div>
-          </div>
+          </Link>
 
-          <div className="col-span-12 md:col-span-4 bg-white p-6 rounded-2xl shadow-sm border border-neutral-surface flex items-center justify-between group hover:bg-[#f4f4f0] transition-all">
+          <div className="col-span-12 md:col-span-3 lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-neutral-surface flex items-center justify-between group hover:bg-[#f8f8f6] transition-colors">
             <div>
-              <p className="text-[#878164] text-[11px] font-black mb-1 uppercase tracking-widest">KẾT NỐI MỚI</p>
-              <div className="flex items-baseline gap-2">
-                <span ref={pending.ref} className="text-3xl font-bold text-[#171611]">{pending.count.toString().padStart(2, '0')}</span>
-                <span className="text-[11px] font-bold text-slate-400 lowercase">yêu cầu mới</span>
+              <p className="text-neutral-muted text-sm font-bold mb-1 uppercase tracking-widest">This Week</p>
+              <div className="flex items-baseline gap-3">
+                <span ref={activeConns.ref} className="text-4xl font-bold text-[#171611]">{String(activeConns.count).padStart(2, '0')}</span>
+                <span className="text-neutral-muted text-sm font-bold lowercase tracking-tight">sessions</span>
               </div>
             </div>
-            <div className="w-12 h-12 rounded-full bg-[#f4f4f0] flex items-center justify-center border border-neutral-surface group-hover:scale-110 transition-transform">
-              <Users className="w-6 h-6 text-[#171611]" />
+            <div className="w-14 h-14 rounded-full bg-[#f4f4f0] flex items-center justify-center group-hover:bg-white transition-colors">
+              <Calendar className="w-7 h-7 text-neutral-muted" />
             </div>
           </div>
         </div>
 
-        {/* Cần xử lý Section (Full Width) */}
-        <div className="bg-white rounded-2xl shadow-sm border border-neutral-surface overflow-hidden">
-          <div className="p-6 border-b border-neutral-surface flex items-center justify-between">
-            <h3 className="font-bold text-lg text-[#171611]">Cần xử lý</h3>
-            <div className="flex bg-[#f4f4f0] p-1 rounded-xl gap-1">
-              {["Consulting", "Documents", "Verification"].map((tab) => (
-                <button
-                  key={tab}
-                  className={cn(
-                    "px-4 py-1.5 text-[11px] font-black uppercase tracking-wider rounded-lg transition-all",
-                    tab === "Consulting" ? "bg-white text-[#171611] shadow-sm" : "text-[#878164] hover:text-[#171611]"
-                  )}
-                >
-                  {tab}
-                </button>
+        {/* ═══════════════════════════════════════════════════
+            ROW 3 — Full-width: Upcoming Schedule & Priority Actions
+        ═══════════════════════════════════════════════════ */}
+        <div className="grid grid-cols-12 gap-6">
+          <div className="col-span-12 bg-white rounded-2xl shadow-sm border border-neutral-surface overflow-hidden">
+            <div className="p-6 border-b border-neutral-surface flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <h3 className="font-bold text-lg text-[#171611]">Upcoming Schedule & Priority Actions</h3>
+              <div className="flex gap-1 bg-[#f4f4f0] p-1 rounded-xl">
+                {[
+                  { key: "today" as const, label: "Today" },
+                  { key: "week" as const, label: "This Week" },
+                  { key: "pending" as const, label: "Pending" },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className={cn(
+                      "px-4 py-1.5 text-xs font-bold rounded-lg transition-colors",
+                      activeTab === tab.key
+                        ? "bg-white shadow-sm text-[#171611]"
+                        : "text-neutral-muted hover:text-[#171611]"
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="divide-y divide-neutral-surface">
+              {upcomingSchedule.map((item, idx) => (
+                <div key={idx} className="p-4 flex items-center justify-between hover:bg-[#f8f8f6] transition-colors group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-[#e6cc4c]/10 flex items-center justify-center">
+                      <item.typeIcon className="w-5 h-5 text-[#e6cc4c]" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-bold text-[#171611]">{item.startup}</p>
+                        <span className="text-[10px] font-bold text-neutral-muted bg-neutral-100 px-2 py-0.5 rounded-full uppercase tracking-tight">{item.duration}</span>
+                        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tight",
+                          item.status === "Scheduled" ? "text-blue-600 bg-blue-50" :
+                          item.status === "Requested" ? "text-amber-600 bg-amber-50" :
+                          "text-green-600 bg-green-50"
+                        )}>{item.status}</span>
+                      </div>
+                      <p className="text-xs text-neutral-muted font-medium italic">{item.date}, {item.time} — {item.topic}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {item.status === "Requested" && (
+                      <>
+                        <button className="bg-[#e6cc4c] px-4 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Accept</button>
+                        <button className="bg-neutral-100 px-4 py-2 rounded-lg text-xs font-bold text-neutral-muted opacity-0 group-hover:opacity-100 transition-opacity">Reject</button>
+                      </>
+                    )}
+                    {item.status === "Scheduled" && (
+                      <button className="bg-[#e6cc4c] px-4 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Open Session</button>
+                    )}
+                    {item.status === "Accepted" && (
+                      <button className="bg-[#e6cc4c] px-4 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Confirm Schedule</button>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
-          <div className="divide-y divide-neutral-surface">
-            {consultationRequests.map((request) => (
-              <div key={request.id} className="p-6 flex items-center justify-between hover:bg-[#f8f8f6]/50 transition-colors group">
-                <div className="flex items-center gap-4 flex-1">
-                  <div className="w-10 h-10 rounded-xl bg-[#e6cc4c]/10 flex items-center justify-center text-[#e6cc4c] shrink-0">
-                    <MessageSquare className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-bold text-[#171611] truncate">
-                      Lịch tư vấn với <span className="text-[#878164]">{request.requester}</span> ({request.company})
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider">
-                      {request.date || "Sắp tới"} • Topic: {request.category}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-all">
-                  <button className="px-4 py-2 bg-[#e6cc4c] text-[#171611] text-[10px] font-black uppercase rounded-lg hover:shadow-lg transition-all">Duyệt</button>
-                  <button className="px-4 py-2 bg-white border border-neutral-surface text-[#171611] text-[10px] font-black uppercase rounded-lg hover:bg-neutral-surface transition-all">Từ chối</button>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
 
-        {/* Performance & Reviews Section (Grid) */}
+        {/* ═══════════════════════════════════════════════════
+            ROW 4 — Left (4 cols) + Right (8 cols)
+            Profile/Availability + Pending Reports table
+        ═══════════════════════════════════════════════════ */}
         <div className="grid grid-cols-12 gap-6">
-        {/* Performance & Reviews Section (Grid) */}
-        <div className="grid grid-cols-12 gap-6 pb-12">
-          {/* Chart/Performance Section */}
-          <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl shadow-sm border border-neutral-surface p-6 flex flex-col">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <div className="w-1.5 h-6 bg-[#e6cc4c] rounded-full"></div>
-                <h4 className="font-bold text-[#171611]">Hiệu suất tuần này</h4>
+          {/* Left: Profile + Availability + Earnings */}
+          <div className="col-span-12 lg:col-span-4 bg-white rounded-2xl shadow-sm border border-neutral-surface p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <Sparkles className="w-5 h-5 text-[#e6cc4c]" />
+              <h3 className="font-bold text-lg text-[#171611]">Advisor Summary</h3>
+            </div>
+            <div className="space-y-4">
+              {/* Expertise */}
+              <div className="bg-green-50 p-4 rounded-xl border border-green-100">
+                <p className="text-xs font-bold text-green-800 mb-2 flex items-center gap-1 uppercase tracking-tight">
+                  <TrendingUp className="w-4 h-4" /> Expertise & Services
+                </p>
+                <ul className="text-xs text-green-700 space-y-1.5 list-disc ml-4 font-medium">
+                  <li>FinTech, SaaS, Go-to-Market Strategy</li>
+                  <li>Rate: $150/hr — 30, 60, 90 min sessions</li>
+                  <li>Avg Rating: 4.9/5.0 (112 reviews)</li>
+                </ul>
               </div>
-              <div className="flex gap-2">
-                {["Tổng quan", "Chi tiết"].map((t) => (
-                  <button key={t} className={cn("px-4 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all", t === "Tổng quan" ? "bg-[#171611] text-white" : "text-[#878164] hover:bg-[#f4f4f0]")}>{t}</button>
-                ))}
+              {/* Availability & Earnings */}
+              <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                <p className="text-xs font-bold text-amber-800 mb-2 flex items-center gap-1 uppercase tracking-tight">
+                  <Clock className="w-4 h-4" /> Availability & Earnings
+                </p>
+                <ul className="text-xs text-amber-700 space-y-1.5 list-disc ml-4 font-medium">
+                  <li>Next slot: Mar 22, 10:00 AM</li>
+                  <li>12 open hours this week</li>
+                  <li>This month earnings: $1,200</li>
+                </ul>
               </div>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-auto">
-              {/* Progress Bars */}
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-500">Mức độ hài lòng</span>
-                    <span className="text-xs font-black text-[#171611]">98%</span>
-                  </div>
-                  <div className="w-full h-2 bg-[#f4f4f0] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#e6cc4c] rounded-full shadow-[0_0_8px_rgba(230,204,76,0.5)]" style={{ width: '98%' }}></div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-500">Tỷ lệ phản hồi</span>
-                    <span className="text-xs font-black text-[#171611]">100%</span>
-                  </div>
-                  <div className="w-full h-2 bg-[#f4f4f0] rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]" style={{ width: '100%' }}></div>
-                  </div>
-                </div>
+            <div className="flex gap-2 mt-4">
+              <Link href="/advisor/profile" className="flex-1 text-center bg-[#f4f4f0] text-[#171611] font-bold px-3 py-2.5 rounded-xl hover:bg-neutral-200 transition-all text-xs">
+                Edit Profile
+              </Link>
+              <Link href="/advisor/availability" className="flex-1 text-center bg-[#f4f4f0] text-[#171611] font-bold px-3 py-2.5 rounded-xl hover:bg-neutral-200 transition-all text-xs">
+                Manage Slots
+              </Link>
+            </div>
+          </div>
 
-                <div className="grid grid-cols-2 gap-4 pt-4">
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-[#878164] uppercase mb-1 tracking-wider">Weekly Earned</p>
-                    <p className="text-xl font-bold text-[#171611]">${weeklyEarned.count.toLocaleString()}</p>
-                  </div>
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-[#878164] uppercase mb-1 tracking-wider">Mới (Tuần này)</p>
-                    <p className="text-xl font-bold text-[#171611]">{weeklySessions.count} sessions</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Mini Bar Chart */}
-              <div className="flex flex-col">
-                <div className="flex items-end justify-between h-32 gap-3 border-b border-[#f4f4f0] pb-2 mb-4">
-                  {weeklyData.map((d, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-2 group/bar">
-                      <div className="relative w-full flex justify-center items-end h-full">
-                        <div 
-                          className="w-full bg-[#f4f4f0] rounded-t-lg group-hover/bar:bg-[#e6cc4c]/50 transition-all cursor-pointer relative"
-                          style={{ height: `${(d.value / 7) * 100}%` }}
-                        >
-                           <div 
-                            className="absolute bottom-0 left-0 right-0 bg-[#e6cc4c] rounded-t-lg shadow-[0_-4px_10px_rgba(230,204,76,0.3)]"
-                            style={{ height: '50%' }}
-                           ></div>
+          {/* Right: Pending Reports table */}
+          <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl shadow-sm border border-neutral-surface overflow-hidden">
+            <div className="p-6 border-b border-neutral-surface flex items-center justify-between">
+              <h3 className="font-bold text-lg text-[#171611]">Pending Report Submissions</h3>
+              <Link href="/advisor/reports" className="text-[#e6cc4c] font-bold text-sm hover:underline tracking-tight">View all</Link>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-[#f8f8f6]">
+                  <tr className="text-[10px] uppercase text-neutral-muted font-bold tracking-widest">
+                    <th className="px-6 py-3 tracking-[0.1em]">STARTUP</th>
+                    <th className="px-6 py-3 tracking-[0.1em]">TOPIC</th>
+                    <th className="px-6 py-3 tracking-[0.1em]">SESSION DATE</th>
+                    <th className="px-6 py-3 tracking-[0.1em]">STATUS</th>
+                    <th className="px-6 py-3 text-right pr-10">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-surface">
+                  {pendingReports.map((report, idx) => (
+                    <tr key={idx} className="hover:bg-[#f8f8f6]/50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <AlertTriangle className={cn("w-5 h-5", report.deadline === "Overdue" ? "text-red-500" : "text-amber-500")} />
+                          <span className="text-sm font-bold text-[#171611]">{report.startup}</span>
                         </div>
-                      </div>
-                      <span className="text-[9px] font-black text-[#878164] uppercase">{d.day}</span>
-                    </div>
+                      </td>
+                      <td className="px-6 py-4 text-xs font-bold text-neutral-muted tracking-tight">{report.topic}</td>
+                      <td className="px-6 py-4 text-xs font-bold text-neutral-muted tracking-tight">{report.date}</td>
+                      <td className="px-6 py-4">
+                        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tight", report.deadlineBg, report.deadlineColor)}>
+                          {report.deadline}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right pr-6">
+                        <button className="bg-[#e6cc4c] px-4 py-1.5 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                          Submit Report
+                        </button>
+                      </td>
+                    </tr>
                   ))}
-                </div>
-                <button className="w-full mt-4 py-3 border-2 border-dashed border-[#e6cc4c]/30 rounded-xl text-[10px] font-black text-[#878164] uppercase tracking-widest hover:border-[#e6cc4c] hover:text-[#171611] transition-all flex items-center justify-center gap-2 group/btn">
-                  Tải Report chi tiết
-                </button>
-              </div>
+                </tbody>
+              </table>
             </div>
-          </div>
-
-          {/* Latest Reviews Section */}
-          <div className="col-span-12 lg:col-span-4 bg-[#171611] rounded-2xl shadow-sm p-6 text-white overflow-hidden relative group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-150 transition-transform duration-700">
-              <Star className="w-32 h-32" />
-            </div>
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-8">
-                <h4 className="font-bold text-white/90">Đánh giá mới</h4>
-                <div className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded-lg">
-                  <Star className="w-3 h-3 fill-[#e6cc4c] text-[#e6cc4c]" />
-                  <span className="text-xs font-black text-[#e6cc4c]">{(weeklyRating.count / 10).toFixed(1)}</span>
-                </div>
-              </div>
-              
-              <div className="space-y-6">
-                {latestReviews.slice(0, 2).map((review) => (
-                  <div key={review.id} className="border-b border-white/10 pb-6 last:border-0 last:pb-0">
-                    <p className="text-[13px] font-medium text-white/70 italic leading-relaxed mb-4">
-                      "{review.comment}"
-                    </p>
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-[11px] font-black border border-white/5">
-                        {review.reviewer.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="text-[12px] font-bold text-white truncate max-w-[120px]">{review.reviewer}</p>
-                        <p className="text-[9px] text-white/40 uppercase font-black">{review.timeAgo}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
           </div>
         </div>
+
+        {/* ═══════════════════════════════════════════════════
+            ROW 5 — Full-width: Ratings & Feedback (2-col grid)
+        ═══════════════════════════════════════════════════ */}
+        <div className="grid grid-cols-12 gap-6 pb-12">
+          <div className="col-span-12 bg-white rounded-2xl shadow-sm border border-neutral-surface p-6">
+            <h3 className="font-bold text-lg text-[#171611] mb-6 tracking-tight">Recent Ratings & Feedback</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {recentRatings.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between p-4 bg-[#f8f8f6] rounded-xl hover:shadow-md transition-shadow group cursor-pointer border border-transparent hover:border-[#e6cc4c]/20">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-[#e6cc4c]/20 flex items-center justify-center overflow-hidden border-2 border-white shadow-sm group-hover:scale-105 transition-transform">
+                      <Star className="w-5 h-5 text-[#e6cc4c] fill-[#e6cc4c]" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-[#171611]">{item.startup}</p>
+                      <p className="text-xs text-neutral-muted font-medium italic">"{item.review.slice(0, 60)}..."</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex items-center gap-0.5 justify-end mb-1">
+                      {Array.from({ length: item.rating }).map((_, i) => (
+                        <Star key={i} className="w-3 h-3 text-amber-400 fill-amber-400" />
+                      ))}
+                    </div>
+                    <p className={cn("text-[10px] font-black uppercase tracking-wider text-neutral-muted")}>{item.date}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
       </div>
     </AdvisorShell>
   );

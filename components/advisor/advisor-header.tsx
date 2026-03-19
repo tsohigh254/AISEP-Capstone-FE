@@ -27,7 +27,9 @@ import {
   Users
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuth } from "@/context/context";
+import { Logout } from "@/services/auth/auth.api";
 
 type AdvisorHeaderProps = {
   userName?: string;
@@ -51,6 +53,25 @@ export function AdvisorHeader({
   className,
 }: AdvisorHeaderProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, setUser, setAccessToken, setIsAuthen } = useAuth();
+  const displayUserName = user?.email || userName;
+
+  const handleLogout = async () => {
+    try {
+      await Logout();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setUser(undefined);
+      setAccessToken(undefined);
+      setIsAuthen(false);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("accessToken");
+      }
+      router.push("/auth/login");
+    }
+  };
   const [isGridOpen, setIsGridOpen] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -121,28 +142,25 @@ export function AdvisorHeader({
               </button>
 
               {isGridOpen && (
-                <div className="absolute right-0 top-full pt-4 z-[60] animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="w-64 bg-white rounded-[24px] shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-neutral-surface/50 overflow-hidden p-2">
-                    <div className="grid grid-cols-1 gap-1">
-                      {[
-                        { icon: MessageSquare, label: "Consulting Request", href: "/advisor/requests", color: "text-blue-500", bg: "bg-blue-50" },
-                        { icon: MessageSquare, label: "Tin nhắn", href: "/advisor/messaging", color: "text-orange-500", bg: "bg-orange-50" },
-                        { icon: Star, label: "Rating", href: "/advisor/feedback", color: "text-yellow-500", bg: "bg-yellow-50" },
-                        { icon: FileText, label: "Report", href: "/advisor/reports", color: "text-emerald-500", bg: "bg-emerald-50" },
-                      ].map((item) => (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className="flex items-center gap-4 px-4 py-3 hover:bg-[#f4f4f0]/80 rounded-[18px] transition-all group/grid"
-                          onClick={() => setIsGridOpen(false)}
-                        >
-                          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center transition-all group-hover/grid:shadow-sm", item.bg, "group-hover/grid:bg-white")}>
-                            <item.icon className={cn("w-5 h-5 transition-colors", item.color)} />
-                          </div>
-                          <span className="text-sm font-black text-[#171611] tracking-tight">{item.label}</span>
-                        </Link>
-                      ))}
-                    </div>
+                <div className="absolute right-0 top-full pt-2 z-[60] animate-in fade-in slide-in-from-top-1 duration-150">
+                  <div className="w-52 bg-white rounded-xl shadow-lg shadow-black/8 border border-neutral-surface/60 py-1.5">
+                    {[
+                      { icon: MessageSquare, label: "Consulting Requests", href: "/advisor/requests" },
+                      { icon: Calendar, label: "Schedule", href: "/advisor/schedule" },
+                      { icon: FileText, label: "Reports", href: "/advisor/reports" },
+                      { icon: Star, label: "Ratings & Feedback", href: "/advisor/reviews" },
+                      { icon: Clock, label: "Set Availability", href: "/advisor/availability" },
+                    ].map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className="flex items-center gap-3 px-3.5 py-2 mx-1.5 rounded-lg text-[#171611]/70 hover:text-[#171611] hover:bg-[#f4f4f0] active:bg-[#e6cc4c]/15 transition-colors group/grid"
+                        onClick={() => setIsGridOpen(false)}
+                      >
+                        <item.icon className="w-4 h-4 shrink-0 opacity-60 group-hover/grid:opacity-100 transition-opacity" />
+                        <span className="text-[13px] font-bold tracking-tight">{item.label}</span>
+                      </Link>
+                    ))}
                   </div>
                 </div>
               )}
@@ -154,13 +172,13 @@ export function AdvisorHeader({
           {/* User Profile Card */}
           <div className="flex items-center gap-3 relative">
             <div className="text-right flex flex-col items-end justify-center">
-              <p className="text-sm font-black text-slate-900 tracking-tight leading-none mb-1">{userName}</p>
+              <p className="text-sm font-black text-slate-900 tracking-tight leading-none mb-1">{displayUserName}</p>
               <div className="px-1.5 py-0.5 bg-[#fdf8e6] rounded-md border border-[#e6cc4c]/30">
                 <p className="text-[9px] text-[#878164] font-black uppercase tracking-wider leading-none">{roleLabel} PRO</p>
               </div>
             </div>
             
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center border-2 border-slate-100/50 shadow-sm overflow-hidden cursor-pointer hover:ring-2 hover:ring-[#e6cc4c]/30 transition-all">
                   <div className="w-full h-full bg-[#f4f4f0] flex items-center justify-center text-[#171611] font-black text-sm uppercase">
@@ -170,20 +188,20 @@ export function AdvisorHeader({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 bg-white rounded-[20px] shadow-[0_10px_40px_rgba(0,0,0,0.1)] border border-neutral-surface/50 overflow-hidden py-3">
                 <DropdownMenuLabel className="px-5 py-2">
-                  <p className="text-sm font-black text-[#171611]">{userName}</p>
+                  <p className="text-sm font-black text-[#171611]">{displayUserName}</p>
                   <p className="text-xs text-neutral-muted font-medium truncate">{userEmail}</p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="mx-4 my-2 opacity-50" />
-                <DropdownMenuItem onClick={onProfileClick} className="flex items-center gap-3 px-5 py-2.5 hover:bg-[#f4f4f0]/60 transition-colors group cursor-pointer focus:bg-[#f4f4f0]/60">
+                <DropdownMenuItem onClick={() => router.push("/advisor/profile")} className="flex items-center gap-3 px-5 py-2.5 hover:bg-[#f4f4f0]/60 transition-colors group cursor-pointer focus:bg-[#f4f4f0]/60">
                   <User className="w-5 h-5 text-[#171611] opacity-70 group-hover:opacity-100" />
                   <span className="text-[13px] font-bold text-[#171611]">Hồ sơ cá nhân</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={onPasswordChangeClick} className="flex items-center gap-3 px-5 py-2.5 hover:bg-[#f4f4f0]/60 transition-colors group cursor-pointer focus:bg-[#f4f4f0]/60">
+                <DropdownMenuItem onClick={() => router.push("/advisor/settings")} className="flex items-center gap-3 px-5 py-2.5 hover:bg-[#f4f4f0]/60 transition-colors group cursor-pointer focus:bg-[#f4f4f0]/60">
                   <Key className="w-5 h-5 text-[#171611] opacity-70 group-hover:opacity-100" />
                   <span className="text-[13px] font-bold text-[#171611]">Đổi mật khẩu</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="mx-4 my-2 opacity-50" />
-                <DropdownMenuItem onClick={onLogout} className="flex items-center gap-3 px-5 py-2.5 hover:bg-red-50/50 transition-colors group cursor-pointer focus:bg-red-50/50">
+                <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-3 px-5 py-2.5 hover:bg-red-50/50 transition-colors group cursor-pointer focus:bg-red-50/50">
                   <LogOut className="w-5 h-5 text-red-500 opacity-80 group-hover:opacity-100" />
                   <span className="text-[13px] font-bold text-red-500">Đăng xuất</span>
                 </DropdownMenuItem>

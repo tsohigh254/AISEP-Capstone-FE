@@ -27,3 +27,16 @@ export const SearchStartups = (page: number = 1, pageSize: number = 20) => {
 export const GetRecommendations = () => {
     return axios.get<IBackendRes<IStartupSearchItem[]>>(`/api/investors/recommendations`);
 }
+
+export const GetStartupById = (id: number) => {
+    return axios.get<IBackendRes<IStartupSearchItem>>(`/api/investors/startups/${id}`);
+}
+
+export const RemoveFromWatchlist = (watchlistId: number) => {
+    return axios.delete<IBackendRes<null>>(`/api/investors/me/watchlist/${watchlistId}`);
+}
+
+export const GetKYCStatus = () => {
+    // This is a mock implementation for the design phase
+    return axios.get<IBackendRes<IKYCStatus>>(`/api/investors/me/kyc/status`);
+}

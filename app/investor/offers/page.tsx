@@ -35,11 +35,11 @@ type TabKey = "sent" | "received";
 
 const STATUS_OPTIONS = [
   { value: "", label: "Tất cả" },
-  { value: "Pending", label: "Pending" },
-  { value: "Accepted", label: "Accepted" },
-  { value: "Rejected", label: "Rejected" },
-  { value: "Withdrawn", label: "Withdrawn" },
-  { value: "Closed", label: "Closed" },
+  { value: "Pending", label: "Đang chờ" },
+  { value: "Accepted", label: "Đã chấp nhận" },
+  { value: "Rejected", label: "Đã từ chối" },
+  { value: "Withdrawn", label: "Đã rút" },
+  { value: "Closed", label: "Đã đóng" },
 ];
 
 export default function ConnectionsPage() {
@@ -169,15 +169,15 @@ export default function ConnectionsPage() {
   const getStatusBadge = (status: string) => {
     const s = status.toLowerCase();
     if (s === "pending")
-      return <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100 border-0 px-3 py-1">Pending</Badge>;
+      return <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100 border-0 px-3 py-1">Đang chờ</Badge>;
     if (s === "accepted")
-      return <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-0 px-3 py-1">Accepted</Badge>;
+      return <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-0 px-3 py-1">Đã chấp nhận</Badge>;
     if (s === "rejected")
-      return <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-0 px-3 py-1">Rejected</Badge>;
+      return <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-0 px-3 py-1">Đã từ chối</Badge>;
     if (s === "withdrawn")
-      return <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100 border-0 px-3 py-1">Withdrawn</Badge>;
+      return <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100 border-0 px-3 py-1">Đã rút</Badge>;
     if (s === "closed")
-      return <Badge className="bg-gray-100 text-gray-600 hover:bg-gray-100 border-0 px-3 py-1">Closed</Badge>;
+      return <Badge className="bg-gray-100 text-gray-600 hover:bg-gray-100 border-0 px-3 py-1">Đã đóng</Badge>;
     return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-0 px-3 py-1">{status}</Badge>;
   };
 
@@ -192,7 +192,7 @@ export default function ConnectionsPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Connections</h1>
+            <h1 className="text-3xl font-bold text-slate-900">Kết nối</h1>
             <p className="text-slate-600 mt-1">Quản lý các yêu cầu kết nối với startup</p>
           </div>
           <Button

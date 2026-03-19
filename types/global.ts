@@ -56,10 +56,26 @@ declare global {
         investorID: number
         fullName: string
         firmName: string
+        investorType: "Institutional" | "Individual"
+        organization?: string
         title: string
         bio: string
         profilePhotoURL: string
         investmentThesis: string
+        preferredIndustries: string[]
+        preferredStages: string[]
+        preferredGeographies: string[]
+        preferredMarketScopes: string[]
+        supportOffered: string[]
+        preferredProductMaturity: string[]
+        preferredValidationLevel: string[]
+        preferredAIScoreRange: string // e.g., "75-100"
+        aiScoreImportance: "Low" | "Medium" | "High"
+        preferredStrengths: string[]
+        acceptingConnections: boolean
+        publicProfileVisibility: boolean
+        recentlyActiveDisplay: boolean
+        connectionGuidance?: string
         location: string
         country: string
         linkedInURL: string
@@ -71,9 +87,25 @@ declare global {
     interface ICreateInvestor {
         fullName: string
         firmName: string
+        investorType: "Institutional" | "Individual"
+        organization?: string
         title: string
         bio: string
         investmentThesis: string
+        preferredIndustries: string[]
+        preferredStages: string[]
+        preferredGeographies: string[]
+        preferredMarketScopes: string[]
+        supportOffered: string[]
+        preferredProductMaturity: string[]
+        preferredValidationLevel: string[]
+        preferredAIScoreRange: string
+        aiScoreImportance: "Low" | "Medium" | "High"
+        preferredStrengths: string[]
+        acceptingConnections: boolean
+        publicProfileVisibility: boolean
+        recentlyActiveDisplay: boolean
+        connectionGuidance?: string
         location: string
         country: string
         linkedInURL: string
@@ -270,5 +302,36 @@ declare global {
         password: string
         confirmPassword: string
         userType: string
+    }
+
+    // ── KYC Status ──
+    interface IKYCStatus {
+        status: "Not Submitted" | "Pending" | "Approved" | "Rejected";
+        verificationLabel: "Verified Investor Entity" | "Verified Angel Investor" | "Basic Verified" | "Pending More Info" | "Verification Failed" | "None";
+        explanation: string;
+        lastUpdated: string;
+        submissionSummary?: IKYCSubmissionSummary;
+        reviewOutcome?: IKYCReviewOutcome;
+        history?: IKYCCycle[];
+    }
+
+    interface IKYCSubmissionSummary {
+        investorTypePath: string;
+        submittedName: string;
+        submissionDate: string;
+        documentCount: number;
+        version: number;
+    }
+
+    interface IKYCReviewOutcome {
+        rejectionReason?: string;
+        correctionGuidance?: string;
+        nextSteps: string;
+    }
+
+    interface IKYCCycle {
+        event: string;
+        date: string;
+        status: string;
     }
 }
