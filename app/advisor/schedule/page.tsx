@@ -1,379 +1,210 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Select } from "@/components/ui/select";
-import { AnimatedNumber } from "@/lib/useCountUp";
-import { 
-  Calendar as CalendarIcon, 
-  CheckCircle, 
-  Clock, 
-  ChevronLeft, 
-  ChevronRight,
-  ChevronDown,
-  MoreVertical,
-  Plus
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import {
+  Calendar, Clock, CheckCircle2, AlertCircle,
+  ArrowRight,
 } from "lucide-react";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
+import { FormatBadge } from "@/components/advisor/consulting-format-badge";
+import type { IConsultingSession, ConsultingSessionStatus } from "@/types/advisor-consulting";
+import { getMockSessions } from "@/services/advisor/advisor-consulting.mock";
+import { cn } from "@/lib/utils";
 
-type Meeting = {
-  id: string;
-  companyName: string;
-  companyInitials: string;
-  companyColor: string;
-  time: string;
-  description: string;
-  status: "confirmed" | "pending" | "cancelled";
-  date: Date;
+/* ─── Vietnamese date helpers ────────────────────────────────── */
+
+const VN_DAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+
+function formatTime(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function isSameWeek(d: Date, ref: Date) {
+  const s = new Date(ref);
+  const day = s.getDay();
+  const diff = day === 0 ? 6 : day - 1;
+  s.setDate(s.getDate() - diff);
+  s.setHours(0, 0, 0, 0);
+  const e = new Date(s);
+  e.setDate(e.getDate() + 7);
+  return d >= s && d < e;
+}
+
+
+/* ─── Status config ──────────────────────────────────────────── */
+
+const STATUS_CFG: Record<ConsultingSessionStatus, { label: string; dot: string; badge: string }> = {
+  PENDING_CONFIRMATION: { label: "Chờ xác nhận", dot: "bg-amber-400", badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
+  SCHEDULED: { label: "Đã xác nhận", dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
+  COMPLETED: { label: "Hoàn thành", dot: "bg-slate-400", badge: "bg-slate-50 text-slate-600 border-slate-200/80" },
+  CANCELLED: { label: "Đã huỷ", dot: "bg-red-400", badge: "bg-red-50 text-red-600 border-red-200/80" },
 };
 
-type Deadline = {
-  id: string;
-  title: string;
-  date: Date;
+const DATE_ACCENT: Record<ConsultingSessionStatus, string> = {
+  SCHEDULED: "border-l-emerald-500 bg-emerald-50/40",
+  PENDING_CONFIRMATION: "border-l-amber-500 bg-amber-50/30",
+  COMPLETED: "border-l-slate-400 bg-slate-50/50",
+  CANCELLED: "border-l-red-400 bg-red-50/30",
 };
 
-const meetings: Meeting[] = [
-  {
-    id: "1",
-    companyName: "TechFlow Solutions",
-    companyInitials: "TF",
-    companyColor: "bg-blue-500",
-    time: "9:00 AM - 10:00 AM",
-    description: "Q1 Strategy Review & Funding Discussion",
-    status: "confirmed",
-    date: new Date(2025, 0, 15), // Jan 15, 2025
-  },
-  {
-    id: "2",
-    companyName: "GreenHarvest",
-    companyInitials: "GH",
-    companyColor: "bg-green-500",
-    time: "2:00 PM - 3:00 PM",
-    description: "Product Market Fit Analysis",
-    status: "pending",
-    date: new Date(2025, 0, 15),
-  },
-  {
-    id: "3",
-    companyName: "NeuralWave AI",
-    companyInitials: "NW",
-    companyColor: "bg-purple-500",
-    time: "4:30 PM - 5:30 PM",
-    description: "Technical Architecture Review",
-    status: "confirmed",
-    date: new Date(2025, 0, 15),
-  },
-  {
-    id: "4",
-    companyName: "BlockChain Ventures",
-    companyInitials: "BC",
-    companyColor: "bg-orange-500",
-    time: "10:00 AM - 11:00 AM",
-    description: "Pitch Deck Review & Investor Prep",
-    status: "confirmed",
-    date: new Date(2025, 0, 16), // Jan 16, 2025
-  },
-  {
-    id: "5",
-    companyName: "MediHealth Connect",
-    companyInitials: "MH",
-    companyColor: "bg-teal-500",
-    time: "2:00 PM - 3:30 PM",
-    description: "Regulatory Compliance Consultation",
-    status: "pending",
-    date: new Date(2025, 0, 16),
-  },
-  {
-    id: "6",
-    companyName: "CloudSync Pro",
-    companyInitials: "CS",
-    companyColor: "bg-indigo-500",
-    time: "11:00 AM - 12:00 PM",
-    description: "Scaling Strategy Discussion",
-    status: "confirmed",
-    date: new Date(2025, 0, 17),
-  },
-];
+/* ─── Tabs ───────────────────────────────────────────────────── */
 
-const deadlines: Deadline[] = [
-  {
-    id: "1",
-    title: "TechFlow Q1 Report Due",
-    date: new Date(2025, 0, 18),
-  },
-  {
-    id: "2",
-    title: "GreenHarvest Pitch Deck Review",
-    date: new Date(2025, 0, 20),
-  },
-  {
-    id: "3",
-    title: "BlockChain Due Diligence",
-    date: new Date(2025, 0, 25),
-  },
-];
+type TabKey = "upcoming" | "completed";
 
-// Helper function to group meetings by date
-const groupMeetingsByDate = (meetings: Meeting[]) => {
-  const grouped: { [key: string]: Meeting[] } = {};
-  meetings.forEach((meeting) => {
-    const dateKey = meeting.date.toDateString();
-    if (!grouped[dateKey]) {
-      grouped[dateKey] = [];
-    }
-    grouped[dateKey].push(meeting);
-  });
-  return grouped;
-};
-
-// Helper function to format date
-const formatDateHeader = (date: Date) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const dateCopy = new Date(date);
-  dateCopy.setHours(0, 0, 0, 0);
-
-  if (dateCopy.getTime() === today.getTime()) {
-    return `Today - ${date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
-  } else if (dateCopy.getTime() === tomorrow.getTime()) {
-    return `Tomorrow - ${date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
-  } else {
-    return date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  }
-};
+/* ─── Page ───────────────────────────────────────────────────── */
 
 export default function AdvisorSchedulePage() {
-  const [activeTab, setActiveTab] = useState("all");
-  const [currentMonth, setCurrentMonth] = useState(new Date(2025, 0, 1)); // January 2025
+  const [sessions, setSessions] = useState<IConsultingSession[]>([]);
+  const [activeTab, setActiveTab] = useState<TabKey>("upcoming");
 
-  const filteredMeetings = meetings.filter((meeting) => {
-    if (activeTab === "all") return true;
-    if (activeTab === "upcoming") return meeting.status !== "cancelled" && meeting.date >= new Date();
-    if (activeTab === "past") return meeting.date < new Date();
-    if (activeTab === "cancelled") return meeting.status === "cancelled";
-    return true;
-  });
+  useEffect(() => { setSessions(getMockSessions()); }, []);
 
-  const groupedMeetings = groupMeetingsByDate(filteredMeetings);
-  const sortedDates = Object.keys(groupedMeetings).sort((a, b) => 
-    new Date(a).getTime() - new Date(b).getTime()
-  );
+  const upcoming = sessions.filter(s => s.status === "PENDING_CONFIRMATION" || s.status === "SCHEDULED");
+  const completed = sessions.filter(s => s.status === "COMPLETED");
+  const displayed = activeTab === "upcoming" ? upcoming : completed;
 
-  // Calculate summary stats
-  const thisWeekCount = meetings.filter(m => {
-    const weekStart = new Date();
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    weekStart.setHours(0, 0, 0, 0);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 7);
-    return m.date >= weekStart && m.date < weekEnd;
-  }).length;
+  const now = new Date();
+  const thisWeek = upcoming.filter(s => isSameWeek(new Date(s.scheduledStartAt), now)).length;
 
-  const thisMonthCount = meetings.filter(m => 
-    m.date.getMonth() === new Date().getMonth() && 
-    m.date.getFullYear() === new Date().getFullYear()
-  ).length;
-
-  const confirmedCount = meetings.filter(m => m.status === "confirmed").length;
-  const pendingCount = meetings.filter(m => m.status === "pending").length;
-
-  // Calendar generation
-  const generateCalendarDays = () => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    const days: (number | null)[] = [];
-    // Add empty cells for days before the first day of the month
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push(null);
-    }
-    // Add all days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      days.push(day);
-    }
-    return days;
-  };
-
-  const calendarDays = generateCalendarDays();
-  const today = new Date();
-  const currentDate = today.getDate();
-  const currentMonthIndex = today.getMonth();
-  const currentYear = today.getFullYear();
-
-  const hasMeetingOnDate = (day: number) => {
-    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-    return meetings.some(m => 
-      m.date.getDate() === date.getDate() &&
-      m.date.getMonth() === date.getMonth() &&
-      m.date.getFullYear() === date.getFullYear()
-    );
-  };
-
-  const navigateMonth = (direction: "prev" | "next") => {
-    setCurrentMonth(prev => {
-      const newMonth = new Date(prev);
-      if (direction === "prev") {
-        newMonth.setMonth(newMonth.getMonth() - 1);
-      } else {
-        newMonth.setMonth(newMonth.getMonth() + 1);
-      }
-      return newMonth;
-    });
-  };
+  const stats = [
+    { label: "Sắp tới", value: upcoming.length, icon: Calendar, color: "text-blue-600", bg: "bg-blue-50", ring: "ring-blue-100" },
+    { label: "Tuần này", value: thisWeek, icon: Clock, color: "text-amber-600", bg: "bg-amber-50", ring: "ring-amber-100" },
+    { label: "Đã hoàn thành", value: completed.length, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50", ring: "ring-emerald-100" },
+  ];
 
   return (
     <AdvisorShell>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-slate-900">My Schedule</h1>
+      <div className="max-w-[1000px] mx-auto space-y-6 animate-in fade-in duration-400">
+
+        {/* Page header */}
+        <div>
+          <h1 className="text-[22px] font-bold text-slate-900 leading-tight">Lịch tư vấn</h1>
+          <p className="text-[13px] text-slate-500 mt-1">Theo dõi các buổi tư vấn sắp tới và đã hoàn thành.</p>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="border-slate-200 bg-slate-50">
-            <CardContent className="p-4">
-              <p className="text-sm text-slate-600 mb-1">THIS WEEK</p>
-              <AnimatedNumber value={thisWeekCount} duration={800} delay={0} className="text-3xl font-bold text-slate-900" />
-            </CardContent>
-          </Card>
-          <Card className="border-slate-200 bg-slate-50">
-            <CardContent className="p-4">
-              <p className="text-sm text-slate-600 mb-1">THIS MONTH</p>
-              <AnimatedNumber value={thisMonthCount} duration={800} delay={150} className="text-3xl font-bold text-slate-900" />
-            </CardContent>
-          </Card>
-          <Card className="border-slate-200 bg-slate-50">
-            <CardContent className="p-4">
-              <p className="text-sm text-slate-600 mb-1">CONFIRMED</p>
-              <AnimatedNumber value={confirmedCount} duration={800} delay={300} className="text-3xl font-bold text-slate-900" />
-            </CardContent>
-          </Card>
-          <Card className="border-slate-200 bg-slate-50">
-            <CardContent className="p-4">
-              <p className="text-sm text-slate-600 mb-1">PENDING</p>
-              <AnimatedNumber value={pendingCount} duration={800} delay={450} className="text-3xl font-bold text-slate-900" />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Content Area - 2 Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Meetings */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Filter Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="bg-slate-100">
-                <TabsTrigger 
-                  value="all" 
-                  className={activeTab === "all" ? "bg-blue-500 text-white" : ""}
-                >
-                  All Meetings
-                </TabsTrigger>
-                <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-                <TabsTrigger value="past">Past</TabsTrigger>
-                <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            {/* Meetings by Date */}
-            <div className="space-y-6">
-              {sortedDates.map((dateKey) => {
-                const date = new Date(dateKey);
-                const dayMeetings = groupedMeetings[dateKey];
-                
-                return (
-                  <div key={dateKey} className="space-y-3">
-                    <h2 className="text-lg font-bold text-slate-900">
-                      {formatDateHeader(date)}
-                    </h2>
-                    {dayMeetings.map((meeting) => (
-                      <Card key={meeting.id} className="border-slate-200 shadow-sm">
-                        <CardContent className="p-4">
-                          <div className="flex items-start gap-4">
-                            <Avatar className={`${meeting.companyColor} h-12 w-12`}>
-                              <AvatarFallback className={`${meeting.companyColor} text-white font-semibold`}>
-                                {meeting.companyInitials}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-semibold text-slate-900 mb-1">
-                                {meeting.companyName}
-                              </h3>
-                              <p className="text-sm text-slate-600 mb-2">
-                                {meeting.time}
-                              </p>
-                              <p className="text-sm text-slate-700 mb-3">
-                                {meeting.description}
-                              </p>
-                              {meeting.status === "confirmed" ? (
-                                <Badge className="bg-green-500 text-white border-0 hover:bg-green-500 flex items-center gap-1 w-fit">
-                                  <CheckCircle className="w-3 h-3" />
-                                  Confirmed
-                                </Badge>
-                              ) : meeting.status === "pending" ? (
-                                <Badge className="bg-orange-500 text-white border-0 hover:bg-orange-500 flex items-center gap-1 w-fit">
-                                  <Clock className="w-3 h-3" />
-                                  Pending
-                                </Badge>
-                              ) : null}
-                            </div>
-                            <Button variant="ghost" size="icon" className="text-slate-400">
-                              <MoreVertical className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                );
-              })}
+        {/* Stats cards */}
+        <div className="grid grid-cols-3 gap-3">
+          {stats.map(s => (
+            <div key={s.label} className="bg-white rounded-xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-4 py-3.5 flex items-center gap-3">
+              <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center ring-1 shrink-0", s.bg, s.ring)}>
+                <s.icon className={cn("w-4 h-4", s.color)} />
+              </div>
+              <div>
+                <p className="text-[20px] font-bold text-slate-900 leading-none">{s.value}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5 font-medium">{s.label}</p>
+              </div>
             </div>
-          </div>
-
-          {/* Right Column - Sidebar */}
-          <div className="space-y-6">
-            {/* Calendar */}
-           
-
-            {/* Upcoming Deadlines */}
-            <Card className="border-slate-200">
-              <CardContent className="p-4">
-                <h3 className="font-bold text-slate-900 mb-4">Upcoming Deadlines</h3>
-                <div className="space-y-4">
-                  {deadlines.map((deadline) => (
-                    <div key={deadline.id} className="flex gap-3">
-                      <div className="w-1 bg-orange-500 rounded-full" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-slate-900">
-                          {deadline.title}
-                        </p>
-                        <p className="text-xs text-slate-600">
-                          {deadline.date.toLocaleDateString("en-US", { 
-                            month: "long", 
-                            day: "numeric", 
-                            year: "numeric" 
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          ))}
         </div>
+
+        {/* Tab bar */}
+        <div className="bg-white rounded-xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-1 inline-flex gap-1">
+          {(["upcoming", "completed"] as TabKey[]).map(key => {
+            const label = key === "upcoming" ? "Sắp tới" : "Đã hoàn thành";
+            const count = key === "upcoming" ? upcoming.length : completed.length;
+            return (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-[12px] font-semibold transition-all flex items-center gap-1.5",
+                  activeTab === key
+                    ? "bg-[#0f172a] text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                )}
+              >
+                {label}
+                <span className={cn(
+                  "text-[10px] rounded-full px-1.5 py-0.5 font-bold leading-none",
+                  activeTab === key ? "bg-white/20 text-white" : "bg-slate-100 text-slate-400"
+                )}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Session cards */}
+        {displayed.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] py-20 flex flex-col items-center justify-center gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center">
+              <AlertCircle className="w-6 h-6 text-slate-300" />
+            </div>
+            <p className="text-[13px] text-slate-500 font-medium">
+              {activeTab === "upcoming" ? "Không có buổi tư vấn sắp tới" : "Chưa có buổi tư vấn nào hoàn thành"}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {displayed.map(session => {
+              const start = new Date(session.scheduledStartAt);
+              const cfg = STATUS_CFG[session.status];
+
+              return (
+                <Link
+                  key={session.id}
+                  href={`/advisor/requests/${session.requestId}`}
+                  className="group block bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] hover:border-slate-300/80 transition-all duration-200 overflow-hidden"
+                >
+                  <div className="flex items-stretch">
+                    {/* Left date accent */}
+                    <div className={cn(
+                      "w-20 shrink-0 border-l-4 flex flex-col items-center justify-center py-4",
+                      DATE_ACCENT[session.status]
+                    )}>
+                      <span className="text-[10px] text-slate-400 font-semibold">{VN_DAYS[start.getDay()]}</span>
+                      <span className="text-[24px] font-bold text-slate-900 leading-none mt-0.5">{start.getDate()}</span>
+                      <span className="text-[10px] text-slate-400 font-medium mt-0.5">Thg {start.getMonth() + 1}</span>
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0 px-5 py-4 flex items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[14px] font-bold text-slate-900">{session.startup.displayName}</span>
+                          <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold border", cfg.badge)}>
+                            <span className={cn("w-1.5 h-1.5 rounded-full", cfg.dot)} />
+                            {cfg.label}
+                          </span>
+                        </div>
+                        <p className="text-[13px] text-slate-500 truncate mt-0.5">{session.objective}</p>
+                        <div className="flex items-center gap-3 mt-2 flex-wrap">
+                          <span className="text-[12px] text-slate-600 flex items-center gap-1 font-medium">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                            {formatTime(session.scheduledStartAt)} - {formatTime(session.scheduledEndAt)}
+                          </span>
+                          <FormatBadge format={session.meetingMode} size="sm" />
+                          {/* Confirmation dots */}
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1 text-[10px]">
+                              {session.confirmation.advisorConfirmedAt
+                                ? <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                : <Clock className="w-3 h-3 text-slate-300" />
+                              }
+                              <span className={session.confirmation.advisorConfirmedAt ? "text-emerald-600 font-medium" : "text-slate-400"}>Advisor</span>
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-[10px]">
+                              {session.confirmation.startupConfirmedAt
+                                ? <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                : <Clock className="w-3 h-3 text-slate-300" />
+                              }
+                              <span className={session.confirmation.startupConfirmedAt ? "text-emerald-600 font-medium" : "text-slate-400"}>Startup</span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all shrink-0" />
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
     </AdvisorShell>
   );

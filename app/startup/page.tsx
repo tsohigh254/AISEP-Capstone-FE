@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StartupShell } from "@/components/startup/startup-shell";
 import Link from "next/link";
 import { useCountUp } from "@/lib/useCountUp";
@@ -30,6 +30,20 @@ import {
 
 export default function StartupDashboardPage() {
   const [showProfile, setShowProfile] = useState(false);
+  const [isOnboardingHidden, setIsOnboardingHidden] = useState(false);
+
+  useEffect(() => {
+    const skipped = localStorage.getItem("aisep_startup_onboarding_skipped") === "true";
+    const completed = localStorage.getItem("aisep_startup_onboarding_completed") === "true";
+    
+    setIsOnboardingHidden(skipped || completed);
+
+    // Auto-redirect to onboarding if neither skipped nor completed
+    if (!skipped && !completed) {
+      window.location.href = "/startup/onboard";
+    }
+  }, []);
+
   const profileProgress = useCountUp(65, 1200, 0);
   const aiScore = useCountUp(84, 1200, 150);
   const docCount = useCountUp(12, 800, 300);
@@ -65,10 +79,15 @@ export default function StartupDashboardPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-3">
-                <button className="bg-[#e6cc4c] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 group">
-                  <FileEdit className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                  Hoàn thiện hồ sơ
-                </button>
+                {!isOnboardingHidden && (
+                  <Link 
+                    href="/startup/onboard"
+                    className="bg-[#e6cc4c] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 group"
+                  >
+                    <FileEdit className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                    Hoàn thiện hồ sơ (Onboarding)
+                  </Link>
+                )}
                 <button
                   onClick={() => setShowProfile(true)}
                   className="bg-[#f4f4f0] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:bg-neutral-200 transition-all flex items-center gap-2"

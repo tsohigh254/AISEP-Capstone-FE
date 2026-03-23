@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Send, CheckCircle2, BadgeCheck, Clock, Check, Plus, Trash2, Globe, Video, Monitor } from "lucide-react";
+import Image from "next/image";
+import { X, Send, CheckCircle2, BadgeCheck, Clock, Check, Plus, Trash2, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const formatVND = (n: number) => n.toLocaleString('vi-VN') + '₫';
@@ -32,14 +33,14 @@ const PLATFORMS = [
     {
         value: "meet",
         label: "Google Meet",
-        icon: <Video className="w-3.5 h-3.5" />,
+        icon: <Image src="https://thesvg.org/icons/google-meet/default.svg" alt="Google Meet" width={16} height={16} unoptimized />,
         activeColor: "text-emerald-600",
         activeBg: "bg-emerald-50 border-emerald-200 text-emerald-800",
     },
     {
         value: "teams",
         label: "Microsoft Teams",
-        icon: <Monitor className="w-3.5 h-3.5" />,
+        icon: <Image src="https://thesvg.org/icons/microsoft-teams/default.svg" alt="Microsoft Teams" width={16} height={16} unoptimized />,
         activeColor: "text-violet-600",
         activeBg: "bg-violet-50 border-violet-200 text-violet-800",
     },

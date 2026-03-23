@@ -33,6 +33,11 @@ const routeLabels: Record<string, string> = {
   team: "Đội ngũ & Xác thực",
   visibility: "Hiển thị",
   kyc: "KYC & Xác thực",
+  verification: "Xác minh",
+  requirements: "Yêu cầu hồ sơ",
+  submit: "Nộp hồ sơ",
+  status: "Trạng thái",
+  resubmit: "Gửi lại hồ sơ",
 };
 
 function StartupBreadcrumb() {
@@ -75,8 +80,8 @@ export function StartupShell({ children }: StartupShellProps) {
     <AuthGuard allowedRoles={["Startup"]}>
       <div className="min-h-screen bg-[#f8f8f6] text-[#171611] font-be-vietnam-pro selection:bg-[#e6cc4c]/30">
         <StartupHeader />
-        <div className="h-[80px]" />
-        <main className="min-h-[calc(100vh-80px)] pb-12 w-full max-w-[1440px] mx-auto px-6 pt-8">
+        <div className="h-[64px]" />
+        <main className="min-h-[calc(100vh-64px)] pb-12 w-full max-w-[1440px] mx-auto px-6 pt-8">
           <StartupBreadcrumb />
           {children}
         </main>

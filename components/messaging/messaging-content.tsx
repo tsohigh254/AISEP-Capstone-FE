@@ -242,7 +242,7 @@ export function MessagingContent() {
     const bottomRef    = useRef<HTMLDivElement>(null);
     const messagesRef  = useRef<HTMLDivElement>(null);
 
-    const selected = conversations.find(c => c.conversationId === selectedId) ?? null;
+    const selected = (conversations ?? []).find(c => c.conversationId === selectedId) ?? null;
 
     /* ── Fetch conversations ── */
     const fetchConversations = useCallback(() => {
@@ -251,7 +251,7 @@ export function MessagingContent() {
         GetConversations()
             .then(res => {
                 if (res.success && res.data) {
-                    setConversations(res.data.items);
+                    setConversations(res.data.items ?? []);
                 } else {
                     setConvError(true);
                 }

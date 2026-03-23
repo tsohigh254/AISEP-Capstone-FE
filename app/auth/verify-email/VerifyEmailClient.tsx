@@ -53,6 +53,7 @@ export default function VerifyEmailClient() {
   };
 
   const getWorkspacePath = (userType: string | undefined, roles?: string[]) => {
+    const purpose = searchParams.get("purpose");
     let type = (userType ?? "").toLowerCase();
 
     // Fallback to roles if userType is empty
@@ -67,6 +68,12 @@ export default function VerifyEmailClient() {
           break;
         }
       }
+    }
+
+    // Redirect to onboarding if NEW user (register flow)
+    if (purpose === "register") {
+      if (type === "advisor" || type === "expert") return "/advisor/onboard";
+      if (type === "startup") return "/startup/onboard";
     }
 
     switch (type) {

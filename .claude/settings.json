@@ -6,7 +6,9 @@
       "Bash(sed -i 's/amount: 150,/amount: 3750000,/g' app/startup/payments/page.tsx)",
       "Bash(sed -i 's/amount: 60,/amount: 1500000,/g' app/startup/payments/page.tsx)",
       "Bash(grep -n '\\\\$' \"c:/Users/Acer/Documents/Github/AISEP-Capstone-FE/components/startup/mentorship-request-modal.tsx\")",
-      "Bash(npx next:*)"
+      "Bash(npx next:*)",
+      "Bash(find /c/Users/Acer/Documents/Github/AISEP-Capstone-FE/app/staff -type f -name *.tsx)",
+      "Read(//c/Users/Acer/Documents/Github/AISEP-Capstone-FE/**)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Acer\\Documents\\Github\\AISEP-Capstone-FE\\app\\startup\\investors\\[id]"

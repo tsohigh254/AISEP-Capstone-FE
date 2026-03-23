@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import Link from "next/link";
 import { useCountUp } from "@/lib/useCountUp";
@@ -12,6 +12,7 @@ import {
   Calendar,
   Star,
   MessageSquare,
+  ClipboardList,
   FileText,
   TrendingUp,
   AlertTriangle,
@@ -36,7 +37,7 @@ const upcomingSchedule = [
     topic: "Fundraising readiness review",
     date: "Mar 20, 2026",
     time: "10:00 AM",
-    duration: "60 min",
+    duration: "60 phút",
     type: "Online",
     typeIcon: Video,
     status: "Scheduled",
@@ -48,7 +49,7 @@ const upcomingSchedule = [
     topic: "Go-to-market mentoring",
     date: "Mar 20, 2026",
     time: "2:00 PM",
-    duration: "90 min",
+    duration: "90 phút",
     type: "Call",
     typeIcon: Phone,
     status: "Requested",
@@ -60,7 +61,7 @@ const upcomingSchedule = [
     topic: "Pitch deck refinement",
     date: "Mar 21, 2026",
     time: "9:30 AM",
-    duration: "60 min",
+    duration: "60 phút",
     type: "Online",
     typeIcon: Video,
     status: "Accepted",
@@ -70,8 +71,8 @@ const upcomingSchedule = [
 ];
 
 const pendingReports = [
-  { startup: "FinTech Innovator", date: "Mar 15, 2026", topic: "AI Architecture Consulting", deadline: "Overdue", deadlineColor: "text-red-600", deadlineBg: "bg-red-50" },
-  { startup: "HealthTech Connect", date: "Mar 17, 2026", topic: "Product-market fit assessment", deadline: "Due today", deadlineColor: "text-amber-600", deadlineBg: "bg-amber-50" },
+  { startup: "FinTech Innovator", date: "Mar 15, 2026", topic: "AI Architecture Consulting", deadline: "Quá hạn", deadlineColor: "text-red-600", deadlineBg: "bg-red-50" },
+  { startup: "HealthTech Connect", date: "Mar 17, 2026", topic: "Product-market fit assessment", deadline: "Hôm nay hết hạn", deadlineColor: "text-amber-600", deadlineBg: "bg-amber-50" },
 ];
 
 const recentRatings = [
@@ -83,6 +84,15 @@ const recentRatings = [
 
 export default function AdvisorDashboardPage() {
   const [activeTab, setActiveTab] = useState<"today" | "week" | "pending">("today");
+  const [hideCompleteness, setHideCompleteness] = useState(false);
+
+  useEffect(() => {
+    const skipped = localStorage.getItem("aisep_advisor_onboarding_skipped") === "true";
+    const completed = localStorage.getItem("aisep_advisor_onboarding_completed") === "true";
+    if (skipped || completed) {
+      setHideCompleteness(true);
+    }
+  }, []);
 
   const totalConsult = useCountUp(124, 1200, 0);
   const newRequests = useCountUp(5, 800, 150);
@@ -114,26 +124,28 @@ export default function AdvisorDashboardPage() {
                   </span>
                 </div>
                 <p className="text-neutral-muted text-sm mb-6 leading-relaxed">
-                  Manage consulting requests, upcoming sessions, reports, and performance. You have <strong>5 new requests</strong> and <strong>2 pending reports</strong> this week.
+                  Quản lý yêu cầu tư vấn, lịch sắp tới, báo cáo và hiệu suất. Bạn có <strong>5 yêu cầu mới</strong> và <strong>2 báo cáo chờ nộp</strong> tuần này.
                 </p>
-                <div className="space-y-2 mb-6">
-                  <div className="flex justify-between text-xs font-bold text-[#171611]">
-                    <span>Profile Completeness</span>
-                    <span>90%</span>
+                {!hideCompleteness && (
+                  <div className="space-y-2 mb-6">
+                    <div className="flex justify-between text-xs font-bold text-[#171611]">
+                      <span>Độ hoàn thiện hồ sơ</span>
+                      <span>90%</span>
+                    </div>
+                    <div className="w-full h-3 bg-[#f4f4f0] rounded-full overflow-hidden">
+                      <div className="h-full bg-[#e6cc4c] rounded-full transition-all duration-1000 ease-out" style={{ width: "90%" }}></div>
+                    </div>
                   </div>
-                  <div className="w-full h-3 bg-[#f4f4f0] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#e6cc4c] rounded-full transition-all duration-1000 ease-out" style={{ width: "90%" }}></div>
-                  </div>
-                </div>
+                )}
               </div>
               <div className="flex flex-wrap gap-3">
                 <Link href="/advisor/requests" className="bg-[#e6cc4c] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 group">
-                  <MessageSquare className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                  View Requests
+                  <ClipboardList className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                  Xem yêu cầu
                 </Link>
                 <Link href="/advisor/availability" className="bg-[#f4f4f0] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:bg-neutral-200 transition-all flex items-center gap-2">
                   <Clock className="w-5 h-5" />
-                  Set Availability
+                  Cài lịch tư vấn
                 </Link>
               </div>
             </div>
@@ -142,14 +154,14 @@ export default function AdvisorDashboardPage() {
           {/* Quick Actions — 2x2 grid */}
           <div className="col-span-12 lg:col-span-4 bg-white rounded-2xl p-6 shadow-sm border border-neutral-surface">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-lg text-[#171611]">Quick Actions</h3>
+              <h3 className="font-bold text-lg text-[#171611]">Thao tác nhanh</h3>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { icon: MessageSquare, label: "View Requests", href: "/advisor/requests", color: "text-blue-500", bg: "bg-blue-50" },
-                { icon: Calendar, label: "My Schedule", href: "/advisor/schedule", color: "text-purple-500", bg: "bg-purple-50" },
-                { icon: FileText, label: "Submit Report", href: "/advisor/reports", color: "text-orange-500", bg: "bg-orange-50" },
-                { icon: Star, label: "View Feedback", href: "/advisor/reviews", color: "text-emerald-500", bg: "bg-emerald-50" },
+                { icon: ClipboardList, label: "Xem yêu cầu", href: "/advisor/requests", color: "text-blue-500", bg: "bg-blue-50" },
+                { icon: Calendar, label: "Lịch của tôi", href: "/advisor/schedule", color: "text-purple-500", bg: "bg-purple-50" },
+                { icon: FileText, label: "Nộp báo cáo", href: "/advisor/reports", color: "text-orange-500", bg: "bg-orange-50" },
+                { icon: Star, label: "Xem đánh giá", href: "/advisor/feedback", color: "text-emerald-500", bg: "bg-emerald-50" },
               ].map((item, idx) => (
                 <Link
                   key={idx}
@@ -172,10 +184,10 @@ export default function AdvisorDashboardPage() {
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-12 md:col-span-5 lg:col-span-5 bg-[#e6cc4c]/10 p-6 rounded-2xl shadow-sm border-2 border-[#e6cc4c]/30 flex items-center justify-between group hover:bg-[#e6cc4c]/20 transition-all">
             <div>
-              <p className="text-neutral-muted text-sm font-bold mb-1 uppercase tracking-widest">Total Consultations</p>
+              <p className="text-neutral-muted text-sm font-bold mb-1 uppercase tracking-widest">Tổng buổi tư vấn</p>
               <div className="flex items-baseline gap-3">
                 <span ref={totalConsult.ref} className="text-4xl font-bold text-[#171611]">{totalConsult.count}</span>
-                <span className="text-neutral-muted text-sm font-bold lowercase">sessions</span>
+                <span className="text-neutral-muted text-sm font-bold lowercase">buổi</span>
               </div>
             </div>
             <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
@@ -185,23 +197,23 @@ export default function AdvisorDashboardPage() {
 
           <Link href="/advisor/requests" className="col-span-12 md:col-span-4 lg:col-span-4 bg-[#e6cc4c]/10 p-6 rounded-2xl shadow-sm border-2 border-[#e6cc4c]/30 flex items-center justify-between group hover:bg-[#e6cc4c]/20 transition-all">
             <div>
-              <p className="text-neutral-muted text-sm font-bold mb-1 uppercase tracking-widest">New Requests</p>
+              <p className="text-neutral-muted text-sm font-bold mb-1 uppercase tracking-widest">Yêu cầu mới</p>
               <div className="flex items-baseline gap-3">
                 <span ref={newRequests.ref} className="text-4xl font-bold text-[#171611]">{newRequests.count}</span>
-                <span className="text-neutral-muted text-sm font-bold lowercase">pending</span>
+                <span className="text-neutral-muted text-sm font-bold lowercase">chờ xử lý</span>
               </div>
             </div>
             <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-              <MessageSquare className="w-7 h-7 text-[#e6cc4c]" />
+              <ClipboardList className="w-7 h-7 text-[#e6cc4c]" />
             </div>
           </Link>
 
           <div className="col-span-12 md:col-span-3 lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-neutral-surface flex items-center justify-between group hover:bg-[#f8f8f6] transition-colors">
             <div>
-              <p className="text-neutral-muted text-sm font-bold mb-1 uppercase tracking-widest">This Week</p>
+              <p className="text-neutral-muted text-sm font-bold mb-1 uppercase tracking-widest">Tuần này</p>
               <div className="flex items-baseline gap-3">
                 <span ref={activeConns.ref} className="text-4xl font-bold text-[#171611]">{String(activeConns.count).padStart(2, '0')}</span>
-                <span className="text-neutral-muted text-sm font-bold lowercase tracking-tight">sessions</span>
+                <span className="text-neutral-muted text-sm font-bold lowercase tracking-tight">buổi</span>
               </div>
             </div>
             <div className="w-14 h-14 rounded-full bg-[#f4f4f0] flex items-center justify-center group-hover:bg-white transition-colors">
@@ -216,12 +228,12 @@ export default function AdvisorDashboardPage() {
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-12 bg-white rounded-2xl shadow-sm border border-neutral-surface overflow-hidden">
             <div className="p-6 border-b border-neutral-surface flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <h3 className="font-bold text-lg text-[#171611]">Upcoming Schedule & Priority Actions</h3>
+              <h3 className="font-bold text-lg text-[#171611]">Lịch sắp tới & Ưu tiên xử lý</h3>
               <div className="flex gap-1 bg-[#f4f4f0] p-1 rounded-xl">
                 {[
-                  { key: "today" as const, label: "Today" },
-                  { key: "week" as const, label: "This Week" },
-                  { key: "pending" as const, label: "Pending" },
+                  { key: "today" as const, label: "Hôm nay" },
+                  { key: "week" as const, label: "Tuần này" },
+                  { key: "pending" as const, label: "Chờ xử lý" },
                 ].map((tab) => (
                   <button
                     key={tab.key}
@@ -253,7 +265,7 @@ export default function AdvisorDashboardPage() {
                           item.status === "Scheduled" ? "text-blue-600 bg-blue-50" :
                           item.status === "Requested" ? "text-amber-600 bg-amber-50" :
                           "text-green-600 bg-green-50"
-                        )}>{item.status}</span>
+                        )}>{item.status === "Scheduled" ? "Đã lên lịch" : item.status === "Requested" ? "Yêu cầu mới" : "Đã chấp nhận"}</span>
                       </div>
                       <p className="text-xs text-neutral-muted font-medium italic">{item.date}, {item.time} — {item.topic}</p>
                     </div>
@@ -261,15 +273,15 @@ export default function AdvisorDashboardPage() {
                   <div className="flex items-center gap-2">
                     {item.status === "Requested" && (
                       <>
-                        <button className="bg-[#e6cc4c] px-4 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Accept</button>
-                        <button className="bg-neutral-100 px-4 py-2 rounded-lg text-xs font-bold text-neutral-muted opacity-0 group-hover:opacity-100 transition-opacity">Reject</button>
+                        <button className="bg-[#e6cc4c] px-4 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Chấp nhận</button>
+                        <button className="bg-neutral-100 px-4 py-2 rounded-lg text-xs font-bold text-neutral-muted opacity-0 group-hover:opacity-100 transition-opacity">Từ chối</button>
                       </>
                     )}
                     {item.status === "Scheduled" && (
-                      <button className="bg-[#e6cc4c] px-4 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Open Session</button>
+                      <button className="bg-[#e6cc4c] px-4 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Vào phiên</button>
                     )}
                     {item.status === "Accepted" && (
-                      <button className="bg-[#e6cc4c] px-4 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Confirm Schedule</button>
+                      <button className="bg-[#e6cc4c] px-4 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Xác nhận lịch</button>
                     )}
                   </div>
                 </div>
@@ -287,13 +299,13 @@ export default function AdvisorDashboardPage() {
           <div className="col-span-12 lg:col-span-4 bg-white rounded-2xl shadow-sm border border-neutral-surface p-6">
             <div className="flex items-center gap-2 mb-6">
               <Sparkles className="w-5 h-5 text-[#e6cc4c]" />
-              <h3 className="font-bold text-lg text-[#171611]">Advisor Summary</h3>
+              <h3 className="font-bold text-lg text-[#171611]">Tổng quan Advisor</h3>
             </div>
             <div className="space-y-4">
               {/* Expertise */}
               <div className="bg-green-50 p-4 rounded-xl border border-green-100">
                 <p className="text-xs font-bold text-green-800 mb-2 flex items-center gap-1 uppercase tracking-tight">
-                  <TrendingUp className="w-4 h-4" /> Expertise & Services
+                  <TrendingUp className="w-4 h-4" /> Chuyên môn & Dịch vụ
                 </p>
                 <ul className="text-xs text-green-700 space-y-1.5 list-disc ml-4 font-medium">
                   <li>FinTech, SaaS, Go-to-Market Strategy</li>
@@ -304,7 +316,7 @@ export default function AdvisorDashboardPage() {
               {/* Availability & Earnings */}
               <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
                 <p className="text-xs font-bold text-amber-800 mb-2 flex items-center gap-1 uppercase tracking-tight">
-                  <Clock className="w-4 h-4" /> Availability & Earnings
+                  <Clock className="w-4 h-4" /> Lịch rảnh & Thu nhập
                 </p>
                 <ul className="text-xs text-amber-700 space-y-1.5 list-disc ml-4 font-medium">
                   <li>Next slot: Mar 22, 10:00 AM</li>
@@ -315,10 +327,10 @@ export default function AdvisorDashboardPage() {
             </div>
             <div className="flex gap-2 mt-4">
               <Link href="/advisor/profile" className="flex-1 text-center bg-[#f4f4f0] text-[#171611] font-bold px-3 py-2.5 rounded-xl hover:bg-neutral-200 transition-all text-xs">
-                Edit Profile
+                Chỉnh hồ sơ
               </Link>
               <Link href="/advisor/availability" className="flex-1 text-center bg-[#f4f4f0] text-[#171611] font-bold px-3 py-2.5 rounded-xl hover:bg-neutral-200 transition-all text-xs">
-                Manage Slots
+                Quản lý lịch
               </Link>
             </div>
           </div>
@@ -326,18 +338,18 @@ export default function AdvisorDashboardPage() {
           {/* Right: Pending Reports table */}
           <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl shadow-sm border border-neutral-surface overflow-hidden">
             <div className="p-6 border-b border-neutral-surface flex items-center justify-between">
-              <h3 className="font-bold text-lg text-[#171611]">Pending Report Submissions</h3>
-              <Link href="/advisor/reports" className="text-[#e6cc4c] font-bold text-sm hover:underline tracking-tight">View all</Link>
+              <h3 className="font-bold text-lg text-[#171611]">Báo cáo chờ nộp</h3>
+              <Link href="/advisor/reports" className="text-[#e6cc4c] font-bold text-sm hover:underline tracking-tight">Xem tất cả</Link>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-[#f8f8f6]">
                   <tr className="text-[10px] uppercase text-neutral-muted font-bold tracking-widest">
                     <th className="px-6 py-3 tracking-[0.1em]">STARTUP</th>
-                    <th className="px-6 py-3 tracking-[0.1em]">TOPIC</th>
-                    <th className="px-6 py-3 tracking-[0.1em]">SESSION DATE</th>
-                    <th className="px-6 py-3 tracking-[0.1em]">STATUS</th>
-                    <th className="px-6 py-3 text-right pr-10">Action</th>
+                    <th className="px-6 py-3 tracking-[0.1em]">CHỦ ĐỀ</th>
+                    <th className="px-6 py-3 tracking-[0.1em]">NGÀY TƯ VẤN</th>
+                    <th className="px-6 py-3 tracking-[0.1em]">TRẠNG THÁI</th>
+                    <th className="px-6 py-3 text-right pr-10">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-surface">
@@ -358,7 +370,7 @@ export default function AdvisorDashboardPage() {
                       </td>
                       <td className="px-6 py-4 text-right pr-6">
                         <button className="bg-[#e6cc4c] px-4 py-1.5 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                          Submit Report
+                          Nộp báo cáo
                         </button>
                       </td>
                     </tr>
@@ -374,7 +386,7 @@ export default function AdvisorDashboardPage() {
         ═══════════════════════════════════════════════════ */}
         <div className="grid grid-cols-12 gap-6 pb-12">
           <div className="col-span-12 bg-white rounded-2xl shadow-sm border border-neutral-surface p-6">
-            <h3 className="font-bold text-lg text-[#171611] mb-6 tracking-tight">Recent Ratings & Feedback</h3>
+            <h3 className="font-bold text-lg text-[#171611] mb-6 tracking-tight">Đánh giá gần đây</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {recentRatings.map((item, idx) => (
                 <div key={idx} className="flex items-center justify-between p-4 bg-[#f8f8f6] rounded-xl hover:shadow-md transition-shadow group cursor-pointer border border-transparent hover:border-[#e6cc4c]/20">

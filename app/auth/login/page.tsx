@@ -89,7 +89,18 @@ export default function LoginPage() {
 
     switch (type) {
       case "startup":
-        router.push("/startup");
+        // Check if onboarding was already skipped or completed in this browser
+        if (typeof window !== "undefined") {
+          const skipped = localStorage.getItem("aisep_startup_onboarding_skipped") === "true";
+          const completed = localStorage.getItem("aisep_startup_onboarding_completed") === "true";
+          if (skipped || completed) {
+            router.push("/startup");
+          } else {
+            router.push("/startup/onboard");
+          }
+        } else {
+          router.push("/startup");
+        }
         break;
       case "investor":
         router.push("/investor");
@@ -193,6 +204,10 @@ export default function LoginPage() {
             const userData = userMeRes?.data;
             
             if (!userMeRes.success || !userData || !userData.isActive) {
+              setUser(undefined);
+              setAccessToken(undefined);
+              setIsAuthen(false);
+              if (typeof window !== "undefined") localStorage.removeItem("accessToken");
               setError("Tài khoản của bạn chưa được kích hoạt hoặc bị khóa.");
               setIsLoading(false);
               return;
@@ -204,11 +219,11 @@ export default function LoginPage() {
               if (advisorProfileRes.success && advisorProfileRes.data) {
                 router.push("/advisor");
               } else {
-                router.push("/advisor/onboarding");
+                router.push("/advisor/onboard");
               }
             } catch (profileErr: any) {
               if (profileErr?.response?.status === 404) {
-                router.push("/advisor/onboarding");
+                router.push("/advisor/onboard");
               } else {
                 router.push("/advisor"); // Fallback to dashboard on other errors
               }

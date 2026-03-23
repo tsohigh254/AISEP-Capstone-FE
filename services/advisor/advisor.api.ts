@@ -8,6 +8,13 @@ export interface ExpertiseItemDto {
   yearsOfExperience?: number | null;
 }
 
+export interface ServicePricingDto {
+  isBookable: boolean;
+  hourlyRate: number | null;
+  currency: "USD" | "VND";
+  supportedDurations: number[];
+}
+
 interface AdvisorProfileOptionalFields {
   title?: string | null;
   company?: string | null;
@@ -15,8 +22,11 @@ interface AdvisorProfileOptionalFields {
   profilePhotoFile?: File | null;
   website?: string | null;
   linkedInURL?: string | null;
+  googleMeetLink?: string | null;
+  msTeamsLink?: string | null;
   mentorshipPhilosophy?: string | null;
   items?: ExpertiseItemDto[];
+  servicePricing?: ServicePricingDto;
 }
 
 const buildAdvisorFormData = (
@@ -34,8 +44,22 @@ const buildAdvisorFormData = (
   if (options.bio) formData.append("Bio", options.bio);
   if (options.website) formData.append("Website", options.website);
   if (options.linkedInURL) formData.append("LinkedInURL", options.linkedInURL);
+  if (options.googleMeetLink) formData.append("GoogleMeetLink", options.googleMeetLink);
+  if (options.msTeamsLink) formData.append("MsTeamsLink", options.msTeamsLink);
   if (options.mentorshipPhilosophy)
     formData.append("MentorshipPhilosophy", options.mentorshipPhilosophy);
+
+  // Service Pricing
+  if (options.servicePricing) {
+    formData.append("ServicePricing.IsBookable", String(options.servicePricing.isBookable));
+    if (options.servicePricing.hourlyRate !== null) {
+      formData.append("ServicePricing.HourlyRate", String(options.servicePricing.hourlyRate));
+    }
+    formData.append("ServicePricing.Currency", options.servicePricing.currency || "USD");
+    options.servicePricing.supportedDurations.forEach((d, i) => {
+      formData.append(`ServicePricing.SupportedDurations[${i}]`, String(d));
+    });
+  }
 
   // Profile photo (IFormFile)
   if (options.profilePhotoFile) {
@@ -97,4 +121,8 @@ export const UpdateAdvisorProfile = (
 
 export const SearchAdvisors = (query: string) => {
   return axios.get(`/api/advisors/${query}`);
+};
+
+export const GetStartupById = (id: number) => {
+  return axios.get(`/api/advisors/startups/${id}`);
 };

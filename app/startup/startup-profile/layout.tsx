@@ -13,7 +13,7 @@ const editTabs = [
     { label: "Gọi vốn", href: "/startup/startup-profile/funding" },
     { label: "Đội ngũ & Xác thực", href: "/startup/startup-profile/team" },
     { label: "Hiển thị", href: "/startup/startup-profile/visibility" },
-    { label: "KYC & Xác thực", href: "/startup/startup-profile/kyc" },
+    { label: "KYC & Xác thực", href: "/startup/verification" },
 ];
 
 export default function StartupProfileLayout({ children }: { children: React.ReactNode }) {

@@ -1,427 +1,311 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Plus, Eye, Edit, Trash2, Building2, Calendar } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
+import { 
+  Search, Inbox, FileText, Clock, ChevronRight, 
+  AlertCircle, Filter, MoreHorizontal, History, Edit3
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
+import { FormatBadge } from "@/components/advisor/consulting-format-badge";
+import type { IConsultationReport, ConsultationReportStatus } from "@/types/advisor-report";
+import type { IConsultingSession } from "@/types/advisor-consulting";
+import { getAdvisorReports } from "@/services/advisor/advisor-report.api";
+import { getMockSessions } from "@/services/advisor/advisor-consulting.mock";
 
-type Report = {
-  id: string;
-  projectName: string;
-  startupName: string;
-  content: string;
-  updatedDate: string;
-};
+/* ─── Constants ──────────────────────────────────────────────── */
 
-const initialReports: Report[] = [
-  {
-    id: "1",
-    projectName: "Tech ABC - AI Platform",
-    startupName: "Tech ABC",
-    content: "Buổi tư vấn đã tập trung vào chiến lược phát triển sản phẩm AI. Startup có nền tảng kỹ thuật tốt nhưng cần cải thiện về go-to-market strategy. Đề xuất: 1) Tập trung vào một vertical market cụ thể trước, 2) Xây dựng case studies mạnh, 3) Tăng cường content marketing.",
-    updatedDate: "20/01/2026",
-  },
-  {
-    id: "2",
-    projectName: "AI Solutions - ML Pipeline",
-    startupName: "AI Solutions",
-    content: "Review kiến trúc hệ thống ML pipeline. Đánh giá: Architecture tốt nhưng cần tối ưu về scalability. Khuyến nghị chuyển sang microservices và implement caching layer để giảm latency.",
-    updatedDate: "15/01/2026",
-  },
+type TabKey = "all" | "pending" | ConsultationReportStatus;
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "all", label: "Tất cả" },
+  { key: "pending", label: "Chờ báo cáo" },
+  { key: "DRAFT", label: "Bản nháp" },
+  { key: "SUBMITTED", label: "Đang chờ duyệt" },
+  { key: "NEEDS_REVISION", label: "Cần chỉnh sửa" },
+  { key: "FINALIZED", label: "Đã hoàn tất" },
 ];
 
+const STATUS_LABEL: Record<ConsultationReportStatus, string> = {
+  DRAFT: "Bản nháp",
+  SUBMITTED: "Đang chờ duyệt",
+  UNDER_REVIEW: "Đang thẩm định",
+  NEEDS_REVISION: "Cần chỉnh sửa",
+  FINALIZED: "Đã hoàn tất",
+  DELETED: "Đã xóa",
+};
+
+const STATUS_CFG: Record<ConsultationReportStatus, { dot: string; badge: string }> = {
+  DRAFT: { dot: "bg-slate-400", badge: "bg-slate-50 text-slate-600 border-slate-200/80" },
+  SUBMITTED: { dot: "bg-amber-400", badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
+  UNDER_REVIEW: { dot: "bg-blue-400", badge: "bg-blue-50 text-blue-700 border-blue-200/80" },
+  NEEDS_REVISION: { dot: "bg-red-400", badge: "bg-red-50 text-red-600 border-red-200/80" },
+  FINALIZED: { dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
+  DELETED: { dot: "bg-gray-400", badge: "bg-gray-50 text-gray-500 border-gray-200/80" },
+};
+
+/* ─── Helpers ────────────────────────────────────────────────── */
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("vi-VN", {
+    day: "2-digit", month: "2-digit", year: "numeric"
+  });
+}
+
+const AVATAR_COLORS = [
+  "from-violet-500 to-violet-600", "from-blue-500 to-blue-600",
+  "from-emerald-500 to-emerald-600", "from-rose-500 to-rose-600",
+  "from-amber-500 to-amber-600", "from-cyan-500 to-cyan-600",
+  "from-pink-500 to-pink-600", "from-indigo-500 to-indigo-600",
+];
+
+function getAvatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+/* ─── Components ─────────────────────────────────────────────── */
+
+function ReportCard({ report }: { report: IConsultationReport }) {
+  const cfg = STATUS_CFG[report.status];
+  const avatarGradient = getAvatarColor(report.startup.displayName);
+  
+  return (
+    <Link 
+      href={`/advisor/reports/${report.id}`}
+      className="group bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] hover:border-slate-300 transition-all duration-200"
+    >
+      <div className="px-6 py-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-1 items-start gap-4 min-w-0">
+            {/* Avatar */}
+            <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[15px] font-bold shrink-0 shadow-sm transition-transform group-hover:scale-105", avatarGradient)}>
+              {report.startup.displayName.charAt(0).toUpperCase()}
+            </div>
+            
+            <div className="flex-1 min-w-0 pt-0.5">
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                <span className={cn(
+                  "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-semibold border capitalize",
+                  cfg.badge
+                )}>
+                  <span className={cn("w-1.5 h-1.5 rounded-full", cfg.dot)} />
+                  {STATUS_LABEL[report.status]}
+                </span>
+                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-tight">
+                  Cập nhật {formatDate(report.lastEditedAt)}
+                </span>
+              </div>
+              <h3 className="text-[15px] font-bold text-slate-900 group-hover:text-[#0f172a] transition-colors truncate">
+                {report.title}
+              </h3>
+              <p className="text-[13px] text-slate-500 mt-0.5 line-clamp-1 font-medium">
+                Startup: <strong className="text-slate-700">{report.startup.displayName}</strong> &middot; {formatDate(report.sessionDate)}
+              </p>
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-[#0f172a] group-hover:text-white transition-all shadow-sm">
+            <ChevronRight className="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function PendingSessionCard({ session }: { session: IConsultingSession }) {
+  return (
+    <div className="bg-amber-50/40 rounded-2xl border-2 border-amber-200 px-6 py-5 flex items-center justify-between gap-4 animate-in slide-in-from-top-2 duration-300">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-700 text-[10px] font-bold border border-amber-200/50 uppercase tracking-widest">
+            Cần viết báo cáo
+          </span>
+          <span className="text-[11px] text-amber-600 font-semibold">
+            Hoàn thành {formatDate(session.completedAt || "")}
+          </span>
+        </div>
+        <h3 className="text-[15px] font-bold text-slate-900 truncate">
+          {session.objective}
+        </h3>
+        <p className="text-[13px] text-slate-600 mt-1">
+          Startup: <strong className="text-slate-900">{session.startup.displayName}</strong>
+        </p>
+      </div>
+      <Link 
+        href={`/advisor/reports/create?sessionId=${session.id}`}
+        className="px-5 py-2 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-[#1e293b] transition-all shadow-sm shadow-slate-200 whitespace-nowrap flex items-center gap-2"
+      >
+        <Edit3 className="w-4 h-4" />
+        Viết báo cáo
+      </Link>
+    </div>
+  );
+}
+
+/* ─── Page ───────────────────────────────────────────────────── */
+
 export default function AdvisorReportsPage() {
-  const [reports, setReports] = useState<Report[]>(initialReports);
-  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
-  const [showDetailDialog, setShowDetailDialog] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [reports, setReports] = useState<IConsultationReport[]>([]);
+  const [pendingSessions, setPendingSessions] = useState<IConsultingSession[]>([]);
+  const [activeTab, setActiveTab] = useState<TabKey>("all");
+  const [search, setSearch] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Form states
-  const [projectName, setProjectName] = useState("");
-  const [startupName, setStartupName] = useState("");
-  const [content, setContent] = useState("");
-
-  const handleViewDetails = (report: Report) => {
-    setSelectedReport(report);
-    setShowDetailDialog(true);
-  };
-
-  const handleDeleteClick = (report: Report) => {
-    setSelectedReport(report);
-    setShowDeleteDialog(true);
-  };
-
-  const handleDeleteConfirm = () => {
-    if (selectedReport) {
-      setReports(reports.filter((r) => r.id !== selectedReport.id));
-      setShowDeleteDialog(false);
-      setSelectedReport(null);
+  useEffect(() => {
+    async function init() {
+      try {
+        const [repData, sesData] = await Promise.all([
+          getAdvisorReports(),
+          getMockSessions("COMPLETED")
+        ]);
+        
+        // Filter sessions that don't have reports yet
+        const existingSessionIds = new Set(repData.map(r => r.sessionId));
+        const pending = sesData.filter(s => !existingSessionIds.has(s.id));
+        
+        setReports(repData);
+        setPendingSessions(pending);
+      } finally {
+        setIsLoading(false);
+      }
     }
-  };
+    init();
+  }, []);
 
-  const handleCreateClick = () => {
-    setProjectName("");
-    setStartupName("");
-    setContent("");
-    setShowCreateDialog(true);
-  };
-
-  const handleCreateConfirm = () => {
-    if (projectName && startupName && content) {
-      const newReport: Report = {
-        id: Date.now().toString(),
-        projectName,
-        startupName,
-        content,
-        updatedDate: new Date().toLocaleDateString("vi-VN"),
-      };
-      setReports([newReport, ...reports]);
-      setShowCreateDialog(false);
-      setProjectName("");
-      setStartupName("");
-      setContent("");
+  const filteredReports = useMemo(() => {
+    let list = reports;
+    if (activeTab !== "all" && activeTab !== "pending") {
+      list = list.filter(r => r.status === activeTab);
     }
-  };
-
-  const handleUpdateClick = (report: Report) => {
-    setSelectedReport(report);
-    setProjectName(report.projectName);
-    setStartupName(report.startupName);
-    setContent(report.content);
-    setShowUpdateDialog(true);
-  };
-
-  const handleUpdateConfirm = () => {
-    if (selectedReport && projectName && startupName && content) {
-      setReports(
-        reports.map((r) =>
-          r.id === selectedReport.id
-            ? {
-                ...r,
-                projectName,
-                startupName,
-                content,
-                updatedDate: new Date().toLocaleDateString("vi-VN"),
-              }
-            : r
-        )
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter(r => 
+        r.title.toLowerCase().includes(q) || 
+        r.startup.displayName.toLowerCase().includes(q)
       );
-      setShowUpdateDialog(false);
-      setSelectedReport(null);
-      setProjectName("");
-      setStartupName("");
-      setContent("");
     }
-  };
+    return list;
+  }, [reports, activeTab, search]);
 
-  const truncateContent = (text: string, maxLength: number = 200) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + "...";
-  };
+  const showPending = activeTab === "all" || activeTab === "pending";
 
   return (
     <AdvisorShell>
-      <div className="space-y-6">
+      <div className="max-w-[1000px] mx-auto space-y-6 animate-in fade-in duration-400">
+        
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Báo cáo Tư vấn</h1>
-            <p className="text-slate-600 mt-1">Quản lý báo cáo sau mỗi phiên tư vấn</p>
+            <h1 className="text-[20px] font-bold text-slate-900 leading-tight">Báo cáo tư vấn</h1>
+            <p className="text-[13px] text-slate-500 mt-1 font-medium">Lưu trữ và theo dõi các báo cáo kết quả tư vấn của bạn.</p>
           </div>
-          <Button
-            onClick={handleCreateClick}
-            className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Tạo báo cáo mới
-          </Button>
+          <div className="relative sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+            <input 
+              type="text"
+              placeholder="Tìm theo tiêu đề, startup..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 h-11 rounded-xl border border-slate-200 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20 focus:border-[#eec54e] transition-all bg-white placeholder:text-slate-400 font-medium"
+            />
+          </div>
         </div>
 
-        {/* Reports List */}
-        <div className="space-y-4">
-          {reports.map((report) => (
-            <Card key={report.id} className="border-slate-200 shadow-sm">
-              <CardContent className="p-6">
-                <div className="space-y-4">
-                  {/* Title */}
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    {report.projectName}
-                  </h3>
+        {/* Tabs */}
+        <div className="flex items-center gap-1 border-b border-slate-200/60 mb-2 overflow-x-auto no-scrollbar">
+          {TABS.map(tab => {
+            let count = 0;
+            if (tab.key === "all") count = reports.length + pendingSessions.length;
+            else if (tab.key === "pending") count = pendingSessions.length;
+            else count = reports.filter(r => r.status === tab.key).length;
 
-                  {/* Metadata */}
-                  <div className="flex items-center gap-4 text-sm text-slate-600">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-4 h-4" />
-                      <span>{report.startupName}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
-                      <span>Cập nhật: {report.updatedDate}</span>
-                    </div>
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  "px-4 py-2.5 text-[13px] font-bold whitespace-nowrap border-b-2 -mb-px transition-all flex items-center gap-2",
+                  activeTab === tab.key
+                    ? "border-[#0f172a] text-[#0f172a]"
+                    : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                )}
+              >
+                {tab.label}
+                {count > 0 && (
+                  <span className={cn(
+                    "inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-black leading-none",
+                    activeTab === tab.key ? "bg-[#0f172a] text-white" : "bg-slate-100 text-slate-400"
+                  )}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Content */}
+        {isLoading ? (
+          <div className="space-y-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-28 bg-slate-50 rounded-2xl animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Pending Section */}
+            {showPending && !search && pendingSessions.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-500" />
+                    <h2 className="text-[13px] font-bold text-amber-700 uppercase tracking-[0.1em]">Cần phản hồi sớm</h2>
                   </div>
-
-                  {/* Description Snippet */}
-                  <p className="text-sm text-slate-700 leading-relaxed">
-                    {truncateContent(report.content)}
-                  </p>
-
-                  {/* Action Buttons */}
-                  <div className="flex items-center gap-3 pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewDetails(report)}
-                      className="border-slate-300 hover:bg-slate-50"
-                    >
-                      <Eye className="w-4 h-4 mr-2" />
-                      Xem chi tiết
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleUpdateClick(report)}
-                      className="border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                    >
-                      <Edit className="w-4 h-4 mr-2" />
-                      Cập nhật
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteClick(report)}
-                      className="border-red-300 bg-red-50 text-red-700 hover:bg-red-100"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Xóa
-                    </Button>
-                  </div>
+                  <span className="text-[11px] text-amber-600 font-semibold italic">Phản hồi sớm để tránh quá hạn báo cáo</span>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                <div className="grid gap-4">
+                  {pendingSessions.map(ses => (
+                    <PendingSessionCard key={ses.id} session={ses} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Existing Reports Section */}
+            <div className="space-y-4">
+              {(activeTab === "all" || activeTab === "pending") && !search && reports.length > 0 && (
+                <div className="flex items-center gap-2 px-1">
+                  <FileText className="w-4 h-4 text-slate-400" />
+                  <h2 className="text-[13px] font-bold text-slate-400 uppercase tracking-[0.1em]">Danh sách lưu trữ</h2>
+                </div>
+              )}
+              
+              <div className="grid gap-3">
+                {filteredReports.map(rep => (
+                  <ReportCard key={rep.id} report={rep} />
+                ))}
+              </div>
+
+              {filteredReports.length === 0 && (activeTab !== "all" && activeTab !== "pending" || search) && (
+                <div className="bg-white rounded-2xl border border-slate-200/80 py-20 flex flex-col items-center justify-center text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
+                    <Inbox className="w-8 h-8 text-slate-300" />
+                  </div>
+                  <h3 className="text-[15px] font-bold text-slate-900">Không tìm thấy báo cáo nào</h3>
+                  <p className="text-[13px] text-slate-500 mt-1 px-10">
+                    {search ? `Không có báo cáo nào khớp với từ khóa "${search}"` : "Bạn chưa có báo cáo nào ở trạng thái này."}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* Detail Dialog */}
-      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent className="max-w-2xl">
-          {selectedReport && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="text-xl">{selectedReport.projectName}</DialogTitle>
-                <div className="flex items-center gap-4 text-sm text-slate-600 mt-2">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4" />
-                    <span>{selectedReport.startupName}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    <span>Cập nhật: {selectedReport.updatedDate}</span>
-                  </div>
-                </div>
-              </DialogHeader>
-
-              <div className="py-4">
-                <div className="space-y-3">
-                  <Label className="text-sm font-semibold text-slate-900">Nội dung báo cáo</Label>
-                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-                    {selectedReport.content}
-                  </p>
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowDetailDialog(false)}
-                >
-                  Đóng
-                </Button>
-                <Button
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                  onClick={() => {
-                    setShowDetailDialog(false);
-                    handleUpdateClick(selectedReport);
-                  }}
-                >
-                  Chỉnh sửa
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Dialog */}
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent className="max-w-md">
-          {selectedReport && (
-            <>
-              <DialogHeader>
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                    <Trash2 className="w-6 h-6 text-red-600" />
-                  </div>
-                  <div>
-                    <DialogTitle className="text-xl">Xóa báo cáo?</DialogTitle>
-                  </div>
-                </div>
-              </DialogHeader>
-
-              <div className="py-4">
-                <p className="text-sm text-slate-700">
-                  Bạn có chắc chắn muốn xóa báo cáo <strong>{selectedReport.projectName}</strong>?
-                </p>
-                <p className="text-sm text-slate-600 mt-2">
-                  Hành động này không thể hoàn tác.
-                </p>
-              </div>
-
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowDeleteDialog(false)}
-                >
-                  Hủy
-                </Button>
-                <Button
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                  onClick={handleDeleteConfirm}
-                >
-                  Xóa báo cáo
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Create Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Tạo báo cáo mới</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="project-name">Tên dự án</Label>
-              <Input
-                id="project-name"
-                placeholder="Ví dụ: Tech ABC - AI Platform"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="startup-name">Tên startup</Label>
-              <Input
-                id="startup-name"
-                placeholder="Ví dụ: Tech ABC"
-                value={startupName}
-                onChange={(e) => setStartupName(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="content">Nội dung báo cáo</Label>
-              <Textarea
-                id="content"
-                placeholder="Mô tả chi tiết về buổi tư vấn, đánh giá, và các khuyến nghị..."
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                className="min-h-[200px] resize-y"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowCreateDialog(false)}
-            >
-              Hủy
-            </Button>
-            <Button
-              className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white"
-              onClick={handleCreateConfirm}
-              disabled={!projectName || !startupName || !content}
-            >
-              Tạo báo cáo
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Update Dialog */}
-      <Dialog open={showUpdateDialog} onOpenChange={setShowUpdateDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Cập nhật báo cáo</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="update-project-name">Tên dự án</Label>
-              <Input
-                id="update-project-name"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="update-startup-name">Tên startup</Label>
-              <Input
-                id="update-startup-name"
-                value={startupName}
-                onChange={(e) => setStartupName(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="update-content">Nội dung báo cáo</Label>
-              <Textarea
-                id="update-content"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                className="min-h-[200px] resize-y"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowUpdateDialog(false)}
-            >
-              Hủy
-            </Button>
-            <Button
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={handleUpdateConfirm}
-              disabled={!projectName || !startupName || !content}
-            >
-              Lưu thay đổi
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </AdvisorShell>
   );
 }

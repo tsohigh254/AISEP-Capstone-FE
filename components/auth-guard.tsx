@@ -24,7 +24,7 @@ export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    if (isLoading) return; // Wait for context to restore from localStorage
+    if (isLoading) return; 
 
     const token = localStorage.getItem("accessToken");
 

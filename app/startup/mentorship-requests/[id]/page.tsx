@@ -8,9 +8,11 @@ import {
   CheckCircle2, AlertCircle, Calendar, CalendarCheck,
   FileText, Star, Ban, X, BadgeCheck, ExternalLink,
   History as LucideHistory, Loader2, Info,
-  CreditCard, ShieldCheck, RotateCcw, DollarSign, Lock
+  CreditCard, ShieldCheck, RotateCcw, DollarSign, Lock,
+  ShieldAlert, ChevronRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { IssueReportModal } from "@/components/shared/issue-report-modal";
 
 const formatVND = (n: number) => n.toLocaleString('vi-VN') + '₫';
 
@@ -363,6 +365,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
   const [isCancelled, setIsCancelled] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [localStatus, setLocalStatus] = useState<RequestStatus>(request.status);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   useEffect(() => {
     if (!toast) return;
@@ -809,6 +812,23 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
                 ))}
               </div>
             </div>
+            {/* Hub Support / Report Action - Prominent */}
+            <div className="bg-slate-50/50 border border-dashed border-slate-200 rounded-2xl p-6 flex flex-col items-center animate-in fade-in slide-in-from-bottom-2 duration-700">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center mb-4 text-amber-500 shadow-sm border border-amber-100">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <h3 className="text-[15px] font-bold text-slate-800 mb-1 leading-none">Gặp sự cố với yêu cầu này?</h3>
+              <p className="text-[12px] text-slate-500 text-center mb-5 mt-2 max-w-[360px] leading-relaxed">
+                Chúng tôi đảm bảo quyền lợi cho cả Startup và Cố vấn. Nếu có bất kỳ vấn đề gì, hãy báo cáo để đội ngũ AISEP can thiệp xử lý kịp thời.
+              </p>
+              <button 
+                onClick={() => setIsReportModalOpen(true)}
+                className="flex items-center gap-2 px-6 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] font-bold text-slate-700 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 hover:shadow-md transition-all group"
+              >
+                Báo cáo sự cố ngay
+                <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 -ml-1 group-hover:ml-0 transition-all" />
+              </button>
+            </div>
           </div>
 
           {/* Right Sidebar */}
@@ -885,11 +905,28 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
                 <Info className="w-4 h-4 text-amber-400" />
                 <span className="text-[13px] font-bold">Cần hỗ trợ?</span>
               </div>
-              <p className="text-[12px] text-white/60 leading-relaxed">Cố vấn thường phản hồi trong 24–48h. Nếu có thắc mắc, vui lòng liên hệ CSKH.</p>
+              <p className="text-[12px] text-white/60 leading-relaxed italic">Cố vấn thường phản hồi trong 24–48h. Nếu có thắc mắc hoặc gặp sự cố, vui lòng báo cáo cho chúng tôi.</p>
+              <button 
+                onClick={() => setIsReportModalOpen(true)}
+                className="mt-3 flex items-center gap-1.5 text-[11px] font-bold text-amber-400 hover:text-amber-300 transition-colors group"
+              >
+                <ShieldAlert className="w-3.5 h-3.5 group-hover:animate-pulse" />
+                Báo cáo sự cố
+              </button>
             </div>
           </div>
         </div>
       </div>
+      <IssueReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        context={{
+          entityType: "CONSULTING_REQUEST",
+          entityId: request.id,
+          entityTitle: `Yêu cầu tư vấn: ${request.topic}`,
+          otherPartyName: request.advisor.name
+        }}
+      />
     </StartupShell>
   );
 }

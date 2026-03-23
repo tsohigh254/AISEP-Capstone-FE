@@ -2,7 +2,7 @@
 
 import React from "react";
 import { InvestorHeader } from "@/components/investor/investor-header";
-// import { AuthGuard } from "@/components/auth-guard";
+import { AuthGuard } from "@/components/auth-guard";
 
 type InvestorShellProps = {
   children: React.ReactNode;
@@ -10,7 +10,7 @@ type InvestorShellProps = {
 
 export function InvestorShell({ children }: InvestorShellProps) {
   return (
-    // <AuthGuard allowedRoles={["Investor"]}>
+    <AuthGuard allowedRoles={["Investor"]}>
       <div className="min-h-screen bg-[#f8f8f6] text-[#171611] font-be-vietnam-pro selection:bg-[#e6cc4c]/30">
         <InvestorHeader />
         <div className="h-[80px]" />
@@ -18,6 +18,6 @@ export function InvestorShell({ children }: InvestorShellProps) {
           {children}
         </main>
       </div>
-    // </AuthGuard>
+    </AuthGuard>
   );
 }

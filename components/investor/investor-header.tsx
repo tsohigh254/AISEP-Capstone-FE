@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { Logout } from "@/services/auth/auth.api";
 import { useAuth } from "@/context/context";
+import { GetInvestorProfile } from "@/services/investor/investor.api";
 import {
   GetNotifications,
   MarkNotificationAsRead,
@@ -39,7 +40,14 @@ export function InvestorHeader({
   const router = useRouter();
   const { setUser, setAccessToken, setIsAuthen, user } = useAuth();
 
-  const displayUserName = user?.email || userName;
+  const [profileName, setProfileName] = useState<string | null>(null);
+  const displayUserName = profileName || user?.email || userName;
+
+  useEffect(() => {
+    GetInvestorProfile().then((res: any) => {
+      if (res?.isSuccess && res.data?.fullName) setProfileName(res.data.fullName);
+    }).catch(() => {});
+  }, []);
 
   const fetchNotifications = useCallback(async () => {
     setNotiLoading(true);
