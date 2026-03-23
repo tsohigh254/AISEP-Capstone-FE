@@ -1,76 +1,169 @@
 import axios from "../interceptor";
 
-// ── Params ──────────────────────────────────────────────────────────────────
-
-export interface ISearchInvestorsParams {
-    page?: number;
-    pageSize?: number;
-    keyword?: string;
-    investorType?: "Institutional" | "Individual";
-    stage?: string;       // preferred stage, e.g. "Seed"
-    industry?: string;    // preferred industry, e.g. "Fintech"
-    sortBy?: "matchScore" | "recent";
+export enum StartupStage {
+    Idea = 0,
+    PreSeed = 1,
+    Seed = 2,
+    SeriesA = 3,
+    SeriesB = 4,
+    SeriesC = 5,
+    Growth = 6
 }
 
-// ── Startup xem danh sách Investor ──────────────────────────────────────────
+export interface ICreateStartupRequest {
+    companyName: string
+    oneLiner?: string
+    description?: string
+    industryID?: number
+    subIndustry?: string
+    stage: StartupStage
+    foundedDate?: string | Date
+    teamSize?: number
+    location?: string
+    country?: string
+    website?: string
+    logoURL?: File
+    fundingAmountSought?: number
+    currentFundingRaised?: number
+    valuation?: number
+}
 
-export const SearchInvestors = (params: ISearchInvestorsParams = {}) => {
-    return axios.get<IBackendRes<IPaginatedRes<IInvestorSearchItem>>>(
-        `/api/startups/investors`,
-        { params: { page: 1, pageSize: 12, ...params } }
-    );
+export interface IUpdateStartupRequest {
+    companyName?: string
+    oneLiner?: string
+    description?: string
+    industryID?: number
+    subIndustry?: string
+    stage: StartupStage
+    foundedDate?: string | Date
+    teamSize?: number
+    location?: string
+    country?: string
+    website?: string
+    logoURL?: File
+    coverImageURL?: string
+    fundingAmountSought?: number
+    currentFundingRaised?: number
+    valuation?: number
+}
+
+export interface IAddMemberRequest {
+    fullName: string
+    role: string
+    title: string
+    linkedInURL: string
+    bio: string
+    photoURL: File
+    isFounder: boolean
+    yearsOfExperience: number
+}
+
+export interface IUpdateMemberRequest {
+    memberId: number
+    fullName?: string
+    role?: string
+    title?: string
+    linkedInURL?: string
+    bio?: string
+    photoURL?: File
+    isFounder?: boolean
+    yearsOfExperience?: number
+}
+
+export const CreateStartupProfile = (data: ICreateStartupRequest) => {
+    const formData = new FormData();
+    Object.entries(data).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+            if (value instanceof Date) {
+                formData.append(key, value.toISOString());
+            } else if (value instanceof File) {
+                formData.append(key, value);
+            } else {
+                formData.append(key, value.toString());
+            }
+        }
+    });
+
+    return axios.post<IBackendRes<string>>(`/api/startups`, formData, {
+        headers: {
+            "Content-Type": "multipart/form-data"
+        }
+    });
 };
 
-export const GetInvestorById = (id: number) => {
-    return axios.get<IBackendRes<IInvestorProfile>>(`/api/startups/investors/${id}`);
-};
+export const UpdateStartupProfile = (data: IUpdateStartupRequest) => {
+    const formData = new FormData();
+    Object.entries(data).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+            if (value instanceof Date) {
+                formData.append(key, value.toISOString());
+            } else if (value instanceof File) {
+                formData.append(key, value);
+            } else {
+                formData.append(key, value.toString());
+            }
+        }
+    });
 
-// ── Startup Profile ──────────────────────────────────────────────────────────
+    return axios.put<IBackendRes<string>>(`/api/startups/me`, formData, {
+        headers: {
+            "Content-Type": "multipart/form-data"
+        }
+    });
+}
 
 export const GetStartupProfile = () => {
-    return axios.get<IBackendRes<IStartupProfile>>(`/api/startups/me`);
-};
+    return axios.get<IBackendRes<IStartupProfile>>(`/api/startups/me`)
+}
 
-export const CreateStartupProfile = (data: FormData) => {
-    return axios.post<IBackendRes<IStartupProfile>>(`/api/startups`, data, {
-        headers: { "Content-Type": "multipart/form-data" },
+export const AddMember = (data: IAddMemberRequest) => {
+    const formData = new FormData();
+    Object.entries(data).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+            if (value instanceof File) {
+                formData.append(key, value);
+            } else {
+                formData.append(key, value.toString());
+            }
+        }
     });
-};
-
-export const UpdateStartupProfile = (data: FormData) => {
-    return axios.put<IBackendRes<IStartupProfile>>(`/api/startups/me`, data, {
-        headers: { "Content-Type": "multipart/form-data" },
+    return axios.post<IBackendRes<null>>(`/api/startups/me/team-members`, formData, {
+        headers: {
+            "Content-Type": "multipart/form-data"
+        }
     });
-};
+}
 
-// ── Visibility ──────────────────────────────────────────────────────────────
-
-export const EnableVisibility = () => {
-    return axios.post<IBackendRes<null>>(`/api/startups/me/visibility/enable`);
-};
-
-export const DisableVisibility = () => {
-    return axios.post<IBackendRes<null>>(`/api/startups/me/visibility/disable`);
-};
-
-// ── Team Members ────────────────────────────────────────────────────────────
-
-export const GetTeamMembers = () => {
-    return axios.get<IBackendRes<IStartupTeamMember[]>>(`/api/startups/me/team`);
-};
-
-export const AddTeamMember = (data: FormData) => {
-    return axios.post<IBackendRes<IStartupTeamMember>>(`/api/startups/me/team`, data, {
-        headers: { "Content-Type": "multipart/form-data" },
+export const UpdateMember = (data: IUpdateMemberRequest) => {
+    const formData = new FormData();
+    Object.entries(data).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+            if (value instanceof File) {
+                formData.append(key, value);
+            } else {
+                formData.append(key, value.toString());
+            }
+        }
     });
-};
-
-export const UpdateTeamMember = (memberId: number, data: FormData) => {
-    return axios.put<IBackendRes<IStartupTeamMember>>(`/api/startups/me/team/${memberId}`, data, {
-        headers: { "Content-Type": "multipart/form-data" },
+    return axios.put<IBackendRes<null>>(`/api/startups/me/team-members`, formData, {
+        headers: {
+            "Content-Type": "multipart/form-data"
+        }
     });
-};
+}
 
-export const DeleteTeamMember = (memberId: number) => {
-    return axios.delete<IBackendRes<null>>(`/api/startups/me/team/${memberId}`);
-};
+export const DeleteMember = (memberId: number) => {
+    return axios.delete<IBackendRes<null>>(`/api/startups/me/team-members?memberId=${memberId}`)
+}
+
+export const GetMembers = () => {
+    return axios.get<IBackendRes<ITeamMember[]>>(`/api/startups/me/team-members`);
+}
+
+export const SubmitForApproval = () => {
+    return axios.post<IBackendRes<null>>(`/api/startups/me/submit-for-approval`)
+}
+
+export const GetAdvisors = (query: string) => {
+    return axios.get(`/api/startups?${query}`)
+}
