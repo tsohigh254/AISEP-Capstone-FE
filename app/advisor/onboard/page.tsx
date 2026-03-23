@@ -215,23 +215,18 @@ export default function AdvisorOnboardingPage() {
     if (!validateStep2()) return;
     setIsSubmitting(true);
     try {
-      const items = [
-        { category: form.primaryExpertise, yearsOfExperience: form.yearsOfExperience ?? undefined },
-        ...form.secondaryExpertises.map(c => ({ category: c })),
-      ];
       const payload = {
-        title: form.title,
-        company: form.company,
-        bio: form.bio,
-        website: form.website || undefined,
+        fullName: form.fullName,
+        title: form.title || undefined,
+        bio: form.bio || undefined,
         linkedInURL: form.linkedinUrl || undefined,
-        mentorshipPhilosophy: form.mentorshipPhilosophy,
+        mentorshipPhilosophy: form.mentorshipPhilosophy || undefined,
         profilePhotoFile: profilePhoto ?? undefined,
-        items,
+        advisorIndustryFocus: [], // TODO: map industry selections to { industryId } if needed
       };
       const res = hasProfile
-        ? await UpdateAdvisorProfile(form.fullName, payload)
-        : await CreateAdvisorProfile(form.fullName, payload);
+        ? await UpdateAdvisorProfile(payload)
+        : await CreateAdvisorProfile(payload);
       if (res.isSuccess !== false) {
         localStorage.setItem("aisep_advisor_onboarding_completed", "true");
         toast.success(hasProfile ? "Hồ sơ đã được cập nhật!" : "Hồ sơ đã được tạo thành công!");
