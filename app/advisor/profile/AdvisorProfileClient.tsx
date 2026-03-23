@@ -174,33 +174,20 @@ export default function AdvisorProfileClient() {
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error("Vui lòng nhập tên Advisor"); return; }
     setIsSaving(true);
-    const items = [
-      ...(primaryExpertise ? [{ category: primaryExpertise, yearsOfExperience: form.yearsOfExperience ?? undefined }] : []),
-      ...secondaryExpertises.map(e => ({ category: e })),
-    ];
     const payload = {
-      title: form.title || null,
-      company: form.company || null,
-      bio: form.bio,
-      website: form.website || null,
-      linkedInURL: form.linkedInURL || null,
-      mentorshipPhilosophy: form.mentorshipPhilosophy || null,
-      googleMeetLink: form.googleMeetLink || null,
-      msTeamsLink: form.msTeamsLink || null,
-      profilePhotoFile: profilePhoto,
-      items,
-      servicePricing: {
-        isBookable: form.isBookable,
-        hourlyRate: form.hourlyRate,
-        currency: "VND" as "VND",
-        supportedDurations: form.supportedDurations,
-      },
+      fullName: form.name,
+      title: form.title || undefined,
+      bio: form.bio || undefined,
+      linkedInURL: form.linkedInURL || undefined,
+      mentorshipPhilosophy: form.mentorshipPhilosophy || undefined,
+      profilePhotoFile: profilePhoto ?? undefined,
+      advisorIndustryFocus: [], // TODO: map industry selections to { industryId } if needed
     };
     try {
       if (hasProfile) {
-        await UpdateAdvisorProfile(form.name, payload);
+        await UpdateAdvisorProfile(payload);
       } else {
-        await CreateAdvisorProfile(form.name, payload);
+        await CreateAdvisorProfile(payload);
         setHasProfile(true);
       }
       toast.success("Lưu hồ sơ thành công");

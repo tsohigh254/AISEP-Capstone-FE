@@ -7,16 +7,16 @@ declare global {
         statusCode: number   // alias — BE .NET trả kèm status code
         data?: T | null
         message: string
-        error: IError | null
+        error: IError<T> | null
     }
 
-    interface IError {
+    interface IError<T> {
         code: string
         message: string
-        details: IErrorDetail[]
+        details: IErrorDetail<T>[]
     }
 
-    interface IErrorDetail {
+    interface IErrorDetail<T> {
         field: string
         message: string
         isSuccess: boolean
@@ -47,31 +47,37 @@ declare global {
 
     interface IAdvisorProfile {
         advisorID: number
-        availability: null
-        averageRating: null
-        bio: string
-        company: string
-        createdAt: string
-        expertise: IExpertise[]
+        userId: number
         fullName: string
-        industry: []
-        linkedInURL: string
-        mentorshipPhilosophy: string
-        profileCompleteness: string
-        profilePhotoURL: string
-        profileStatus: string
         title: string
+        bio: string
+        profilePhotoURL: string
+        mentorshipPhilosophy: string
+        linkedInURL: string
+        profileStatus: string
         totalMentees: number
         totalSessionHours: number
+        averageRating: number
+        createdAt: string
         updatedAt: string
-        website: string
+        avalability: IAvailability
+        industry: IAdvisorIndustryFocus[]
     }
 
-    interface IExpertise {
-        category: string
-        proficiencyLevel: string
-        subTopic: string
-        yearsOfExperience: number
+    interface IAdvisorIndustryFocus {
+        industryId: number
+        industry: string
+    }
+
+    interface IAvailability {
+        sessionFormats: string
+        typicalSessionDuration: number
+        weeklyAvailableHours: number
+        maxConcurrentMentees: number
+        responseTimeCommitment: string,
+        calendarConnected: boolean
+        isAcceptingNewMentees: boolean
+        updatedAt: string
     }
 
     interface IStartupProfile {
