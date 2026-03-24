@@ -25,12 +25,28 @@ function clearSessionAndRedirect() {
   if (typeof window === "undefined") return;
   localStorage.removeItem("accessToken");
   localStorage.removeItem("user");
+  delete instance.defaults.headers.common.Authorization;
   // Chỉ redirect nếu chưa ở trang login
   if (!window.location.pathname.startsWith("/auth/login")) {
     window.location.href = "/auth/login";
   }
 }
 // ───────────────────────────────────────────────────────────────────────────
+
+function getTokenFromResponseBody(body: any): string | null {
+  return (
+    body?.data?.accessToken ??
+    body?.data?.info?.accessToken ??
+    body?.accessToken ??
+    body?.info?.accessToken ??
+    null
+  );
+}
+
+function isAuthEndpoint(url?: string): boolean {
+  if (!url) return false;
+  return url.includes("/api/auth/refresh-token") || url.includes("/api/auth/logout");
+}
 
 // Request interceptor: gắn Bearer token
 instance.interceptors.request.use(
@@ -57,10 +73,7 @@ const callRefreshToken = async (): Promise<string> => {
     { withCredentials: true },
   );
   const body = response.data as any;
-  const token =
-    body?.data?.accessToken ??
-    body?.accessToken ??
-    body?.data?.info?.accessToken;
+  const token = getTokenFromResponseBody(body);
   if (!token) throw new Error("No access token in refresh response");
   return token as string;
 };
@@ -79,9 +92,7 @@ instance.interceptors.response.use(
   async function (error: AxiosError) {
     const originalRequest: any = error.config;
 
-    const isAuthRoute =
-      originalRequest?.url?.includes("/api/auth/refresh-token") ||
-      originalRequest?.url?.includes("/api/auth/logout");
+    const isAuthRoute = isAuthEndpoint(originalRequest?.url);
 
     // ── Xử lý 401 ──────────────────────────────────────────────────────────
     if (error.response?.status === 401 && !originalRequest?._retry && !isAuthRoute) {
@@ -107,6 +118,7 @@ instance.interceptors.response.use(
         if (typeof window !== "undefined") {
           localStorage.setItem("accessToken", newToken);
         }
+        instance.defaults.headers.common.Authorization = `Bearer ${newToken}`;
 
         processQueue(null, newToken);
 

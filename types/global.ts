@@ -24,6 +24,17 @@ declare global {
         data: T | null
     }
 
+    interface IPagingData<T> {
+        items: T[]
+        paging: IPaging
+    }
+
+    interface IPaging {
+        page: number
+        pageSize: number
+        totalItems: number
+    }
+
     interface IRegisterInfo {
         data: IUser
         accessToken: string
@@ -88,20 +99,14 @@ declare global {
         description: string
         industryID: number
         industryName: string
-        subIndustry: string
         stage: string
         foundedDate: string
-        teamSize: number
-        location: string
-        country: string
         website: string
         logoURL: string
-        coverImageURL: string
         fundingAmountSought: number
         currentFundingRaised: number
         valuation: number
         profileStatus: string
-        profileCompleteness: number
         approvedAt: string
         createdAt: string
         updatedAt: string
@@ -119,5 +124,15 @@ declare global {
         isFounder: string
         yearsOfExperience: string
         createdAt: string
+    }
+
+    interface IAvisorPaging {
+        advisorID: number
+        fullName: string
+        title: string
+        bio: string
+        profilePhotoURL: string
+        averageRating: number
+        industry: IAdvisorIndustryFocus[]
     }
 }

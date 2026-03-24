@@ -12,17 +12,13 @@ export enum StartupStage {
 
 export interface ICreateStartupRequest {
     companyName: string
-    oneLiner?: string
+    oneLiner: string
     description?: string
     industryID?: number
-    subIndustry?: string
     stage: StartupStage
     foundedDate?: string | Date
-    teamSize?: number
-    location?: string
-    country?: string
     website?: string
-    logoURL?: File
+    logoUrl?: File
     fundingAmountSought?: number
     currentFundingRaised?: number
     valuation?: number
@@ -30,18 +26,13 @@ export interface ICreateStartupRequest {
 
 export interface IUpdateStartupRequest {
     companyName?: string
-    oneLiner?: string
+    oneLiner: string
     description?: string
     industryID?: number
-    subIndustry?: string
     stage: StartupStage
     foundedDate?: string | Date
-    teamSize?: number
-    location?: string
-    country?: string
     website?: string
-    logoURL?: File
-    coverImageURL?: string
+    logoUrl?: File | null
     fundingAmountSought?: number
     currentFundingRaised?: number
     valuation?: number
@@ -59,7 +50,6 @@ export interface IAddMemberRequest {
 }
 
 export interface IUpdateMemberRequest {
-    memberId: number
     fullName?: string
     role?: string
     title?: string
@@ -94,6 +84,10 @@ export const CreateStartupProfile = (data: ICreateStartupRequest) => {
 export const UpdateStartupProfile = (data: IUpdateStartupRequest) => {
     const formData = new FormData();
     Object.entries(data).forEach(([key, value]) => {
+        if (value === null && key === "logoUrl") {
+            formData.append(key, "null");
+            return;
+        }
         if (value !== undefined && value !== null) {
             if (value instanceof Date) {
                 formData.append(key, value.toISOString());
@@ -116,6 +110,7 @@ export const GetStartupProfile = () => {
     return axios.get<IBackendRes<IStartupProfile>>(`/api/startups/me`)
 }
 
+
 export const AddMember = (data: IAddMemberRequest) => {
     const formData = new FormData();
     Object.entries(data).forEach(([key, value]) => {
@@ -134,7 +129,7 @@ export const AddMember = (data: IAddMemberRequest) => {
     });
 }
 
-export const UpdateMember = (data: IUpdateMemberRequest) => {
+export const UpdateMember = (teamMemberId: number, data: IUpdateMemberRequest) => {
     const formData = new FormData();
     Object.entries(data).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -145,7 +140,7 @@ export const UpdateMember = (data: IUpdateMemberRequest) => {
             }
         }
     });
-    return axios.put<IBackendRes<null>>(`/api/startups/me/team-members`, formData, {
+    return axios.put<IBackendRes<null>>(`/api/startups/me/team-members/${teamMemberId}`, formData, {
         headers: {
             "Content-Type": "multipart/form-data"
         }
@@ -153,7 +148,7 @@ export const UpdateMember = (data: IUpdateMemberRequest) => {
 }
 
 export const DeleteMember = (memberId: number) => {
-    return axios.delete<IBackendRes<null>>(`/api/startups/me/team-members?memberId=${memberId}`)
+    return axios.delete<IBackendRes<null>>(`/api/startups/me/team-members/${memberId}`)
 }
 
 export const GetMembers = () => {
@@ -165,5 +160,5 @@ export const SubmitForApproval = () => {
 }
 
 export const GetAdvisors = (query: string) => {
-    return axios.get(`/api/startups?${query}`)
+    return axios.get<IBackendRes<IPagingData<IAvisorPaging>>>(`/api/startups?${query}`)
 }

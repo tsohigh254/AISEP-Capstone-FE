@@ -30,3 +30,4 @@ export const GetPermissions = (category?: string) => {
 export const RemoveUserRole = (userId: number, roleId: number) => {
     return axios.delete<IBackendRes<string>>(`/api/users/${userId}/roles/${roleId}`);
 };
+
