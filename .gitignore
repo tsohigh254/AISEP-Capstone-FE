@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+AISEP_Investor_AI_Chatbot_Spec.md
+AISEP_Investor_Function_Implementation_Guide.md
+AISEP_UI_Design_System.md
+Investor_Verify.md

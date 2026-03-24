@@ -89,10 +89,10 @@ const buildAdvisorFormData = (
 
 // CreateAdvisorRequest (multipart/form-data)
 export const CreateAdvisorProfile = (
-  fullName: string,
+  data: string | FormData,
   options: AdvisorProfileOptionalFields = {},
 ) => {
-  const formData = buildAdvisorFormData(fullName, options);
+  const formData = data instanceof FormData ? data : buildAdvisorFormData(data, options);
 
   return axios.post(`/api/advisors`, formData, {
     headers: {
@@ -107,10 +107,10 @@ export const GetAdvisorProfile = () => {
 
 // Update profile – backend can use similar body as create
 export const UpdateAdvisorProfile = (
-  fullName: string,
+  data: string | FormData,
   options: AdvisorProfileOptionalFields = {},
 ) => {
-  const formData = buildAdvisorFormData(fullName, options);
+  const formData = data instanceof FormData ? data : buildAdvisorFormData(data, options);
 
   return axios.put(`/api/advisors/me`, formData, {
     headers: {
