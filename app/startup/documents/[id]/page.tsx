@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter, notFound } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
-import { UploadDocumentModal } from "@/components/startup/upload-document-modal";
 import { cn } from "@/lib/utils";
 import {
     FileText, User, Calendar, HardDrive, Upload, Download,
@@ -12,7 +11,125 @@ import {
     History as LucideHistory, Lock, Users, UserCheck, Pencil, X,
     ChevronDown, Tag, MoreHorizontal, Eye, RotateCcw, Info, AlertCircle,
 } from "lucide-react";
+import {
+    GetDocumentById,
+    DeleteDocument,
+    HashDocument,
+    SubmitDocumentToBlockchain,
+    CheckOnchainStatus,
+} from "@/services/document/document.api";
 
+/* ─── Types ───────────────────────────────────────────────── */
+type BlockchainStatus = "not_submitted" | "pending" | "recorded" | "matched" | "mismatch" | "failed";
+type Visibility = "private" | "investors" | "advisors" | "both";
+type DocType = "Pitch Deck" | "Tài chính" | "Pháp lý" | "Kỹ thuật" | "Khác";
+
+interface DocData {
+    id: string; name: string; fileUrl?: string; type: DocType; visibility: Visibility;
+    tags: string[]; description: string; size: string; uploader: string;
+    role: string; createdAt: string; updatedAt: string; currentVersion: string;
+    blockchainStatus: BlockchainStatus; hash: string; proofStatus?: string;
+    txHash: string;
+    recordedAt: string; network: string;
+}
+
+interface VersionRow {
+    version: string; isCurrent?: boolean; uploader: string;
+    date: string; blockchainStatus: BlockchainStatus; size: string; hashShort: string;
+}
+
+/* ─── Initial (no mock content) ────────────────────────────── */
+const EMPTY_DOC: DocData = {
+    id: "",
+    name: "",
+    type: "Khác",
+    visibility: "private",
+    tags: [],
+    description: "",
+    size: "—",
+    uploader: "—",
+    role: "—",
+    createdAt: "",
+    updatedAt: "",
+    currentVersion: "",
+    blockchainStatus: "not_submitted",
+    hash: "—",
+    proofStatus: "",
+    txHash: "",
+    recordedAt: "",
+    network: "",
+};
+
+/* ─── Mapping helpers (BE -> UI) ───────────────────────────── */
+function fileNameFromUrl(url?: string | null): string {
+    if (!url) return "Untitled";
+    const parts = url.split("/");
+    return parts[parts.length - 1] || "Untitled";
+}
+
+function formatUploadedAt(uploadedAt?: string | null): string {
+    if (!uploadedAt) return "—";
+    const d = new Date(uploadedAt);
+    if (Number.isNaN(d.getTime())) return uploadedAt;
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+}
+
+function mapBackendTypeToUiType(documentType?: string | null): DocType {
+    const t = String(documentType ?? "").toLowerCase();
+    if (t.includes("pitch")) return "Pitch Deck";
+    if (t.includes("business") || t.includes("plan")) return "Tài chính";
+    if (t.includes("legal")) return "Pháp lý";
+    if (t.includes("tech") || t.includes("technical")) return "Kỹ thuật";
+    return "Khác";
+}
+
+function mapBlockchainStatus(doc: IDocument): BlockchainStatus {
+    const p = String(doc.proofStatus ?? "").toLowerCase();
+    if (!p) return "not_submitted";
+    if (p.includes("pending") || p.includes("processing")) return "pending";
+    if (p.includes("mismatch")) return "mismatch";
+    if (p.includes("failed") || p.includes("error")) return "failed";
+    if (p.includes("matched")) return "matched";
+    if (p.includes("recorded") || p.includes("verified") || p.includes("submitted")) return "recorded";
+    return "recorded";
+}
+
+function mapBackendDocToUi(doc: IDocument): DocData {
+    const anyDoc = doc as any;
+    const hash = anyDoc.fileHash ?? anyDoc.computedHash ?? anyDoc.hash ?? "—";
+    const txHash = anyDoc.txHash ?? anyDoc.transactionHash ?? "—";
+    return {
+        id: String(doc.documentID),
+        name: fileNameFromUrl(doc.fileUrl),
+        fileUrl: doc.fileUrl,
+        type: mapBackendTypeToUiType(doc.documentType),
+        visibility: "private",
+        tags: [],
+        description: anyDoc.description ?? "",
+        size: "—",
+        uploader: anyDoc.uploader ?? "—",
+        role: anyDoc.role ?? "—",
+        createdAt: formatUploadedAt(doc.uploadedAt),
+        updatedAt: formatUploadedAt(doc.uploadedAt),
+        currentVersion: doc.version,
+        blockchainStatus: mapBlockchainStatus(doc),
+        hash: hash,
+        proofStatus: doc.proofStatus,
+        txHash: txHash,
+        recordedAt: anyDoc.recordedAt ?? formatUploadedAt(doc.uploadedAt),
+        network: anyDoc.network ?? "Ethereum Sepolia",
+    };
+}
+
+function shortHash(hash: string): string {
+    if (!hash || hash === "—") return "—";
+    const s = String(hash);
+    if (s.length <= 12) return s;
+    return `${s.slice(0, 6)}...${s.slice(-4)}`;
+}
 import { MOCK_DOCS, getDocVersions, Doc as DocData, VersionRow, BlockchainStatus, Visibility, DocType } from "@/services/startup/documents.mock";
 
 /* ─── Status configs ──────────────────────────────────────── */
@@ -136,9 +253,11 @@ function EditMetadataModal({ doc, onClose, onSave }: {
 }
 
 /* ─── Blockchain Panel ────────────────────────────────────── */
-function BlockchainPanel({ status, hash, txHash, recordedAt, network, onSubmit, onRetry, onVerify }: {
-    status: BlockchainStatus; hash: string; txHash: string; recordedAt: string; network: string;
-    onSubmit: () => void; onRetry: () => void; onVerify: () => void;
+function BlockchainPanel({ status, hash, proofStatus, onSubmit, onRetry, onVerify }: {
+    status: BlockchainStatus;
+    hash: string;
+    proofStatus?: string;
+    onSubmit: () => void | Promise<void>; onRetry: () => void | Promise<void>; onVerify: () => void | Promise<void>;
 }) {
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
     const bc = BC[status];
@@ -147,6 +266,7 @@ function BlockchainPanel({ status, hash, txHash, recordedAt, network, onSubmit, 
     const isNotSubmitted = status === "not_submitted";
     const isFailed       = status === "failed";
     const isPending      = status === "pending";
+    const isSubmitDisabled = String(proofStatus ?? "").toLowerCase() === "pending";
 
     const copyText = (text: string, key: string) => {
         navigator.clipboard.writeText(text);
@@ -174,7 +294,14 @@ function BlockchainPanel({ status, hash, txHash, recordedAt, network, onSubmit, 
                 {isNotSubmitted && (
                     <div className="space-y-3">
                         <p className="text-[12px] text-slate-500 leading-relaxed">Tài liệu chưa được bảo vệ trên blockchain. Gửi ngay để đăng ký tài sản trí tuệ.</p>
-                        <button onClick={onSubmit} className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#0f172a] text-white rounded-xl text-[13px] font-medium hover:bg-slate-800 transition-all">
+                        <button
+                            onClick={onSubmit}
+                            disabled={isSubmitDisabled}
+                            className={cn(
+                                "w-full flex items-center justify-center gap-2 py-2.5 bg-[#0f172a] text-white rounded-xl text-[13px] font-medium hover:bg-slate-800 transition-all",
+                                isSubmitDisabled && "opacity-60 cursor-not-allowed hover:bg-[#0f172a]"
+                            )}
+                        >
                             <Shield className="w-3.5 h-3.5" /> Gửi lên Blockchain
                         </button>
                     </div>
@@ -212,34 +339,9 @@ function BlockchainPanel({ status, hash, txHash, recordedAt, network, onSubmit, 
                                 </button>
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Ghi nhận lúc</p>
-                                <p className="text-[12px] text-slate-600">{recordedAt}</p>
-                            </div>
-                            <div className="space-y-1">
-                                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Mạng</p>
-                                <p className="text-[12px] text-slate-600">{network}</p>
-                            </div>
-                            <div className="col-span-2 space-y-1">
-                                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Transaction Hash</p>
-                                <div className="flex items-center gap-2">
-                                    <code className="text-[12px] text-blue-600 font-mono truncate flex-1">
-                                        {txHash.slice(0, 20)}...{txHash.slice(-6)}
-                                    </code>
-                                    <button onClick={() => copyText(txHash, "tx")} className="flex-shrink-0 text-slate-400 hover:text-slate-600 transition-colors" title="Sao chép tx hash">
-                                        {copiedKey === "tx" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
                         <div className="space-y-2 pt-1">
-                            <a href={`https://sepolia.etherscan.io/tx/${txHash}`} target="_blank" rel="noopener noreferrer"
-                                className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 rounded-xl text-[12px] font-medium hover:bg-slate-50 transition-all">
-                                <ExternalLink className="w-3.5 h-3.5" /> Xem trên Blockchain Explorer
-                            </a>
                             {isMismatch ? (
-                                <button onClick={() => alert("Đang kiểm tra on-chain...")} className="w-full flex items-center justify-center gap-2 py-2 border border-red-200 text-red-600 bg-red-50 rounded-xl text-[12px] font-medium hover:bg-red-100 transition-all">
+                                <button onClick={onVerify} className="w-full flex items-center justify-center gap-2 py-2 border border-red-200 text-red-600 bg-red-50 rounded-xl text-[12px] font-medium hover:bg-red-100 transition-all">
                                     <AlertTriangle className="w-3.5 h-3.5" /> Kiểm tra on-chain
                                 </button>
                             ) : (
@@ -258,18 +360,16 @@ function BlockchainPanel({ status, hash, txHash, recordedAt, network, onSubmit, 
 /* ─── Page ────────────────────────────────────────────────── */
 export default function DocumentDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
-    const mockDoc = MOCK_DOCS.find(d => d.id === id);
-    if (!mockDoc) notFound();
-    
     const router = useRouter();
 
-    const [doc, setDoc]                   = useState<DocData>(mockDoc);
-    const [versions, setVersions]         = useState<VersionRow[]>(getDocVersions(id));
-    const [localBcStatus, setLocalBcStatus] = useState<BlockchainStatus>(mockDoc.blockchainStatus);
-    const [showEditModal, setShowEditModal] = useState(false);
+    const [doc, setDoc]                   = useState<DocData>(EMPTY_DOC);
+    const [versions, setVersions]         = useState<VersionRow[]>([]);
+    const [localBcStatus, setLocalBcStatus] = useState<BlockchainStatus>("not_submitted");
+    const [loading, setLoading]           = useState(true);
+    const [error, setError]             = useState<string | null>(null);
+    const [reloadToken, setReloadToken] = useState(0);
     const [showMoreMenu, setShowMoreMenu]  = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState(false);
-    const [showUpload, setShowUpload]      = useState(false);
     const [toast, setToast]               = useState<{ msg: string; type?: "info"|"success"|"error" } | null>(null);
 
     const showToast = useCallback((msg: string, type: "info"|"success"|"error" = "info") => {
@@ -284,40 +384,135 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
         return () => document.removeEventListener("click", close);
     }, [showMoreMenu]);
 
-    const vis = VIS[doc.visibility];
+    useEffect(() => {
+        const backendDocId = Number(id);
+        if (!Number.isFinite(backendDocId)) notFound();
+
+        let cancelled = false;
+        (async () => {
+            try {
+                setLoading(true);
+                setError(null);
+                const res = await GetDocumentById(backendDocId);
+                const item = res?.data ?? null;
+                if (cancelled) return;
+                if (!item) notFound();
+
+                const mapped = mapBackendDocToUi(item);
+                setDoc(mapped);
+                setLocalBcStatus(mapped.blockchainStatus);
+                setVersions([
+                    {
+                        version: mapped.currentVersion,
+                        isCurrent: true,
+                        uploader: mapped.uploader,
+                        date: mapped.createdAt,
+                        blockchainStatus: mapped.blockchainStatus,
+                        size: mapped.size,
+                        hashShort: shortHash(mapped.hash),
+                    },
+                ]);
+            } catch (e: any) {
+                if (cancelled) return;
+                setError(e?.message ?? "Failed to load document");
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [id, reloadToken]);
+
     const bc  = BC[localBcStatus];
 
-    const handleSaveMetadata = (updated: DocData) => {
-        setDoc(updated);
-        setShowEditModal(false);
-        showToast("Đã cập nhật thông tin tài liệu", "success");
-    };
-
-    const handleSubmitBlockchain = () => {
+    const handleSubmitBlockchain = async () => {
+        const backendDocId = Number(id);
         setLocalBcStatus("pending");
         showToast("Đang gửi lên blockchain...", "info");
+        try {
+            await HashDocument(backendDocId);
+            await SubmitDocumentToBlockchain(backendDocId);
+            showToast("Đã gửi lên blockchain (đang chờ xử lý)...", "success");
+        } catch (e: any) {
+            setLocalBcStatus("failed");
+            showToast(e?.message ?? "Gửi blockchain thất bại", "error");
+        }
     };
 
-    const handleRetryBlockchain = () => {
+    const handleRetryBlockchain = async () => {
+        const backendDocId = Number(id);
         setLocalBcStatus("pending");
-        showToast("Đã gửi lại yêu cầu ghi nhận", "info");
+        showToast("Đang gửi lại yêu cầu ghi nhận...", "info");
+        try {
+            await SubmitDocumentToBlockchain(backendDocId);
+            showToast("Đã gửi lại (đang chờ xử lý)...", "success");
+        } catch (e: any) {
+            setLocalBcStatus("failed");
+            showToast(e?.message ?? "Gửi lại thất bại", "error");
+        }
     };
 
-    const handleVerifyBlockchain = () => {
-        setLocalBcStatus("matched");
-        showToast("Hash đã được xác minh — khớp on-chain", "success");
-    };
+    const handleVerifyBlockchain = async () => {
+        const backendDocId = Number(id);
+        setLocalBcStatus("pending");
+        showToast("Đang kiểm tra on-chain...", "info");
+        try {
+            const res = await CheckOnchainStatus(backendDocId);
+            const v = res?.data;
+            const statusStr = String(v?.status ?? "").toLowerCase();
+            if (statusStr.includes("failed") || statusStr.includes("error")) setLocalBcStatus("failed");
+            else if (statusStr.includes("pending")) setLocalBcStatus("pending");
+            else if (v?.onChainVerified) setLocalBcStatus("matched");
+            else setLocalBcStatus("mismatch");
 
-    const handleRestoreVersion = (version: string) => {
-        setVersions(prev => prev.map(v => ({ ...v, isCurrent: v.version === version })));
-        setDoc(prev => ({ ...prev, version: version }));
-        showToast(`Đã khôi phục phiên bản ${version}`, "success");
+            if (v?.computedHash && v.computedHash !== "—") {
+                setDoc(prev => ({ ...prev, hash: v.computedHash }));
+                setVersions(prev =>
+                    prev.map(ver => (ver.isCurrent ? { ...ver, hashShort: shortHash(v.computedHash) } : ver))
+                );
+            }
+            showToast("Hoàn tất kiểm tra on-chain", "success");
+        } catch (e: any) {
+            setLocalBcStatus("failed");
+            showToast(e?.message ?? "Kiểm tra on-chain thất bại", "error");
+        }
     };
 
     const handleDelete = () => {
-        showToast("Đã xóa tài liệu", "success");
-        setTimeout(() => router.push("/startup/documents"), 1500);
+        (async () => {
+            try {
+                const backendDocId = Number(id);
+                if (!Number.isFinite(backendDocId)) throw new Error("Invalid document id");
+                await DeleteDocument(String(backendDocId));
+                showToast("Đã xóa tài liệu", "success");
+                setTimeout(() => router.push("/startup/documents"), 800);
+            } catch (e: any) {
+                showToast(e?.message ?? "Xóa tài liệu thất bại", "error");
+            }
+        })();
     };
+
+    if (loading) {
+        return (
+            <StartupShell>
+                <div className="max-w-[1100px] mx-auto space-y-6 pb-20">
+                    <p className="text-[13px] text-slate-500">Đang tải tài liệu...</p>
+                </div>
+            </StartupShell>
+        );
+    }
+
+    if (error) {
+        return (
+            <StartupShell>
+                <div className="max-w-[1100px] mx-auto space-y-6 pb-20">
+                    <p className="text-[13px] text-red-500">{error}</p>
+                </div>
+            </StartupShell>
+        );
+    }
 
     return (
         <StartupShell>
@@ -336,11 +531,8 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                                 <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-medium rounded-md border border-emerald-100">Hiện tại</span>
                             </div>
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2">
-                                <span className="flex items-center gap-1.5 text-[12px] text-slate-500"><User className="w-3.5 h-3.5" /> {doc.uploader} · {doc.role}</span>
-                                <span className="flex items-center gap-1.5 text-[12px] text-slate-500"><Calendar className="w-3.5 h-3.5" /> Tạo {doc.createdAt}</span>
-                                <span className="flex items-center gap-1.5 text-[12px] text-slate-500"><HardDrive className="w-3.5 h-3.5" /> {doc.size}</span>
-                                <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md border", vis.cls)}>
-                                    <vis.Icon className="w-3 h-3" /> {vis.label}
+                                <span className="flex items-center gap-1.5 text-[12px] text-slate-500">
+                                    <Calendar className="w-3.5 h-3.5" /> Tạo {doc.createdAt || "—"}
                                 </span>
                             </div>
                         </div>
@@ -348,25 +540,6 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
 
                     {/* CTAs */}
                     <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                            onClick={() => setShowEditModal(true)}
-                            className="flex items-center gap-1.5 px-3.5 py-2 border border-slate-200 rounded-xl text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-all"
-                        >
-                            <Pencil className="w-3.5 h-3.5" /> Chỉnh sửa metadata
-                        </button>
-                        <button
-                            onClick={() => showToast(`Đang tải xuống ${doc.name}...`)}
-                            className="flex items-center gap-1.5 px-3.5 py-2 border border-slate-200 rounded-xl text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-all"
-                        >
-                            <Download className="w-3.5 h-3.5" /> Tải xuống
-                        </button>
-                        <button
-                            onClick={() => setShowUpload(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-[#0f172a] text-white rounded-xl text-[13px] font-medium hover:bg-slate-800 transition-all shadow-sm"
-                        >
-                            <Upload className="w-3.5 h-3.5" /> Tạo phiên bản mới
-                        </button>
-
                         {/* More menu */}
                         <div className="relative">
                             <button
@@ -390,21 +563,12 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                                             </div>
                                         </div>
                                     ) : (
-                                        <>
-                                            <button onClick={() => { setShowMoreMenu(false); showToast("Đang mở trang xem công khai..."); }}
-                                                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 text-left">
-                                                <Eye className="w-3.5 h-3.5 text-slate-400" /> Xem công khai
-                                            </button>
-                                            <button onClick={() => { setShowMoreMenu(false); showToast("Đã lưu trữ tài liệu", "success"); }}
-                                                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 text-left">
-                                                <LucideHistory className="w-3.5 h-3.5 text-slate-400" /> Lưu trữ
-                                            </button>
-                                            <div className="my-1 border-t border-slate-100" />
-                                            <button onClick={() => setDeleteConfirm(true)}
-                                                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-red-500 hover:bg-red-50 text-left">
-                                                <X className="w-3.5 h-3.5" /> Xóa tài liệu
-                                            </button>
-                                        </>
+                                        <button
+                                            onClick={() => { setShowMoreMenu(false); setDeleteConfirm(true); }}
+                                            className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-red-500 hover:bg-red-50 text-left"
+                                        >
+                                            <X className="w-3.5 h-3.5" /> Xóa tài liệu
+                                        </button>
                                     )}
                                 </div>
                             )}
@@ -426,25 +590,34 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                                 </div>
                                 <div className="min-w-0">
                                     <p className="text-[13px] font-medium text-[#0f172a] truncate">{doc.name}</p>
-                                    <p className="text-[12px] text-slate-400 mt-0.5">{doc.size} · PDF</p>
                                     <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded border mt-1.5", bc.cls)}>
                                         <bc.Icon className={cn("w-2.5 h-2.5", bc.spin && "animate-spin")} /> {bc.label}
                                     </span>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-2">
-                                <button
-                                    onClick={() => showToast("Không có xem trước cho tệp này — vui lòng tải xuống")}
-                                    className="flex items-center justify-center gap-1.5 py-2.5 bg-[#0f172a] text-white rounded-xl text-[12px] font-medium hover:bg-slate-800 transition-all"
-                                >
-                                    <Eye className="w-3.5 h-3.5" /> Mở tệp
-                                </button>
-                                <button
-                                    onClick={() => showToast(`Đang tải xuống ${doc.name}...`)}
-                                    className="flex items-center justify-center gap-1.5 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-[12px] font-medium hover:bg-slate-50 transition-all"
-                                >
-                                    <Download className="w-3.5 h-3.5" /> Tải xuống
-                                </button>
+                                {doc.fileUrl ? (
+                                    <>
+                                        <a
+                                            href={doc.fileUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center justify-center gap-1.5 py-2.5 bg-[#0f172a] text-white rounded-xl text-[12px] font-medium hover:bg-slate-800 transition-all"
+                                        >
+                                            <Eye className="w-3.5 h-3.5" /> Mở tệp
+                                        </a>
+                                        <a
+                                            href={doc.fileUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center justify-center gap-1.5 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-[12px] font-medium hover:bg-slate-50 transition-all"
+                                        >
+                                            <Download className="w-3.5 h-3.5" /> Tải xuống
+                                        </a>
+                                    </>
+                                ) : (
+                                    <p className="col-span-2 text-[12px] text-slate-400">Chưa có file để tải xuống.</p>
+                                )}
                             </div>
                         </div>
 
@@ -452,25 +625,13 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
                             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                                 <span className="text-[13px] font-semibold text-slate-700">Thông tin</span>
-                                <button onClick={() => setShowEditModal(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-medium text-slate-500 hover:bg-slate-100 rounded-lg transition-all">
-                                    <Pencil className="w-3 h-3" /> Chỉnh sửa
-                                </button>
                             </div>
                             <div className="px-5 pt-4 pb-3 space-y-3">
                                 <div className="flex items-center justify-between gap-2">
                                     <span className="text-[12px] text-slate-400">Loại</span>
                                     <span className="text-[12px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">{doc.type}</span>
                                 </div>
-                                <div className="flex items-start justify-between gap-2">
-                                    <span className="text-[12px] text-slate-400">Hiển thị</span>
-                                    <span className={cn("inline-flex items-center gap-1 text-[12px] font-medium px-2 py-0.5 rounded-md border", vis.cls)}>
-                                        <vis.Icon className="w-3 h-3" /> {vis.label}
-                                    </span>
-                                </div>
-                                <div className="flex items-start gap-2 px-2.5 py-2 bg-slate-50 rounded-lg">
-                                    <Info className="w-3.5 h-3.5 text-slate-400 flex-shrink-0 mt-0.5" />
-                                    <p className="text-[11px] text-slate-500 leading-relaxed">{vis.hint}</p>
-                                </div>
+                                {/* Response hiện tại không trả về visibility/hint như UI cũ */}
                                 <div className="flex items-center justify-between gap-2">
                                     <span className="text-[12px] text-slate-400">Tạo lúc</span>
                                     <span className="text-[12px] text-slate-600">{doc.createdAt}</span>
@@ -480,33 +641,14 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                                     <span className="text-[12px] text-slate-600">{doc.updatedAt}</span>
                                 </div>
                             </div>
-                            {doc.description && (
-                                <div className="px-5 py-3 border-t border-slate-100">
-                                    <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">Mô tả</p>
-                                    <p className="text-[12px] text-slate-600 leading-relaxed">{doc.description}</p>
-                                </div>
-                            )}
-                            {doc.tags.length > 0 && (
-                                <div className="px-5 py-3 border-t border-slate-100">
-                                    <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">Tags</p>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {doc.tags.map(tag => (
-                                            <span key={tag} className="flex items-center gap-1 text-[11px] text-slate-600 bg-slate-100 px-2 py-1 rounded-md">
-                                                <Tag className="w-2.5 h-2.5 text-slate-400" /> {tag}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                            {/* Không hiển thị các trường không có trong response hiện tại */}
                         </div>
 
                         {/* Blockchain panel */}
                         <BlockchainPanel
                             status={localBcStatus}
-                            hash={doc.hash || "—"}
-                            txHash={doc.txHash || "—"}
-                            recordedAt={doc.recordedAt || "—"}
-                            network={doc.network || "—"}
+                            hash={doc.hash}
+                            proofStatus={doc.proofStatus}
                             onSubmit={handleSubmitBlockchain}
                             onRetry={handleRetryBlockchain}
                             onVerify={handleVerifyBlockchain}
@@ -526,8 +668,8 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                                 <table className="w-full">
                                     <thead>
                                         <tr className="border-b border-slate-100">
-                                            {["Phiên bản","Hash","Người tải","Ngày","Dung lượng","Blockchain",""].map((h, i) => (
-                                                <th key={i} className={cn("px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest", i === 6 ? "text-right" : "text-left")}>{h}</th>
+                                            {["Phiên bản","Hash","Blockchain"].map((h, i) => (
+                                                <th key={i} className={cn("px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest", i === 2 ? "text-right" : "text-left")}>{h}</th>
                                             ))}
                                         </tr>
                                     </thead>
@@ -543,40 +685,10 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                                                         </div>
                                                     </td>
                                                     <td className="px-4 py-3.5"><code className="text-[11px] text-slate-500 font-mono">{v.hashShort}</code></td>
-                                                    <td className="px-4 py-3.5 text-[12px] text-slate-600 whitespace-nowrap">{v.uploader}</td>
-                                                    <td className="px-4 py-3.5 text-[12px] text-slate-500 whitespace-nowrap">{v.date}</td>
-                                                    <td className="px-4 py-3.5 text-[12px] text-slate-500 whitespace-nowrap">{v.size}</td>
                                                     <td className="px-4 py-3.5">
                                                         <span className={cn("inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full border whitespace-nowrap", vbc.cls)}>
                                                             <vbc.Icon className={cn("w-2.5 h-2.5", vbc.spin && "animate-spin")} /> {vbc.label}
                                                         </span>
-                                                    </td>
-                                                    <td className="px-4 py-3.5 text-right">
-                                                        <div className="flex items-center justify-end gap-1">
-                                                            <button
-                                                                onClick={() => showToast(`Đang tải xuống ${v.version}...`)}
-                                                                className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
-                                                                title="Tải xuống phiên bản này"
-                                                            >
-                                                                <Download className="w-3.5 h-3.5" />
-                                                            </button>
-                                                            {!v.isCurrent && (
-                                                                <button
-                                                                    onClick={() => handleRestoreVersion(v.version)}
-                                                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-all"
-                                                                    title="Đặt làm phiên bản hiện tại"
-                                                                >
-                                                                    <RotateCcw className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            )}
-                                                            <button
-                                                                onClick={() => showToast(`Xem chi tiết ${v.version}`)}
-                                                                className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
-                                                                title="Xem chi tiết phiên bản"
-                                                            >
-                                                                <Eye className="w-3.5 h-3.5" />
-                                                            </button>
-                                                        </div>
                                                     </td>
                                                 </tr>
                                             );
@@ -585,63 +697,12 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                                 </table>
                             </div>
                         </div>
-
-                        {/* Edit history + AI Insight */}
-                        <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
-                            <div className="md:col-span-3 bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-                                <div className="px-5 py-4 border-b border-slate-100">
-                                    <span className="text-[13px] font-semibold text-slate-700">Lịch sử chỉnh sửa</span>
-                                </div>
-                                <div className="px-5 py-4 space-y-3.5">
-                                    {[
-                                        { user: "Nguyễn Văn A", action: "Tải lên phiên bản v4.0.0", time: "2 giờ trước" },
-                                        { user: "Trần Thị B",   action: "Cập nhật metadata",        time: "Hôm qua" },
-                                        { user: "Nguyễn Văn A", action: "Gửi lên blockchain",        time: "3 ngày trước" },
-                                    ].map((item, i) => (
-                                        <div key={i} className="flex items-start gap-3">
-                                            <div className="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                                <LucideHistory className="w-3.5 h-3.5 text-slate-400" />
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <p className="text-[12px] text-slate-600"><span className="font-medium text-slate-700">{item.user}</span> {item.action}</p>
-                                                <p className="text-[11px] text-slate-400 mt-0.5">{item.time}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* AI Insight — demoted */}
-                            <div className="md:col-span-2 bg-white rounded-2xl border border-amber-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden relative">
-                                <div className="absolute -bottom-4 -right-4 opacity-[0.06]">
-                                    <Brain className="w-24 h-24 text-amber-900" />
-                                </div>
-                                <div className="relative px-5 py-4 space-y-3">
-                                    <div className="flex items-center gap-1.5">
-                                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                                        <span className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">AI Insight</span>
-                                    </div>
-                                    <p className="text-[13px] font-semibold text-[#0f172a] leading-snug">Phân tích tài liệu</p>
-                                    <p className="text-[12px] text-slate-500 leading-relaxed">
-                                        AI phát hiện <span className="text-slate-700 font-medium">3 điểm mâu thuẫn</span> giữa v4 và v3 trong mục "Kế hoạch doanh thu".
-                                    </p>
-                                    <button
-                                        onClick={() => showToast("Tính năng so sánh AI đang phát triển")}
-                                        className="flex items-center gap-1.5 text-[12px] font-medium text-amber-600 hover:text-amber-700 transition-colors group"
-                                    >
-                                        Xem so sánh
-                                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
 
-            {showEditModal && <EditMetadataModal doc={doc} onClose={() => setShowEditModal(false)} onSave={handleSaveMetadata} />}
+            {false && <EditMetadataModal doc={doc} onClose={() => {}} onSave={() => {}} />}
             {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-            <UploadDocumentModal isOpen={showUpload} onClose={() => setShowUpload(false)} />
         </StartupShell>
     );
 }

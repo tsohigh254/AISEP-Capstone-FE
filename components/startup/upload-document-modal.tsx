@@ -3,28 +3,32 @@
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { X, CloudUpload, ChevronDown, Info, Upload, CheckCircle2, FileText } from "lucide-react";
+import { DocumentType, UploadDocument } from "@/services/document/document.api";
 
 interface UploadDocumentModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onUploaded?: () => void;
 }
 
-export function UploadDocumentModal({ isOpen, onClose }: UploadDocumentModalProps) {
+export function UploadDocumentModal({ isOpen, onClose, onUploaded }: UploadDocumentModalProps) {
     const [formData, setFormData] = useState({
         name: "",
         category: "Pitch Deck",
-        access: "private",
-        description: "",
     });
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [dragging, setDragging]         = useState(false);
     const [nameError, setNameError]       = useState(false);
+    const [submitError, setSubmitError]   = useState<string | null>(null);
+    const [submitting, setSubmitting]     = useState(false);
 
     useEffect(() => {
         if (!isOpen) {
-            setFormData({ name: "", category: "Pitch Deck", access: "private", description: "" });
+            setFormData({ name: "", category: "Pitch Deck" });
             setSelectedFile(null);
             setNameError(false);
+            setSubmitError(null);
+            setSubmitting(false);
         }
     }, [isOpen]);
 
@@ -44,21 +48,38 @@ export function UploadDocumentModal({ isOpen, onClose }: UploadDocumentModalProp
         if (!formData.name) setFormData(p => ({ ...p, name: file.name.replace(/\.[^/.]+$/, "") }));
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!formData.name.trim()) { setNameError(true); return; }
-        onClose();
+        if (!selectedFile) return;
+
+        setSubmitting(true);
+        setSubmitError(null);
+        try {
+            const documentType =
+                formData.category === "Pitch Deck" ? DocumentType.Pitch_Deck : DocumentType.Bussiness_Plan;
+
+            // BE hiện tại yêu cầu field `version`; modal không có input version nên dùng mặc định.
+            const version = "v1";
+
+            await UploadDocument({
+                file: selectedFile,
+                documentType,
+                title: formData.name.trim(),
+                version,
+            });
+
+            onUploaded?.();
+            onClose();
+        } catch (e: any) {
+            setSubmitError(e?.message ?? "Upload tài liệu thất bại");
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const canSubmit = formData.name.trim().length > 0;
 
     if (!isOpen) return null;
-
-    const ACCESS_OPTS = [
-        { value: "private",   label: "Riêng tư" },
-        { value: "investors", label: "Nhà đầu tư" },
-        { value: "advisors",  label: "Cố vấn" },
-        { value: "both",      label: "NĐT & Cố vấn" },
-    ];
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center">
@@ -138,8 +159,8 @@ export function UploadDocumentModal({ isOpen, onClose }: UploadDocumentModalProp
                         {nameError && <p className="text-[11px] text-red-500">Vui lòng nhập tên tài liệu</p>}
                     </div>
 
-                    {/* Type + Visibility */}
-                    <div className="grid grid-cols-2 gap-4">
+                    {/* Type */}
+                    <div className="grid grid-cols-1 gap-4">
                         <div className="space-y-1.5">
                             <label className="block text-[12px] font-medium text-slate-500">Loại tài liệu</label>
                             <div className="relative">
@@ -148,37 +169,11 @@ export function UploadDocumentModal({ isOpen, onClose }: UploadDocumentModalProp
                                     value={formData.category}
                                     onChange={e => setFormData(p => ({ ...p, category: e.target.value }))}
                                 >
-                                    {["Pitch Deck","Tài chính","Pháp lý","Kỹ thuật","Khác"].map(t => <option key={t}>{t}</option>)}
+                                    {["Pitch Deck","Bussiness Plan"].map(t => <option key={t}>{t}</option>)}
                                 </select>
                                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                             </div>
                         </div>
-
-                        <div className="space-y-1.5">
-                            <label className="block text-[12px] font-medium text-slate-500">Hiển thị với</label>
-                            <div className="relative">
-                                <select
-                                    className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all pr-9 cursor-pointer"
-                                    value={formData.access}
-                                    onChange={e => setFormData(p => ({ ...p, access: e.target.value }))}
-                                >
-                                    {ACCESS_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                                </select>
-                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Description */}
-                    <div className="space-y-1.5">
-                        <label className="block text-[12px] font-medium text-slate-500">Mô tả chi tiết</label>
-                        <textarea
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 outline-none transition-all resize-none"
-                            rows={3}
-                            placeholder="Ghi chú ngắn về nội dung hoặc phiên bản tài liệu..."
-                            value={formData.description}
-                            onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
-                        />
                     </div>
 
                     {/* Info */}
@@ -205,9 +200,14 @@ export function UploadDocumentModal({ isOpen, onClose }: UploadDocumentModalProp
                                 : "bg-slate-200 text-slate-400 cursor-not-allowed"
                         )}
                     >
-                        Lưu tài liệu
+                        {submitting ? "Đang tải lên..." : "Lưu tài liệu"}
                     </button>
                 </div>
+                {submitError && (
+                    <div className="px-6 pb-5">
+                        <p className="text-[12px] text-red-500">{submitError}</p>
+                    </div>
+                )}
             </div>
         </div>
     );
