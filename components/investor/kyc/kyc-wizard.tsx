@@ -41,7 +41,7 @@ function buildInitialForm(status: IInvestorKYCStatus, isResubmit: boolean): Part
     fullName: src?.fullName ?? status.submissionSummary?.fullName ?? "",
     contactEmail: src?.contactEmail ?? "",
     declarationAccepted: src?.declarationAccepted ?? false,
-    investorType: src?.investorType ?? "",
+    investorType: src?.investorType ?? src?.investorCategory ?? "",
     currentRoleTitle: src?.currentRoleTitle ?? "",
     organizationName: src?.organizationName ?? "",
     linkedinOrWebsite: src?.linkedinOrWebsite ?? "",

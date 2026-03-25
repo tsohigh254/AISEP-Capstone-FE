@@ -17,7 +17,7 @@ export const GetInvestorKYCStatus = async (): Promise<{ isSuccess: boolean; data
 export const SubmitInvestorKYC = async (formData: FormData): Promise<{ isSuccess: boolean }> => {
   return new Promise((resolve) => {
     const fullName = formData.get("fullName") as string;
-    const category = formData.get("investorCategory") as string;
+    const type = (formData.get("investorType") || formData.get("investorCategory")) as string;
 
     mockStatus = {
       ...mockStatus,
@@ -27,7 +27,7 @@ export const SubmitInvestorKYC = async (formData: FormData): Promise<{ isSuccess
         fullName: fullName || "Investor",
         submittedAt: new Date().toISOString(),
         version: (mockStatus.submissionSummary?.version ?? 0) + 1,
-        investorCategory: category,
+        investorCategory: type,
       },
       lastUpdated: new Date().toISOString(),
     };

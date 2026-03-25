@@ -2,6 +2,7 @@
 export interface IInvestorKYCSubmission {
   // Step 1: Investor Type
   investorCategory: "INSTITUTIONAL" | "INDIVIDUAL_ANGEL";
+  investorType?: string;
   
   // Step 2: Public Profile
   displayName?: string; // Tên hiển thị (Quick Onboard)

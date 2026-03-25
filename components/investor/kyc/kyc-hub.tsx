@@ -220,7 +220,7 @@ export function KYCHub({ status, onStart, onContinue, onResubmit }: KYCHubProps)
             {[
               { label: "Họ và tên", value: previousSubmission.fullName },
               { label: "Email liên hệ", value: previousSubmission.contactEmail },
-              { label: "Loại nhà đầu tư", value: previousSubmission.investorType },
+              { label: "Loại nhà đầu tư", value: previousSubmission.investorType || (previousSubmission as any).investorCategory },
               { label: "Vị trí hiện tại", value: previousSubmission.currentRoleTitle },
               { label: "Tên tổ chức", value: previousSubmission.organizationName },
               { label: "Website / LinkedIn", value: previousSubmission.linkedinOrWebsite },
