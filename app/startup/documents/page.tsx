@@ -14,37 +14,72 @@ import {
     ChevronDown, ChevronLeft, ChevronRight, ArrowUpDown, ExternalLink,
     Info, AlertCircle,
 } from "lucide-react";
+import { DeleteDocument, GetDocument } from "@/services/document/document.api";
 
 /* ─── Types ───────────────────────────────────────────────── */
 type BlockchainStatus = "not_submitted" | "pending" | "recorded" | "matched" | "mismatch" | "failed";
-type Visibility = "private" | "investors" | "advisors" | "both";
 type DocType = "Pitch Deck" | "Tài chính" | "Pháp lý" | "Kỹ thuật" | "Khác";
 type SortKey = "updatedAt" | "name" | "type" | "blockchainStatus" | "version";
 
 interface Doc {
     id: string;
-    name: string;
-    type: DocType;
-    tags: string[];
-    visibility: Visibility;
+    fileUrl?: string;
+    name: string; // derived from `fileUrl`
+    type: DocType; // derived from `documentType`
     version: string;
     updatedAt: string;
     blockchainStatus: BlockchainStatus;
-    size: string;
-    uploader: string;
-    txHashShort?: string;
-    lastChecked?: string;
 }
 
-/* ─── Mock data ───────────────────────────────────────────── */
-const INITIAL_DOCS: Doc[] = [
-    { id:"1", name:"Pitch_Deck_NextGen_v2.pdf",  type:"Pitch Deck", tags:["2026","Series A"],   visibility:"investors", version:"v2", updatedAt:"12/02/2026", blockchainStatus:"recorded",      size:"2.4 MB",  uploader:"Nguyễn Văn A", txHashShort:"0x1a2b...c3d4", lastChecked:"12/02 · 15:30" },
-    { id:"2", name:"Financial_Report_Q4.xlsx",   type:"Tài chính",  tags:["Q4","2025"],          visibility:"private",   version:"v1", updatedAt:"10/02/2026", blockchainStatus:"pending",       size:"1.1 MB",  uploader:"Trần Thị B",   txHashShort:"0x5e6f...7890", lastChecked:"10/02 · 09:15" },
-    { id:"3", name:"Algorithm_Core_Specs.txt",   type:"Kỹ thuật",   tags:["core","algorithm"],   visibility:"private",   version:"v3", updatedAt:"08/02/2026", blockchainStatus:"not_submitted", size:"0.5 MB",  uploader:"Nguyễn Văn A" },
-    { id:"4", name:"Trade_Secrets_V1.zip",        type:"Pháp lý",    tags:["IP","confidential"], visibility:"private",   version:"v1", updatedAt:"05/02/2026", blockchainStatus:"failed",        size:"15.8 MB", uploader:"Lê Văn C",     lastChecked:"05/02 · 11:20" },
-    { id:"5", name:"Product_Roadmap_2026.pptx",  type:"Pitch Deck", tags:["roadmap"],            visibility:"advisors",  version:"v2", updatedAt:"01/02/2026", blockchainStatus:"matched",       size:"5.2 MB",  uploader:"Nguyễn Văn A", txHashShort:"0x7b8c...d9e0", lastChecked:"01/02 · 14:45" },
-    { id:"6", name:"Term_Sheet_Draft_v3.pdf",    type:"Pháp lý",    tags:["legal","terms"],      visibility:"investors", version:"v3", updatedAt:"28/01/2026", blockchainStatus:"mismatch",      size:"0.8 MB",  uploader:"Trần Thị B",   txHashShort:"0xa1b2...c3d4", lastChecked:"28/01 · 10:00" },
-];
+/* ─── Mapping helpers (BE -> UI) ───────────────────────────── */
+function fileNameFromUrl(url?: string | null): string {
+    if (!url) return "Untitled";
+    const parts = url.split("/");
+    return parts[parts.length - 1] || "Untitled";
+}
+
+function formatUploadedAt(uploadedAt?: string | null): string {
+    if (!uploadedAt) return "—";
+    const d = new Date(uploadedAt);
+    if (Number.isNaN(d.getTime())) return uploadedAt;
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+}
+
+function mapBackendTypeToUiType(documentType?: string | null): DocType {
+    const t = String(documentType ?? "").toLowerCase();
+    if (t.includes("pitch")) return "Pitch Deck";
+    if (t.includes("business") || t.includes("plan")) return "Tài chính";
+    if (t.includes("legal")) return "Pháp lý";
+    if (t.includes("tech") || t.includes("technical")) return "Kỹ thuật";
+    return "Khác";
+}
+
+function mapBlockchainStatus(doc: IDocument): BlockchainStatus {
+    const p = String(doc.proofStatus ?? "").toLowerCase();
+    if (!p) return "not_submitted";
+    if (p.includes("pending") || p.includes("processing") || p.includes("calculating")) return "pending";
+    if (p.includes("mismatch")) return "mismatch";
+    if (p.includes("failed") || p.includes("error")) return "failed";
+    if (p.includes("matched")) return "matched";
+    if (p.includes("recorded") || p.includes("verified") || p.includes("submitted")) return "recorded";
+    return "recorded";
+}
+
+function mapBackendDocToUi(doc: IDocument): Doc {
+    const anyDoc = doc as any;
+    return {
+        id: String(doc.documentID),
+        fileUrl: doc.fileUrl,
+        name: fileNameFromUrl(doc.fileUrl),
+        type: mapBackendTypeToUiType(doc.documentType),
+        version: doc.version,
+        updatedAt: formatUploadedAt(doc.uploadedAt),
+        blockchainStatus: mapBlockchainStatus(doc),
+    };
+}
 
 /* ─── Config ──────────────────────────────────────────────── */
 function fileIconProps(name: string): { Icon: React.ElementType; cls: string } {
@@ -67,20 +102,7 @@ const BC: Record<BlockchainStatus, {
     failed:        { label: "Thất bại",     cls: "bg-rose-50 text-rose-600 border-rose-100",            Icon: XCircle, hint: "Giao dịch blockchain không thành công", cta: "Gửi lại hash" },
 };
 
-const VIS: Record<Visibility, { label: string; cls: string; Icon: React.ElementType }> = {
-    private:   { label: "Riêng tư",     cls: "bg-slate-100 text-slate-600 border-slate-200",   Icon: Lock },
-    investors: { label: "Nhà đầu tư",   cls: "bg-blue-50 text-blue-600 border-blue-100",       Icon: Users },
-    advisors:  { label: "Cố vấn",       cls: "bg-violet-50 text-violet-600 border-violet-100", Icon: UserCheck },
-    both:      { label: "NĐT & Cố vấn", cls: "bg-indigo-50 text-indigo-600 border-indigo-100", Icon: Users },
-};
-
-const SORT_OPTS: { value: SortKey; label: string }[] = [
-    { value: "updatedAt",        label: "Mới cập nhật" },
-    { value: "name",             label: "Tên A–Z" },
-    { value: "type",             label: "Loại tài liệu" },
-    { value: "blockchainStatus", label: "Trạng thái blockchain" },
-    { value: "version",         label: "Phiên bản mới nhất" },
-];
+// Note: không có visibility/tags trong response hiện tại, nên không render các filter/columns liên quan.
 
 function sortDocs(docs: Doc[], key: SortKey): Doc[] {
     return [...docs].sort((a, b) => {
@@ -115,36 +137,17 @@ function Toast({ msg, type = "info", onClose }: { msg: string; type?: "info"|"su
     );
 }
 
-/* ─── FSelect ─────────────────────────────────────────────── */
-function FSelect({ value, onChange, options, labels }: {
-    value: string; onChange: (v: string) => void; options: string[]; labels: string[];
-}) {
-    return (
-        <div className="relative flex-shrink-0">
-            <select value={value} onChange={e => onChange(e.target.value)}
-                className="appearance-none pl-3 pr-7 py-2 text-[12px] font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 cursor-pointer transition-all whitespace-nowrap">
-                {options.map((o, i) => <option key={o} value={o}>{labels[i]}</option>)}
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
-        </div>
-    );
-}
-
 /* ─── Page ────────────────────────────────────────────────── */
 export default function StartupDocumentsPage() {
     const router = useRouter();
-    const [localDocs, setLocalDocs]       = useState<Doc[]>(INITIAL_DOCS);
-    const [search, setSearch]             = useState("");
-    const [typeFilter, setTypeFilter]     = useState("all");
-    const [visFilter, setVisFilter]       = useState("all");
-    const [bcFilter, setBcFilter]         = useState("all");
-    const [sortBy, setSortBy]             = useState<SortKey>("updatedAt");
+    const [localDocs, setLocalDocs]       = useState<Doc[]>([]);
+    const [loading, setLoading]           = useState(true);
+    const [error, setError]             = useState<string | null>(null);
+    const [reloadToken, setReloadToken] = useState(0);
     const [showUpload, setShowUpload]     = useState(false);
     const [menuState, setMenuState]       = useState<{ docId: string; x: number; y: number } | null>(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [toast, setToast]               = useState<{ msg: string; type?: "info"|"success"|"error" } | null>(null);
-    const [page, setPage]                 = useState(1);
-    const PAGE_SIZE = 10;
 
     // Close dropdown on outside click
     useEffect(() => {
@@ -156,18 +159,31 @@ export default function StartupDocumentsPage() {
 
     const showToast = (msg: string, type: "info"|"success"|"error" = "info") => setToast({ msg, type });
 
-    const filtered = localDocs.filter(d => {
-        const q = search.toLowerCase();
-        return (
-            (!q || d.name.toLowerCase().includes(q) || d.tags.some(t => t.toLowerCase().includes(q))) &&
-            (typeFilter === "all" || d.type === typeFilter) &&
-            (visFilter  === "all" || d.visibility === visFilter) &&
-            (bcFilter   === "all" || d.blockchainStatus === bcFilter)
-        );
-    });
-    const sorted    = sortDocs(filtered, sortBy);
-    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-    const docs      = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                setLoading(true);
+                setError(null);
+                const res = await GetDocument();
+                const items = res?.data ?? [];
+                if (cancelled) return;
+                setLocalDocs(items.map(mapBackendDocToUi));
+            } catch (e: any) {
+                if (cancelled) return;
+                setError(e?.message ?? "Failed to load documents");
+                setLocalDocs([]);
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [reloadToken]);
+
+    const docs = sortDocs(localDocs, "updatedAt");
 
     const protectedCount = localDocs.filter(d => d.blockchainStatus === "recorded" || d.blockchainStatus === "matched").length;
     const pendingCount   = localDocs.filter(d => d.blockchainStatus === "pending").length;
@@ -180,19 +196,17 @@ export default function StartupDocumentsPage() {
     };
 
     const handleDelete = (docId: string) => {
-        setLocalDocs(prev => prev.filter(d => d.id !== docId));
-        setMenuState(null);
-        setDeleteConfirmId(null);
-        showToast("Đã xóa tài liệu", "success");
-    };
-
-    const handleBcAction = (doc: Doc) => {
-        if (doc.blockchainStatus === "mismatch") {
-            showToast("Đang kiểm tra hash trên mạng Ethereum Sepolia...", "info");
-        } else if (doc.blockchainStatus === "failed") {
-            setLocalDocs(prev => prev.map(d => d.id === doc.id ? { ...d, blockchainStatus: "pending" } : d));
-            showToast("Đã gửi lại yêu cầu ghi nhận blockchain", "success");
-        }
+        (async () => {
+            try {
+                await DeleteDocument(docId);
+                showToast("Đã xóa tài liệu", "success");
+                setMenuState(null);
+                setDeleteConfirmId(null);
+                setReloadToken(v => v + 1);
+            } catch (e: any) {
+                showToast(e?.message ?? "Xóa tài liệu thất bại", "error");
+            }
+        })();
     };
 
     return (
@@ -216,10 +230,10 @@ export default function StartupDocumentsPage() {
                 {/* Stats */}
                 <div className="grid grid-cols-4 gap-4">
                     {[
-                        { Icon: FolderOpen,  label: "Tổng tài liệu", value: String(localDocs.length), sub: "+2 tuần này" },
+                        { Icon: FolderOpen,  label: "Tổng tài liệu", value: String(localDocs.length), sub: "—" },
                         { Icon: ShieldCheck, label: "Đã bảo vệ IP",  value: String(protectedCount),   sub: localDocs.length ? `${Math.round(protectedCount / localDocs.length * 100)}% tổng số` : "—" },
-                        { Icon: Clock,       label: "Chờ xác nhận",  value: String(pendingCount),     sub: "Trên blockchain" },
-                        { Icon: HardDrive,   label: "Dung lượng",    value: "2.4 GB",                 sub: "/ 5 GB" },
+                        { Icon: Clock,       label: "Chờ xác nhận",  value: String(pendingCount),     sub: "—" },
+                        { Icon: HardDrive,   label: "Dung lượng",    value: "—",                         sub: "—" },
                     ].map(({ Icon, label, value, sub }) => (
                         <div key={label} className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-5 py-4">
                             <div className="flex items-center gap-2 mb-3">
@@ -234,53 +248,29 @@ export default function StartupDocumentsPage() {
                     ))}
                 </div>
 
-                {/* Filters + Sort */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-4 py-3 flex items-center gap-3 flex-wrap">
-                    <div className="relative flex-1 min-w-[180px]">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                        <input
-                            className="w-full pl-9 pr-3 py-2 text-[13px] bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 transition-all placeholder:text-slate-400"
-                            placeholder="Tìm tên tài liệu, tags..."
-                            value={search}
-                            onChange={e => { setSearch(e.target.value); setPage(1); }}
-                        />
-                    </div>
-                    <FSelect value={typeFilter} onChange={v => { setTypeFilter(v); setPage(1); }}
-                        options={["all","Pitch Deck","Tài chính","Pháp lý","Kỹ thuật","Khác"]}
-                        labels={["Loại: Tất cả","Pitch Deck","Tài chính","Pháp lý","Kỹ thuật","Khác"]} />
-                    <FSelect value={visFilter} onChange={v => { setVisFilter(v); setPage(1); }}
-                        options={["all","private","investors","advisors","both"]}
-                        labels={["Hiển thị: Tất cả","Riêng tư","Nhà đầu tư","Cố vấn","NĐT & Cố vấn"]} />
-                    <FSelect value={bcFilter} onChange={v => { setBcFilter(v); setPage(1); }}
-                        options={["all","not_submitted","pending","recorded","matched","mismatch","failed"]}
-                        labels={["Blockchain: Tất cả","Chưa gửi","Chờ xác nhận","Đã ghi nhận","Khớp hash","Hash lệch","Thất bại"]} />
-                    <div className="w-px h-5 bg-slate-200 flex-shrink-0" />
-                    <div className="relative flex-shrink-0">
-                        <ArrowUpDown className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
-                        <select value={sortBy} onChange={e => setSortBy(e.target.value as SortKey)}
-                            className="appearance-none pl-7 pr-7 py-2 text-[12px] font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 cursor-pointer transition-all">
-                            {SORT_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
-                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
-                    </div>
-                </div>
-
                 {/* Table */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
                     <table className="w-full">
                         <thead>
                             <tr className="border-b border-slate-100">
-                                {["Tài liệu","Loại","Hiển thị","Phiên bản","Cập nhật","Blockchain",""].map((h, i) => (
-                                    <th key={i} className={cn("px-5 py-3.5 text-[10px] font-medium text-slate-400 uppercase tracking-widest", i === 6 ? "text-right" : "text-left")}>
+                                {["Tài liệu","Loại","Phiên bản","Cập nhật","Blockchain",""].map((h, i) => (
+                                    <th key={i} className={cn("px-5 py-3.5 text-[10px] font-medium text-slate-400 uppercase tracking-widest", i === 5 ? "text-right" : "text-left")}>
                                         {h}
                                     </th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {docs.length === 0 ? (
+                            {loading ? (
                                 <tr>
-                                    <td colSpan={7} className="px-5 py-12 text-center">
+                                    <td colSpan={6} className="px-5 py-12 text-center">
+                                        <p className="text-[13px] text-slate-400">Đang tải tài liệu...</p>
+                                        {error && <p className="text-[12px] text-red-500 mt-2">{error}</p>}
+                                    </td>
+                                </tr>
+                            ) : docs.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="px-5 py-12 text-center">
                                         <FolderOpen className="w-8 h-8 text-slate-200 mx-auto mb-2" />
                                         <p className="text-[13px] text-slate-400">Không tìm thấy tài liệu phù hợp</p>
                                     </td>
@@ -288,8 +278,6 @@ export default function StartupDocumentsPage() {
                             ) : docs.map(doc => {
                                 const fi  = fileIconProps(doc.name);
                                 const bc  = BC[doc.blockchainStatus];
-                                const vis = VIS[doc.visibility];
-                                const isError = doc.blockchainStatus === "mismatch" || doc.blockchainStatus === "failed";
 
                                 return (
                                     <tr key={doc.id} className="group hover:bg-slate-50/60 transition-colors">
@@ -303,23 +291,11 @@ export default function StartupDocumentsPage() {
                                                         className="text-[13px] font-medium text-[#0f172a] hover:underline underline-offset-2 line-clamp-1 block">
                                                         {doc.name}
                                                     </Link>
-                                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                                        <span className="text-[11px] text-slate-400">{doc.size} · {doc.uploader}</span>
-                                                        {doc.tags.slice(0, 2).map(t => (
-                                                            <span key={t} className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{t}</span>
-                                                        ))}
-                                                        {doc.tags.length > 2 && <span className="text-[10px] text-slate-400">+{doc.tags.length - 2}</span>}
-                                                    </div>
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-4 py-4">
                                             <span className="text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-md whitespace-nowrap">{doc.type}</span>
-                                        </td>
-                                        <td className="px-4 py-4">
-                                            <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border whitespace-nowrap", vis.cls)}>
-                                                <vis.Icon className="w-3 h-3" /> {vis.label}
-                                            </span>
                                         </td>
                                         <td className="px-4 py-4 text-[12px] font-medium text-slate-600 whitespace-nowrap">{doc.version}</td>
                                         <td className="px-4 py-4 text-[12px] text-slate-500 whitespace-nowrap">{doc.updatedAt}</td>
@@ -329,16 +305,6 @@ export default function StartupDocumentsPage() {
                                                     <bc.Icon className={cn("w-3 h-3 flex-shrink-0", bc.spin && "animate-spin")} />
                                                     {bc.label}
                                                 </span>
-                                                {doc.txHashShort && <p className="text-[10px] text-slate-400 font-mono mt-1 pl-0.5">{doc.txHashShort}</p>}
-                                                {doc.lastChecked  && <p className="text-[10px] text-slate-400 mt-0.5 pl-0.5">{doc.lastChecked}</p>}
-                                                {isError && bc.cta && (
-                                                    <button
-                                                        onClick={() => handleBcAction(doc)}
-                                                        className="mt-1.5 pl-0.5 flex items-center gap-1 text-[10px] font-medium text-red-600 hover:text-red-700 transition-colors"
-                                                    >
-                                                        <ExternalLink className="w-2.5 h-2.5" /> {bc.cta}
-                                                    </button>
-                                                )}
                                             </div>
                                         </td>
                                         <td className="px-4 py-4 text-right">
@@ -348,13 +314,17 @@ export default function StartupDocumentsPage() {
                                                         <Eye className="w-3.5 h-3.5" />
                                                     </span>
                                                 </Link>
-                                                <button
-                                                    onClick={() => showToast(`Đang tải xuống ${doc.name}...`)}
-                                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
-                                                    title="Tải xuống"
-                                                >
-                                                    <Download className="w-3.5 h-3.5" />
-                                                </button>
+                                                {doc.fileUrl && (
+                                                    <a
+                                                        href={doc.fileUrl}
+                                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+                                                        title="Tải xuống"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                    >
+                                                        <Download className="w-3.5 h-3.5" />
+                                                    </a>
+                                                )}
                                                 <button
                                                     onClick={e => openMenu(e, doc.id)}
                                                     className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
@@ -371,34 +341,6 @@ export default function StartupDocumentsPage() {
                             })}
                         </tbody>
                     </table>
-
-                    {/* Pagination */}
-                    <div className="px-5 py-3.5 border-t border-slate-100 flex items-center justify-between">
-                        <p className="text-[12px] text-slate-400">Hiển thị {docs.length} trong {filtered.length} tài liệu</p>
-                        <div className="flex items-center gap-1">
-                            <button
-                                onClick={() => setPage(p => Math.max(1, p - 1))}
-                                disabled={page === 1}
-                                className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                            >
-                                <ChevronLeft className="w-3.5 h-3.5" />
-                            </button>
-                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                                <button key={p} onClick={() => setPage(p)}
-                                    className={cn("w-7 h-7 flex items-center justify-center rounded-lg text-[12px] transition-all",
-                                        page === p ? "bg-[#0f172a] text-white font-medium" : "text-slate-500 hover:bg-slate-100")}>
-                                    {p}
-                                </button>
-                            ))}
-                            <button
-                                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                                disabled={page === totalPages}
-                                className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                            >
-                                <ChevronRight className="w-3.5 h-3.5" />
-                            </button>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -437,25 +379,6 @@ export default function StartupDocumentsPage() {
                                     </button>
                                 </Link>
                                 <button
-                                    onClick={() => { setMenuState(null); router.push(`/startup/documents/${menuState.docId}`); }}
-                                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 transition-colors text-left"
-                                >
-                                    <Pencil className="w-3.5 h-3.5 text-slate-400" /> Sửa metadata
-                                </button>
-                                <button
-                                    onClick={() => { setMenuState(null); setShowUpload(true); }}
-                                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 transition-colors text-left"
-                                >
-                                    <Upload className="w-3.5 h-3.5 text-slate-400" /> Tải phiên bản mới
-                                </button>
-                                <button
-                                    onClick={() => { setMenuState(null); router.push(`/startup/documents/${menuState.docId}`); }}
-                                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 transition-colors text-left"
-                                >
-                                    <ShieldCheck className="w-3.5 h-3.5 text-slate-400" /> Xem trạng thái blockchain
-                                </button>
-                                <div className="my-1 border-t border-slate-100" />
-                                <button
                                     onClick={() => setDeleteConfirmId(menuState.docId)}
                                     className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-red-500 hover:bg-red-50 transition-colors text-left"
                                 >
@@ -468,7 +391,11 @@ export default function StartupDocumentsPage() {
             })()}
 
             {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-            <UploadDocumentModal isOpen={showUpload} onClose={() => setShowUpload(false)} />
+            <UploadDocumentModal
+                isOpen={showUpload}
+                onClose={() => setShowUpload(false)}
+                onUploaded={() => setReloadToken(v => v + 1)}
+            />
         </StartupShell>
     );
 }

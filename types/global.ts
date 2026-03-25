@@ -135,4 +135,31 @@ declare global {
         averageRating: number
         industry: IAdvisorIndustryFocus[]
     }
+
+    interface IDocument {
+        documentID : number
+        startupID : number
+        documentType : string
+        version : string
+        fileUrl : string
+        isArchived : boolean
+        isAnalyzed : boolean
+        analysisStatus : string
+        uploadedAt : string
+    }
+
+    interface IBlockchainVerification{
+        documentID : number
+        computedHash : string
+        onChainVerified : boolean
+        status : string
+    }
+
+    interface IBlockchainChecking{
+        documentID : number
+        transactionHash : string
+        status : string
+        blockNumber : string
+        confirmedAt : string
+    }
 }
