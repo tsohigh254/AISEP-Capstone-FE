@@ -14,7 +14,7 @@ const roleHomeMap: Record<string, string> = {
   Startup: "/startup",
   Investor: "/investor",
   Advisor: "/advisor",
-  Admin: "/admin/users",
+  Admin: "/admin/dashboard",
   Staff: "/staff",
 };
 

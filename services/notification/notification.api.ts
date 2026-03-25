@@ -29,5 +29,5 @@ export const MarkNotificationAsRead = (id: number, isRead: boolean = true) => {
 };
 
 export const MarkAllNotificationsAsRead = () => {
-    return axios.put<IBackendRes<string>>(`/api/notifications/read-all`);
+    return axios.put<IBackendRes<{ updatedCount: number }>>(`/api/notifications/read-all`);
 };

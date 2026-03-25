@@ -4,13 +4,14 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Calendar, Clock, CheckCircle2, AlertCircle,
-  ArrowRight,
+  ArrowRight, Flag,
 } from "lucide-react";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import { FormatBadge } from "@/components/advisor/consulting-format-badge";
 import type { IConsultingSession, ConsultingSessionStatus } from "@/types/advisor-consulting";
 import { getMockSessions } from "@/services/advisor/advisor-consulting.mock";
 import { cn } from "@/lib/utils";
+import { IssueReportModal, type IssueReportContext } from "@/components/shared/issue-report-modal";
 
 /* ─── Vietnamese date helpers ────────────────────────────────── */
 
@@ -58,11 +59,23 @@ type TabKey = "upcoming" | "completed";
 export default function AdvisorSchedulePage() {
   const [sessions, setSessions] = useState<IConsultingSession[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>("upcoming");
+  const [issueContext, setIssueContext] = useState<IssueReportContext | null>(null);
+
+  const openIssue = (e: React.MouseEvent, session: IConsultingSession) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIssueContext({
+      entityType: "CONSULTING_SESSION",
+      entityId: session.id,
+      entityTitle: `Buổi tư vấn · ${session.objective}`,
+      otherPartyName: session.startup.displayName,
+    });
+  };
 
   useEffect(() => { setSessions(getMockSessions()); }, []);
 
   const upcoming = sessions.filter(s => s.status === "PENDING_CONFIRMATION" || s.status === "SCHEDULED");
-  const completed = sessions.filter(s => s.status === "COMPLETED");
+  const completed = sessions.filter(s => s.status === "COMPLETED" || s.status === "CANCELLED");
   const displayed = activeTab === "upcoming" ? upcoming : completed;
 
   const now = new Date();
@@ -197,7 +210,18 @@ export default function AdvisorSchedulePage() {
                         </div>
                       </div>
 
-                      <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all shrink-0" />
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {session.status === "COMPLETED" && (
+                          <button
+                            onClick={(e) => openIssue(e, session)}
+                            title="Báo cáo sự cố"
+                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-400 transition-all"
+                          >
+                            <Flag className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all" />
+                      </div>
                     </div>
                   </div>
                 </Link>
@@ -206,6 +230,12 @@ export default function AdvisorSchedulePage() {
           </div>
         )}
       </div>
+
+      <IssueReportModal
+        isOpen={!!issueContext}
+        onClose={() => setIssueContext(null)}
+        context={issueContext ?? undefined}
+      />
     </AdvisorShell>
   );
 }

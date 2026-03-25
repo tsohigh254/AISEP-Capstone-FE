@@ -110,7 +110,10 @@ function sortDocs(docs: Doc[], key: SortKey): Doc[] {
             case "name":             return a.name.localeCompare(b.name);
             case "type":             return a.type.localeCompare(b.type);
             case "blockchainStatus": return a.blockchainStatus.localeCompare(b.blockchainStatus);
-            case "version":          return b.version.localeCompare(a.version);
+            case "version": {
+                const parseVer = (v: string) => parseFloat(v.replace(/[^0-9.]/g, "")) || 0;
+                return parseVer(b.version) - parseVer(a.version);
+            }
             default: {
                 const parse = (s: string) => { const [d,m,y] = s.split("/"); return new Date(+y,+m-1,+d).getTime(); };
                 return parse(b.updatedAt) - parse(a.updatedAt);

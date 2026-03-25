@@ -12,7 +12,7 @@ interface ChangePasswordModalProps {
 
 const inputCls = (hasError: boolean) =>
     cn(
-        "w-full bg-slate-50 border rounded-xl px-4 py-2.5 pr-11 text-[13px] text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 outline-none transition-all",
+        "w-full bg-slate-50 border rounded-xl px-4 py-2.5 pr-11 text-[13px] text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20 focus:border-[#eec54e] transition-all",
         hasError ? "border-red-300 bg-red-50/30 focus:border-red-400 focus:ring-red-500/10" : "border-slate-200"
     );
 
@@ -64,13 +64,32 @@ function PasswordField({
 export function ChangePasswordModal({ isOpen, onClose, onSuccess }: ChangePasswordModalProps) {
     const [form, setForm] = useState({ current: "", newPwd: "", confirm: "" });
     const [errors, setErrors] = useState<Partial<typeof form>>({});
+    const [apiError, setApiError] = useState("");
     const [submitting, setSubmitting] = useState(false);
+    const [showDiscard, setShowDiscard] = useState(false);
+
+    const isDirty = form.current !== "" || form.newPwd !== "" || form.confirm !== "";
+
+    const handleClose = () => {
+        if (isDirty && !submitting) {
+            setShowDiscard(true);
+        } else {
+            onClose();
+        }
+    };
+
+    const handleDiscardConfirm = () => {
+        setShowDiscard(false);
+        onClose();
+    };
 
     useEffect(() => {
         if (!isOpen) {
             setForm({ current: "", newPwd: "", confirm: "" });
             setErrors({});
+            setApiError("");
             setSubmitting(false);
+            setShowDiscard(false);
         }
     }, [isOpen]);
 
@@ -88,12 +107,24 @@ export function ChangePasswordModal({ isOpen, onClose, onSuccess }: ChangePasswo
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!validate()) return;
+        setApiError("");
         setSubmitting(true);
         setTimeout(() => {
             setSubmitting(false);
+            // TODO: replace with real API call — map apiError for "INVALID_CURRENT_PASSWORD"
             onSuccess();
         }, 700);
     };
+
+    // Called by API layer when current password is wrong
+    const handleApiError = (code: "INVALID_CURRENT_PASSWORD" | string) => {
+        if (code === "INVALID_CURRENT_PASSWORD") {
+            setErrors(e => ({ ...e, current: "Mật khẩu hiện tại không đúng." }));
+        } else {
+            setApiError("Đã xảy ra lỗi. Vui lòng thử lại.");
+        }
+    };
+    void handleApiError; // suppress unused warning until API is wired
 
     const policyChecks = POLICY.map(p => ({ ...p, passed: p.rule(form.newPwd) }));
     const canSubmit = form.current && form.newPwd && form.confirm && !submitting;
@@ -102,7 +133,7 @@ export function ChangePasswordModal({ isOpen, onClose, onSuccess }: ChangePasswo
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={handleClose} />
             <div className="relative bg-white rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.12)] w-full max-w-md mx-4 overflow-hidden">
 
                 {/* Header */}
@@ -114,7 +145,7 @@ export function ChangePasswordModal({ isOpen, onClose, onSuccess }: ChangePasswo
                         <h2 className="text-[15px] font-semibold text-[#0f172a]">Đổi mật khẩu</h2>
                     </div>
                     <button
-                        onClick={onClose}
+                        onClick={handleClose}
                         className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
                     >
                         <X className="w-4 h-4" />
@@ -164,11 +195,19 @@ export function ChangePasswordModal({ isOpen, onClose, onSuccess }: ChangePasswo
                     />
                 </form>
 
+                {/* API-level error */}
+                {apiError && (
+                    <div className="mx-6 mb-1 px-4 py-3 rounded-xl bg-red-50 border border-red-200 flex items-center gap-2.5">
+                        <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                        <p className="text-[12.5px] text-red-600 font-medium">{apiError}</p>
+                    </div>
+                )}
+
                 {/* Footer */}
                 <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={handleClose}
                         className="px-4 py-2.5 rounded-xl text-[13px] font-medium text-slate-500 hover:bg-slate-100 transition-colors"
                     >
                         Hủy bỏ
@@ -188,12 +227,30 @@ export function ChangePasswordModal({ isOpen, onClose, onSuccess }: ChangePasswo
                     </button>
                 </div>
             </div>
+
+            {/* Discard changes confirmation */}
+            {showDiscard && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/20 backdrop-blur-[1px] rounded-2xl">
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-xl mx-4 px-6 py-5 w-full max-w-xs animate-in zoom-in-95 duration-150">
+                        <h3 className="text-[14px] font-semibold text-slate-900 mb-1">Bỏ thay đổi?</h3>
+                        <p className="text-[13px] text-slate-500 mb-4">Thông tin bạn đã nhập sẽ không được lưu.</p>
+                        <div className="flex justify-end gap-2">
+                            <button
+                                onClick={() => setShowDiscard(false)}
+                                className="px-4 py-2 rounded-xl border border-slate-200 text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                            >
+                                Tiếp tục chỉnh sửa
+                            </button>
+                            <button
+                                onClick={handleDiscardConfirm}
+                                className="px-4 py-2 rounded-xl bg-red-600 text-white text-[13px] font-medium hover:bg-red-700 transition-colors"
+                            >
+                                Bỏ thay đổi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
-}
-
-// Keep SuccessModal export for backward compatibility (no longer used)
-export function SuccessModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-    if (!isOpen) return null;
-    return null;
 }

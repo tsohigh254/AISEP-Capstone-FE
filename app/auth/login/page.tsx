@@ -112,7 +112,7 @@ export default function LoginPage() {
         router.push("/staff");
         break;
       case "admin":
-        router.push("/admin/users");
+        router.push("/admin/dashboard");
         break;
       default:
         // By default, if userType/roles are missing or unknown, route to landing.

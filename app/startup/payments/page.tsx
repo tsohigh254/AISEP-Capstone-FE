@@ -6,9 +6,10 @@ import { StartupShell } from "@/components/startup/startup-shell";
 import {
   CreditCard, ShieldCheck, RotateCcw, DollarSign,
   CheckCircle2, AlertCircle, Clock, ChevronRight,
-  BadgeCheck, Star, Search, Filter
+  BadgeCheck, Star, Search, Filter, Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { IssueReportModal, type IssueReportContext } from "@/components/shared/issue-report-modal";
 
 const formatVND = (n: number) => n.toLocaleString('vi-VN') + '₫';
 
@@ -133,6 +134,17 @@ export default function PaymentHistoryPage() {
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<"all" | PaymentStatus>("all");
   const [search, setSearch] = useState("");
+  const [issueContext, setIssueContext] = useState<IssueReportContext | null>(null);
+
+  const openIssue = (e: React.MouseEvent, payment: PaymentRecord) => {
+    e.stopPropagation();
+    setIssueContext({
+      entityType: "PAYMENT",
+      entityId: payment.reference ?? payment.requestNo,
+      entityTitle: `Thanh toán · ${payment.topic}`,
+      otherPartyName: payment.advisor.name,
+    });
+  };
 
   const filtered = MOCK_PAYMENTS.filter(p => {
     if (activeFilter !== "all" && p.status !== activeFilter) return false;
@@ -285,8 +297,8 @@ export default function PaymentHistoryPage() {
                       {/* CTA for pending */}
                       {payment.status === "CHECKOUT_PENDING" && (
                         <button
-                          onClick={e => e.stopPropagation()}
-                          className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 text-white rounded-xl text-[12px] font-semibold hover:bg-amber-600 transition-all shadow-sm whitespace-nowrap pointer-events-none"
+                          onClick={e => { e.stopPropagation(); router.push(`/startup/mentorship-requests/${payment.requestId}/checkout`); }}
+                          className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 text-white rounded-xl text-[12px] font-semibold hover:bg-amber-600 transition-all shadow-sm whitespace-nowrap"
                         >
                           <CreditCard className="w-3.5 h-3.5" />
                           Thanh toán
@@ -294,11 +306,21 @@ export default function PaymentHistoryPage() {
                       )}
                       {payment.status === "PAYMENT_FAILED" && (
                         <button
-                          onClick={e => e.stopPropagation()}
-                          className="flex items-center gap-1.5 px-3.5 py-2 bg-red-500 text-white rounded-xl text-[12px] font-semibold hover:bg-red-600 transition-all shadow-sm whitespace-nowrap pointer-events-none"
+                          onClick={e => { e.stopPropagation(); router.push(`/startup/mentorship-requests/${payment.requestId}/checkout`); }}
+                          className="flex items-center gap-1.5 px-3.5 py-2 bg-red-500 text-white rounded-xl text-[12px] font-semibold hover:bg-red-600 transition-all shadow-sm whitespace-nowrap"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
                           Thử lại
+                        </button>
+                      )}
+                      {/* Report button for completed/disputed */}
+                      {(payment.status === "RELEASED" || payment.status === "DISPUTED" || payment.status === "REFUNDED") && (
+                        <button
+                          onClick={(e) => openIssue(e, payment)}
+                          title="Báo cáo sự cố"
+                          className="opacity-0 group-hover:opacity-100 p-2 rounded-xl text-slate-300 hover:bg-red-50 hover:text-red-400 transition-all"
+                        >
+                          <Flag className="w-3.5 h-3.5" />
                         </button>
                       )}
                       {payment.status !== "CHECKOUT_PENDING" && payment.status !== "PAYMENT_FAILED" && (
@@ -312,6 +334,12 @@ export default function PaymentHistoryPage() {
           )}
         </div>
       </div>
+
+      <IssueReportModal
+        isOpen={!!issueContext}
+        onClose={() => setIssueContext(null)}
+        context={issueContext ?? undefined}
+      />
     </StartupShell>
   );
 }

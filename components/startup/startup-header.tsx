@@ -2,14 +2,13 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bell, ChevronDown, ChevronRight, User, Key, LogOut, Check, Trash2, Loader2, MessageSquare, LayoutGrid, CheckCheck, Building, Settings, FileText, Brain, Users, Handshake, FileUp, CreditCard, ShieldCheck } from "lucide-react";
+import { Bell, ChevronDown, ChevronRight, User, LogOut, Trash2, Loader2, MessageSquare, LayoutGrid, CheckCheck, Settings, FileText, Brain, Users, Handshake, FileUp, CreditCard, ShieldCheck, ShieldAlert, ArrowRight, Inbox } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { Logout } from "@/services/auth/auth.api";
 import { useAuth } from "@/context/context";
 import { IssueReportModal } from "@/components/shared/issue-report-modal";
-import { ShieldAlert } from "lucide-react";
 import { GetStartupProfile } from "@/services/startup/startup.api";
 import {
   GetNotifications,
@@ -17,6 +16,31 @@ import {
   MarkAllNotificationsAsRead,
   DeleteNotification,
 } from "@/services/notification/notification.api";
+
+/* ─── Notification type config ───────────────────────────────── */
+const NOTI_TYPE_CFG: Record<string, { icon: React.ElementType; bg: string; iconColor: string; label: string; accent: string }> = {
+  SYSTEM:               { icon: Bell,          bg: "bg-slate-100",  iconColor: "text-slate-500",   label: "Hệ thống",   accent: "bg-slate-400" },
+  VERIFICATION:         { icon: ShieldCheck,   bg: "bg-blue-50",    iconColor: "text-blue-500",    label: "Xác minh",   accent: "bg-blue-400" },
+  DOCUMENT:             { icon: FileText,      bg: "bg-violet-50",  iconColor: "text-violet-500",  label: "Tài liệu",   accent: "bg-violet-400" },
+  AI_EVALUATION:        { icon: Brain,         bg: "bg-amber-50",   iconColor: "text-amber-500",   label: "AI",         accent: "bg-amber-400" },
+  CONSULTING:           { icon: Users,         bg: "bg-emerald-50", iconColor: "text-emerald-600", label: "Tư vấn",     accent: "bg-emerald-500" },
+  INVESTOR_INTERACTION: { icon: ShieldAlert,   bg: "bg-rose-50",    iconColor: "text-rose-500",    label: "Nhà đầu tư", accent: "bg-rose-400" },
+  MESSAGE:              { icon: MessageSquare, bg: "bg-cyan-50",    iconColor: "text-cyan-500",    label: "Tin nhắn",   accent: "bg-cyan-400" },
+};
+function getNotiTypeCfg(type: string) {
+  return NOTI_TYPE_CFG[type?.toUpperCase()] ?? NOTI_TYPE_CFG["SYSTEM"];
+}
+
+function relativeNotiTime(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const d = Math.floor(diff / 86400000);
+  if (d > 0) return `${d} ngày trước`;
+  const h = Math.floor(diff / 3600000);
+  if (h > 0) return `${h} giờ trước`;
+  const m = Math.floor(diff / 60000);
+  if (m > 0) return `${m} phút trước`;
+  return "Vừa xong";
+}
 
 type StartupHeaderProps = {
   userName?: string;
@@ -124,7 +148,7 @@ export function StartupHeader({
   const handleNotiClick = (item: INotificationItem) => {
     if (!item.isRead) handleMarkAsRead(item.notificationId);
     setIsNotiOpen(false);
-    if (item.actionUrl) router.push(item.actionUrl);
+    router.push(item.actionUrl || "/startup/notifications");
   };
 
   const handleLogout = async () => {
@@ -183,39 +207,100 @@ export function StartupHeader({
               </button>
 
               {isNotiOpen && (
-                <div className="absolute right-0 mt-4 w-96 bg-white rounded-2xl shadow-2xl border border-neutral-surface z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-surface bg-[#f8f8f6]">
-                    <h3 className="font-bold text-[#171611] text-sm uppercase tracking-widest">Thông báo</h3>
-                    <button onClick={handleMarkAllRead} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-black">
-                      <CheckCheck className="w-4 h-4" /> Đọc tất cả
+                <div className="absolute right-0 mt-3 w-[380px] bg-white rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.13)] border border-slate-200/80 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[13px] font-semibold text-slate-900">Thông báo</h3>
+                      {unreadCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 text-[10px] font-bold">{unreadCount}</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleMarkAllRead}
+                      disabled={unreadCount === 0}
+                      className={cn(
+                        "inline-flex items-center gap-1 text-[12px] font-medium transition-colors",
+                        unreadCount > 0 ? "text-slate-500 hover:text-slate-800" : "text-slate-300 cursor-not-allowed"
+                      )}
+                    >
+                      <CheckCheck className="w-3.5 h-3.5" /> Đọc tất cả
                     </button>
                   </div>
-                  <div className="max-h-80 overflow-y-auto divide-y divide-neutral-surface">
+
+                  {/* List */}
+                  <div className="max-h-[360px] overflow-y-auto divide-y divide-slate-100">
                     {notiLoading ? (
-                      <div className="flex items-center justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-[#e6cc4c]" /></div>
+                      <div className="flex items-center justify-center py-12">
+                        <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
+                      </div>
                     ) : notifications.length === 0 ? (
-                      <div className="text-center py-10 text-sm text-neutral-muted font-bold italic">Không có thông báo</div>
-                    ) : (
-                      notifications.map((item) => (
-                        <div
-                          key={item.notificationId}
-                          className={cn("flex items-start gap-4 px-5 py-4 hover:bg-[#f8f8f6] cursor-pointer group transition-colors", !item.isRead && "bg-blue-50/30 border-l-4 border-blue-500")}
-                          onClick={() => handleNotiClick(item)}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className={cn("text-sm truncate font-bold", !item.isRead ? "text-[#171611]" : "text-slate-600")}>{item.title}</p>
-                            <p className="text-xs text-neutral-muted mt-1 leading-relaxed line-clamp-2">{item.messagePreview}</p>
-                            <p className="text-[10px] font-black text-neutral-muted mt-2 uppercase tracking-widest opacity-60">{new Date(item.createdAt).toLocaleDateString("vi-VN")}</p>
-                          </div>
-                          <button onClick={(e) => { e.stopPropagation(); handleDeleteNoti(item.notificationId); }} className="opacity-0 group-hover:opacity-100 text-neutral-muted hover:text-red-500 transition-all p-1">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                      <div className="flex flex-col items-center justify-center py-12 gap-2">
+                        <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center">
+                          <Inbox className="w-5 h-5 text-slate-300" />
                         </div>
-                      ))
+                        <p className="text-[13px] text-slate-400 font-medium">Không có thông báo</p>
+                      </div>
+                    ) : (
+                      notifications.map((item) => {
+                        const cfg = getNotiTypeCfg(item.notificationType);
+                        const Icon = cfg.icon;
+                        return (
+                          <div
+                            key={item.notificationId}
+                            className={cn(
+                              "relative flex items-start gap-3 px-4 py-3.5 cursor-pointer group transition-colors",
+                              item.isRead ? "hover:bg-slate-50/80" : "bg-blue-50/30 hover:bg-blue-50/50"
+                            )}
+                            onClick={() => handleNotiClick(item)}
+                          >
+                            {/* Unread bar */}
+                            {!item.isRead && (
+                              <div className={cn("absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full", cfg.accent)} />
+                            )}
+
+                            {/* Icon */}
+                            <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5", cfg.bg)}>
+                              <Icon className={cn("w-3.5 h-3.5", cfg.iconColor)} />
+                            </div>
+
+                            {/* Text */}
+                            <div className="flex-1 min-w-0">
+                              <p className={cn(
+                                "text-[12.5px] leading-snug line-clamp-1",
+                                item.isRead ? "font-normal text-slate-700" : "font-semibold text-slate-900"
+                              )}>
+                                {item.title}
+                              </p>
+                              <p className="text-[11.5px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
+                                {item.messagePreview}
+                              </p>
+                              <p className="text-[10px] text-slate-400 mt-1">
+                                {relativeNotiTime(item.createdAt)}
+                              </p>
+                            </div>
+
+                            {/* Delete on hover */}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteNoti(item.notificationId); }}
+                              className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-md hover:bg-red-50 text-slate-300 hover:text-red-400 transition-all flex-shrink-0 mt-0.5"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
-                  <Link href="/startup/notifications" onClick={() => setIsNotiOpen(false)}>
-                    <div className="text-center py-3.5 bg-[#f4f4f0] text-xs font-black text-blue-600 hover:bg-[#e6cc4c]/10 hover:text-blue-800 transition-colors uppercase tracking-widest">Xem tất cả thông báo</div>
+
+                  {/* Footer */}
+                  <Link
+                    href="/startup/notifications"
+                    onClick={() => setIsNotiOpen(false)}
+                    className="flex items-center justify-center gap-1.5 py-3 border-t border-slate-100 text-[12px] font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors"
+                  >
+                    Xem tất cả thông báo
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
                 </div>
               )}

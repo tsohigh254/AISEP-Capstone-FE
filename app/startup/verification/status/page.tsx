@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import { 
@@ -63,7 +63,7 @@ const getAvatarColor = (color: string) => {
   }
 };
 
-export default function KycStatusPage() {
+function KycStatusPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const state = searchParams.get("state") || "UNDER_REVIEW";
@@ -239,5 +239,13 @@ export default function KycStatusPage() {
 
       </div>
     </StartupShell>
+  );
+}
+
+export default function KycStatusPage() {
+  return (
+    <Suspense>
+      <KycStatusPageInner />
+    </Suspense>
   );
 }

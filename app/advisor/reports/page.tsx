@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { 
-  Search, Inbox, FileText, Clock, ChevronRight, 
-  AlertCircle, Filter, MoreHorizontal, History, Edit3
+import {
+  Search, Inbox, FileText, Clock, ChevronRight,
+  AlertCircle, Filter, MoreHorizontal, History, Edit3, Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
@@ -13,6 +13,7 @@ import type { IConsultationReport, ConsultationReportStatus } from "@/types/advi
 import type { IConsultingSession } from "@/types/advisor-consulting";
 import { getAdvisorReports } from "@/services/advisor/advisor-report.api";
 import { getMockSessions } from "@/services/advisor/advisor-consulting.mock";
+import { IssueReportModal, type IssueReportContext } from "@/components/shared/issue-report-modal";
 
 /* ─── Constants ──────────────────────────────────────────────── */
 
@@ -70,7 +71,7 @@ function getAvatarColor(name: string): string {
 
 /* ─── Components ─────────────────────────────────────────────── */
 
-function ReportCard({ report }: { report: IConsultationReport }) {
+function ReportCard({ report, onReport }: { report: IConsultationReport; onReport: (report: IConsultationReport) => void }) {
   const cfg = STATUS_CFG[report.status];
   const avatarGradient = getAvatarColor(report.startup.displayName);
   
@@ -108,8 +109,19 @@ function ReportCard({ report }: { report: IConsultationReport }) {
               </p>
             </div>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-[#0f172a] group-hover:text-white transition-all shadow-sm">
-            <ChevronRight className="w-5 h-5" />
+          <div className="flex items-center gap-1.5 shrink-0">
+            {(report.status === "FINALIZED" || report.status === "SUBMITTED") && (
+              <button
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onReport(report); }}
+                title="Báo cáo sự cố"
+                className="opacity-0 group-hover:opacity-100 p-2 rounded-xl text-slate-300 hover:bg-red-50 hover:text-red-400 transition-all"
+              >
+                <Flag className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-[#0f172a] group-hover:text-white transition-all shadow-sm">
+              <ChevronRight className="w-5 h-5" />
+            </div>
           </div>
         </div>
       </div>
@@ -155,6 +167,16 @@ export default function AdvisorReportsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("all");
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [issueContext, setIssueContext] = useState<IssueReportContext | null>(null);
+
+  const openIssue = (report: IConsultationReport) => {
+    setIssueContext({
+      entityType: "CONSULTING_REPORT",
+      entityId: report.id,
+      entityTitle: `Báo cáo · ${report.title}`,
+      otherPartyName: report.startup.displayName,
+    });
+  };
 
   useEffect(() => {
     async function init() {
@@ -287,7 +309,7 @@ export default function AdvisorReportsPage() {
               
               <div className="grid gap-3">
                 {filteredReports.map(rep => (
-                  <ReportCard key={rep.id} report={rep} />
+                  <ReportCard key={rep.id} report={rep} onReport={openIssue} />
                 ))}
               </div>
 
@@ -306,6 +328,12 @@ export default function AdvisorReportsPage() {
           </div>
         )}
       </div>
+
+      <IssueReportModal
+        isOpen={!!issueContext}
+        onClose={() => setIssueContext(null)}
+        context={issueContext ?? undefined}
+      />
     </AdvisorShell>
   );
 }
