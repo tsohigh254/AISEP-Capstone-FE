@@ -19,9 +19,26 @@ export interface ICreateStartupRequest {
     foundedDate?: string | Date
     website?: string
     logoUrl?: File
-    fundingAmountSought?: number
-    currentFundingRaised?: number
+    // Financial
+    targetFunding?: number
+    raisedAmount?: number
     valuation?: number
+    // Extra Info
+    location?: string
+    country?: string
+    teamSize?: number
+    teamsize?: number
+    // Business
+    problemStatement?: string
+    solutionSummary?: string
+    currentNeeds?: string[]
+    marketScope?: string
+    productStatus?: string
+    // Contact & Extra
+    contactEmail?: string
+    contactPhone?: string
+    linkedInURL?: string
+    metricSummary?: string
 }
 
 export interface IUpdateStartupRequest {
@@ -33,9 +50,26 @@ export interface IUpdateStartupRequest {
     foundedDate?: string | Date
     website?: string
     logoUrl?: File | null
-    fundingAmountSought?: number
-    currentFundingRaised?: number
+    // Financial
+    targetFunding?: number
+    raisedAmount?: number
     valuation?: number
+    // Extra Info
+    location?: string
+    country?: string
+    teamSize?: number
+    teamsize?: number
+    // Business
+    problemStatement?: string
+    solutionSummary?: string
+    currentNeeds?: string[]
+    marketScope?: string
+    productStatus?: string
+    // Contact & Extra
+    contactEmail?: string
+    contactPhone?: string
+    linkedInURL?: string
+    metricSummary?: string
 }
 
 export interface IAddMemberRequest {
@@ -68,6 +102,8 @@ export const CreateStartupProfile = (data: ICreateStartupRequest) => {
                 formData.append(key, value.toISOString());
             } else if (value instanceof File) {
                 formData.append(key, value);
+            } else if (Array.isArray(value)) {
+                value.forEach(v => formData.append(key, v.toString()));
             } else {
                 formData.append(key, value.toString());
             }
@@ -93,6 +129,8 @@ export const UpdateStartupProfile = (data: IUpdateStartupRequest) => {
                 formData.append(key, value.toISOString());
             } else if (value instanceof File) {
                 formData.append(key, value);
+            } else if (Array.isArray(value)) {
+                value.forEach(v => formData.append(key, v.toString()));
             } else {
                 formData.append(key, value.toString());
             }
@@ -107,9 +145,16 @@ export const UpdateStartupProfile = (data: IUpdateStartupRequest) => {
 }
 
 export const GetStartupProfile = () => {
-    return axios.get<IBackendRes<IStartupProfile>>(`/api/startups/me`)
+    return axios.get<IBackendRes<any>>(`/api/startups/me`)
 }
 
+export const EnableVisibility = () => {
+    return axios.put<IBackendRes<null>>(`/api/startups/me/visibility`, { isVisible: true });
+};
+
+export const DisableVisibility = () => {
+    return axios.put<IBackendRes<null>>(`/api/startups/me/visibility`, { isVisible: false });
+};
 
 export const AddMember = (data: IAddMemberRequest) => {
     const formData = new FormData();
@@ -152,7 +197,7 @@ export const DeleteMember = (memberId: number) => {
 }
 
 export const GetMembers = () => {
-    return axios.get<IBackendRes<ITeamMember[]>>(`/api/startups/me/team-members`);
+    return axios.get<IBackendRes<any[]>>(`/api/startups/me/team-members`);
 }
 
 export const SubmitForApproval = () => {
@@ -160,5 +205,5 @@ export const SubmitForApproval = () => {
 }
 
 export const GetAdvisors = (query: string) => {
-    return axios.get<IBackendRes<IPagingData<IAvisorPaging>>>(`/api/startups?${query}`)
+    return axios.get<IBackendRes<any>>(`/api/startups?${query}`)
 }

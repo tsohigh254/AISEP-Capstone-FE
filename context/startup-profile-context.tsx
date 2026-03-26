@@ -11,7 +11,7 @@ import {
     StartupStage,
 } from "@/services/startup/startup.api";
 
-interface StartupProfileFormState {
+export interface StartupProfileFormState {
     companyName: string;
     oneLiner: string;
     description: string;
@@ -19,9 +19,21 @@ interface StartupProfileFormState {
     stage: string;
     foundedDate: string;
     website: string;
-    fundingAmountSought: string;
-    currentFundingRaised: string;
+    targetFunding: string;
+    raisedAmount: string;
     valuation: string;
+    problemStatement: string;
+    solutionSummary: string;
+    currentNeeds: string[];
+    marketScope: string;
+    productStatus: string;
+    contactEmail: string;
+    contactPhone: string;
+    linkedInURL: string;
+    metricSummary: string;
+    location: string;
+    country: string;
+    teamSize: string;
 }
 
 const INITIAL_FORM: StartupProfileFormState = {
@@ -32,13 +44,25 @@ const INITIAL_FORM: StartupProfileFormState = {
     stage: StartupStage.Idea.toString(),
     foundedDate: "",
     website: "",
-    fundingAmountSought: "",
-    currentFundingRaised: "",
+    targetFunding: "",
+    raisedAmount: "",
     valuation: "",
+    problemStatement: "",
+    solutionSummary: "",
+    currentNeeds: [],
+    marketScope: "",
+    productStatus: "",
+    contactEmail: "",
+    contactPhone: "",
+    linkedInURL: "",
+    metricSummary: "",
+    location: "",
+    country: "",
+    teamSize: "",
 };
 
 interface StartupProfileContextType {
-    profile: IStartupProfile | null;
+    profile: any | null;
     form: StartupProfileFormState;
     logoFile: File | null;
     profileLogoURL: string;
@@ -49,7 +73,7 @@ interface StartupProfileContextType {
     saveError: string | null;
     saveSuccess: boolean;
     fetchProfile: () => Promise<void>;
-    updateForm: (field: string, value: string) => void;
+    updateForm: (field: string, value: any) => void;
     setLogoFile: (file: File | null) => void;
     setProfileLogoURL: (url: string) => void;
     saveProfile: () => Promise<boolean>;
@@ -84,7 +108,7 @@ const normalizeStage = (stage: string): StartupStage => {
 };
 
 export function StartupProfileProvider({ children }: { children: ReactNode }) {
-    const [profile, setProfile] = useState<IStartupProfile | null>(null);
+    const [profile, setProfile] = useState<any | null>(null);
     const [form, setForm] = useState<StartupProfileFormState>(INITIAL_FORM);
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const [profileLogoURL, setProfileLogoURL] = useState<string>("");
@@ -99,7 +123,8 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
         setLoading(true);
         setError(null);
         try {
-            const res = await GetStartupProfile() as unknown as IBackendRes<IStartupProfile>;
+            const res = await GetStartupProfile() as unknown as IBackendRes<any>;
+            console.log("🔥 [GET API] Dữ liệu Backend trả về (/startups/me):", res?.data);
             if ((res.success || res.isSuccess) && res.data) {
                 const data = res.data;
                 setProfile(data);
@@ -108,12 +133,24 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                     oneLiner: data.oneLiner || "",
                     description: data.description || "",
                     industryID: data.industryID?.toString() || "",
-                    stage: data.stage !== undefined ? data.stage.toString() : StartupStage.Idea.toString(),
+                    stage: data.stage !== undefined ? normalizeStage(data.stage).toString() : StartupStage.Idea.toString(),
                     foundedDate: data.foundedDate ? new Date(data.foundedDate).toISOString().split("T")[0] : "",
                     website: data.website || "",
-                    fundingAmountSought: data.fundingAmountSought?.toString() || "",
-                    currentFundingRaised: data.currentFundingRaised?.toString() || "",
+                    targetFunding: data.targetFunding?.toString() || "",
+                    raisedAmount: data.raisedAmount?.toString() || "",
                     valuation: data.valuation?.toString() || "",
+                    problemStatement: data.problemStatement || "",
+                    solutionSummary: data.solutionSummary || "",
+                    currentNeeds: Array.isArray(data.currentNeeds) ? data.currentNeeds : [],
+                    marketScope: data.marketScope || "",
+                    productStatus: data.productStatus || "",
+                    contactEmail: data.contactEmail || "",
+                    contactPhone: data.contactPhone || "",
+                    linkedInURL: data.linkedInURL || "",
+                    metricSummary: data.metricSummary || "",
+                    location: data.location || "",
+                    country: data.country || "",
+                    teamSize: data.teamSize ? data.teamSize.toString() : "",
                 });
                 if (data.logoURL) {
                     setProfileLogoURL(data.logoURL);
@@ -135,7 +172,7 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
-    const updateForm = useCallback((field: string, value: string) => {
+    const updateForm = useCallback((field: string, value: any) => {
         setForm(prev => ({ ...prev, [field]: value }));
     }, []);
 
@@ -152,14 +189,29 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                 stage: normalizeStage(form.stage),
                 foundedDate: form.foundedDate ? new Date(form.foundedDate) : undefined,
                 website: form.website || undefined,
-                fundingAmountSought: form.fundingAmountSought ? parseFloat(form.fundingAmountSought) : undefined,
-                currentFundingRaised: form.currentFundingRaised ? parseFloat(form.currentFundingRaised) : undefined,
+                targetFunding: form.targetFunding ? parseFloat(form.targetFunding) : undefined,
+                raisedAmount: form.raisedAmount ? parseFloat(form.raisedAmount) : undefined,
                 valuation: form.valuation ? parseFloat(form.valuation) : undefined,
+                problemStatement: form.problemStatement || undefined,
+                solutionSummary: form.solutionSummary || undefined,
+                currentNeeds: form.currentNeeds && form.currentNeeds.length > 0 ? form.currentNeeds : undefined,
+                marketScope: form.marketScope || undefined,
+                productStatus: form.productStatus || undefined,
+                contactEmail: form.contactEmail || undefined,
+                contactPhone: form.contactPhone || undefined,
+                linkedInURL: form.linkedInURL || undefined,
+                metricSummary: form.metricSummary || undefined,
+                location: form.location || undefined,
+                country: form.country || undefined,
+                teamSize: form.teamSize ? parseInt(form.teamSize) : undefined,
+                teamsize: form.teamSize ? parseInt(form.teamSize) : undefined, // Phòng trường hợp BE sai case
             };
 
             const payload: IUpdateStartupRequest | ICreateStartupRequest = {
                 ...basePayload,
             };
+            
+            console.log("🔥 [PUT API] Payload sẽ ném vào Backend FormData:", payload);
 
             if (logoFile) {
                 payload.logoUrl = logoFile;
@@ -171,6 +223,7 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
             const res = isExistingProfile
                 ? await UpdateStartupProfile(payload as IUpdateStartupRequest) as unknown as IBackendRes<string>
                 : await CreateStartupProfile(payload as ICreateStartupRequest) as unknown as IBackendRes<string>;
+                
             if (res.success || res.isSuccess) {
                 setSaveSuccess(true);
                 // Refetch profile to get updated data
@@ -181,13 +234,15 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                 setSaveError(res.message || "Lưu thất bại");
                 return false;
             }
-        } catch {
-            setSaveError("Lỗi kết nối. Vui lòng thử lại.");
+        } catch (err: any) {
+            console.error("Lỗi khi saveProfile:", err);
+            const msg = err?.response?.data?.message || err?.response?.data?.title || err?.message || "Lỗi kết nối. Vui lòng thử lại.";
+            setSaveError(typeof msg === 'string' ? msg : JSON.stringify(msg));
             return false;
         } finally {
             setSaving(false);
         }
-    }, [form, logoFile, fetchProfile, profile]);
+    }, [form, logoFile, fetchProfile, profile, profileLogoURL]);
 
     const submitForApprovalFn = useCallback(async (): Promise<boolean> => {
         setSubmitting(true);

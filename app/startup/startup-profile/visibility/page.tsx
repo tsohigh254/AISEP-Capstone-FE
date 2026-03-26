@@ -1,10 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { Eye, EyeOff, Clock, CheckCircle2, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Eye, EyeOff, Clock, CheckCircle2, ShieldCheck, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useStartupProfile } from "@/context/startup-profile-context";
+import { EnableVisibility, DisableVisibility } from "@/services/startup/startup.api";
 
 type Status = "Visible" | "Hidden" | "PendingApproval";
+
+/** Chuẩn hoá bất kỳ giá trị nào BE trả về thành Status hợp lệ */
+const normalizeStatus = (raw: any): Status => {
+    if (raw === true || raw === "Visible" || raw === "visible" || raw === "Public") return "Visible";
+    if (raw === "PendingApproval" || raw === "Pending") return "PendingApproval";
+    return "Hidden";
+};
 
 const STATUS_MAP = {
     Visible:         { label: "Hiển thị với nhà đầu tư",  desc: "Hồ sơ của bạn xuất hiện trong kết quả tìm kiếm. Nhà đầu tư có thể xem thông tin cơ bản và gửi yêu cầu kết nối.",          icon: Eye,    dot: "bg-emerald-500" },
@@ -13,10 +22,50 @@ const STATUS_MAP = {
 };
 
 export default function StartupVisibilityPage() {
-    const [status, setStatus] = useState<Status>("Visible");
-    const cfg = STATUS_MAP[status];
+    const { profile, fetchProfile, loading } = useStartupProfile();
+    // Khởi tạo từ profile ngay lập tức nếu đã có, tránh flash "Hidden"
+    const [status, setStatus] = useState<Status>(() => normalizeStatus(profile?.visibilityStatus ?? profile?.isVisible));
+    const [isUpdating, setIsUpdating] = useState(false);
+
+    useEffect(() => {
+        if (profile) {
+            // Ưu tiên visibilityStatus, fallback sang isVisible (boolean)
+            const raw = profile.visibilityStatus ?? profile.isVisible;
+            setStatus(normalizeStatus(raw));
+        }
+    }, [profile]);
+
+    const cfg = STATUS_MAP[status] || STATUS_MAP["Hidden"];
     const Icon = cfg.icon;
     const isPending = status === "PendingApproval";
+
+    const handleSetStatus = async (newStatus: Status) => {
+        if (newStatus === status) return;
+        
+        setIsUpdating(true);
+        try {
+            if (newStatus === "Visible") {
+                await EnableVisibility();
+            } else if (newStatus === "Hidden") {
+                await DisableVisibility();
+            }
+            await fetchProfile(); // refresh data
+        } catch (err: any) {
+            console.error(err);
+            const msg = err?.response?.data?.message || err?.message || "Không xác định";
+            alert(`Lỗi khi cập nhật trạng thái hiển thị: ${msg}\n\nBạn có thể F12 -> Network để check status code nhé!`);
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    if (loading && !profile) {
+        return (
+            <div className="flex justify-center py-10">
+                <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+            </div>
+        );
+    }
 
     return (
         <div className="max-w-2xl space-y-5">
@@ -40,7 +89,12 @@ export default function StartupVisibilityPage() {
                         <h3 className="text-[13px] font-semibold text-slate-700">Thay đổi hiển thị</h3>
                         <p className="text-[12px] text-slate-400 mt-0.5">Kiểm soát việc nhà đầu tư có thể tìm thấy hồ sơ của bạn.</p>
                     </div>
-                    <div className="p-4 space-y-2">
+                    <div className="p-4 space-y-2 relative">
+                        {isUpdating && (
+                            <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-xl">
+                                <Loader2 className="w-6 h-6 animate-spin text-slate-900" />
+                            </div>
+                        )}
                         {(["Visible", "Hidden"] as Status[]).map(s => {
                             const c = STATUS_MAP[s];
                             const Ic = c.icon;
@@ -49,12 +103,13 @@ export default function StartupVisibilityPage() {
                                 <button
                                     key={s}
                                     type="button"
-                                    onClick={() => setStatus(s)}
+                                    onClick={() => handleSetStatus(s)}
+                                    disabled={active || isUpdating}
                                     className={cn(
                                         "w-full flex items-center gap-4 p-4 rounded-xl border text-left transition-all",
                                         active
                                             ? "bg-slate-900 border-slate-900 text-white"
-                                            : "bg-white border-slate-200 text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                                            : "bg-white border-slate-200 text-slate-700 hover:border-slate-400 hover:bg-slate-50 disabled:opacity-50"
                                     )}
                                 >
                                     <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0", active ? "bg-white/10" : "bg-slate-100")}>
