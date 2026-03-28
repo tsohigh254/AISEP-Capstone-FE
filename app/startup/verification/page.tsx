@@ -16,18 +16,29 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { getMockKycStatus, StartupKycCase } from "@/services/startup/startup-kyc.mock";
+import { GetStartupKYCStatus, StartupKycCase } from "@/services/startup/startup-kyc.api";
 
 export default function KycDashboardPage() {
   const [kycCase, setKycCase] = useState<StartupKycCase | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // In a real app, this would check the true state
-    getMockKycStatus("NOT_SUBMITTED").then(res => {
-      setKycCase(res);
-      setLoading(false);
-    });
+    GetStartupKYCStatus()
+      .then(res => {
+        const data = res as unknown as IBackendRes<StartupKycCase>;
+        if ((data.success || data.isSuccess) && data.data) {
+          setKycCase(data.data);
+        } else {
+          setKycCase({ workflowStatus: "NOT_SUBMITTED" } as StartupKycCase);
+        }
+      })
+      .catch(err => {
+        const status = err?.response?.status;
+        if (status === 404) {
+          setKycCase({ workflowStatus: "NOT_SUBMITTED" } as StartupKycCase);
+        }
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) return (

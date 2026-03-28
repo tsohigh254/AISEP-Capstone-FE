@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, Clock, CheckCircle2, ShieldCheck, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Clock, CheckCircle2, ShieldCheck, Loader2, CalendarCheck, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useStartupProfile } from "@/context/startup-profile-context";
 import { EnableVisibility, DisableVisibility } from "@/services/startup/startup.api";
+import { toast } from "sonner";
 
 type Status = "Visible" | "Hidden" | "PendingApproval";
 
@@ -16,9 +17,9 @@ const normalizeStatus = (raw: any): Status => {
 };
 
 const STATUS_MAP = {
-    Visible:         { label: "Hiển thị với nhà đầu tư",  desc: "Hồ sơ của bạn xuất hiện trong kết quả tìm kiếm. Nhà đầu tư có thể xem thông tin cơ bản và gửi yêu cầu kết nối.",          icon: Eye,    dot: "bg-emerald-500" },
-    Hidden:          { label: "Ẩn khỏi nhà đầu tư",       desc: "Hồ sơ không hiển thị trong tìm kiếm. Nhà đầu tư sẽ không tìm thấy hoặc gửi kết nối đến bạn.",                              icon: EyeOff, dot: "bg-slate-400"   },
-    PendingApproval: { label: "Đang chờ duyệt",            desc: "Hồ sơ đang chờ phê duyệt từ hệ thống. Sau khi được duyệt, bạn có thể bật hiển thị cho nhà đầu tư.",                         icon: Clock,  dot: "bg-amber-400"   },
+    Visible:         { label: "Hiển thị với nhà đầu tư & cố vấn",  desc: "Hồ sơ của bạn xuất hiện trong kết quả tìm kiếm. Nhà đầu tư và cố vấn có thể xem thông tin cơ bản và gửi yêu cầu kết nối.",  icon: Eye,    dot: "bg-emerald-500" },
+    Hidden:          { label: "Ẩn khỏi nhà đầu tư & cố vấn",       desc: "Hồ sơ không hiển thị trong tìm kiếm. Nhà đầu tư và cố vấn sẽ không tìm thấy hoặc gửi kết nối đến bạn.",                      icon: EyeOff, dot: "bg-slate-400"   },
+    PendingApproval: { label: "Đang chờ duyệt",                      desc: "Hồ sơ đang chờ phê duyệt từ hệ thống. Sau khi được duyệt, bạn có thể bật hiển thị cho nhà đầu tư và cố vấn.",                 icon: Clock,  dot: "bg-amber-400"   },
 };
 
 export default function StartupVisibilityPage() {
@@ -41,19 +42,27 @@ export default function StartupVisibilityPage() {
 
     const handleSetStatus = async (newStatus: Status) => {
         if (newStatus === status) return;
-        
+
         setIsUpdating(true);
         try {
             if (newStatus === "Visible") {
                 await EnableVisibility();
+                toast.success("Hồ sơ đã được hiển thị.", {
+                    description: "Nhà đầu tư và cố vấn có thể tìm thấy và xem hồ sơ của bạn.",
+                });
             } else if (newStatus === "Hidden") {
                 await DisableVisibility();
+                toast.success("Hồ sơ đã được ẩn.", {
+                    description: "Nhà đầu tư và cố vấn sẽ không tìm thấy hồ sơ trong kết quả tìm kiếm.",
+                });
             }
             await fetchProfile(); // refresh data
         } catch (err: any) {
             console.error(err);
             const msg = err?.response?.data?.message || err?.message || "Không xác định";
-            alert(`Lỗi khi cập nhật trạng thái hiển thị: ${msg}\n\nBạn có thể F12 -> Network để check status code nhé!`);
+            toast.error("Cập nhật trạng thái thất bại.", {
+                description: msg,
+            });
         } finally {
             setIsUpdating(false);
         }
@@ -81,6 +90,42 @@ export default function StartupVisibilityPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Approval info */}
+            {(profile?.approvedAt || profile?.approvedBy) && (
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-4">
+                    <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Thông tin duyệt hồ sơ</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {profile?.approvedAt && (
+                            <div className="flex items-start gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                                    <CalendarCheck className="w-4 h-4 text-emerald-500" />
+                                </div>
+                                <div>
+                                    <p className="text-[11px] text-slate-400 font-medium">Ngày duyệt</p>
+                                    <p className="text-[13px] font-semibold text-[#0f172a] mt-0.5">
+                                        {new Date(profile.approvedAt).toLocaleDateString("vi-VN", {
+                                            day: "2-digit", month: "2-digit", year: "numeric",
+                                            hour: "2-digit", minute: "2-digit",
+                                        })}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                        {profile?.approvedBy && (
+                            <div className="flex items-start gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                                    <UserCheck className="w-4 h-4 text-blue-500" />
+                                </div>
+                                <div>
+                                    <p className="text-[11px] text-slate-400 font-medium">Duyệt bởi (ID)</p>
+                                    <p className="text-[13px] font-semibold text-[#0f172a] mt-0.5">{profile.approvedBy}</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Toggle options */}
             {!isPending && (
@@ -120,7 +165,7 @@ export default function StartupVisibilityPage() {
                                             {s === "Visible" ? "Hiển thị hồ sơ" : "Ẩn hồ sơ"}
                                         </p>
                                         <p className={cn("text-[11px] mt-0.5", active ? "text-white/60" : "text-slate-400")}>
-                                            {s === "Visible" ? "Nhà đầu tư có thể tìm thấy và xem hồ sơ của bạn." : "Hồ sơ sẽ không xuất hiện trong tìm kiếm."}
+                                            {s === "Visible" ? "Nhà đầu tư và cố vấn có thể tìm thấy và xem hồ sơ của bạn." : "Hồ sơ sẽ không xuất hiện trong tìm kiếm."}
                                         </p>
                                     </div>
                                     {active && <CheckCircle2 className="w-4 h-4 text-white/80 flex-shrink-0" />}

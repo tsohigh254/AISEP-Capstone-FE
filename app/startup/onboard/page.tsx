@@ -3,16 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { 
-  Building2, 
-  Rocket, 
-  FileText, 
-  PieChart, 
-  CheckCircle2, 
-  Star,
-  AlertTriangle,
-  Sparkles
-} from "lucide-react";
+import { Building2, MessageSquare, Rocket, CheckCircle2, Sparkles, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -20,20 +11,19 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-
-// Import real steps
+import {
+  CreateStartupProfile,
+  GetStartupProfile,
+  StartupStage,
+} from "@/services/startup/startup.api";
 import { Step1 } from "@/components/startup/onboarding-steps/step-1-identity";
 import { Step2 } from "@/components/startup/onboarding-steps/step-2-pitch";
-import { Step3 } from "@/components/startup/onboarding-steps/step-3-docs";
-import { Step4 } from "@/components/startup/onboarding-steps/step-4-readiness";
-import { Step5 } from "@/components/startup/onboarding-steps/step-5-launch";
+import { Step3 } from "@/components/startup/onboarding-steps/step-3-launch";
 
 const STEPS = [
-  { id: 1, label: "Định danh", icon: Building2 },
-  { id: 2, label: "Sản phẩm", icon: Rocket },
-  { id: 3, label: "Tài liệu", icon: FileText },
-  { id: 4, label: "Độ sẵn sàng", icon: PieChart },
-  { id: 5, label: "Khởi động", icon: Star },
+  { id: 1, label: "Định danh",  icon: Building2,    hint: "Tên, ngành, giai đoạn" },
+  { id: 2, label: "Câu chuyện", icon: MessageSquare, hint: "Vấn đề & giải pháp" },
+  { id: 3, label: "Hoàn tất",   icon: Rocket,        hint: "Bắt đầu hành trình" },
 ];
 
 export default function OnboardingPage() {
@@ -41,62 +31,52 @@ export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [showSkipDialog, setShowSkipDialog] = useState(false);
-  
-  const handleSkip = () => {
-    localStorage.setItem("aisep_startup_onboarding_skipped", "true");
-    toast.info("Đã bỏ qua quy trình Onboarding.");
-    router.replace("/startup");
-  };
 
-  useEffect(() => {
-    const skipped = localStorage.getItem("aisep_startup_onboarding_skipped") === "true";
-    const completed = localStorage.getItem("aisep_startup_onboarding_completed") === "true";
-    
-    if (skipped || completed) {
-      router.replace("/startup");
-    }
-  }, [router]);
-
-  // Mark as completed when reaching Step 5
-  useEffect(() => {
-    if (currentStep === 5) {
-      localStorage.setItem("aisep_startup_onboarding_completed", "true");
-    }
-  }, [currentStep]);
-
-  // Data State
   const [formData, setFormData] = useState({
     startupName: "",
-    industry: "",
+    oneLiner: "",
+    industryID: "",
     stage: "",
-    legalType: "WITH_LEGAL_ENTITY",
     problem: "",
     solution: "",
     targetAudience: "",
-    pitchDeck: null as File | null,
-    websiteUrl: "",
-    productLink: "",
-    completenessScore: 0
   });
 
-  const nextStep = () => {
-    if (currentStep < 5) {
-      setCurrentStep(prev => prev + 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  useEffect(() => {
+    GetStartupProfile()
+      .then(res => {
+        const data = res as unknown as IBackendRes<any>;
+        if ((data.success || data.isSuccess) && data.data) {
+          router.replace("/startup");
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleSkip = () => {
+    localStorage.setItem("aisep_startup_onboarding_skipped", "true");
+    toast.info("Đã bỏ qua. Bạn có thể hoàn thiện hồ sơ sau.");
+    router.replace("/startup");
   };
 
-  const prevStep = () => {
-    if (currentStep > 1) {
-      setCurrentStep(prev => prev - 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+  const goNext = () => {
+    setCurrentStep(s => Math.min(s + 1, 3));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const goPrev = () => {
+    setCurrentStep(s => Math.max(s - 1, 1));
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const completeness = useMemo(() => {
     const checks = [
       Boolean(formData.startupName.trim()),
-      Boolean(formData.industry),
+      Boolean(formData.industryID),
       Boolean(formData.stage),
       Boolean(formData.problem.trim()),
       Boolean(formData.solution.trim()),
@@ -105,133 +85,184 @@ export default function OnboardingPage() {
     return Math.round((checks.filter(Boolean).length / checks.length) * 100);
   }, [formData]);
 
+  const handleComplete = async () => {
+    setLoading(true);
+    try {
+      const payload = {
+        companyName:      formData.startupName,
+        oneLiner:         formData.oneLiner || formData.startupName,
+        stage:            (parseInt(formData.stage) || 0) as StartupStage,
+        industryID:       formData.industryID ? parseInt(formData.industryID) : undefined,
+        problemStatement: formData.problem || undefined,
+        solutionSummary:  formData.solution || undefined,
+        marketScope:      formData.targetAudience || undefined,
+      };
+      const res = await CreateStartupProfile(payload) as unknown as IBackendRes<string>;
+      if (res.success || res.isSuccess) {
+        setCurrentStep(3);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        toast.error(res.message || "Lưu hồ sơ thất bại. Vui lòng thử lại.");
+      }
+    } catch (err: any) {
+      if (err?.response?.status === 409) {
+        setCurrentStep(3);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        const msg = err?.response?.data?.message || err?.message || "Lỗi kết nối.";
+        toast.error(typeof msg === "string" ? msg : "Lỗi kết nối.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const progress = ((currentStep - 1) / (STEPS.length - 1)) * 100;
+
   return (
-    <div className="min-h-screen bg-[#f8f8f6] flex flex-col items-center py-12 md:py-20 px-4" style={{ fontFamily: "var(--font-be-vietnam-pro), sans-serif" }}>
-      {/* 1. TOP BADGE */}
-      <div className="mb-8 animate-in fade-in slide-in-from-top-4 duration-700">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-100 shadow-sm">
+    <div
+      className="min-h-screen flex flex-col items-center py-12 md:py-20 px-4"
+      style={{ fontFamily: "var(--font-be-vietnam-pro), sans-serif" }}
+    >
+      {/* ── BADGE ── */}
+      <div className="mb-10 animate-in fade-in slide-in-from-top-4 duration-600">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-slate-100 shadow-sm">
           <div className="size-5 rounded-full bg-[#fdf8e6] flex items-center justify-center">
             <Sparkles className="w-3 h-3 text-[#eec54e]" />
           </div>
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Thiết lập Startup Profile</span>
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+            Thiết lập Startup Profile
+          </span>
         </div>
       </div>
 
-      {/* 2. MAIN TITLES */}
-      <div className="text-center mb-10 space-y-3 max-w-2xl animate-in fade-in slide-in-from-top-6 duration-700 delay-100">
-        <h1 className="text-[32px] md:text-[40px] font-black text-slate-900 tracking-tighter leading-tight">
-          Bắt đầu hành trình trên AISEP
+      {/* ── HEADING ── */}
+      <div className="text-center mb-12 space-y-2 max-w-lg animate-in fade-in slide-in-from-top-6 duration-600 delay-100">
+        <h1 className="text-[32px] md:text-[38px] font-black text-slate-900 tracking-tighter leading-tight">
+          Chào mừng đến AISEP 👋
         </h1>
-        <p className="text-[14px] md:text-[16px] text-slate-500 font-medium leading-relaxed">
-          Chia sẻ thông tin về Startup của bạn để nhận được đánh giá AI và kết nối với các Cố vấn phù hợp nhất.
+        <p className="text-[14px] text-slate-500 leading-relaxed">
+          Chỉ <span className="font-semibold text-slate-700">2 bước nhanh</span> để tạo hồ sơ Startup.
+          Bạn có thể bổ sung chi tiết sau bất kỳ lúc nào.
         </p>
       </div>
 
-      {/* 3. STEPPER & PROGRESS */}
-      <div className="w-full max-w-[640px] mb-12 space-y-6 animate-in fade-in duration-1000 delay-200">
-        <div className="flex items-center justify-between relative px-2">
-           {STEPS.map((step, idx) => {
-             const Icon = step.icon;
-             const isCompleted = currentStep > step.id;
-             const isActive = currentStep === step.id;
-             
-             return (
-                <div key={step.id} className="flex flex-col items-center gap-3 relative z-10">
-                  <div className={cn(
-                    "size-9 rounded-full flex items-center justify-center border-2 transition-all duration-500",
-                    isCompleted ? "bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-100" :
-                    isActive ? "bg-white border-[#eec54e] shadow-xl shadow-[#eec54e]/20 scale-110" :
-                    "bg-white border-slate-100 text-slate-200"
-                  )}>
-                     {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : <Icon className={cn("w-4 h-4", isActive ? "text-[#eec54e]" : "")} />}
-                  </div>
-                  {isActive && (
-                    <span className="absolute -bottom-6 text-[10px] font-black text-slate-900 uppercase tracking-wider whitespace-nowrap">
-                      {step.label}
-                    </span>
-                  )}
+      {/* ── STEPPER ── */}
+      <div className="w-full max-w-[520px] mb-10 animate-in fade-in duration-700 delay-150">
+        {/* Step counter */}
+        <div className="flex items-center justify-between mb-4 px-1">
+          <span className="text-[12px] font-bold text-slate-500">
+            Bước <span className="text-slate-900">{Math.min(currentStep, 2)}</span> / 2
+          </span>
+          {currentStep < 3 && (
+            <span className="text-[12px] text-slate-400">{completeness}% hoàn thiện</span>
+          )}
+        </div>
+
+        {/* Step dots + line */}
+        <div className="relative flex items-center justify-between px-4">
+          {STEPS.map((step) => {
+            const Icon = step.icon;
+            const done   = currentStep > step.id;
+            const active = currentStep === step.id;
+            return (
+              <div key={step.id} className="flex flex-col items-center gap-2 relative z-10">
+                <div className={cn(
+                  "size-10 rounded-full flex items-center justify-center border-2 transition-all duration-400",
+                  done   ? "bg-emerald-500 border-emerald-500 text-white shadow-md shadow-emerald-100" :
+                  active ? "bg-white border-[#eec54e] shadow-lg shadow-[#eec54e]/20 scale-110" :
+                           "bg-white border-slate-200 text-slate-300"
+                )}>
+                  {done
+                    ? <CheckCircle2 className="w-5 h-5" />
+                    : <Icon className={cn("w-4 h-4", active ? "text-[#eec54e]" : "")} />
+                  }
                 </div>
-             );
-           })}
-           {/* Connecting Line Background */}
-           <div className="absolute top-[18px] left-0 w-full h-[2px] bg-slate-100 -z-0" />
-           {/* Active Progress Line */}
-           <div 
-            className="absolute top-[18px] left-0 h-[2px] bg-[#eec54e] -z-0 transition-all duration-700" 
-            style={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }}
-           />
-        </div>
-
-        {/* Completeness Bar */}
-        <div className="pt-4 space-y-2">
-           <div className="flex justify-between items-end">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Độ hoàn thiện hồ sơ</span>
-              <span className="text-[13px] font-black text-slate-900">{completeness}%</span>
-           </div>
-           <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-[#eec54e] to-amber-400 transition-all duration-1000 ease-out"
-                style={{ width: `${completeness}%` }}
-              />
-           </div>
+                <div className="text-center">
+                  <p className={cn(
+                    "text-[11px] font-bold uppercase tracking-wide transition-colors",
+                    active ? "text-slate-900" : done ? "text-emerald-600" : "text-slate-400"
+                  )}>{step.label}</p>
+                  <p className={cn(
+                    "text-[10px] transition-colors hidden sm:block",
+                    active ? "text-slate-500" : "text-slate-300"
+                  )}>{step.hint}</p>
+                </div>
+              </div>
+            );
+          })}
+          {/* Background line */}
+          <div className="absolute top-5 left-4 right-4 h-[2px] bg-slate-100" />
+          {/* Active line */}
+          <div
+            className="absolute top-5 left-4 h-[2px] bg-[#eec54e] transition-all duration-700 ease-out"
+            style={{ width: `calc(${progress}% - 8px)` }}
+          />
         </div>
       </div>
 
-      {/* 4. MAIN CARD */}
-      <div className="w-full max-w-[640px] bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-slate-100/80 overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300">
-        <div className="p-8 md:p-12">
-           {currentStep === 1 && <Step1 data={formData} update={setFormData} onNext={nextStep} onSkip={() => setShowSkipDialog(true)} />}
-           {currentStep === 2 && <Step2 data={formData} update={setFormData} onNext={nextStep} onPrev={prevStep} />}
-           {currentStep === 3 && <Step3 data={formData} update={setFormData} onNext={nextStep} onPrev={prevStep} />}
-           {currentStep === 4 && <Step4 data={formData} onNext={nextStep} onPrev={prevStep} />}
-           {currentStep === 5 && <Step5 />}
+      {/* ── MAIN CARD ── */}
+      <div className="w-full max-w-[560px] bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_24px_rgba(0,0,0,0.06)] overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-600 delay-200">
+        <div className="p-8 md:p-10">
+          {currentStep === 1 && (
+            <Step1
+              data={formData}
+              update={setFormData}
+              onNext={goNext}
+              onSkip={() => setShowSkipDialog(true)}
+            />
+          )}
+          {currentStep === 2 && (
+            <Step2
+              data={formData}
+              update={setFormData}
+              onNext={handleComplete}
+              onPrev={goPrev}
+              loading={loading}
+            />
+          )}
+          {currentStep === 3 && (
+            <Step3 completeness={completeness} />
+          )}
         </div>
       </div>
 
-      {/* Footer Meta */}
-      <div className="mt-12 flex items-center gap-8 animate-in fade-in duration-1000 delay-500">
-         <div className="flex items-center gap-2 text-slate-400">
-            <div className="size-1.5 rounded-full bg-emerald-500" />
-            <span className="text-[11px] font-bold uppercase tracking-widest">Dữ liệu được bảo mật</span>
-         </div>
-         <div className="flex items-center gap-2 text-slate-400">
-            <div className="size-1.5 rounded-full bg-[#f0f042]" />
-            <span className="text-[11px] font-bold uppercase tracking-widest">AI SEP Pipeline 2.0</span>
-         </div>
-      </div>
+      {/* ── FOOTER META ── */}
+      {currentStep < 3 && (
+        <p className="mt-8 text-[11px] text-slate-400 animate-in fade-in duration-700 delay-300">
+          🔒 Thông tin của bạn được bảo mật và không chia sẻ cho bên thứ ba.
+        </p>
+      )}
 
-      {/* Skip Confirmation Dialog */}
+      {/* ── SKIP DIALOG ── */}
       <Dialog open={showSkipDialog} onOpenChange={setShowSkipDialog}>
-         <DialogContent className="sm:max-w-[440px] rounded-[32px] p-0 overflow-hidden border-none shadow-2xl bg-white">
-            <div className="p-8 space-y-6">
-               <div className="size-16 rounded-[24px] bg-amber-50 flex items-center justify-center border border-amber-100 mx-auto">
-                  <AlertTriangle className="w-8 h-8 text-amber-500" />
-               </div>
-               
-               <div className="text-center space-y-2">
-                  <DialogTitle className="text-[18px] font-bold text-slate-900">Tiếp tục sau?</DialogTitle>
-                  <DialogDescription className="text-[13px] text-slate-500 leading-relaxed px-4">
-                     Bạn có thể truy cập Workspace ngay. Tuy nhiên, đừng quên hoàn thiện Onboarding để AI của chúng tôi có thể đánh giá độ sẵn sàng của Startup tốt nhất!
-                     <span className="block font-bold mt-2 text-slate-900 text-[12px]">Lưu ý: Bạn sẽ không thấy lại hướng dẫn này sau khi bỏ qua.</span>
-                  </DialogDescription>
-               </div>
-
-               <div className="grid grid-cols-2 gap-3 pt-2">
-                  <button 
-                    onClick={() => setShowSkipDialog(false)}
-                    className="py-3 rounded-xl font-bold text-[13px] bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all active:scale-95"
-                  >
-                     Tiếp tục làm
-                  </button>
-                  <button 
-                    onClick={handleSkip}
-                    className="py-3 rounded-xl font-bold text-[13px] bg-amber-500 text-white hover:bg-amber-600 hover:shadow-lg hover:shadow-amber-200 transition-all active:scale-95"
-                  >
-                     Đồng ý, bỏ qua
-                  </button>
-               </div>
+        <DialogContent className="sm:max-w-[420px] rounded-2xl p-0 overflow-hidden border-none shadow-2xl bg-white">
+          <div className="p-8 space-y-5">
+            <div className="size-14 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-7 h-7 text-amber-500" />
             </div>
-         </DialogContent>
+            <div className="text-center space-y-1.5">
+              <DialogTitle className="text-[17px] font-bold text-slate-900">Bỏ qua lúc này?</DialogTitle>
+              <DialogDescription className="text-[13px] text-slate-500 leading-relaxed px-2">
+                Không sao cả! Bạn vẫn có thể vào Workspace và hoàn thiện hồ sơ sau tại trang <span className="font-semibold text-slate-700">Startup Profile</span>.
+              </DialogDescription>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                onClick={() => setShowSkipDialog(false)}
+                className="inline-flex items-center justify-center h-11 rounded-xl font-semibold text-[13px] bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+              >
+                Tiếp tục điền
+              </button>
+              <button
+                onClick={handleSkip}
+                className="inline-flex items-center justify-center h-11 rounded-xl font-semibold text-[13px] bg-amber-500 text-white hover:bg-amber-600 transition-colors shadow-sm"
+              >
+                Bỏ qua
+              </button>
+            </div>
+          </div>
+        </DialogContent>
       </Dialog>
     </div>
   );

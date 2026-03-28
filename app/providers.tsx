@@ -7,7 +7,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
       {children}
-      <Toaster richColors position="top-right" />
+      <Toaster richColors position="top-right" offset={{ top: 80 }} />
     </AuthProvider>
   );
 }

@@ -32,6 +32,12 @@ function getAvatarColor(name: string) {
 
 // ─── Shared input class ───────────────────────────────────────────────────────
 const INPUT_CLS = "w-full px-3 py-2.5 rounded-xl border border-slate-200 text-[13px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20 focus:border-[#eec54e] transition-all bg-white";
+const INPUT_ERR_CLS = "w-full px-3 py-2.5 rounded-xl border border-red-300 text-[13px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 transition-all bg-white";
+
+function FieldError({ message }: { message?: string }) {
+    if (!message) return null;
+    return <p className="mt-1 text-[11px] text-red-500 flex items-center gap-1">⚠ {message}</p>;
+}
 
 // ─── Field label ──────────────────────────────────────────────────────────────
 function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
@@ -53,7 +59,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function StartupTeamPage() {
-    const [members, setMembers] = useState<any[]>([]);
+    const [members, setMembers] = useState<ITeamMember[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -70,6 +76,7 @@ export default function StartupTeamPage() {
     const [photoFile, setPhotoFile] = useState<File | null>(null);
     const [existingPhotoURL, setExistingPhotoURL] = useState<string>("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [errors, setErrors] = useState<Record<string, string>>({});
 
     const [deleteTarget, setDeleteTarget] = useState<ITeamMember | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -93,6 +100,27 @@ export default function StartupTeamPage() {
         setBio(""); setYearsOfExperience(""); setIsFounder(false);
         setPhotoFile(null); setExistingPhotoURL("");
         setIsEditing(false); setCurrentMemberId(null);
+        setErrors({});
+    };
+
+    const validate = () => {
+        const errs: Record<string, string> = {};
+        if (!isEditing && !photoFile) errs.photo = "Vui lòng tải ảnh đại diện lên.";
+        if (!fullName.trim()) errs.fullName = "Họ & Tên không được để trống.";
+        if (!title.trim()) errs.title = "Chức danh không được để trống.";
+        if (!role.trim()) errs.role = "Hình thức tham gia không được để trống.";
+        if (yearsOfExperience === "" || yearsOfExperience === null) {
+            errs.yearsOfExperience = "Vui lòng nhập số năm kinh nghiệm.";
+        } else if (isNaN(Number(yearsOfExperience)) || Number(yearsOfExperience) < 0) {
+            errs.yearsOfExperience = "Số năm kinh nghiệm phải là số không âm.";
+        } else if (Number(yearsOfExperience) > 60) {
+            errs.yearsOfExperience = "Số năm kinh nghiệm không được vượt quá 60.";
+        }
+        if (!bio.trim()) errs.bio = "Tiểu sử ngắn không được để trống.";
+        if (linkedInURL && !/^https?:\/\/.+/.test(linkedInURL)) {
+            errs.linkedInURL = "LinkedIn URL không hợp lệ (phải bắt đầu bằng https://).";
+        }
+        return errs;
     };
 
     const openAdd = () => { resetForm(); setIsDialogOpen(true); };
@@ -123,6 +151,12 @@ export default function StartupTeamPage() {
 
     const onSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        const errs = validate();
+        if (Object.keys(errs).length > 0) {
+            setErrors(errs);
+            return;
+        }
+        setErrors({});
         setIsSubmitting(true);
         try {
             if (isEditing && currentMemberId) {
@@ -134,10 +168,9 @@ export default function StartupTeamPage() {
                 await UpdateMember(currentMemberId, payload);
                 toast.success("Đã cập nhật thông tin thành viên.");
             } else {
-                if (!photoFile) { toast.error("Vui lòng chọn ảnh đại diện."); setIsSubmitting(false); return; }
                 const payload: IAddMemberRequest = {
                     fullName, role, title, linkedInURL, bio,
-                    photoURL: photoFile, isFounder,
+                    photoURL: photoFile!, isFounder,
                     yearsOfExperience: parseInt(yearsOfExperience) || 0,
                 };
                 await AddMember(payload);
@@ -253,7 +286,7 @@ export default function StartupTeamPage() {
                             <div className="px-6 py-5 space-y-5">
 
                                 {/* Photo upload */}
-                                <div className="flex items-center gap-5 px-4 py-4 rounded-xl bg-slate-50 border border-slate-100">
+                                <div className={`flex items-center gap-5 px-4 py-4 rounded-xl bg-slate-50 border ${errors.photo ? "border-red-300" : "border-slate-100"}`}>
                                     <div className="relative shrink-0">
                                         {previewURL ? (
                                             <div className="relative w-16 h-16">
@@ -283,11 +316,27 @@ export default function StartupTeamPage() {
                                             <input
                                                 id="photo-upload"
                                                 type="file"
-                                                accept="image/*"
+                                                accept=".png,.jpg,.jpeg"
                                                 className="sr-only"
-                                                onChange={e => { if (e.target.files?.[0]) setPhotoFile(e.target.files[0]); }}
+                                                onChange={e => {
+                                                    const file = e.target.files?.[0];
+                                                    e.target.value = "";
+                                                    if (!file) return;
+                                                    const allowed = ["image/png", "image/jpeg"];
+                                                    if (!allowed.includes(file.type)) {
+                                                        setErrors(prev => ({ ...prev, photo: "Chỉ chấp nhận file PNG hoặc JPG." }));
+                                                        return;
+                                                    }
+                                                    if (file.size > 5 * 1024 * 1024) {
+                                                        setErrors(prev => ({ ...prev, photo: "Ảnh vượt quá 5 MB, vui lòng chọn ảnh nhỏ hơn." }));
+                                                        return;
+                                                    }
+                                                    setPhotoFile(file);
+                                                    setErrors(prev => { const n = { ...prev }; delete n.photo; return n; });
+                                                }}
                                             />
                                         </label>
+                                        <FieldError message={errors.photo} />
                                     </div>
                                 </div>
 
@@ -298,34 +347,34 @@ export default function StartupTeamPage() {
                                     <div>
                                         <FieldLabel required>Họ & Tên</FieldLabel>
                                         <input
-                                            className={INPUT_CLS}
+                                            className={errors.fullName ? INPUT_ERR_CLS : INPUT_CLS}
                                             value={fullName}
-                                            onChange={e => setFullName(e.target.value)}
-                                            required
+                                            onChange={e => { setFullName(e.target.value); setErrors(prev => { const n = { ...prev }; delete n.fullName; return n; }); }}
                                             placeholder="Nguyễn Văn A"
                                         />
+                                        <FieldError message={errors.fullName} />
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <FieldLabel required>Chức danh</FieldLabel>
                                             <input
-                                                className={INPUT_CLS}
+                                                className={errors.title ? INPUT_ERR_CLS : INPUT_CLS}
                                                 value={title}
-                                                onChange={e => setTitle(e.target.value)}
-                                                required
+                                                onChange={e => { setTitle(e.target.value); setErrors(prev => { const n = { ...prev }; delete n.title; return n; }); }}
                                                 placeholder="CEO & Co-founder"
                                             />
+                                            <FieldError message={errors.title} />
                                         </div>
                                         <div>
                                             <FieldLabel required>Hình thức tham gia</FieldLabel>
                                             <input
-                                                className={INPUT_CLS}
+                                                className={errors.role ? INPUT_ERR_CLS : INPUT_CLS}
                                                 value={role}
-                                                onChange={e => setRole(e.target.value)}
-                                                required
+                                                onChange={e => { setRole(e.target.value); setErrors(prev => { const n = { ...prev }; delete n.role; return n; }); }}
                                                 placeholder="Full-time / Part-time"
                                             />
+                                            <FieldError message={errors.role} />
                                         </div>
                                     </div>
 
@@ -334,12 +383,12 @@ export default function StartupTeamPage() {
                                         <input
                                             type="number"
                                             min="0"
-                                            className={INPUT_CLS}
+                                            className={errors.yearsOfExperience ? INPUT_ERR_CLS : INPUT_CLS}
                                             value={yearsOfExperience}
-                                            onChange={e => setYearsOfExperience(e.target.value)}
-                                            required
+                                            onChange={e => { setYearsOfExperience(e.target.value); setErrors(prev => { const n = { ...prev }; delete n.yearsOfExperience; return n; }); }}
                                             placeholder="5"
                                         />
+                                        <FieldError message={errors.yearsOfExperience} />
                                     </div>
                                 </div>
 
@@ -350,12 +399,12 @@ export default function StartupTeamPage() {
                                         <FieldLabel required>Tiểu sử ngắn</FieldLabel>
                                         <textarea
                                             rows={3}
-                                            className={INPUT_CLS + " resize-none"}
+                                            className={(errors.bio ? INPUT_ERR_CLS : INPUT_CLS) + " resize-none"}
                                             value={bio}
-                                            onChange={e => setBio(e.target.value)}
-                                            required
+                                            onChange={e => { setBio(e.target.value); setErrors(prev => { const n = { ...prev }; delete n.bio; return n; }); }}
                                             placeholder="Giới thiệu nhanh về kinh nghiệm, thành tựu nổi bật của thành viên này..."
                                         />
+                                        <FieldError message={errors.bio} />
                                     </div>
                                 </div>
 
@@ -366,12 +415,13 @@ export default function StartupTeamPage() {
                                     <div>
                                         <FieldLabel>LinkedIn URL</FieldLabel>
                                         <input
-                                            type="url"
-                                            className={INPUT_CLS}
+                                            type="text"
+                                            className={errors.linkedInURL ? INPUT_ERR_CLS : INPUT_CLS}
                                             value={linkedInURL}
-                                            onChange={e => setLinkedInURL(e.target.value)}
+                                            onChange={e => { setLinkedInURL(e.target.value); setErrors(prev => { const n = { ...prev }; delete n.linkedInURL; return n; }); }}
                                             placeholder="https://linkedin.com/in/..."
                                         />
+                                        <FieldError message={errors.linkedInURL} />
                                     </div>
 
                                     <label className="flex items-start gap-3 px-4 py-3.5 rounded-xl border border-slate-100 bg-slate-50/60 cursor-pointer hover:bg-slate-50 transition-colors">

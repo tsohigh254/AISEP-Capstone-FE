@@ -1,138 +1,179 @@
 "use client";
 
-import { Building2, Layers, Briefcase, ArrowRight, Globe, TrendingUp } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Building2, ArrowRight, Globe, TrendingUp, ChevronDown, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
+import { StartupStage } from "@/services/startup/startup.api";
 
-const labelCls = "block text-[13px] font-semibold text-slate-700 mb-1.5";
-const inputCls = "w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text-[13px] text-slate-700 placeholder:text-slate-300 outline-none transition-all bg-white focus:border-[#eec54e] focus:ring-2 focus:ring-[#eec54e]/20 shadow-sm";
+const labelCls = "block text-[12px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5";
+const inputCls = "w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text-[13px] text-slate-800 placeholder:text-slate-300 outline-none transition-all bg-white focus:border-[#eec54e] focus:ring-2 focus:ring-[#eec54e]/20 shadow-sm";
+
+export interface OnboardFormData {
+  startupName: string;
+  oneLiner: string;
+  industryID: string;
+  stage: string;
+  problem: string;
+  solution: string;
+  targetAudience: string;
+}
 
 interface Step1Props {
-  data: any;
-  update: (data: any) => void;
+  data: OnboardFormData;
+  update: (data: OnboardFormData) => void;
   onNext: () => void;
   onSkip?: () => void;
 }
 
 export function Step1({ data, update, onNext, onSkip }: Step1Props) {
-  const isFormValid = data.startupName && data.industry && data.stage;
+  const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
+
+  useEffect(() => {
+    GetIndustriesFlat()
+      .then(all => setIndustries(all.filter(i => !i.parentIndustryID)))
+      .catch(() => {});
+  }, []);
+
+  const isValid = data.startupName.trim() && data.industryID && data.stage;
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-      <div className="space-y-2">
-         <h2 className="text-[28px] font-bold text-slate-900 tracking-tight leading-tight">Thương hiệu & Định danh</h2>
-         <p className="text-[14px] text-slate-500 leading-relaxed">Chúng tôi cần những thông tin cơ bản này để cá nhân hóa lộ trình tăng trưởng của bạn.</p>
+    <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-400">
+
+      {/* Header */}
+      <div className="space-y-1.5">
+        <p className="text-[11px] font-bold text-[#eec54e] uppercase tracking-widest">Bước 1 / 2</p>
+        <h2 className="text-[26px] font-black text-slate-900 tracking-tight leading-tight">
+          Startup của bạn là gì?
+        </h2>
+        <p className="text-[13px] text-slate-500 leading-relaxed">
+          Chỉ cần 3 thông tin cơ bản — bạn có thể bổ sung chi tiết sau.
+        </p>
       </div>
 
-      <div className="space-y-6">
-        {/* Startup Name */}
+      {/* Fields */}
+      <div className="space-y-5">
+
+        {/* Name */}
         <div className="space-y-1.5">
-           <label className={labelCls}>Tên Startup / Doanh nghiệp <span className="text-red-400">*</span></label>
-           <div className="relative group">
-              <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-[#eec54e] transition-colors" />
-              <input 
-                className={inputCls} 
-                value={data.startupName}
-                onChange={e => update({ ...data, startupName: e.target.value })}
-                placeholder="Vd: AISEP Việt Nam, GreenTech Global..." 
-              />
-           </div>
+          <label className={labelCls}>
+            Tên Startup <span className="text-red-400 normal-case">*</span>
+          </label>
+          <div className="relative group">
+            <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-[#eec54e] transition-colors" />
+            <input
+              className={inputCls}
+              value={data.startupName}
+              onChange={e => update({ ...data, startupName: e.target.value })}
+              placeholder="Vd: AISEP Việt Nam, GreenTech..."
+              autoFocus
+            />
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-           {/* Industry */}
-           <div className="space-y-1.5">
-              <label className={labelCls}>Lĩnh vực hoạt động <span className="text-red-400">*</span></label>
-              <div className="relative group">
-                <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-[#eec54e] transition-colors z-10" />
-                <select 
-                  className={cn(inputCls, "appearance-none cursor-pointer")}
-                  value={data.industry}
-                  onChange={e => update({ ...data, industry: e.target.value })}
-                >
-                  <option value="" disabled>Chọn lĩnh vực</option>
-                  <option value="Fintech">Fintech</option>
-                  <option value="Edtech">Edtech</option>
-                  <option value="Healthtech">Healthtech</option>
-                  <option value="E-commerce">E-commerce</option>
-                  <option value="AI / Machine Learning">AI / Machine Learning</option>
-                  <option value="Agitech">Agitech</option>
-                  <option value="SaaS">SaaS</option>
-                  <option value="Khác">Khác</option>
-                </select>
-              </div>
-           </div>
-
-           {/* Stage */}
-           <div className="space-y-1.5">
-              <label className={labelCls}>Giai đoạn phát triển <span className="text-red-400">*</span></label>
-              <div className="relative group">
-                <TrendingUp className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-[#eec54e] transition-colors z-10" />
-                <select 
-                  className={cn(inputCls, "appearance-none cursor-pointer")}
-                  value={data.stage}
-                  onChange={e => update({ ...data, stage: e.target.value })}
-                >
-                  <option value="" disabled>Chọn giai đoạn</option>
-                  <option value="Idea">Ý tưởng (Idea)</option>
-                  <option value="MVP">Sản phẩm thử nghiệm (MVP)</option>
-                  <option value="Pre-seed">Tiền hạt giống (Pre-seed)</option>
-                  <option value="Seed">Hạt giống (Seed)</option>
-                  <option value="Series A+">Series A trở lên</option>
-                </select>
-              </div>
-           </div>
+        {/* One-liner / Tagline */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className={labelCls}>Khẩu hiệu / Tagline</label>
+            <span className="text-[11px] font-semibold tabular-nums text-slate-400">
+              {data.oneLiner.length}/100
+            </span>
+          </div>
+          <div className="relative group">
+            <Sparkles className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-[#eec54e] transition-colors" />
+            <input
+              className={inputCls}
+              value={data.oneLiner}
+              onChange={e => update({ ...data, oneLiner: e.target.value.slice(0, 100) })}
+              placeholder="Mô tả startup trong một câu ngắn gọn..."
+            />
+          </div>
         </div>
 
-        {/* Legal Type Toggle */}
-        <div className="space-y-3">
-           <label className={labelCls}>Mô hình vận hành</label>
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {[
-                { id: "WITH_LEGAL_ENTITY", label: "Có pháp nhân", desc: "Doanh nghiệp đã ĐKKD" },
-                { id: "WITHOUT_LEGAL_ENTITY", label: "Chưa có pháp nhân", desc: "Nhóm sáng lập / Freelance" }
-              ].map(item => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => update({ ...data, legalType: item.id })}
-                  className={cn(
-                    "p-4 rounded-xl border text-left transition-all",
-                    data.legalType === item.id 
-                      ? "border-[#eec54e] bg-[#fdf8e6] text-slate-800 ring-2 ring-[#eec54e]/10 shadow-sm" 
-                      : "border-slate-100 hover:border-slate-200 bg-white"
-                  )}
-                >
-                  <p className="text-[13px] font-bold text-slate-900">{item.label}</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">{item.desc}</p>
-                </button>
-              ))}
-           </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Industry */}
+          <div className="space-y-1.5">
+            <label className={labelCls}>
+              Lĩnh vực <span className="text-red-400 normal-case">*</span>
+            </label>
+            <div className="relative group">
+              <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-[#eec54e] transition-colors z-10 pointer-events-none" />
+              <select
+                className={cn(inputCls, "appearance-none cursor-pointer pr-9")}
+                value={data.industryID || ""}
+                onChange={e => update({ ...data, industryID: e.target.value })}
+              >
+                <option value="" disabled>
+                  {industries.length === 0 ? "Đang tải..." : "Chọn lĩnh vực"}
+                </option>
+                {industries.map(ind => (
+                  <option key={ind.industryID} value={ind.industryID}>
+                    {ind.industryName}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Stage */}
+          <div className="space-y-1.5">
+            <label className={labelCls}>
+              Giai đoạn <span className="text-red-400 normal-case">*</span>
+            </label>
+            <div className="relative group">
+              <TrendingUp className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-[#eec54e] transition-colors z-10 pointer-events-none" />
+              <select
+                className={cn(inputCls, "appearance-none cursor-pointer pr-9")}
+                value={data.stage}
+                onChange={e => update({ ...data, stage: e.target.value })}
+              >
+                <option value="" disabled>Chọn giai đoạn</option>
+                <option value={StartupStage.Idea.toString()}>Ý tưởng (Idea)</option>
+                <option value={StartupStage.PreSeed.toString()}>Tiền ươm mầm (Pre-Seed)</option>
+                <option value={StartupStage.Seed.toString()}>Ươm mầm (Seed)</option>
+                <option value={StartupStage.SeriesA.toString()}>Series A</option>
+                <option value={StartupStage.SeriesB.toString()}>Series B</option>
+                <option value={StartupStage.SeriesC.toString()}>Series C+</option>
+                <option value={StartupStage.Growth.toString()}>Tăng trưởng (Growth)</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
+          </div>
         </div>
+      </div>
+
+      {/* Tip */}
+      <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-slate-50 border border-slate-100">
+        <span className="text-[16px] mt-0.5">💡</span>
+        <p className="text-[12px] text-slate-500 leading-relaxed">
+          Không chắc chọn gì? Cứ chọn gần đúng nhất — bạn có thể chỉnh lại sau trong trang hồ sơ.
+        </p>
       </div>
 
       {/* Actions */}
-      <div className="flex justify-between items-center pt-6 border-t border-slate-50">
-         {onSkip && (
-           <button 
-             onClick={onSkip}
-             className="text-[13px] text-slate-400 hover:text-slate-600 font-medium transition-colors"
-           >
-              Bỏ qua lúc này
-           </button>
-         )}
-         <button 
+      <div className="flex items-center justify-between pt-2 border-t border-slate-50">
+        {onSkip ? (
+          <button
+            onClick={onSkip}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-slate-500 text-[13px] font-medium hover:bg-slate-50 transition-colors"
+          >
+            Bỏ qua
+          </button>
+        ) : <div />}
+        <button
           onClick={onNext}
-          disabled={!isFormValid}
+          disabled={!isValid}
           className={cn(
-            "px-8 h-12 rounded-xl font-bold text-[13px] transition-all flex items-center justify-center gap-2 group shadow-sm",
-            isFormValid 
-              ? "bg-[#0f172a] text-white hover:bg-[#1e293b]" 
+            "inline-flex items-center gap-1.5 px-6 h-11 rounded-xl font-semibold text-[13px] transition-all shadow-sm",
+            isValid
+              ? "bg-[#0f172a] text-white hover:bg-[#1e293b]"
               : "bg-slate-100 text-slate-400 cursor-not-allowed"
           )}
-         >
-            Tiếp tục
-            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-         </button>
+        >
+          Tiếp tục
+          <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

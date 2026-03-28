@@ -1,23 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import { KycSubmitForm } from "@/components/startup/kyc-submit-form";
-import { getMockKycStatus, StartupKycCase } from "@/services/startup/startup-kyc.mock";
+import { GetStartupKYCStatus, StartupKycCase } from "@/services/startup/startup-kyc.api";
 import { Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 export default function KycResubmitPage() {
-  const router = useRouter();
   const [kycCase, setKycCase] = useState<StartupKycCase | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getMockKycStatus("PENDING_MORE_INFO").then((res) => {
-      setKycCase(res);
-      setLoading(false);
-    });
+    GetStartupKYCStatus()
+      .then(res => {
+        const data = res as unknown as IBackendRes<StartupKycCase>;
+        if ((data.success || data.isSuccess) && data.data) {
+          setKycCase(data.data);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) {

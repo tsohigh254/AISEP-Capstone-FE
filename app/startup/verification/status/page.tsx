@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import { 
   ShieldCheck, 
@@ -20,7 +19,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { getMockKycStatus, StartupKycCase } from "@/services/startup/startup-kyc.mock";
+import { GetStartupKYCStatus, StartupKycCase } from "@/services/startup/startup-kyc.api";
 
 const STATUS_CFG: any = {
   UNDER_REVIEW: {
@@ -64,19 +63,20 @@ const getAvatarColor = (color: string) => {
 };
 
 function KycStatusPageInner() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const state = searchParams.get("state") || "UNDER_REVIEW";
-  
   const [kycCase, setKycCase] = useState<StartupKycCase | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getMockKycStatus(state as any).then(res => {
-      setKycCase(res);
-      setLoading(false);
-    });
-  }, [state]);
+    GetStartupKYCStatus()
+      .then(res => {
+        const data = res as unknown as IBackendRes<StartupKycCase>;
+        if ((data.success || data.isSuccess) && data.data) {
+          setKycCase(data.data);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   if (loading) {
     return (

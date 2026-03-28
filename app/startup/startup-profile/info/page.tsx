@@ -1,23 +1,119 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
-import { Building2, Camera, X } from "lucide-react";
+import { getNames } from "country-list";
+import { Building2, Camera, X, ChevronDown } from "lucide-react";
 import { useStartupProfile } from "@/context/startup-profile-context";
 import { StartupStage } from "@/services/startup/startup.api";
+import { GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
 import { cn } from "@/lib/utils";
+import { NumericFormat } from "react-number-format";
 
-const MOCK_INDUSTRIES = [
-    { id: 1, name: "AI & Technology" },
-    { id: 2, name: "Fintech" },
-    { id: 3, name: "Healthcare" },
-    { id: 4, name: "E-commerce" },
-    { id: 5, name: "EdTech" },
-    { id: 6, name: "ClimateTech" },
+const COUNTRIES = [
+    "Viet Nam",
+    ...getNames()
+        .filter(n => n !== "Viet Nam")
+        .sort((a, b) => a.localeCompare(b)),
 ];
+
 
 const inputCls = "w-full bg-slate-50 border border-slate-200/80 rounded-[14px] px-4 py-3 text-[13px] text-[#0f172a] placeholder:text-slate-400 focus:bg-white focus:ring-4 focus:ring-[#0f172a]/5 focus:border-[#0f172a]/30 outline-none transition-all shadow-[0_1px_2px_rgba(0,0,0,0.02)]";
 const labelCls = "block text-[12px] font-semibold text-slate-700 mb-1.5";
+
+// Component chọn Quốc gia (custom dropdown dùng portal để tránh overflow-hidden)
+const CountrySelect = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => {
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState("");
+    const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    const filtered = search.trim()
+        ? COUNTRIES.filter(c => c.toLowerCase().includes(search.toLowerCase()))
+        : COUNTRIES;
+
+    const handleSelect = useCallback((country: string) => {
+        onChange(country);
+        setOpen(false);
+        setSearch("");
+    }, [onChange]);
+
+    const handleOpen = () => {
+        if (!open && buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setDropdownStyle({
+                position: "fixed",
+                top: rect.bottom + 4,
+                left: rect.left,
+                width: rect.width,
+                zIndex: 9999,
+            });
+        }
+        setOpen(prev => !prev);
+    };
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (
+                buttonRef.current && !buttonRef.current.contains(e.target as Node) &&
+                dropdownRef.current && !dropdownRef.current.contains(e.target as Node)
+            ) {
+                setOpen(false);
+                setSearch("");
+            }
+        };
+        if (open) document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [open]);
+
+    return (
+        <div className="relative">
+            <button
+                ref={buttonRef}
+                type="button"
+                onClick={handleOpen}
+                className={cn(inputCls, "flex items-center justify-between text-left", !value && "text-slate-400")}
+            >
+                <span>{value || "Chọn quốc gia"}</span>
+                <ChevronDown className={cn("w-4 h-4 text-slate-400 shrink-0 transition-transform", open && "rotate-180")} />
+            </button>
+
+            {open && createPortal(
+                <div ref={dropdownRef} style={dropdownStyle} className="bg-white border border-slate-200 rounded-[14px] shadow-xl overflow-hidden">
+                    <div className="p-2 border-b border-slate-100">
+                        <input
+                            autoFocus
+                            type="text"
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            placeholder="Tìm quốc gia..."
+                            className="w-full bg-slate-50 border border-slate-200/80 rounded-[10px] px-3 py-2 text-[13px] text-[#0f172a] placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#0f172a]/10"
+                        />
+                    </div>
+                    <ul className="max-h-52 overflow-y-auto py-1">
+                        {filtered.length === 0 ? (
+                            <li className="px-4 py-2 text-[13px] text-slate-400">Không tìm thấy</li>
+                        ) : filtered.map(c => (
+                            <li
+                                key={c}
+                                onMouseDown={() => handleSelect(c)}
+                                className={cn(
+                                    "px-4 py-2 text-[13px] cursor-pointer hover:bg-slate-50 transition-colors",
+                                    value === c ? "font-semibold text-[#0f172a] bg-slate-50" : "text-slate-700"
+                                )}
+                            >
+                                {c}
+                            </li>
+                        ))}
+                    </ul>
+                </div>,
+                document.body
+            )}
+        </div>
+    );
+};
 
 // Component nhập Tags (Multi-select)
 const TagsInput = ({ value, onChange, placeholder }: { value: string[], onChange: (v: string[]) => void, placeholder?: string }) => {
@@ -61,9 +157,18 @@ const TagsInput = ({ value, onChange, placeholder }: { value: string[], onChange
 
 export default function StartupInfoPage() {
     const { form, updateForm, logoFile, setLogoFile, profileLogoURL, setProfileLogoURL, loading } = useStartupProfile();
+    const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
+    const [allIndustries, setAllIndustries] = useState<IIndustryFlat[]>([]);
     const fileRef = useRef<HTMLInputElement>(null);
     const searchParams = useSearchParams();
     const activeTab = searchParams.get("tab") || "overview";
+
+    useEffect(() => {
+        GetIndustriesFlat().then(data => {
+            setAllIndustries(data);
+            setIndustries(data.filter(i => i.parentIndustryID === null || i.parentIndustryID === undefined));
+        }).catch(() => {});
+    }, []);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const f = e.target.files?.[0];
@@ -156,9 +261,27 @@ export default function StartupInfoPage() {
                                     className={cn(inputCls, "appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5%207.5L10%2012.5L15%207.5%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[length:20px] bg-no-repeat bg-[position:right_16px_center]")}
                                 >
                                     <option value="">Chọn lĩnh vực</option>
-                                    {MOCK_INDUSTRIES.map(ind => (
-                                        <option key={ind.id} value={ind.id.toString()}>{ind.name}</option>
+                                    {industries.map(ind => (
+                                        <option key={ind.industryID} value={ind.industryID.toString()}>{ind.industryName}</option>
                                     ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className={labelCls}>Lĩnh vực phụ (Sub-Industry)</label>
+                                <select
+                                    name="subIndustry"
+                                    value={form.subIndustry || ""}
+                                    onChange={(e) => updateForm("subIndustry", e.target.value)}
+                                    disabled={!form.industryID}
+                                    className={cn(inputCls, "appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5%207.5L10%2012.5L15%207.5%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[length:20px] bg-no-repeat bg-[position:right_16px_center] disabled:opacity-50 disabled:cursor-not-allowed")}
+                                >
+                                    <option value="">{form.industryID ? "Chọn lĩnh vực phụ" : "Chọn lĩnh vực chính trước"}</option>
+                                    {allIndustries
+                                        .filter(i => i.parentIndustryID === Number(form.industryID))
+                                        .map(i => (
+                                            <option key={i.industryID} value={i.industryName}>{i.industryName}</option>
+                                        ))
+                                    }
                                 </select>
                             </div>
                             <div>
@@ -291,13 +414,15 @@ export default function StartupInfoPage() {
                             <div>
                                 <label className={labelCls}>Mục tiêu gọi vốn ($ USD)</label>
                                 <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
-                                    <input
-                                        name="targetFunding"
-                                        type="number"
-                                        min="0"
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold z-10">$</span>
+                                    <NumericFormat
+                                        thousandSeparator=","
+                                        decimalSeparator="."
+                                        decimalScale={2}
+                                        allowNegative={false}
+                                        isAllowed={({ floatValue }) => !floatValue || floatValue <= 999999999999}
                                         value={form.targetFunding || ""}
-                                        onChange={(e) => updateForm("targetFunding", e.target.value)}
+                                        onValueChange={({ value }) => updateForm("targetFunding", value)}
                                         className={cn(inputCls, "pl-8 text-[15px] font-semibold tracking-wide")}
                                         placeholder="1,000,000"
                                     />
@@ -306,13 +431,15 @@ export default function StartupInfoPage() {
                             <div>
                                 <label className={labelCls}>Đã huy động được ($ USD)</label>
                                 <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
-                                    <input
-                                        name="raisedAmount"
-                                        type="number"
-                                        min="0"
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold z-10">$</span>
+                                    <NumericFormat
+                                        thousandSeparator=","
+                                        decimalSeparator="."
+                                        decimalScale={2}
+                                        allowNegative={false}
+                                        isAllowed={({ floatValue }) => !floatValue || floatValue <= 999999999999}
                                         value={form.raisedAmount || ""}
-                                        onChange={(e) => updateForm("raisedAmount", e.target.value)}
+                                        onValueChange={({ value }) => updateForm("raisedAmount", value)}
                                         className={cn(inputCls, "pl-8 text-[15px] font-semibold tracking-wide")}
                                         placeholder="250,000"
                                     />
@@ -321,13 +448,15 @@ export default function StartupInfoPage() {
                             <div className="md:col-span-2 max-w-md">
                                 <label className={labelCls}>Định giá công ty dự kiến ($ USD)</label>
                                 <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
-                                    <input
-                                        name="valuation"
-                                        type="number"
-                                        min="0"
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold z-10">$</span>
+                                    <NumericFormat
+                                        thousandSeparator=","
+                                        decimalSeparator="."
+                                        decimalScale={2}
+                                        allowNegative={false}
+                                        isAllowed={({ floatValue }) => !floatValue || floatValue <= 999999999999}
                                         value={form.valuation || ""}
-                                        onChange={(e) => updateForm("valuation", e.target.value)}
+                                        onValueChange={({ value }) => updateForm("valuation", value)}
                                         className={cn(inputCls, "pl-8 text-[15px] font-semibold tracking-wide")}
                                         placeholder="5,000,000"
                                     />
@@ -390,18 +519,16 @@ export default function StartupInfoPage() {
                                     type="date"
                                     name="foundedDate"
                                     value={form.foundedDate || ""}
+                                    max={new Date().toISOString().split("T")[0]}
                                     onChange={(e) => updateForm("foundedDate", e.target.value)}
                                     className={inputCls}
                                 />
                             </div>
                             <div>
                                 <label className={labelCls}>Quốc gia (Country)</label>
-                                <input
-                                    name="country"
+                                <CountrySelect
                                     value={form.country || ""}
-                                    onChange={(e) => updateForm("country", e.target.value)}
-                                    className={inputCls}
-                                    placeholder="Ví dụ: Việt Nam"
+                                    onChange={(val) => updateForm("country", val)}
                                 />
                             </div>
                             <div>

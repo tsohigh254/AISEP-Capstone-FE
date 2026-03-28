@@ -16,6 +16,7 @@ export interface StartupProfileFormState {
     oneLiner: string;
     description: string;
     industryID: string;
+    subIndustry: string;
     stage: string;
     foundedDate: string;
     website: string;
@@ -41,6 +42,7 @@ const INITIAL_FORM: StartupProfileFormState = {
     oneLiner: "",
     description: "",
     industryID: "",
+    subIndustry: "",
     stage: StartupStage.Idea.toString(),
     foundedDate: "",
     website: "",
@@ -62,7 +64,7 @@ const INITIAL_FORM: StartupProfileFormState = {
 };
 
 interface StartupProfileContextType {
-    profile: any | null;
+    profile: IStartupProfile | null;
     form: StartupProfileFormState;
     logoFile: File | null;
     profileLogoURL: string;
@@ -108,7 +110,7 @@ const normalizeStage = (stage: string): StartupStage => {
 };
 
 export function StartupProfileProvider({ children }: { children: ReactNode }) {
-    const [profile, setProfile] = useState<any | null>(null);
+    const [profile, setProfile] = useState<IStartupProfile | null>(null);
     const [form, setForm] = useState<StartupProfileFormState>(INITIAL_FORM);
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const [profileLogoURL, setProfileLogoURL] = useState<string>("");
@@ -124,7 +126,6 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
         setError(null);
         try {
             const res = await GetStartupProfile() as unknown as IBackendRes<any>;
-            console.log("🔥 [GET API] Dữ liệu Backend trả về (/startups/me):", res?.data);
             if ((res.success || res.isSuccess) && res.data) {
                 const data = res.data;
                 setProfile(data);
@@ -133,6 +134,7 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                     oneLiner: data.oneLiner || "",
                     description: data.description || "",
                     industryID: data.industryID?.toString() || "",
+                    subIndustry: data.subIndustry || "",
                     stage: data.stage !== undefined ? normalizeStage(data.stage).toString() : StartupStage.Idea.toString(),
                     foundedDate: data.foundedDate ? new Date(data.foundedDate).toISOString().split("T")[0] : "",
                     website: data.website || "",
@@ -181,11 +183,26 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
         setSaveError(null);
         setSaveSuccess(false);
         try {
+            const MAX_MONEY = 999999999999;
+            const moneyError =
+                (form.targetFunding && parseFloat(form.targetFunding) > MAX_MONEY)
+                    ? "Mục tiêu gọi vốn vượt quá giới hạn cho phép ($999,999,999,999)."
+                : (form.raisedAmount && parseFloat(form.raisedAmount) > MAX_MONEY)
+                    ? "Số tiền đã huy động vượt quá giới hạn cho phép ($999,999,999,999)."
+                : (form.valuation && parseFloat(form.valuation) > MAX_MONEY)
+                    ? "Định giá công ty vượt quá giới hạn cho phép ($999,999,999,999)."
+                : null;
+            if (moneyError) {
+                setSaveError(moneyError);
+                setSaving(false);
+                return false;
+            }
             const basePayload = {
                 companyName: form.companyName || undefined,
                 oneLiner: form.oneLiner,
                 description: form.description || undefined,
                 industryID: form.industryID ? parseInt(form.industryID) : undefined,
+                subIndustry: form.subIndustry || undefined,
                 stage: normalizeStage(form.stage),
                 foundedDate: form.foundedDate ? new Date(form.foundedDate) : undefined,
                 website: form.website || undefined,
@@ -204,15 +221,12 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                 location: form.location || undefined,
                 country: form.country || undefined,
                 teamSize: form.teamSize ? parseInt(form.teamSize) : undefined,
-                teamsize: form.teamSize ? parseInt(form.teamSize) : undefined, // Phòng trường hợp BE sai case
             };
 
             const payload: IUpdateStartupRequest | ICreateStartupRequest = {
                 ...basePayload,
             };
             
-            console.log("🔥 [PUT API] Payload sẽ ném vào Backend FormData:", payload);
-
             if (logoFile) {
                 payload.logoUrl = logoFile;
             } else if (profile?.logoURL && !profileLogoURL) {
@@ -226,7 +240,6 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                 
             if (res.success || res.isSuccess) {
                 setSaveSuccess(true);
-                // Refetch profile to get updated data
                 await fetchProfile();
                 setLogoFile(null);
                 return true;
