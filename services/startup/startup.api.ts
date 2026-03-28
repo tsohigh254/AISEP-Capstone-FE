@@ -15,6 +15,7 @@ export interface ICreateStartupRequest {
     oneLiner: string
     description?: string
     industryID?: number
+    subIndustry?: string
     stage: StartupStage
     foundedDate?: string | Date
     website?: string
@@ -27,7 +28,6 @@ export interface ICreateStartupRequest {
     location?: string
     country?: string
     teamSize?: number
-    teamsize?: number
     // Business
     problemStatement?: string
     solutionSummary?: string
@@ -46,6 +46,7 @@ export interface IUpdateStartupRequest {
     oneLiner: string
     description?: string
     industryID?: number
+    subIndustry?: string
     stage: StartupStage
     foundedDate?: string | Date
     website?: string
@@ -58,7 +59,6 @@ export interface IUpdateStartupRequest {
     location?: string
     country?: string
     teamSize?: number
-    teamsize?: number
     // Business
     problemStatement?: string
     solutionSummary?: string
@@ -204,6 +204,6 @@ export const SubmitForApproval = () => {
     return axios.post<IBackendRes<null>>(`/api/startups/me/submit-for-approval`)
 }
 
-export const GetAdvisors = (query: string) => {
-    return axios.get<IBackendRes<any>>(`/api/startups?${query}`)
+export const SearchInvestors = (params: { page?: number; pageSize?: number; keyword?: string }) => {
+    return axios.get<IBackendRes<any>>(`/api/investors`, { params });
 }

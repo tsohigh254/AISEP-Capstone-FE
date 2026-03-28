@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { KycFileUploader } from "@/components/startup/kyc-file-uploader";
 import { toast } from "sonner";
-import { StartupKycCase } from "@/services/startup/startup-kyc.mock";
+import { StartupKycCase, SubmitStartupKYC, ResubmitStartupKYC } from "@/services/startup/startup-kyc.api";
 
 const inputCls = "w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-[14px] text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-[#eec54e]/20 focus:border-[#eec54e] outline-none transition-all";
 const labelCls = "block text-[12px] font-bold text-slate-500 mb-1.5 uppercase tracking-tight";
@@ -54,12 +54,36 @@ export function KycSubmitForm({ initialData, isResubmit }: KycSubmitFormProps) {
       return;
     }
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const formData = new FormData();
+      formData.append("startupVerificationType", mode);
+      if (mode === "WITH_LEGAL_ENTITY") {
+        formData.append("legalFullName", legalName);
+        formData.append("enterpriseCode", taxCode);
+      } else {
+        formData.append("projectName", legalName);
+      }
+      formData.append("representativeFullName", repName);
+      formData.append("representativeRole", repRole);
+      formData.append("workEmail", email);
+      formData.append("publicLink", link);
+      files.forEach(file => formData.append("evidenceFiles", file));
+
+      const apiFn = isResubmit ? ResubmitStartupKYC : SubmitStartupKYC;
+      const res = await apiFn(formData) as unknown as IBackendRes<null>;
+
+      if (res.success || res.isSuccess) {
+        toast.success(isResubmit ? "Hồ sơ đã được cập nhật thành công!" : "Hồ sơ đã được gửi đi thành công!");
+        router.push("/startup/verification/status");
+      } else {
+        toast.error(res.message || "Gửi hồ sơ thất bại. Vui lòng thử lại.");
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || "Lỗi kết nối. Vui lòng thử lại.";
+      toast.error(typeof msg === "string" ? msg : "Lỗi kết nối. Vui lòng thử lại.");
+    } finally {
       setLoading(false);
-      toast.success(isResubmit ? "Hồ sơ đã được cập nhật thành công!" : "Hồ sơ đã được gửi đi thành công!");
-      router.push("/startup/verification/status?state=SUBMITTED");
-    }, 2000);
+    }
   };
 
   return (

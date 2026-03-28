@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
+import { GetStartupProfile } from "@/services/startup/startup.api";
 import Link from "next/link";
 import { useCountUp } from "@/lib/useCountUp";
 import { cn } from "@/lib/utils";
@@ -29,19 +31,26 @@ import {
 } from "lucide-react";
 
 export default function StartupDashboardPage() {
+  const router = useRouter();
   const [showProfile, setShowProfile] = useState(false);
-  const [isOnboardingHidden, setIsOnboardingHidden] = useState(false);
+  const [hasProfile, setHasProfile] = useState(true);
 
   useEffect(() => {
-    const skipped = localStorage.getItem("aisep_startup_onboarding_skipped") === "true";
-    const completed = localStorage.getItem("aisep_startup_onboarding_completed") === "true";
-    
-    setIsOnboardingHidden(skipped || completed);
+    // User explicitly chose to skip onboarding — respect that choice
+    if (localStorage.getItem("aisep_startup_onboarding_skipped") === "true") return;
 
-    // Auto-redirect to onboarding if neither skipped nor completed
-    if (!skipped && !completed) {
-      window.location.href = "/startup/onboard";
-    }
+    GetStartupProfile()
+      .then(res => {
+        const data = res as unknown as IBackendRes<any>;
+        if (!(data.success || data.isSuccess) || !data.data) {
+          router.replace("/startup/onboard");
+        }
+      })
+      .catch(err => {
+        if (err?.response?.status === 404) {
+          router.replace("/startup/onboard");
+        }
+      });
   }, []);
 
   const profileProgress = useCountUp(65, 1200, 0);
@@ -79,15 +88,6 @@ export default function StartupDashboardPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-3">
-                {!isOnboardingHidden && (
-                  <Link 
-                    href="/startup/onboard"
-                    className="bg-[#e6cc4c] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 group"
-                  >
-                    <FileEdit className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                    Hoàn thiện hồ sơ (Onboarding)
-                  </Link>
-                )}
                 <button
                   onClick={() => setShowProfile(true)}
                   className="bg-[#f4f4f0] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:bg-neutral-200 transition-all flex items-center gap-2"

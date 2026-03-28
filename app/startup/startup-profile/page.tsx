@@ -1,25 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import {
     Pencil, Eye, EyeOff, MapPin, Calendar, Users, Layers,
     Target, Lightbulb, TrendingUp, CheckCircle2, Clock,
     ExternalLink, Mail, Phone, FileText, Brain, Building2,
     Globe, AlertTriangle, ArrowUpRight, DollarSign, Sparkles,
-    ChevronRight, Linkedin,
+    ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GetStartupProfile, GetMembers } from "@/services/startup/startup.api";
-
-const MOCK_INDUSTRIES = [
-    { id: 1, name: "AI & Technology" },
-    { id: 2, name: "Fintech" },
-    { id: 3, name: "Healthcare" },
-    { id: 4, name: "E-commerce" },
-    { id: 5, name: "EdTech" },
-    { id: 6, name: "ClimateTech" },
-];
+import { GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
 
 const STAGE_LABELS: Record<string, string> = {
     "0": "Hạt giống (Idea)", "1": "Tiền ươm mầm (Pre-Seed)", "2": "Ươm mầm (Seed)", 
@@ -62,26 +55,27 @@ export default function StartupProfileViewPage() {
     const [activeTab, setActiveTab] = useState<Tab>("Tổng quan");
     const [p, setP] = useState<any>(null);
     const [members, setMembers] = useState<any[]>([]);
+    const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const [resProfile, resMembers] = await Promise.all([
+                const [resProfile, resMembers, indData] = await Promise.all([
                     GetStartupProfile() as any,
-                    GetMembers() as any
+                    GetMembers() as any,
+                    GetIndustriesFlat().catch(() => [] as IIndustryFlat[]),
                 ]);
-                
                 if ((resProfile.success || resProfile.isSuccess) && resProfile.data) {
                     setP(resProfile.data);
                 } else {
                     setP(null);
                 }
-                
                 if ((resMembers.success || resMembers.isSuccess) && Array.isArray(resMembers.data)) {
                     setMembers(resMembers.data);
                 }
+                setIndustries(indData);
             } catch {
                 setP(null);
             } finally {
@@ -123,13 +117,14 @@ export default function StartupProfileViewPage() {
     const raisedAmount = Number(p.raisedAmount) || 0;
     const fundingProgress = targetFunding > 0 ? Math.round((raisedAmount / targetFunding) * 100) : 0;
     
-    let foundedYear = p.foundedYear;
-    if (!foundedYear && p.foundedDate) {
-        foundedYear = new Date(p.foundedDate).getFullYear();
-    }
-    
-    const displayIndustry = p.industry || MOCK_INDUSTRIES.find(x => x.id === p.industryID)?.name;
+    const foundedDateDisplay = p.foundedDate
+        ? new Date(p.foundedDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })
+        : null;
+    const foundedYear = p.foundedDate ? new Date(p.foundedDate).getFullYear() : p.foundedYear;
+
+    const displayIndustry = p.industry || industries.find(x => x.industryID === p.industryID)?.industryName;
     const displayStage = STAGE_LABELS[p.stage?.toString()] || p.stage;
+    const isApproved = !!(p.approvedAt || p.approvedBy);
 
     return (
         <div className="space-y-5">
@@ -144,7 +139,7 @@ export default function StartupProfileViewPage() {
                             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/30 backdrop-blur-sm border border-white/10 text-white text-[11px] font-medium hover:bg-black/50 transition-colors"
                         >
                             <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", p.visibilityStatus === "Visible" ? "bg-emerald-400" : "bg-slate-400")} />
-                            {p.visibilityStatus === "Visible" ? "Đang hiển thị với nhà đầu tư" : "Đang ẩn khỏi nhà đầu tư"}
+                            {p.visibilityStatus === "Visible" ? "Đang hiển thị với nhà đầu tư & cố vấn" : "Đang ẩn khỏi nhà đầu tư & cố vấn"}
                             <ChevronRight className="w-3 h-3 text-white/50" />
                         </Link>
                     </div>
@@ -171,7 +166,6 @@ export default function StartupProfileViewPage() {
                     <div className="flex flex-wrap items-center gap-1.5 mb-5">
                         {/* Primary */}
                         {displayStage && <Tag variant="green"><TrendingUp className="w-3 h-3" />{displayStage}</Tag>}
-                        {p.fundingStage && <Tag variant="violet"><DollarSign className="w-3 h-3" />{p.fundingStage}</Tag>}
                         <Tag><Building2 className="w-3 h-3 text-slate-400" />{displayIndustry || "Chưa có ngành"}{p.subIndustry ? ` / ${p.subIndustry}` : ""}</Tag>
                         {p.marketScope && <Tag variant="blue">{p.marketScope}</Tag>}
                         {/* Secondary — divider + lighter style */}
@@ -196,16 +190,20 @@ export default function StartupProfileViewPage() {
                             <div className={cn("h-full rounded-full transition-all", completenessColor)} style={{ width: `${completeness}%` }} />
                         </div>
                         <div className="flex flex-wrap gap-1.5">
-                            <Link href="/startup/startup-profile/kyc"
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 text-[11px] font-medium border border-amber-100/60 hover:bg-amber-100 transition-colors"
-                            >
-                                + KYC chưa hoàn tất
-                            </Link>
-                            <Link href="/startup/startup-profile/team"
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 text-[11px] font-medium border border-amber-100/60 hover:bg-amber-100 transition-colors"
-                            >
-                                + Xác thực đội ngũ
-                            </Link>
+                            {!p.kycVerified && (
+                                <Link href="/startup/startup-profile/kyc"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 text-[11px] font-medium border border-amber-100/60 hover:bg-amber-100 transition-colors"
+                                >
+                                    + KYC chưa hoàn tất
+                                </Link>
+                            )}
+                            {members.length === 0 && (
+                                <Link href="/startup/startup-profile/team"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 text-[11px] font-medium border border-amber-100/60 hover:bg-amber-100 transition-colors"
+                                >
+                                    + Xác thực đội ngũ
+                                </Link>
+                            )}
                             <Link href="/startup/startup-profile/info"
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-50 text-slate-500 text-[11px] font-medium border border-slate-100 hover:bg-slate-100 transition-colors"
                             >
@@ -288,7 +286,7 @@ export default function StartupProfileViewPage() {
                                     { icon: Building2, label: "Ngành", val: `${displayIndustry || "-"} ${p.subIndustry ? `/ ${p.subIndustry}` : ""}` },
                                     { icon: Globe, label: "Thị trường", val: p.marketScope || "-" },
                                     { icon: CheckCircle2, label: "Sản phẩm", val: p.productStatus || "-" },
-                                    { icon: Calendar, label: "Thành lập", val: foundedYear ? `${foundedYear}` : "-" },
+                                    { icon: Calendar, label: "Thành lập", val: foundedDateDisplay || (foundedYear ? `${foundedYear}` : "-") },
                                     { icon: Users, label: "Team size", val: p.teamSize ? `${p.teamSize} người` : "-" },
                                     { icon: MapPin, label: "Địa điểm", val: `${p.location || ""}, ${p.country || ""}`.replace(/^,\s|,$\s/g, '') || "-" },
                                 ].map(({ icon: Icon, label, val }) => (
@@ -310,18 +308,22 @@ export default function StartupProfileViewPage() {
                             <Link href="/startup/startup-profile/info" className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#0f172a] text-white text-[13px] font-medium hover:bg-slate-800 transition-colors shadow-sm">
                                 <Pencil className="w-3.5 h-3.5" /> Chỉnh sửa hồ sơ
                             </Link>
-                            <Link href="/startup/documents" className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 text-[13px] font-medium hover:bg-slate-50 transition-colors">
-                                <FileText className="w-3.5 h-3.5" /> Quản lý tài liệu
-                            </Link>
-                            <Link href="/startup/ai-evaluation" className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 text-[13px] font-medium hover:bg-slate-50 transition-colors">
-                                <Brain className="w-3.5 h-3.5" /> AI Evaluation
-                            </Link>
                         </div>
                     </div>
                 </div>
             )}
 
-            {activeTab === "Kinh doanh" && (
+            {activeTab === "Kinh doanh" && (!p.problemStatement && !p.solutionSummary && !p.marketScope && !p.productStatus) && (
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-10 text-center space-y-3">
+                    <Lightbulb className="w-8 h-8 text-slate-200 mx-auto" />
+                    <p className="text-[13px] text-slate-400">Chưa có thông tin kinh doanh.</p>
+                    <Link href="/startup/startup-profile/info?tab=business" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0f172a] text-white text-[13px] font-medium hover:bg-slate-800 transition-colors">
+                        <Pencil className="w-3.5 h-3.5" /> Cập nhật ngay
+                    </Link>
+                </div>
+            )}
+
+            {activeTab === "Kinh doanh" && (p.problemStatement || p.solutionSummary || p.marketScope || p.productStatus) && (
                 <div className="grid grid-cols-12 gap-5">
                     <div className="col-span-12 lg:col-span-8 space-y-5">
                         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-5">
@@ -352,10 +354,20 @@ export default function StartupProfileViewPage() {
                 </div>
             )}
 
-            {activeTab === "Gọi vốn" && (
+            {activeTab === "Gọi vốn" && !targetFunding && !raisedAmount && (
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-10 text-center space-y-3">
+                    <DollarSign className="w-8 h-8 text-slate-200 mx-auto" />
+                    <p className="text-[13px] text-slate-400">Chưa có thông tin gọi vốn.</p>
+                    <Link href="/startup/startup-profile/info?tab=funding" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0f172a] text-white text-[13px] font-medium hover:bg-slate-800 transition-colors">
+                        <Pencil className="w-3.5 h-3.5" /> Cập nhật ngay
+                    </Link>
+                </div>
+            )}
+
+            {activeTab === "Gọi vốn" && (targetFunding > 0 || raisedAmount > 0) && (
                 <div className="grid grid-cols-12 gap-5">
                     {[
-                        { label: "Giai đoạn gọi vốn", value: p.fundingStage || "-", icon: TrendingUp, sub: "Vòng hiện tại" },
+                        { label: "Giai đoạn gọi vốn", value: displayStage || "-", icon: TrendingUp, sub: "Vòng hiện tại" },
                         { label: "Số vốn cần", value: targetFunding > 0 ? `$${targetFunding.toLocaleString()}` : "-", icon: DollarSign, sub: "USD" },
                         { label: "Đã huy động", value: raisedAmount > 0 ? `$${raisedAmount.toLocaleString()}` : "-", icon: CheckCircle2, sub: `${fundingProgress}% mục tiêu` },
                     ].map(({ label, value, icon: Icon, sub }) => (
@@ -402,8 +414,8 @@ export default function StartupProfileViewPage() {
                                                     {m.isFounder && <span className="px-2 py-0.5 rounded-full bg-amber-100/50 text-amber-700 text-[10px] font-bold border border-amber-200/50">FOUNDER</span>}
                                                 </p>
                                                 {m.linkedInURL && (
-                                                    <a href={m.linkedInURL} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 p-1.5 rounded-lg transition-colors">
-                                                        <Linkedin className="w-4 h-4" />
+                                                    <a href={m.linkedInURL} target="_blank" rel="noreferrer" className="hover:bg-blue-50 p-1.5 rounded-lg transition-colors">
+                                                        <Image src="https://thesvg.org/icons/linkedin/default.svg" alt="LinkedIn" width={16} height={16} unoptimized />
                                                     </a>
                                                 )}
                                             </div>
@@ -424,11 +436,23 @@ export default function StartupProfileViewPage() {
                         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
                             <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest">Xác thực đội ngũ</h3>
                             <div className="flex items-center gap-2.5">
-                                <div className={cn("w-2 h-2 rounded-full", p.validationStatus === "Validated" ? "bg-emerald-500" : p.validationStatus === "In Progress" ? "bg-amber-400" : "bg-slate-300")} />
+                                <div className={cn("w-2 h-2 rounded-full",
+                                    p.validationStatus?.toLowerCase().includes("validat") ? "bg-emerald-500"
+                                    : p.validationStatus ? "bg-amber-400"
+                                    : "bg-slate-300"
+                                )} />
                                 <span className="text-[13px] font-medium text-slate-700">{p.validationStatus || "Chưa xác thực"}</span>
                             </div>
                             <InfoPair label="Quy mô team" value={p.teamSize ? `${p.teamSize} người` : undefined} />
                         </div>
+
+                        {isApproved && (
+                            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
+                                <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest">Thông tin duyệt</h3>
+                                {p.approvedAt && <InfoPair label="Ngày duyệt" value={new Date(p.approvedAt).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })} />}
+                                {p.approvedBy && <InfoPair label="Duyệt bởi" value={p.approvedBy} />}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

@@ -109,18 +109,39 @@ declare global {
         description: string
         industryID: number
         industryName: string
+        subIndustry?: string
         stage: string
         foundedDate: string
         website: string
         logoURL: string
-        fundingAmountSought: number
-        currentFundingRaised: number
-        valuation: number
+        targetFunding?: number
+        raisedAmount?: number
+        valuation?: number
         profileStatus: string
-        approvedAt: string
+        visibilityStatus?: string
+        isVisible?: boolean
+        profileCompleteness?: number
+        validationStatus?: string
+        kycVerified?: boolean
+        approvedAt?: string
+        approvedBy?: string
         createdAt: string
         updatedAt: string
         teamMembers: ITeamMember[]
+        // Business
+        problemStatement?: string
+        solutionSummary?: string
+        currentNeeds?: string[]
+        marketScope?: string
+        productStatus?: string
+        metricSummary?: string
+        // Contact
+        contactEmail?: string
+        contactPhone?: string
+        linkedInURL?: string
+        location?: string
+        country?: string
+        teamSize?: number
     }
 
     interface ITeamMember {
@@ -131,20 +152,11 @@ declare global {
         linkedInURL: string
         bio: string
         photoURL: string
-        isFounder: string
-        yearsOfExperience: string
+        isFounder: boolean
+        yearsOfExperience: number
         createdAt: string
     }
 
-    interface IAvisorPaging {
-        advisorID: number
-        fullName: string
-        title: string
-        bio: string
-        profilePhotoURL: string
-        averageRating: number
-        industry: IAdvisorIndustryFocus[]
-    }
 
     interface IDocument {
         documentID : number
