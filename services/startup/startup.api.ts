@@ -15,61 +15,55 @@ export interface ICreateStartupRequest {
     oneLiner: string
     description?: string
     industryID?: number
-    subIndustry?: string
     stage: StartupStage
     foundedDate?: string | Date
     website?: string
     logoUrl?: File
     // Financial
-    targetFunding?: number
-    raisedAmount?: number
+    fundingAmountSought?: number
+    currentFundingRaised?: number
     valuation?: number
-    // Extra Info
-    location?: string
-    country?: string
-    teamSize?: number
-    // Business
-    problemStatement?: string
-    solutionSummary?: string
-    currentNeeds?: string[]
-    marketScope?: string
-    productStatus?: string
-    // Contact & Extra
+    businessCode?: string
+    fullNameOfApplicant?: string
+    roleOfApplicant?: string
     contactEmail?: string
     contactPhone?: string
+    // Business
+    marketScope?: string
+    problemStatement?: string
+    solutionSummary?: string
+    // Contact & Extra
     linkedInURL?: string
-    metricSummary?: string
+    FileCertificateBusiness: File
 }
 
 export interface IUpdateStartupRequest {
-    companyName?: string
+    companyName: string
     oneLiner: string
     description?: string
     industryID?: number
-    subIndustry?: string
     stage: StartupStage
     foundedDate?: string | Date
     website?: string
+    /** File mới hoặc `null` khi xóa logo (multipart append `"null"`). */
     logoUrl?: File | null
     // Financial
-    targetFunding?: number
-    raisedAmount?: number
+    fundingAmountSought?: number
+    currentFundingRaised?: number
     valuation?: number
-    // Extra Info
-    location?: string
-    country?: string
-    teamSize?: number
-    // Business
-    problemStatement?: string
-    solutionSummary?: string
-    currentNeeds?: string[]
-    marketScope?: string
-    productStatus?: string
-    // Contact & Extra
+    businessCode?: string
+    fullNameOfApplicant?: string
+    roleOfApplicant?: string
     contactEmail?: string
     contactPhone?: string
+    // Business
+    marketScope?: string
+    problemStatement?: string
+    solutionSummary?: string
+    // Contact & Extra
     linkedInURL?: string
-    metricSummary?: string
+    /** Chỉ gửi khi đổi file; không bắt buộc mỗi lần cập nhật. */
+    FileCertificateBusiness?: File
 }
 
 export interface IAddMemberRequest {
@@ -94,19 +88,30 @@ export interface IUpdateMemberRequest {
     yearsOfExperience?: number
 }
 
+function appendFormValue(formData: FormData, key: string, value: unknown) {
+    if (value instanceof Date) {
+        formData.append(key, value.toISOString());
+    } else if (value instanceof File) {
+        formData.append(key, value);
+    } else if (Array.isArray(value)) {
+        value.forEach(v => formData.append(key, v.toString()));
+    } else {
+        formData.append(key, String(value));
+    }
+}
+
 export const CreateStartupProfile = (data: ICreateStartupRequest) => {
     const formData = new FormData();
     Object.entries(data).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-            if (value instanceof Date) {
-                formData.append(key, value.toISOString());
-            } else if (value instanceof File) {
-                formData.append(key, value);
-            } else if (Array.isArray(value)) {
-                value.forEach(v => formData.append(key, v.toString()));
-            } else {
-                formData.append(key, value.toString());
+        if (key === "businessCode") {
+            if (value !== undefined && value !== null && String(value).trim() !== "") {
+                const s = String(value).trim();
+                formData.append("bussinessCode", s);
             }
+            return;
+        }
+        if (value !== undefined && value !== null) {
+            appendFormValue(formData, key, value);
         }
     });
 
@@ -121,19 +126,18 @@ export const UpdateStartupProfile = (data: IUpdateStartupRequest) => {
     const formData = new FormData();
     Object.entries(data).forEach(([key, value]) => {
         if (value === null && key === "logoUrl") {
-            formData.append(key, "null");
+            formData.append("logoUrl", "null");
+            return;
+        }
+        if (key === "businessCode") {
+            if (value !== undefined && value !== null && String(value).trim() !== "") {
+                const s = String(value).trim();
+                formData.append("bussinessCode", s);
+            }
             return;
         }
         if (value !== undefined && value !== null) {
-            if (value instanceof Date) {
-                formData.append(key, value.toISOString());
-            } else if (value instanceof File) {
-                formData.append(key, value);
-            } else if (Array.isArray(value)) {
-                value.forEach(v => formData.append(key, v.toString()));
-            } else {
-                formData.append(key, value.toString());
-            }
+            appendFormValue(formData, key, value);
         }
     });
 
@@ -145,7 +149,7 @@ export const UpdateStartupProfile = (data: IUpdateStartupRequest) => {
 }
 
 export const GetStartupProfile = () => {
-    return axios.get<IBackendRes<any>>(`/api/startups/me`)
+    return axios.get<IBackendRes<IStartupProfile>>(`/api/startups/me`)
 }
 
 export const EnableVisibility = () => {
@@ -197,7 +201,7 @@ export const DeleteMember = (memberId: number) => {
 }
 
 export const GetMembers = () => {
-    return axios.get<IBackendRes<any[]>>(`/api/startups/me/team-members`);
+    return axios.get<IBackendRes<ITeamMember[]>>(`/api/startups/me/team-members`);
 }
 
 export const SubmitForApproval = () => {

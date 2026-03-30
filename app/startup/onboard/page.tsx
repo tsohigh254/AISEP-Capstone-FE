@@ -35,6 +35,7 @@ export default function OnboardingPage() {
   const [formData, setFormData] = useState({
     startupName: "",
     oneLiner: "",
+    businessCode: "",
     industryID: "",
     stage: "",
     problem: "",
@@ -93,6 +94,7 @@ export default function OnboardingPage() {
         oneLiner:         formData.oneLiner || formData.startupName,
         stage:            (parseInt(formData.stage) || 0) as StartupStage,
         industryID:       formData.industryID ? parseInt(formData.industryID) : undefined,
+        businessCode:     formData.businessCode.trim() || undefined,
         problemStatement: formData.problem || undefined,
         solutionSummary:  formData.solution || undefined,
         marketScope:      formData.targetAudience || undefined,
