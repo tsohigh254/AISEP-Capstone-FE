@@ -56,6 +56,44 @@ declare global {
         roles: string[]
     }
 
+    interface IStartupProfile {
+        startupID: number
+        userID: number
+        companyName: string
+        oneLiner: string
+        description: string
+        industryID: number
+        industryName: string
+        /** Giai đoạn: số 0–6 hoặc chuỗi (API .NET). */
+        stage: string | number
+        foundedDate: string
+        website: string
+        logoURL: string
+        fundingAmountSought: number
+        currentFundingRaised: number
+        valuation: number
+        fullNameOfApplicant: string
+        roleOfApplicant: string
+        contactEmail: string
+        contactPhone: string
+        businessCode: string
+        marketScope: string
+        problemStatement: string
+        solutionSummary: string
+        isVisible: boolean
+        /** Một số API trả thêm trạng thái hiển thị dạng chuỗi; ưu tiên khi có. */
+        visibilityStatus?: string
+        teamSize: number
+        fileCertificateBusiness: string
+        linkedInURL: string
+        profileStatus: string
+        approvedAt: string
+        /** Tuỳ API (có thể không có). */
+        approvedBy?: string | number
+        createdAt: string
+        updatedAt: string
+    }
+
     interface IAdvisorProfile {
         advisorID: number
         userId: number
@@ -101,49 +139,6 @@ declare global {
         industry: IAdvisorIndustryFocus[]
     }
 
-    interface IStartupProfile {
-        startupID: number
-        userID: number
-        companyName: string
-        oneLiner: string
-        description: string
-        industryID: number
-        industryName: string
-        subIndustry?: string
-        stage: string
-        foundedDate: string
-        website: string
-        logoURL: string
-        targetFunding?: number
-        raisedAmount?: number
-        valuation?: number
-        profileStatus: string
-        visibilityStatus?: string
-        isVisible?: boolean
-        profileCompleteness?: number
-        validationStatus?: string
-        kycVerified?: boolean
-        approvedAt?: string
-        approvedBy?: string
-        createdAt: string
-        updatedAt: string
-        teamMembers: ITeamMember[]
-        // Business
-        problemStatement?: string
-        solutionSummary?: string
-        currentNeeds?: string[]
-        marketScope?: string
-        productStatus?: string
-        metricSummary?: string
-        // Contact
-        contactEmail?: string
-        contactPhone?: string
-        linkedInURL?: string
-        location?: string
-        country?: string
-        teamSize?: number
-    }
-
     interface ITeamMember {
         teamMemberID: number
         fullName: string
@@ -159,32 +154,32 @@ declare global {
 
 
     interface IDocument {
-        documentID : number
-        startupID : number
-        documentType : string
-        version : string
-        fileUrl : string
-        isArchived : boolean
-        isAnalyzed : boolean
-        analysisStatus : string
-        uploadedAt : string
-        proofStatus : string
+        documentID: number
+        startupID: number
+        documentType: string
+        version: string
+        fileUrl: string
+        isArchived: boolean
+        isAnalyzed: boolean
+        analysisStatus: string
+        uploadedAt: string
+        proofStatus: string
         fileHash: string
-        transactionHash : string
+        transactionHash: string
     }
 
-    interface IBlockchainVerification{
-        documentID : number
-        computedHash : string
-        onChainVerified : boolean
-        status : string
+    interface IBlockchainVerification {
+        documentID: number
+        computedHash: string
+        onChainVerified: boolean
+        status: string
     }
 
-    interface IBlockchainChecking{
-        documentID : number
-        transactionHash : string
-        status : string
-        blockNumber : string
-        confirmedAt : string
+    interface IBlockchainChecking {
+        documentID: number
+        transactionHash: string
+        status: string
+        blockNumber: string
+        confirmedAt: string
     }
 }

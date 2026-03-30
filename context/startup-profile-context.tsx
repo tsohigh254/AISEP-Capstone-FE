@@ -16,25 +16,21 @@ export interface StartupProfileFormState {
     oneLiner: string;
     description: string;
     industryID: string;
-    subIndustry: string;
     stage: string;
     foundedDate: string;
     website: string;
-    targetFunding: string;
-    raisedAmount: string;
+    fundingAmountSought: string;
+    currentFundingRaised: string;
     valuation: string;
+    businessCode: string;
+    fullNameOfApplicant: string;
+    roleOfApplicant: string;
     problemStatement: string;
     solutionSummary: string;
-    currentNeeds: string[];
     marketScope: string;
-    productStatus: string;
     contactEmail: string;
     contactPhone: string;
     linkedInURL: string;
-    metricSummary: string;
-    location: string;
-    country: string;
-    teamSize: string;
 }
 
 const INITIAL_FORM: StartupProfileFormState = {
@@ -42,25 +38,21 @@ const INITIAL_FORM: StartupProfileFormState = {
     oneLiner: "",
     description: "",
     industryID: "",
-    subIndustry: "",
     stage: StartupStage.Idea.toString(),
     foundedDate: "",
     website: "",
-    targetFunding: "",
-    raisedAmount: "",
+    fundingAmountSought: "",
+    currentFundingRaised: "",
     valuation: "",
+    businessCode: "",
+    fullNameOfApplicant: "",
+    roleOfApplicant: "",
     problemStatement: "",
     solutionSummary: "",
-    currentNeeds: [],
     marketScope: "",
-    productStatus: "",
     contactEmail: "",
     contactPhone: "",
     linkedInURL: "",
-    metricSummary: "",
-    location: "",
-    country: "",
-    teamSize: "",
 };
 
 interface StartupProfileContextType {
@@ -68,6 +60,7 @@ interface StartupProfileContextType {
     form: StartupProfileFormState;
     logoFile: File | null;
     profileLogoURL: string;
+    certificateFile: File | null;
     loading: boolean;
     saving: boolean;
     submitting: boolean;
@@ -77,6 +70,7 @@ interface StartupProfileContextType {
     fetchProfile: () => Promise<void>;
     updateForm: (field: string, value: any) => void;
     setLogoFile: (file: File | null) => void;
+    setCertificateFile: (file: File | null) => void;
     setProfileLogoURL: (url: string) => void;
     saveProfile: () => Promise<boolean>;
     submitForApproval: () => Promise<boolean>;
@@ -100,7 +94,10 @@ const STAGE_MAP: Record<string, StartupStage> = {
     Growth: StartupStage.Growth,
 };
 
-const normalizeStage = (stage: string): StartupStage => {
+const normalizeStage = (stage: string | number | undefined | null): StartupStage => {
+    if (typeof stage === "number" && Number.isFinite(stage) && stage >= StartupStage.Idea && stage <= StartupStage.Growth) {
+        return stage as StartupStage;
+    }
     const trimmed = `${stage ?? ""}`.trim();
     const asNumber = Number(trimmed);
     if (Number.isFinite(asNumber) && asNumber >= StartupStage.Idea && asNumber <= StartupStage.Growth) {
@@ -113,6 +110,7 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
     const [profile, setProfile] = useState<IStartupProfile | null>(null);
     const [form, setForm] = useState<StartupProfileFormState>(INITIAL_FORM);
     const [logoFile, setLogoFile] = useState<File | null>(null);
+    const [certificateFile, setCertificateFile] = useState<File | null>(null);
     const [profileLogoURL, setProfileLogoURL] = useState<string>("");
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -125,7 +123,7 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
         setLoading(true);
         setError(null);
         try {
-            const res = await GetStartupProfile() as unknown as IBackendRes<any>;
+            const res = await GetStartupProfile() as IBackendRes<IStartupProfile>;
             if ((res.success || res.isSuccess) && res.data) {
                 const data = res.data;
                 setProfile(data);
@@ -133,26 +131,29 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                     companyName: data.companyName || "",
                     oneLiner: data.oneLiner || "",
                     description: data.description || "",
-                    industryID: data.industryID?.toString() || "",
-                    subIndustry: data.subIndustry || "",
-                    stage: data.stage !== undefined ? normalizeStage(data.stage).toString() : StartupStage.Idea.toString(),
+                    industryID: data.industryID != null ? String(data.industryID) : "",
+                    stage: data.stage !== undefined && data.stage !== null ? normalizeStage(data.stage).toString() : StartupStage.Idea.toString(),
                     foundedDate: data.foundedDate ? new Date(data.foundedDate).toISOString().split("T")[0] : "",
                     website: data.website || "",
-                    targetFunding: data.targetFunding?.toString() || "",
-                    raisedAmount: data.raisedAmount?.toString() || "",
-                    valuation: data.valuation?.toString() || "",
+                    fundingAmountSought:
+                        data.fundingAmountSought != null && !Number.isNaN(Number(data.fundingAmountSought))
+                            ? String(data.fundingAmountSought)
+                            : "",
+                    currentFundingRaised:
+                        data.currentFundingRaised != null && !Number.isNaN(Number(data.currentFundingRaised))
+                            ? String(data.currentFundingRaised)
+                            : "",
+                    valuation:
+                        data.valuation != null && !Number.isNaN(Number(data.valuation)) ? String(data.valuation) : "",
+                    businessCode: data.businessCode || "",
+                    fullNameOfApplicant: data.fullNameOfApplicant || "",
+                    roleOfApplicant: data.roleOfApplicant || "",
                     problemStatement: data.problemStatement || "",
                     solutionSummary: data.solutionSummary || "",
-                    currentNeeds: Array.isArray(data.currentNeeds) ? data.currentNeeds : [],
                     marketScope: data.marketScope || "",
-                    productStatus: data.productStatus || "",
                     contactEmail: data.contactEmail || "",
                     contactPhone: data.contactPhone || "",
                     linkedInURL: data.linkedInURL || "",
-                    metricSummary: data.metricSummary || "",
-                    location: data.location || "",
-                    country: data.country || "",
-                    teamSize: data.teamSize ? data.teamSize.toString() : "",
                 });
                 if (data.logoURL) {
                     setProfileLogoURL(data.logoURL);
@@ -184,12 +185,17 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
         setSaveSuccess(false);
         try {
             const MAX_MONEY = 999999999999;
+            const parseMoney = (s: string | undefined) => {
+                if (s == null || !String(s).trim()) return undefined;
+                const n = parseFloat(String(s).replace(/,/g, ""));
+                return Number.isFinite(n) ? n : undefined;
+            };
             const moneyError =
-                (form.targetFunding && parseFloat(form.targetFunding) > MAX_MONEY)
+                (form.fundingAmountSought && (parseMoney(form.fundingAmountSought) ?? 0) > MAX_MONEY)
                     ? "Mục tiêu gọi vốn vượt quá giới hạn cho phép ($999,999,999,999)."
-                : (form.raisedAmount && parseFloat(form.raisedAmount) > MAX_MONEY)
+                : (form.currentFundingRaised && (parseMoney(form.currentFundingRaised) ?? 0) > MAX_MONEY)
                     ? "Số tiền đã huy động vượt quá giới hạn cho phép ($999,999,999,999)."
-                : (form.valuation && parseFloat(form.valuation) > MAX_MONEY)
+                : (form.valuation && (parseMoney(form.valuation) ?? 0) > MAX_MONEY)
                     ? "Định giá công ty vượt quá giới hạn cho phép ($999,999,999,999)."
                 : null;
             if (moneyError) {
@@ -197,33 +203,50 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                 setSaving(false);
                 return false;
             }
+
+            const isExistingProfile = !!profile;
+
+            if (!isExistingProfile) {
+                if (!form.companyName?.trim()) {
+                    setSaveError("Vui lòng nhập tên startup / dự án.");
+                    setSaving(false);
+                    return false;
+                }
+                if (!form.oneLiner?.trim()) {
+                    setSaveError("Vui lòng nhập tagline / khẩu hiệu.");
+                    setSaving(false);
+                    return false;
+                }
+                if (!certificateFile) {
+                    setSaveError("Vui lòng tải lên giấy ĐKKD (bắt buộc khi tạo hồ sơ).");
+                    setSaving(false);
+                    return false;
+                }
+            }
+
             const basePayload = {
                 companyName: form.companyName || undefined,
                 oneLiner: form.oneLiner,
                 description: form.description || undefined,
                 industryID: form.industryID ? parseInt(form.industryID) : undefined,
-                subIndustry: form.subIndustry || undefined,
                 stage: normalizeStage(form.stage),
                 foundedDate: form.foundedDate ? new Date(form.foundedDate) : undefined,
                 website: form.website || undefined,
-                targetFunding: form.targetFunding ? parseFloat(form.targetFunding) : undefined,
-                raisedAmount: form.raisedAmount ? parseFloat(form.raisedAmount) : undefined,
-                valuation: form.valuation ? parseFloat(form.valuation) : undefined,
+                fundingAmountSought: parseMoney(form.fundingAmountSought),
+                currentFundingRaised: parseMoney(form.currentFundingRaised),
+                valuation: parseMoney(form.valuation),
+                businessCode: form.businessCode || undefined,
+                fullNameOfApplicant: form.fullNameOfApplicant || undefined,
+                roleOfApplicant: form.roleOfApplicant || undefined,
                 problemStatement: form.problemStatement || undefined,
                 solutionSummary: form.solutionSummary || undefined,
-                currentNeeds: form.currentNeeds && form.currentNeeds.length > 0 ? form.currentNeeds : undefined,
                 marketScope: form.marketScope || undefined,
-                productStatus: form.productStatus || undefined,
                 contactEmail: form.contactEmail || undefined,
                 contactPhone: form.contactPhone || undefined,
                 linkedInURL: form.linkedInURL || undefined,
-                metricSummary: form.metricSummary || undefined,
-                location: form.location || undefined,
-                country: form.country || undefined,
-                teamSize: form.teamSize ? parseInt(form.teamSize) : undefined,
             };
 
-            const payload: IUpdateStartupRequest | ICreateStartupRequest = {
+            const payload: any = {
                 ...basePayload,
             };
             
@@ -233,7 +256,10 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                 payload.logoUrl = null;
             }
 
-            const isExistingProfile = !!profile;
+            if (certificateFile) {
+                payload.FileCertificateBusiness = certificateFile;
+            }
+
             const res = isExistingProfile
                 ? await UpdateStartupProfile(payload as IUpdateStartupRequest) as unknown as IBackendRes<string>
                 : await CreateStartupProfile(payload as ICreateStartupRequest) as unknown as IBackendRes<string>;
@@ -242,6 +268,7 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                 setSaveSuccess(true);
                 await fetchProfile();
                 setLogoFile(null);
+                setCertificateFile(null);
                 return true;
             } else {
                 setSaveError(res.message || "Lưu thất bại");
@@ -255,7 +282,7 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
         } finally {
             setSaving(false);
         }
-    }, [form, logoFile, fetchProfile, profile, profileLogoURL]);
+    }, [form, logoFile, certificateFile, fetchProfile, profile, profileLogoURL]);
 
     const submitForApprovalFn = useCallback(async (): Promise<boolean> => {
         setSubmitting(true);
@@ -292,9 +319,9 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
 
     return (
         <StartupProfileContext.Provider value={{
-            profile, form, logoFile, profileLogoURL,
+            profile, form, logoFile, certificateFile, profileLogoURL,
             loading, saving, submitting, error, saveError, saveSuccess,
-            fetchProfile, updateForm, setLogoFile, setProfileLogoURL,
+            fetchProfile, updateForm, setLogoFile, setCertificateFile, setProfileLogoURL,
             saveProfile, submitForApproval: submitForApprovalFn, clearSaveStatus,
         }}>
             {children}
