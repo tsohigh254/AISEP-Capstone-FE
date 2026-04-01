@@ -9,6 +9,7 @@ import { useStartupProfile } from "@/context/startup-profile-context";
 import { StartupStage } from "@/services/startup/startup.api";
 import { GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { NumericFormat } from "react-number-format";
 
 const COUNTRIES = [
@@ -172,7 +173,24 @@ function StartupInfoPageInner() {
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const f = e.target.files?.[0];
-        if (f) setLogoFile(f);
+        if (!f) return;
+        
+        const allowedTypes = ["image/jpeg", "image/png", "image/gif"];
+        const allowedExts = [".jpg", ".jpeg", ".png", ".gif"];
+        const fileExt = f.name.toLowerCase().match(/\.[^.]+$/)?.[0] || "";
+
+        if (!allowedTypes.includes(f.type) && !allowedExts.includes(fileExt)) {
+            toast.error("Vui lòng upload các file có đuôi .jpeg, .gif, .png, .jpg");
+            e.target.value = ""; // reset
+            return;
+        }
+
+        if (f.size > 5 * 1024 * 1024) { // 5MB
+            toast.error("Dung lượng ảnh tối đa cho phép là 5MB.");
+            e.target.value = ""; // reset
+            return;
+        }
+        setLogoFile(f);
     };
 
     if (loading) {
@@ -220,7 +238,7 @@ function StartupInfoPageInner() {
                                         Chức năng Xóa
                                     </button>
                                 )}
-                                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                                    <input ref={fileRef} type="file" accept=".png,.jpg,.jpeg,.gif" className="hidden" onChange={handleFileChange} />
                             </div>
 
                             <div className="flex-1 space-y-5 w-full">
