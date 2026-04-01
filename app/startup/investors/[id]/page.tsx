@@ -327,8 +327,8 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                                     { label: "Lĩnh vực ưu tiên", items: investor.preferredIndustries },
                                     { label: "Địa lý", items: investor.preferredGeographies },
                                     { label: "Phạm vi thị trường", items: investor.preferredMarketScopes },
-                                    { label: "Độ trưởng thành sản phẩm", items: investor.preferredMaturityLevels },
-                                    { label: "Mức độ kiểm chứng", items: investor.preferredValidationLevels },
+                                    { label: "Độ trưởng thành sản phẩm", items: investor.preferredProductMaturity },
+                                    { label: "Mức độ kiểm chứng", items: investor.preferredValidationLevel },
                                     { label: "Điểm mạnh ưu tiên", items: investor.preferredStrengths },
                                 ].filter(g => (g.items?.length ?? 0) > 0).map(group => (
                                     <div key={group.label} className="space-y-4">
@@ -345,7 +345,9 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                                 {investor.preferredAIScoreRange && (
                                     <div className="space-y-3">
                                         <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Dải AI Score ưu tiên</p>
-                                        <p className="text-[20px] font-black text-slate-900 dark:text-white">{investor.preferredAIScoreRange?.min} – {investor.preferredAIScoreRange?.max}</p>
+                                        <p className="text-[20px] font-black text-slate-900 dark:text-white">
+                                            {typeof investor.preferredAIScoreRange === 'string' ? investor.preferredAIScoreRange : `${(investor.preferredAIScoreRange as any)?.min} – ${(investor.preferredAIScoreRange as any)?.max}`}
+                                        </p>
                                         <p className="text-[12px] text-slate-400 font-medium">Mức độ quan trọng: <span className="font-black text-yellow-600">{investor.aiScoreImportance}</span></p>
                                     </div>
                                 )}

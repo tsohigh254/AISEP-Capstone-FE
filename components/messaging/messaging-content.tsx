@@ -331,7 +331,7 @@ export function MessagingContent() {
                         content:           incoming.content,
                         attachmentUrls:    incoming.attachmentUrl,
                         isRead:            false,
-                        sentAt:            incoming.createdAt ?? incoming.sentAt,
+                        sentAt:            incoming.createdAt ,
                         readAt:            null,
                     } as IMessage,
                 ]);
@@ -339,7 +339,7 @@ export function MessagingContent() {
                 setConversations(prev =>
                     prev.map(c =>
                         c.conversationId === incoming.conversationId
-                            ? { ...c, unreadCount: (c.unreadCount ?? 0) + 1, lastMessagePreview: incoming.content, lastMessageAt: incoming.createdAt ?? incoming.sentAt }
+                            ? { ...c, unreadCount: (c.unreadCount ?? 0) + 1, lastMessagePreview: incoming.content, lastMessageAt: incoming.createdAt  }
                             : c
                     )
                 );

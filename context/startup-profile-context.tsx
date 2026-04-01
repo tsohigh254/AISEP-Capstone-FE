@@ -16,6 +16,11 @@ export interface StartupProfileFormState {
     oneLiner: string;
     description: string;
     industryID: string;
+    subIndustry?: string;
+    teamSize?: string;
+    currentNeeds?: string[];
+    [key: string]: any;
+    metricSummary?: string;
     stage: string;
     foundedDate: string;
     website: string;
