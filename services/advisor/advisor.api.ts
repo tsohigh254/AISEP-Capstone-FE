@@ -45,7 +45,9 @@ const buildAdvisorFormData = (
   if (options.title) formData.append("Title", options.title);
   if (options.company) formData.append("Company", options.company);
   if (options.bio) formData.append("Bio", options.bio);
-  if (options.experienceYears !== null && options.experienceYears !== undefined) formData.append("ExperienceYears", String(options.experienceYears));
+  if (options.experienceYears !== undefined && options.experienceYears !== null) {
+    formData.append("YearsOfExperience", String(options.experienceYears));
+  }
   if (options.website) formData.append("Website", options.website);
   if (options.linkedInURL) formData.append("LinkedInURL", options.linkedInURL);
   if (options.googleMeetLink) formData.append("GoogleMeetLink", options.googleMeetLink);
@@ -53,16 +55,15 @@ const buildAdvisorFormData = (
   if (options.mentorshipPhilosophy)
     formData.append("MentorshipPhilosophy", options.mentorshipPhilosophy);
 
-  // Service Pricing
+  // Service Pricing (Flattened)
   if (options.servicePricing) {
-    formData.append("ServicePricing.IsBookable", String(options.servicePricing.isBookable));
-    if (options.servicePricing.hourlyRate !== null) {
-      formData.append("ServicePricing.HourlyRate", String(options.servicePricing.hourlyRate));
+    if (options.servicePricing.hourlyRate !== null && options.servicePricing.hourlyRate !== undefined) {
+      formData.append("HourlyRate", String(options.servicePricing.hourlyRate));
     }
-    formData.append("ServicePricing.Currency", options.servicePricing.currency || "USD");
-    options.servicePricing.supportedDurations.forEach((d, i) => {
-      formData.append(`ServicePricing.SupportedDurations[${i}]`, String(d));
-    });
+    const durations = options.servicePricing.supportedDurations.join(",");
+    if (durations) {
+      formData.append("SupportedDurations", durations);
+    }
   }
 
   // Profile photo (IFormFile)
@@ -70,23 +71,12 @@ const buildAdvisorFormData = (
     formData.append("ProfilePhotoURL", options.profilePhotoFile);
   }
 
-  // Expertise items
+  // Expertise items (Flattened - Comma separated string or multiple appends based on BE framework, usually comma separated works for simple lists in C#)
   const items = options.items ?? [];
-  items.forEach((item, index) => {
-    formData.append(`Items[${index}].Category`, item.category);
-    if (item.subTopic) {
-      formData.append(`Items[${index}].SubTopic`, item.subTopic);
-    }
-    if (item.proficiencyLevel) {
-      formData.append(`Items[${index}].ProficiencyLevel`, item.proficiencyLevel);
-    }
-    if (typeof item.yearsOfExperience === "number") {
-      formData.append(
-        `Items[${index}].YearsOfExperience`,
-        String(item.yearsOfExperience),
-      );
-    }
-  });
+  const expertiseList = items.map(i => i.category).filter(Boolean);
+  if (expertiseList.length > 0) {
+    formData.append("Expertise", expertiseList.join(","));
+  }
 
   // AdvisorIndustryFocus (from main)
   const focuses = options.advisorIndustryFocus ?? [];
@@ -126,6 +116,12 @@ export const UpdateAdvisorProfile = (
     headers: {
       "Content-Type": "multipart/form-data",
     },
+  });
+};
+
+export const UpdateAdvisorAvailability = (isAcceptingNewMentees: boolean) => {
+  return axios.put(`/api/advisors/me/availability`, {
+    isAcceptingNewMentees
   });
 };
 

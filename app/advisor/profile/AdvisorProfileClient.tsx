@@ -16,6 +16,7 @@ import {
   CreateAdvisorProfile,
   UpdateAdvisorProfile,
   GetAdvisorProfile,
+  UpdateAdvisorAvailability,
 } from "@/services/advisor/advisor.api";
 
 /* ─── Constants ──────────────────────────────────────────────── */
@@ -97,6 +98,7 @@ export default function AdvisorProfileClient() {
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
+  const [profileStatus, setProfileStatus] = useState<string>("Draft");
   const [form, setForm] = useState({
     name: "", title: "", company: "",
     yearsOfExperience: null as number | null,
@@ -130,27 +132,34 @@ export default function AdvisorProfileClient() {
         // Backend đã return HTTP 200 OK + "isSuccess": true. Data null nếu chưa có.
         if (res.isSuccess) {
           if (res.data) {
-            const d: any = res.data;              console.log("=== API RESPONSE: GET /api/advisors/me ===", d);            const items: any[] = Array.isArray(d.items) ? d.items : [];
+            const d: any = res.data;              console.log("=== API RESPONSE: GET /api/advisors/me ===", d);            
+            
+            const expArray: string[] = Array.isArray(d.expertise) ? d.expertise : [];
+            const apiDurations = Array.isArray(d.supportedDurations) ? d.supportedDurations : [60];
+            
             setForm({
               name: d.fullName || "",
               title: d.title || "",
               company: d.company || "",
-              yearsOfExperience: d.yearsOfExperience ?? d.experienceYears ?? items[0]?.yearsOfExperience ?? null,
+              yearsOfExperience: d.yearsOfExperience ?? null,
               website: d.website || "",
               linkedInURL: d.linkedInURL || "",
               bio: d.bio || "",
               mentorshipPhilosophy: d.mentorshipPhilosophy || "",
               googleMeetLink: d.googleMeetLink || "",
               msTeamsLink: d.msTeamsLink || "",
-              isBookable: d.servicePricing?.isBookable ?? false,
-              hourlyRate: d.servicePricing?.hourlyRate ?? null,
-              supportedDurations: Array.from(new Set(((d.servicePricing?.supportedDurations) || [60]).map((v: any) => Number(v))) as Set<number>).sort((a: number, b: number) => a - b),
+              isBookable: d.hourlyRate ? true : false,
+              hourlyRate: d.hourlyRate ?? null,
+              supportedDurations: Array.from(new Set(apiDurations.map((v: any) => Number(v))) as Set<number>).sort((a: number, b: number) => a - b),
             });
             if (d.profilePhotoURL) setPhotoPreview(d.profilePhotoURL);
-            setPrimaryExpertise(items[0]?.category || "");
-            setSecondaryExpertises(items.slice(1, 4).map((i: any) => i.category).filter(Boolean));
-            setSavedIndustries(d.industry || d.advisorIndustryFocus || []);
+            
+            setPrimaryExpertise(expArray[0] || "");
+            setSecondaryExpertises(expArray.slice(1, 4).filter(Boolean));
+            
+            setSavedIndustries(d.industryFocus || []);
             setHasProfile(true);
+            setProfileStatus(d.profileStatus || "Draft");
           } else {
             // isSuccess: true, nhưng data: null -> User mới chưa có Profile
             setHasProfile(false);
@@ -252,6 +261,33 @@ export default function AdvisorProfileClient() {
       toast.error("Lưu hồ sơ thất bại. Vui lòng thử lại.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  /* ── Change Availability ───────────────────────────────────── */
+  const [isTogglingAvail, setIsTogglingAvail] = useState(false);
+  const handleToggleAvailability = async () => {
+    if (profileStatus !== "Approved") return;
+    
+    // Optimistic UI
+    const prev = form.isBookable;
+    setForm(p => ({ ...p, isBookable: !prev }));
+    setIsTogglingAvail(true);
+    
+    try {
+      const res: any = await UpdateAdvisorAvailability(!prev);
+      if (res && res.isSuccess === false) {
+        setForm(p => ({ ...p, isBookable: prev }));
+        const errorMsg = res.message || res.data?.[0]?.messages?.[0] || "Không thể bật nhận tư vấn";
+        toast.error(`Lỗi: ${errorMsg}`);
+      } else {
+        toast.success(!prev ? "Đã BẬT nhận yêu cầu tư vấn" : "Đã TẮT nhận yêu cầu tư vấn");
+      }
+    } catch (e: any) {
+      setForm(p => ({ ...p, isBookable: prev }));
+      toast.error(e?.response?.data?.message || "Có lỗi xảy ra khi thay đổi trạng thái khả dụng.");
+    } finally {
+      setIsTogglingAvail(false);
     }
   };
 
@@ -607,32 +643,31 @@ export default function AdvisorProfileClient() {
                       )}
                     </div>
                     <p className="text-[12px] text-slate-500 leading-relaxed">
-                      Khi bật, Startup có thể tìm thấy bạn và gửi yêu cầu đặt lịch tư vấn trực tiếp.
+                      {profileStatus !== "Approved" 
+                        ? "Hồ sơ của bạn chưa được Admin phê duyệt. Tính năng nhận yêu cầu đang bị khóa." 
+                        : "Khi bật, Startup có thể tìm thấy bạn và gửi yêu cầu đặt lịch tư vấn trực tiếp."}
                     </p>
                   </div>
-                  
+
                   {/* Custom Toggle Switch */}
-                  <button 
+                  <button
                     type="button"
-                    onClick={() => {
-                      // Basic eligibility check
-                      const canEnable = Boolean(form.name && form.title && form.company && primaryExpertise && (form.website || form.linkedInURL));
-                      if (!canEnable && !form.isBookable) {
-                        toast.error("Vui lòng hoàn thiện hồ sơ cơ bản (Tên, Chức vụ, Chuyên môn) để bật nhận tư vấn.");
-                        return;
-                      }
-                      setForm(p => ({ ...p, isBookable: !p.isBookable }));
-                    }}
+                    disabled={profileStatus !== "Approved" || isTogglingAvail}
+                    onClick={handleToggleAvailability}
                     className={cn(
                       "relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#eec54e] focus:ring-offset-2",
-                      form.isBookable ? "bg-[#eec54e]" : "bg-slate-200"
+                      profileStatus !== "Approved" ? "bg-slate-300 opacity-50 cursor-not-allowed" : (form.isBookable ? "bg-[#eec54e]" : "bg-slate-200")
                     )}
                   >
+                    {isTogglingAvail ? (
+                      <Loader2 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-white z-10" />
+                    ) : null}
                     <span
                       aria-hidden="true"
                       className={cn(
                         "pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                        form.isBookable ? "translate-x-5" : "translate-x-0"
+                        form.isBookable ? "translate-x-5" : "translate-x-0",
+                        isTogglingAvail && "opacity-0"
                       )}
                     />
                   </button>
