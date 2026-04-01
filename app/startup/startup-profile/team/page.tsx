@@ -87,13 +87,7 @@ export default function StartupTeamPage() {
         setIsLoading(true);
         try {
             const res = await GetMembers() as unknown as IBackendRes<ITeamMember[]>;
-            const raw = (res.success || res.isSuccess) && Array.isArray(res.data) ? res.data : [];
-            setMembers(
-                raw.map((m) => ({
-                    ...m,
-                    teamMemberID: m.teamMemberID ?? (m as ITeamMember & { teamMemberId?: number }).teamMemberId ?? 0,
-                })),
-            );
+            setMembers((res.success || res.isSuccess) && Array.isArray(res.data) ? res.data : []);
         } catch {
             setMembers([]);
         } finally {
