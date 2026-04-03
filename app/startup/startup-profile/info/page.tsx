@@ -331,6 +331,50 @@ function StartupInfoPageInner() {
                                     placeholder="Ví dụ: 10"
                                 />
                             </div>
+
+                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className={labelCls}>Họ tên người đăng ký <span className="text-red-500">*</span></label>
+                                    <input 
+                                        name="fullNameOfApplicant"
+                                        value={form.fullNameOfApplicant || ""}
+                                        onChange={(e) => updateForm("fullNameOfApplicant", e.target.value)}
+                                        className={inputCls}
+                                        placeholder="VD: Nguyễn Văn A..."
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelCls}>Vai trò đăng ký <span className="text-red-500">*</span></label>
+                                    <input 
+                                        name="roleOfApplicant"
+                                        value={form.roleOfApplicant || ""}
+                                        onChange={(e) => updateForm("roleOfApplicant", e.target.value)}
+                                        className={inputCls}
+                                        placeholder="VD: Founder, CEO..."
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelCls}>Mã số Doanh nghiệp <span className="text-red-500">*</span></label>
+                                    <input 
+                                        name="businessCode"
+                                        value={form.businessCode || ""}
+                                        onChange={(e) => updateForm("businessCode", e.target.value)}
+                                        className={inputCls}
+                                        placeholder="Mã số doanh nghiệp..."
+                                    />
+                                </div>
+                                <div>
+                                    <label className={labelCls}>Email liên hệ <span className="text-red-500">*</span></label>
+                                    <input 
+                                        name="contactEmail"
+                                        value={form.contactEmail || ""}
+                                        onChange={(e) => updateForm("contactEmail", e.target.value)}
+                                        className={inputCls}
+                                        placeholder="Email công ty..."
+                                    />
+                                </div>
+                            </div>
+
                             <div className="md:col-span-2">
                                 <label className={labelCls}>Mô tả công ty (Description)</label>
                                 <textarea
@@ -439,8 +483,8 @@ function StartupInfoPageInner() {
                                         decimalScale={2}
                                         allowNegative={false}
                                         isAllowed={({ floatValue }) => !floatValue || floatValue <= 999999999999}
-                                        value={form.targetFunding || ""}
-                                        onValueChange={({ value }) => updateForm("targetFunding", value)}
+                                        value={form.fundingAmountSought || ""}
+                                        onValueChange={({ value }) => updateForm("fundingAmountSought", value)}
                                         className={cn(inputCls, "pl-8 text-[15px] font-semibold tracking-wide")}
                                         placeholder="1,000,000"
                                     />
@@ -456,8 +500,8 @@ function StartupInfoPageInner() {
                                         decimalScale={2}
                                         allowNegative={false}
                                         isAllowed={({ floatValue }) => !floatValue || floatValue <= 999999999999}
-                                        value={form.raisedAmount || ""}
-                                        onValueChange={({ value }) => updateForm("raisedAmount", value)}
+                                        value={form.currentFundingRaised || ""}
+                                        onValueChange={({ value }) => updateForm("currentFundingRaised", value)}
                                         className={cn(inputCls, "pl-8 text-[15px] font-semibold tracking-wide")}
                                         placeholder="250,000"
                                     />
@@ -573,3 +617,4 @@ export default function StartupInfoPage() {
         </Suspense>
     );
 }
+

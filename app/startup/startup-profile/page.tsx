@@ -113,8 +113,8 @@ export default function StartupProfileViewPage() {
     
     // SafeArea values
     const currentNeeds = Array.isArray(p.currentNeeds) ? p.currentNeeds : [];
-    const targetFunding = Number(p.targetFunding) || 0;
-    const raisedAmount = Number(p.raisedAmount) || 0;
+    const targetFunding = Number(p.fundingAmountSought) || 0;
+    const raisedAmount = Number(p.currentFundingRaised) || 0;
     const fundingProgress = targetFunding > 0 ? Math.round((raisedAmount / targetFunding) * 100) : 0;
     
     const foundedDateDisplay = p.foundedDate
@@ -125,6 +125,9 @@ export default function StartupProfileViewPage() {
     const displayIndustry = p.industry || industries.find(x => x.industryID === p.industryID)?.industryName;
     const displayStage = STAGE_LABELS[p.stage?.toString()] || p.stage;
     const isApproved = !!(p.approvedAt || p.approvedBy);
+    
+    // Kiểm tra visibility (Backend có thể trả về string "Visible" hoặc boolean true)
+    const isVisibleStatus = p.visibilityStatus === "Visible" || p.visibilityStatus === "visible" || p.isVisible === true;
 
     return (
         <div className="space-y-5">
@@ -138,8 +141,8 @@ export default function StartupProfileViewPage() {
                         <Link href="/startup/startup-profile/visibility"
                             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/30 backdrop-blur-sm border border-white/10 text-white text-[11px] font-medium hover:bg-black/50 transition-colors"
                         >
-                            <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", p.visibilityStatus === "Visible" ? "bg-emerald-400" : "bg-slate-400")} />
-                            {p.visibilityStatus === "Visible" ? "Đang hiển thị với nhà đầu tư & cố vấn" : "Đang ẩn khỏi nhà đầu tư & cố vấn"}
+                            <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", isVisibleStatus ? "bg-emerald-400" : "bg-slate-400")} />
+                            {isVisibleStatus ? "Đang hiển thị với nhà đầu tư & cố vấn" : "Đang ẩn khỏi nhà đầu tư & cố vấn"}
                             <ChevronRight className="w-3 h-3 text-white/50" />
                         </Link>
                     </div>
@@ -190,8 +193,8 @@ export default function StartupProfileViewPage() {
                             <div className={cn("h-full rounded-full transition-all", completenessColor)} style={{ width: `${completeness}%` }} />
                         </div>
                         <div className="flex flex-wrap gap-1.5">
-                            {!p.kycVerified && (
-                                <Link href="/startup/startup-profile/kyc"
+                            {p.profileStatus?.toUpperCase() !== "APPROVED" && (
+                                <Link href="/startup/verification"
                                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 text-[11px] font-medium border border-amber-100/60 hover:bg-amber-100 transition-colors"
                                 >
                                     + KYC chưa hoàn tất

@@ -68,11 +68,15 @@ export function StartupHeader({
   const { setUser, setAccessToken, setIsAuthen, user } = useAuth();
 
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [profileLogo, setProfileLogo] = useState<string | null>(null);
   const displayUserName = profileName || user?.email || userName;
 
   useEffect(() => {
     GetStartupProfile().then((res: any) => {
-      if (res?.isSuccess && res.data?.companyName) setProfileName(res.data.companyName);
+      if (res?.isSuccess) {
+        if (res.data?.companyName) setProfileName(res.data.companyName);
+        if (res.data?.logoURL) setProfileLogo(res.data.logoURL);
+      }
     }).catch(() => { });
   }, []);
 
@@ -362,9 +366,13 @@ export function StartupHeader({
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             >
               <div className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-[#e6cc4c]/40 group-hover/avatar:ring-[#e6cc4c]/70 transition-all shadow-sm">
-                <div className="w-full h-full bg-gradient-to-br from-[#e6cc4c]/30 to-[#F0A500]/20 flex items-center justify-center text-[#C8A000] font-black text-sm uppercase">
-                  {displayUserName?.[0] ?? "S"}
-                </div>
+                  {profileLogo ? (
+                    <img src={profileLogo} alt={displayUserName} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-[#e6cc4c]/30 to-[#F0A500]/20 flex items-center justify-center text-[#C8A000] font-black text-sm uppercase">
+                      {displayUserName?.[0] ?? "S"}
+                    </div>
+                  )}
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white"></span>
             </button>
@@ -375,9 +383,13 @@ export function StartupHeader({
                 <div className="px-4 pt-4 pb-3 bg-gradient-to-br from-[#fdf8e6] via-[#fffdf5] to-white border-b border-slate-100/80">
                   <div className="flex items-center gap-3">
                     <div className="w-11 h-11 rounded-xl overflow-hidden ring-2 ring-[#e6cc4c]/40 flex-shrink-0 shadow-sm">
-                      <div className="w-full h-full bg-gradient-to-br from-[#e6cc4c]/40 to-[#F0A500]/30 flex items-center justify-center text-[#C8A000] font-black text-base uppercase">
-                        {displayUserName?.[0] ?? "S"}
-                      </div>
+                        {profileLogo ? (
+                          <img src={profileLogo} alt={displayUserName} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-[#e6cc4c]/40 to-[#F0A500]/30 flex items-center justify-center text-[#C8A000] font-black text-base uppercase">
+                            {displayUserName?.[0] ?? "S"}
+                          </div>
+                        )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-[13px] font-black text-[#171611] tracking-tight truncate">{displayUserName}</p>

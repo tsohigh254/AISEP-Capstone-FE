@@ -130,6 +130,7 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
             advisorID: mentor!.advisorID,
             objective: objective.trim(),
             problemContext: problemContext.trim(),
+            challengeDescription: problemContext.trim() || objective.trim(),
             scopeTags: scope,
             durationMinutes: parseInt(duration),
             preferredFormat,

@@ -65,6 +65,7 @@ export interface ICreateMentorshipRequest {
   advisorID: number;
   objective: string;
   problemContext?: string;
+  challengeDescription?: string;
   scopeTags?: string[];
   durationMinutes?: number;
   additionalNotes?: string;

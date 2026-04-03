@@ -87,7 +87,14 @@ declare global {
         isVisible: boolean
         /** Một số API trả thêm trạng thái hiển thị dạng chuỗi; ưu tiên khi có. */
         visibilityStatus?: string
-        teamSize: number
+        teamSize: string // Changed to string
+        subIndustry: string
+        currentNeeds: string[]
+        metricSummary: string
+        pitchDeckUrl: string
+        productStatus: string
+        country: string
+        location: string
         fileCertificateBusiness: string
         linkedInURL: string
         profileStatus: string

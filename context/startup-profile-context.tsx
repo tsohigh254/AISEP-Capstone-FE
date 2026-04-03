@@ -21,6 +21,7 @@ export interface StartupProfileFormState {
     currentNeeds?: string[];
     [key: string]: any;
     metricSummary?: string;
+    pitchDeckUrl?: string;
     stage: string;
     foundedDate: string;
     website: string;
@@ -36,6 +37,9 @@ export interface StartupProfileFormState {
     contactEmail: string;
     contactPhone: string;
     linkedInURL: string;
+    productStatus?: string;
+    country?: string;
+    location?: string;
 }
 
 const INITIAL_FORM: StartupProfileFormState = {
@@ -58,6 +62,9 @@ const INITIAL_FORM: StartupProfileFormState = {
     contactEmail: "",
     contactPhone: "",
     linkedInURL: "",
+    productStatus: "",
+    country: "",
+    location: "",
 };
 
 interface StartupProfileContextType {
@@ -159,6 +166,20 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                     contactEmail: data.contactEmail || "",
                     contactPhone: data.contactPhone || "",
                     linkedInURL: data.linkedInURL || "",
+                    subIndustry: data.subIndustry || "",
+                    teamSize: data.teamSize || "",
+                    currentNeeds: Array.isArray(data.currentNeeds)
+                        ? data.currentNeeds
+                        : typeof data.currentNeeds === 'string'
+                            ? (() => {
+                                try { return JSON.parse(data.currentNeeds); } catch { return [data.currentNeeds]; }
+                            })()
+                            : [],
+                    metricSummary: data.metricSummary || "",
+                    pitchDeckUrl: data.pitchDeckUrl || "",
+                    productStatus: data.productStatus || "",
+                    country: data.country || "",
+                    location: data.location || "",
                 });
                 if (data.logoURL) {
                     setProfileLogoURL(data.logoURL);
@@ -222,11 +243,11 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                     setSaving(false);
                     return false;
                 }
-                if (!certificateFile) {
-                    setSaveError("Vui lòng tải lên giấy ĐKKD (bắt buộc khi tạo hồ sơ).");
-                    setSaving(false);
-                    return false;
-                }
+                // if (!certificateFile) {
+                //     setSaveError("Vui lòng tải lên giấy ĐKKD (bắt buộc khi tạo hồ sơ).");
+                //     setSaving(false);
+                //     return false;
+                // }
             }
 
             const basePayload = {
@@ -249,6 +270,14 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                 contactEmail: form.contactEmail || undefined,
                 contactPhone: form.contactPhone || undefined,
                 linkedInURL: form.linkedInURL || undefined,
+                subIndustry: form.subIndustry || undefined,
+                teamSize: form.teamSize || undefined,
+                currentNeeds: form.currentNeeds || undefined,
+                metricSummary: form.metricSummary || undefined,
+                pitchDeckUrl: (form as any).pitchDeckUrl || undefined,
+                productStatus: form.productStatus || undefined,
+                country: form.country || undefined,
+                location: form.location || undefined,
             };
 
             const payload: any = {

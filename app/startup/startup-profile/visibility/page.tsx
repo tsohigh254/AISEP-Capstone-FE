@@ -41,7 +41,11 @@ export default function StartupVisibilityPage() {
     const isPending = status === "PendingApproval";
 
     const handleSetStatus = async (newStatus: Status) => {
-        if (newStatus === status) return;
+        console.log("Button clicked. Current status:", status, "New status:", newStatus);
+        if (newStatus === status) {
+            toast.info("Trạng thái này đang được chọn rồi ạ!");
+            return;
+        }
 
         setIsUpdating(true);
         try {
