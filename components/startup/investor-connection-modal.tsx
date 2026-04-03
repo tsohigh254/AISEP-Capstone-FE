@@ -52,8 +52,8 @@ export function InvestorConnectionModal({ isOpen, onClose, investor, onSuccess }
         setError(null);
         try {
             const res = await CreateConnection({
-                investorId: investor.investorId,
-                message: `[${goal}] ${message}`,
+                investorID: investor.investorId,
+                personalizedMessage: `[${goal}] ${message}`,
             }) as any as IBackendRes<IConnectionItem>;
             if (res.success && res.data) {
                 onSuccess?.(res.data.connectionID);

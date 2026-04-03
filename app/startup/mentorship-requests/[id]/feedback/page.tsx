@@ -1,30 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
   Star, CheckCircle2, BadgeCheck, Send, Lock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// ─── Mock Data ─────────────────────────────────────────────────────────────────
-
-const MOCK_SESSION = {
-  requestNo: "REQ-0004",
-  advisor: {
-    name: "Nguyễn Minh Quân",
-    title: "Head of Product · TechGlobal",
-    avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuDhY2B_40T_b8ifCFhZYE9RUfdodTMIq4hkMeAvPfCxdek8AhcikuKD11XDhYpXmtyvdSlnne2UWZDbdEO4TMXf17yrSsltdyX2-bBHPjbzbTxFQNPTgQkflvmeFd6QdGRvx0WBDDS0vnBvv-defpdnEB2zPF8-sAiLMhhfWCHe6M2UpyMAwTRdjcu8xSEmKOJ3aGlWMMK40SM6ThVvCpVFz_jvRfcX6dDBi4rDUGiVvfrUIHpezyewWd_4dYD9EbKusdQxomMZQhk",
-    isVerified: true,
-    currentRating: 4.9,
-    reviewCount: 124,
-  },
-  topic: "Chiến lược tăng trưởng người dùng Q2/2024",
-  sessionDate: "15 Tháng 3, 2024",
-  duration: "60 phút",
-  alreadySubmitted: false,
-};
+import { GetMentorshipById, SubmitMentorshipFeedback } from "@/services/startup/startup-mentorship.api";
+import type { IMentorshipRequest } from "@/types/startup-mentorship";
+import { toast } from "sonner";
 
 const RATING_LABELS: Record<number, string> = {
   1: "Không hữu ích",
@@ -40,55 +25,89 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
   const { id } = React.use(params);
   const router = useRouter();
 
+  const [request, setRequest] = useState<IMentorshipRequest | null>(null);
+  const [loading, setLoading] = useState(true);
+
   const [rating, setRating]     = useState(0);
   const [hover, setHover]       = useState(0);
   const [comment, setComment]   = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess]       = useState(MOCK_SESSION.alreadySubmitted);
+  const [isSuccess, setIsSuccess]       = useState(false);
   const [submittedRating, setSubmittedRating] = useState(0);
 
-  const handleSubmit = () => {
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await GetMentorshipById(Number(id));
+        if (res.isSuccess && res.data) {
+          setRequest(res.data);
+        }
+      } catch {
+        // silently ignore
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [id]);
+
+  const handleSubmit = async () => {
     if (rating === 0) return;
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      const res = await SubmitMentorshipFeedback(Number(id), {
+        rating,
+        comment: comment.trim() || undefined,
+      });
+      if (res.isSuccess) {
+        setSubmittedRating(rating);
+        setIsSuccess(true);
+      } else {
+        toast.error(res.message || "Gửi đánh giá thất bại. Vui lòng thử lại.");
+      }
+    } catch {
+      toast.error("Gửi đánh giá thất bại. Vui lòng thử lại.");
+    } finally {
       setIsSubmitting(false);
-      setSubmittedRating(rating);
-      setIsSuccess(true);
-    }, 1500);
+    }
   };
 
   const displayRating = hover || rating;
+
+  if (loading) {
+    return (
+      <StartupShell>
+        <div className="max-w-[600px] mx-auto pt-20 text-center text-slate-400 text-[13px]">Đang tải...</div>
+      </StartupShell>
+    );
+  }
+
+  const advisor = request?.advisor;
+  const sessionDate = request?.scheduledAt
+    ? new Date(request.scheduledAt).toLocaleDateString("vi-VN", { day: "numeric", month: "long", year: "numeric" })
+    : "—";
+  const duration = request?.durationMinutes ? `${request.durationMinutes} phút` : "—";
 
   return (
     <StartupShell>
       <div className="max-w-[600px] mx-auto space-y-6 pb-20 animate-in fade-in duration-500">
 
-        {/* Success / Already Submitted State */}
+        {/* Success State */}
         {isSuccess ? (
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-10 text-center">
             <div className="w-20 h-20 bg-amber-50 border-2 border-amber-100 rounded-full flex items-center justify-center mx-auto mb-5">
-              {MOCK_SESSION.alreadySubmitted
-                ? <Lock className="w-9 h-9 text-amber-500" />
-                : <CheckCircle2 className="w-9 h-9 text-green-500" />
-              }
+              <CheckCircle2 className="w-9 h-9 text-green-500" />
             </div>
-            {MOCK_SESSION.alreadySubmitted ? (
-              <>
-                <h2 className="text-[20px] font-bold text-slate-900 mb-2">Đã gửi đánh giá</h2>
-                <p className="text-[13px] text-slate-400 leading-relaxed">Bạn đã gửi đánh giá cho phiên tư vấn này. Mỗi phiên chỉ được đánh giá một lần.</p>
-              </>
-            ) : (
-              <>
-                <h2 className="text-[20px] font-bold text-slate-900 mb-2">Cảm ơn đánh giá của bạn!</h2>
-                <div className="flex items-center justify-center gap-1 my-3">
-                  {[1, 2, 3, 4, 5].map(s => (
-                    <Star key={s} className={cn("w-7 h-7", s <= submittedRating ? "text-amber-400 fill-amber-400" : "text-slate-200")} />
-                  ))}
-                </div>
-                <p className="text-[14px] font-semibold text-amber-600 mb-1">{RATING_LABELS[submittedRating]}</p>
-                <p className="text-[13px] text-slate-400 leading-relaxed mb-6">Phản hồi của bạn giúp cải thiện chất lượng tư vấn và hỗ trợ cộng đồng startup phát triển.</p>
-              </>
-            )}
+            <>
+              <h2 className="text-[20px] font-bold text-slate-900 mb-2">Cảm ơn đánh giá của bạn!</h2>
+              <div className="flex items-center justify-center gap-1 my-3">
+                {[1, 2, 3, 4, 5].map(s => (
+                  <Star key={s} className={cn("w-7 h-7", s <= submittedRating ? "text-amber-400 fill-amber-400" : "text-slate-200")} />
+                ))}
+              </div>
+              <p className="text-[14px] font-semibold text-amber-600 mb-1">{RATING_LABELS[submittedRating]}</p>
+              <p className="text-[13px] text-slate-400 leading-relaxed mb-6">Phản hồi của bạn giúp cải thiện chất lượng tư vấn và hỗ trợ cộng đồng startup phát triển.</p>
+            </>
             <div className="flex items-center justify-center gap-3 mt-4">
               <button
                 onClick={() => router.push(`/startup/mentorship-requests/${id}`)}
@@ -117,23 +136,23 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4">Phiên tư vấn</p>
               <div className="flex items-center gap-4">
                 <div className="relative">
-                  <img src={MOCK_SESSION.advisor.avatar} alt={MOCK_SESSION.advisor.name} className="w-14 h-14 rounded-xl object-cover border border-slate-100" />
-                  {MOCK_SESSION.advisor.isVerified && (
-                    <BadgeCheck className="absolute -bottom-1 -right-1 w-5 h-5 text-amber-500 bg-white rounded-full" />
-                  )}
+                  <img src={advisor?.profilePhotoURL || "/images/placeholder-avatar.png"} alt={advisor?.fullName} className="w-14 h-14 rounded-xl object-cover border border-slate-100" />
+                  <BadgeCheck className="absolute -bottom-1 -right-1 w-5 h-5 text-amber-500 bg-white rounded-full" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-[15px] font-bold text-slate-900">{MOCK_SESSION.advisor.name}</p>
-                  <p className="text-[12px] text-slate-500 mt-0.5">{MOCK_SESSION.advisor.title}</p>
-                  <p className="text-[12px] text-slate-400 mt-1">{MOCK_SESSION.topic}</p>
+                  <p className="text-[15px] font-bold text-slate-900">{advisor?.fullName ?? "—"}</p>
+                  <p className="text-[12px] text-slate-500 mt-0.5">{advisor?.title ?? "—"}</p>
+                  <p className="text-[12px] text-slate-400 mt-1">{request?.objective ?? "—"}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[11px] text-slate-400">{MOCK_SESSION.sessionDate}</p>
-                  <p className="text-[11px] text-slate-400">{MOCK_SESSION.duration}</p>
-                  <div className="flex items-center gap-1 justify-end mt-1">
-                    <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                    <span className="text-[11px] font-bold text-slate-600">{MOCK_SESSION.advisor.currentRating} · {MOCK_SESSION.advisor.reviewCount} đánh giá</span>
-                  </div>
+                  <p className="text-[11px] text-slate-400">{sessionDate}</p>
+                  <p className="text-[11px] text-slate-400">{duration}</p>
+                  {advisor?.averageRating != null && (
+                    <div className="flex items-center gap-1 justify-end mt-1">
+                      <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                      <span className="text-[11px] font-bold text-slate-600">{advisor.averageRating.toFixed(1)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

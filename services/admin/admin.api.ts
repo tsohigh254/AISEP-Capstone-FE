@@ -6,11 +6,11 @@ export const GetUsers = (params: {
     userType?: string;
     isActive?: boolean;
 }) => {
-    return axios.get<IBackendRes<IAdminUser[]>>(`/api/users`, { params });
+    return axios.get<IBackendRes<IUser[]>>(`/api/users`, { params });
 };
 
 export const GetUserById = (id: number) => {
-    return axios.get<IBackendRes<IAdminUser>>(`/api/users/${id}`);
+    return axios.get<IBackendRes<IUser>>(`/api/users/${id}`);
 };
 
 export const UpdateUserStatus = (id: number, isActive: boolean) => {

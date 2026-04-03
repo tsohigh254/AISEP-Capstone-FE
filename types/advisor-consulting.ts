@@ -1,5 +1,6 @@
 // Request statuses
 export type ConsultingRequestStatus =
+  | 'PENDING'
   | 'REQUESTED'
   | 'ACCEPTED'
   | 'REJECTED'

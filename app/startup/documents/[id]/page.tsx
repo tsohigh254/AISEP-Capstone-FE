@@ -130,7 +130,6 @@ function shortHash(hash: string): string {
     if (s.length <= 12) return s;
     return `${s.slice(0, 6)}...${s.slice(-4)}`;
 }
-import { MOCK_DOCS, getDocVersions } from "@/services/startup/documents.mock";
 
 /* ─── Status configs ──────────────────────────────────────── */
 const BC: Record<BlockchainStatus, { label: string; cls: string; Icon: React.ElementType; spin?: boolean }> = {

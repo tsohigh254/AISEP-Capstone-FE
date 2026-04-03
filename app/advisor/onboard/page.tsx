@@ -138,7 +138,7 @@ export default function AdvisorOnboardingPage() {
           fullName: d.fullName || "",
           title: d.title || "",
           company: d.company || "",
-          yearsOfExperience: items[0]?.yearsOfExperience ?? null,
+          yearsOfExperience: d.experienceYears ?? items[0]?.yearsOfExperience ?? null,
           website: d.website || "",
           linkedinUrl: d.linkedInURL || "",
           primaryExpertise: items[0]?.category || "",
@@ -221,18 +221,26 @@ export default function AdvisorOnboardingPage() {
     if (!validateStep2()) return;
     setIsSubmitting(true);
     try {
-      const payload = {
-        fullName: form.fullName,
+      const fullName = form.fullName;
+      const options = {
         title: form.title || undefined,
+        company: form.company || undefined,
+        experienceYears: form.yearsOfExperience ?? undefined,
+        website: form.website || undefined,
         bio: form.bio || undefined,
         linkedInURL: form.linkedinUrl || undefined,
         mentorshipPhilosophy: form.mentorshipPhilosophy || undefined,
         profilePhotoFile: profilePhoto ?? undefined,
-        advisorIndustryFocus: [], // TODO: map industry selections to { industryId } if needed
+        items: form.primaryExpertise
+          ? [
+              { category: form.primaryExpertise, yearsOfExperience: form.yearsOfExperience },
+              ...form.secondaryExpertises.map(c => ({ category: c }))
+            ]
+          : [],
       };
       const res = hasProfile
-        ? await UpdateAdvisorProfile(payload)
-        : await CreateAdvisorProfile(payload);
+        ? await UpdateAdvisorProfile(fullName, options)
+        : await CreateAdvisorProfile(fullName, options);
       if (res.isSuccess !== false) {
         localStorage.setItem("aisep_advisor_onboarding_completed", "true");
         toast.success(hasProfile ? "Hồ sơ đã được cập nhật!" : "Hồ sơ đã được tạo thành công!");

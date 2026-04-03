@@ -34,6 +34,14 @@ export interface ICreateStartupRequest {
     solutionSummary?: string
     // Contact & Extra
     linkedInURL?: string
+    subIndustry?: string
+    currentNeeds?: string[]
+    metricSummary?: string
+    teamSize?: string
+    pitchDeckUrl?: string
+    productStatus?: string
+    country?: string
+    location?: string
     FileCertificateBusiness: File
 }
 
@@ -62,6 +70,14 @@ export interface IUpdateStartupRequest {
     solutionSummary?: string
     // Contact & Extra
     linkedInURL?: string
+    subIndustry?: string
+    currentNeeds?: string[]
+    metricSummary?: string
+    teamSize?: string
+    pitchDeckUrl?: string
+    productStatus?: string
+    country?: string
+    location?: string
     /** Chỉ gửi khi đổi file; không bắt buộc mỗi lần cập nhật. */
     FileCertificateBusiness?: File
 }

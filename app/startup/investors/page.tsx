@@ -113,7 +113,7 @@ export default function InvestorsPage() {
       const res = await SearchInvestors({ page, pageSize: 12, keyword: kw || undefined }) as any as IBackendRes<IPaginatedRes<IInvestorSearchItem>>;
       if (res.success && res.data) {
         setInvestors(res.data.items);
-        setTotalPages(res.data.paging.totalPages);
+        setTotalPages(res.data.paging.totalPages ?? 1);
         setTotalItems(res.data.paging.totalItems);
       } else {
         setInvestors([]);
@@ -151,7 +151,7 @@ export default function InvestorsPage() {
       const res = await GetReceivedConnections(page, 10) as any as IBackendRes<IPaginatedRes<IConnectionItem>>;
       if (res.success && res.data) {
         setSentConnections(res.data.items);
-        setSentTotalPages(res.data.paging.totalPages);
+        setSentTotalPages(res.data.paging.totalPages ?? 1);
       }
     } catch { /* 403: BE chưa mở endpoint cho Startup */ } finally {
       setIsLoadingSent(false);
@@ -165,7 +165,7 @@ export default function InvestorsPage() {
       const res = await GetReceivedConnections(page, 10, "Accepted") as any as IBackendRes<IPaginatedRes<IConnectionItem>>;
       if (res.success && res.data) {
         setConnected(res.data.items);
-        setConnectedTotalPages(res.data.paging.totalPages);
+        setConnectedTotalPages(res.data.paging.totalPages ?? 1);
       }
     } catch { /* 403: BE chưa mở endpoint cho Startup */ } finally {
       setIsLoadingConnected(false);
@@ -203,7 +203,7 @@ export default function InvestorsPage() {
       investorId: investor.investorID,
       name: investor.fullName,
       logo: investor.profilePhotoURL ?? "",
-      type: investor.firmName || investor.investorType,
+      type: investor.firmName || investor.investorType || "",
     });
     setIsRequestModalOpen(true);
   };

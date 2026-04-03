@@ -840,7 +840,7 @@ function AdminUserDetailsPageInner() {
                   <p className="text-[11px] text-slate-400 uppercase tracking-wide mb-2">Active flags</p>
                   <div className="flex flex-wrap gap-2">
                     {((user.reactivationRequest?.activeFlags?.length ?? 0) > 0 ? user.reactivationRequest!.activeFlags : ["Không còn flag hoạt động"]).map((flag) => (
-                      <span key={flag} className={cn("inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-semibold border", user.reactivationRequest?.activeFlags?.length ? "bg-red-50 text-red-600 border-red-200/80" : "bg-slate-50 text-slate-500 border-slate-200/80")}>
+                      <span key={flag} className={cn("inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-semibold border", (user.reactivationRequest?.activeFlags?.length ?? 0) ? "bg-red-50 text-red-600 border-red-200/80" : "bg-slate-50 text-slate-500 border-slate-200/80")}>
                         {flag}
                       </span>
                     ))}

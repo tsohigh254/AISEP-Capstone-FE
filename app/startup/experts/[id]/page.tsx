@@ -5,259 +5,36 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Star, MessageSquare, Send, Calendar, Briefcase, Users,
-  BadgeCheck, CheckCircle2, Info, Lock
+  BadgeCheck, CheckCircle2, Info, Lock, Loader2, Linkedin
 } from "lucide-react";
 import { useState, useEffect, use } from "react";
 import { MentorshipRequestModal } from "@/components/startup/mentorship-request-modal";
-import { useRouter, notFound } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
+import { GetAdvisorById } from "@/services/startup/startup-mentorship.api";
+import type { IAdvisorDetail, IAdvisorSearchItem } from "@/types/startup-mentorship";
 
 const formatVND = (n: number) => n.toLocaleString('vi-VN') + '₫';
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+const EXPERTISE_DICT: Record<string, string> = {
+  FUNDRAISING: "Gọi vốn",
+  PRODUCT_STRATEGY: "Chiến lược SP",
+  GO_TO_MARKET: "Go-to-market",
+  FINANCE: "Tài chính",
+  LEGAL_IP: "Pháp lý & SHTT",
+  OPERATIONS: "Vận hành",
+  TECHNOLOGY: "Công nghệ",
+  MARKETING: "Marketing",
+  HR_OR_TEAM_BUILDING: "Nhân sự",
+};
 
-const ADVISORS = [
-  {
-    id: 1,
-    name: "Nguyễn Minh Quân",
-    title: "Head of Product · TechGlobal",
-    avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuDhY2B_40T_b8ifCFhZYE9RUfdodTMIq4hkMeAvPfCxdek8AhcikuKD11XDhYpXmtyvdSlnne2UWZDbdEO4TMXf17yrSsltdyX2-bBHPjbzbTxFQNPTgQkflvmeFd6QdGRvx0WBDDS0vnBvv-defpdnEB2zPF8-sAiLMhhfWCHe6M2UpyMAwTRdjcu8xSEmKOJ3aGlWMMK40SM6ThVvCpVFz_jvRfcX6dDBi4rDUGiVvfrUIHpezyewWd_4dYD9EbKusdQxomMZQhk",
-    rating: 4.9,
-    reviewCount: 124,
-    completedSessions: 120,
-    yearsOfExperience: 10,
-    expertise: ["Product Strategy", "SaaS", "Go-to-market"],
-    domainTags: ["SaaS", "B2B"],
-    isVerified: true,
-    availabilityHint: "Thứ 3, Thứ 5",
-    hourlyRate: 2000000,
-    supportedDurations: [30, 60, 90],
-    suitableFor: ["Product-Market Fit", "Chiến lược tăng trưởng", "Go-to-market", "SaaS Scaling", "User Research"],
-    biography: "Hơn 10 năm kinh nghiệm trong lĩnh vực quản lý sản phẩm Tech. Đã từng dẫn dắt các dự án quy mô lớn tại các tập đoàn đa quốc gia và startup unicorns. Với sứ mệnh giúp các startup SaaS Việt Nam vươn ra thị trường quốc tế, Quân đã mentored 50+ startup qua các giai đoạn từ idea validation đến Series A.",
-    philosophy: "Tập trung vào giá trị cốt lõi của sản phẩm và trải nghiệm người dùng là chìa khóa để thành công bền vững.",
-    ratingBreakdown: [
-      { score: 5, count: 98 },
-      { score: 4, count: 18 },
-      { score: 3, count: 6 },
-      { score: 2, count: 1 },
-      { score: 1, count: 1 },
-    ],
-    experience: [
-      { year: "2021 - Hiện tại", role: "Head of Product", company: "TechGlobal", desc: "Dẫn dắt đội ngũ 50+ người, xây dựng hệ sinh thái sản phẩm SaaS phục vụ 2M+ doanh nghiệp vừa và nhỏ." },
-      { year: "2018 - 2021", role: "Senior Product Manager", company: "Unicorn App", desc: "Phụ trách mảng tăng trưởng người dùng, đạt 10 triệu người dùng hàng tháng." },
-      { year: "2014 - 2018", role: "Product Manager", company: "NextGen Digital", desc: "Xây dựng MVP và dẫn dắt go-to-market cho 3 sản phẩm B2B SaaS thành công." },
-    ],
-    skills: [
-      { label: "Product Strategy", value: 95 },
-      { label: "SaaS Development", value: 88 },
-      { label: "Growth Hacking", value: 80 },
-    ],
-    reviews: [
-      { author: "CEO · FoodHub", stage: "Startup Vòng hạt giống", rating: 5, text: "Kiến thức chuyên môn rất sâu rộng, những lời khuyên thực tế giúp chúng tôi tối ưu hóa được 20% chi phí vận hành ngay trong tháng đầu tiên." },
-      { author: "CTO · SafeDrive", stage: "Series A", rating: 5, text: "Cố vấn xuất sắc! Nguyễn Minh Quân đã giúp chúng tôi định hình lại roadmap sản phẩm và cải thiện retention rate từ 60% lên 82% chỉ trong 2 quý." },
-    ],
-  },
-  {
-    id: 2,
-    name: "Trần Thu Hà",
-    title: "Investment Director · VCFund",
-    avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuCkeJpKLH89dtH6jy4p8OtegH6mL83JYobMLHvAQeMV-R-JV6ohyzLx5hQ2sZ387P-fztgR4sHa7EhmwJgbBTLxFVFskQsJI0Gohh4EB7LYt7pPNPIzVeMrNhIypAV8fJEz96dPqr4r8kUGO2XeJO1lDMfCEq0VHu2jl5963wBzE9lbl2WoMzmqdPjjGz-t_FAE1IFgbbvm8uMyf_V-UtsjIaqHKgVh5bF0DB5TQdrgyJ8kdtGF1397AobYsJYg8zAxOXwFyWtd32Q",
-    rating: 5.0,
-    reviewCount: 85,
-    completedSessions: 85,
-    yearsOfExperience: 12,
-    expertise: ["Fundraising", "Financial Strategy"],
-    domainTags: ["FinTech", "VC"],
-    isVerified: true,
-    availabilityHint: "Thứ 2, Thứ 4, Thứ 6",
-    hourlyRate: 2500000,
-    supportedDurations: [30, 60, 90],
-    suitableFor: ["Gọi vốn", "Pitch Deck", "Term Sheet", "Financial Modeling", "Investor Relations"],
-    biography: "12 năm kinh nghiệm trong lĩnh vực đầu tư mạo hiểm và tài chính khởi nghiệp. Đã tham gia vào hơn 40 thương vụ đầu tư với tổng giá trị vượt $200M. Chuyên gia hàng đầu trong việc giúp startup chuẩn bị hồ sơ gọi vốn và đàm phán term sheet.",
-    philosophy: "Một pitch deck xuất sắc không chỉ kể câu chuyện hay, mà còn phải thuyết phục bằng con số và tầm nhìn rõ ràng.",
-    ratingBreakdown: [
-      { score: 5, count: 82 },
-      { score: 4, count: 3 },
-      { score: 3, count: 0 },
-      { score: 2, count: 0 },
-      { score: 1, count: 0 },
-    ],
-    experience: [
-      { year: "2019 - Hiện tại", role: "Investment Director", company: "VCFund", desc: "Quản lý danh mục đầu tư $150M vào các startup FinTech giai đoạn Seed–Series B." },
-      { year: "2015 - 2019", role: "Investment Manager", company: "Asia Capital", desc: "Thực hiện due diligence và đàm phán cho 20+ thương vụ." },
-      { year: "2012 - 2015", role: "Financial Analyst", company: "Big4 Consulting", desc: "Tư vấn tài chính cho 30+ doanh nghiệp từ khởi nghiệp đến IPO." },
-    ],
-    skills: [
-      { label: "Fundraising Strategy", value: 98 },
-      { label: "Financial Modeling", value: 90 },
-      { label: "Investor Relations", value: 85 },
-    ],
-    reviews: [
-      { author: "CEO · PaySmart", stage: "Seed Round", rating: 5, text: "Nhờ sự hỗ trợ của Trần Thu Hà, chúng tôi đã gọi vốn thành công $2M Seed round trong vòng 3 tháng." },
-      { author: "Founder · GreenCredit", stage: "Series A", rating: 5, text: "Pitch deck được cố vấn cải thiện hoàn toàn, tỷ lệ chuyển đổi với investor tăng gấp 3 lần." },
-    ],
-  },
-  {
-    id: 3,
-    name: "Phạm Thành Long",
-    title: "CTO & Co-founder · AI-Soft",
-    avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuBd7t5ciDWV2eTaJsfniBll5lOH1FpM75D-rNgvvVbqucB9qLvuvCqdD2n7NevngnBF0iNuRrvyppt6TSVePvhTgOoUFPXs3COh1SFpjFFfpRM7AvqpVQYWIKMeh8ZaAHBQXX7A9LfSgc9hJLF86zECFTAuBW7cVPKthlob2LHXSFNJoAt5LewaefZBVBDzh253xnffFoI4o3adtsf5g77DpJi4MsoGYiv14LMA-ivJZaM5n2tz_QhJaAEUCzsxPuiFm3f6b9lC-GA",
-    rating: 4.8,
-    reviewCount: 210,
-    completedSessions: 210,
-    yearsOfExperience: 15,
-    expertise: ["Engineering", "AI/ML"],
-    domainTags: ["AI", "Deep Tech"],
-    isVerified: true,
-    availabilityHint: "Thứ 3, Thứ 6",
-    hourlyRate: 3000000,
-    supportedDurations: [30, 60, 90],
-    suitableFor: ["Kỹ thuật", "AI Strategy", "Tuyển CTO", "Technical Architecture", "Team Building"],
-    biography: "15 năm kinh nghiệm trong lĩnh vực kỹ thuật phần mềm và AI. Co-founder của AI-Soft, startup AI hàng đầu Đông Nam Á. Chuyên gia trong việc xây dựng đội ngũ kỹ thuật từ 0, thiết kế kiến trúc hệ thống scale và ứng dụng AI vào sản phẩm.",
-    philosophy: "Kỹ thuật tốt không chỉ là code sạch, mà là giải pháp đúng cho bài toán đúng, được xây dựng bởi đội ngũ mạnh.",
-    ratingBreakdown: [
-      { score: 5, count: 165 },
-      { score: 4, count: 35 },
-      { score: 3, count: 8 },
-      { score: 2, count: 2 },
-      { score: 1, count: 0 },
-    ],
-    experience: [
-      { year: "2018 - Hiện tại", role: "CTO & Co-founder", company: "AI-Soft", desc: "Xây dựng đội kỹ thuật 120+ người, phát triển platform AI phục vụ 500+ doanh nghiệp." },
-      { year: "2014 - 2018", role: "Principal Engineer", company: "Google Vietnam", desc: "Dẫn dắt dự án ML infrastructure cho Google Maps khu vực Đông Nam Á." },
-      { year: "2009 - 2014", role: "Senior Software Engineer", company: "VNG Corporation", desc: "Xây dựng hệ thống backend scale 10M+ users/ngày." },
-    ],
-    skills: [
-      { label: "AI/ML Architecture", value: 96 },
-      { label: "Engineering Leadership", value: 90 },
-      { label: "System Design", value: 88 },
-    ],
-    reviews: [
-      { author: "CTO · HealthAI", stage: "Series A", rating: 5, text: "Long giúp chúng tôi redesign toàn bộ ML pipeline, latency giảm 70% và accuracy tăng 15%." },
-      { author: "CEO · DriveBot", stage: "Seed Round", rating: 4, text: "Mentor tuyệt vời về technical strategy. Rất thực tế và đi thẳng vào vấn đề." },
-    ],
-  },
-  {
-    id: 4,
-    name: "Lê Hồng Nhung",
-    title: "Growth Lead · FastDelivery",
-    avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuDaiDXjuR0ngcu2gjH7wWIYdvc0Z64rZ4uKjXIuRusn_lY1IEWFYzwMyeYzlUPSUHnBTt6mDDuv0eJ8SL71wy7SaD-05KoaTWJzurSlnJClIIJsgTS--Cv40ApHR5shEQ7SeCpNxnp5xtIwWuRCBa4OUemqewQ9q0w2DqIrWm50zdbyWm-9sYgEnRGt14BdHMznN22ho7LmUpoRO43UFNRR-WvdR3xEiHq7wURyqtcS5fcDxxd6ZjMEG9GhQRcdPpl6nwaJ4uRrLE",
-    rating: 4.7,
-    reviewCount: 45,
-    completedSessions: 45,
-    yearsOfExperience: 7,
-    expertise: ["Growth Hacking", "Marketing"],
-    domainTags: ["E-commerce", "Consumer"],
-    isVerified: true,
-    availabilityHint: "Thứ 2, Thứ 5",
-    hourlyRate: 1500000,
-    supportedDurations: [30, 60],
-    suitableFor: ["Tăng trưởng người dùng", "Marketing", "E-commerce", "Acquisition Strategy", "Retention"],
-    biography: "7 năm kinh nghiệm growth hacking và marketing cho các startup consumer tech. Đã scale 3 startup từ 0 đến Series B. Chuyên sâu về data-driven marketing, viral loops và community-led growth.",
-    philosophy: "Growth không phải là hack tricks, mà là xây dựng vòng lặp tự nhiên từ giá trị thật sự mà sản phẩm mang lại.",
-    ratingBreakdown: [
-      { score: 5, count: 32 },
-      { score: 4, count: 10 },
-      { score: 3, count: 2 },
-      { score: 2, count: 1 },
-      { score: 1, count: 0 },
-    ],
-    experience: [
-      { year: "2021 - Hiện tại", role: "Growth Lead", company: "FastDelivery", desc: "Tăng trưởng MAU từ 100K lên 3M trong 18 tháng, CAC giảm 45%." },
-      { year: "2018 - 2021", role: "Head of Growth", company: "StyleHub", desc: "Xây dựng growth team từ đầu, đạt Series B với $15M ARR." },
-      { year: "2017 - 2018", role: "Growth Manager", company: "FoodGo", desc: "Triển khai referral program, tăng 200% new users trong 6 tháng." },
-    ],
-    skills: [
-      { label: "Growth Strategy", value: 92 },
-      { label: "Data Analytics", value: 85 },
-      { label: "Paid Acquisition", value: 78 },
-    ],
-    reviews: [
-      { author: "CEO · FashionBox", stage: "Seed Round", rating: 5, text: "Nhung giúp chúng tôi tìm ra growth loop thực sự hiệu quả, CAC giảm một nửa chỉ trong 2 tháng." },
-      { author: "CMO · GroceryNow", stage: "Series A", rating: 4, text: "Tư vấn thực tế, hands-on và rất nhiệt tình. Highly recommend!" },
-    ],
-  },
-  {
-    id: 5,
-    name: "Võ Minh Tuấn",
-    title: "Founder & Legal Counsel · StartupLaw",
-    avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuBd7t5ciDWV2eTaJsfniBll5lOH1FpM75D-rNgvvVbqucB9qLvuvCqdD2n7NevngnBF0iNuRrvyppt6TSVePvhTgOoUFPXs3COh1SFpjFFfpRM7AvqpVQYWIKMeh8ZaAHBQXX7A9LfSgc9hJLF86zECFTAuBW7cVPKthlob2LHXSFNJoAt5LewaefZBVBDzh253xnffFoI4o3adtsf5g77DpJi4MsoGYiv14LMA-ivJZaM5n2tz_QhJaAEUCzsxPuiFm3f6b9lC-GA",
-    rating: 4.6,
-    reviewCount: 32,
-    completedSessions: 38,
-    yearsOfExperience: 14,
-    expertise: ["Legal/Compliance", "Corporate Governance"],
-    domainTags: ["Legal", "Finance"],
-    isVerified: false,
-    availabilityHint: "Thứ 4, Thứ 6",
-    hourlyRate: 2200000,
-    supportedDurations: [60, 90],
-    suitableFor: ["Pháp lý", "Tuân thủ", "M&A", "IP Protection", "Corporate Structure"],
-    biography: "14 năm kinh nghiệm pháp lý với trọng tâm đầu tư mạo hiểm, M&A và tuân thủ doanh nghiệp. Founder của StartupLaw, công ty tư vấn pháp lý hàng đầu cho startup Việt Nam.",
-    philosophy: "Pháp lý không phải rào cản mà là nền tảng để startup phát triển bền vững và tự tin mở rộng.",
-    ratingBreakdown: [
-      { score: 5, count: 20 },
-      { score: 4, count: 9 },
-      { score: 3, count: 2 },
-      { score: 2, count: 1 },
-      { score: 1, count: 0 },
-    ],
-    experience: [
-      { year: "2018 - Hiện tại", role: "Founder & Legal Counsel", company: "StartupLaw", desc: "Tư vấn pháp lý cho 100+ startup trong các thương vụ đầu tư và M&A." },
-      { year: "2013 - 2018", role: "Senior Associate", company: "Baker McKenzie Vietnam", desc: "Tham gia đàm phán hơn 30 thương vụ M&A trị giá trên $500M." },
-      { year: "2010 - 2013", role: "Legal Associate", company: "VILAF", desc: "Tư vấn tuân thủ pháp lý cho các FDI và doanh nghiệp trong nước." },
-    ],
-    skills: [
-      { label: "M&A Legal Advisory", value: 93 },
-      { label: "Investment Law", value: 90 },
-      { label: "Compliance", value: 85 },
-    ],
-    reviews: [
-      { author: "CEO · TechBridge", stage: "Series A", rating: 5, text: "Tuấn giúp chúng tôi navigate phức tạp pháp lý của một thương vụ cross-border M&A rất chuyên nghiệp." },
-      { author: "Founder · CleanEnergy", stage: "Seed Round", rating: 4, text: "Rất giỏi giải thích những điều khoản phức tạp theo cách dễ hiểu." },
-    ],
-  },
-  {
-    id: 6,
-    name: "Bùi Thị Lan Anh",
-    title: "Former COO · Gojek Vietnam",
-    avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuCkeJpKLH89dtH6jy4p8OtegH6mL83JYobMLHvAQeMV-R-JV6ohyzLx5hQ2sZ387P-fztgR4sHa7EhmwJgbBTLxFVFskQsJI0Gohh4EB7LYt7pPNPIzVeMrNhIypAV8fJEz96dPqr4r8kUGO2XeJO1lDMfCEq0VHu2jl5963wBzE9lbl2WoMzmqdPjjGz-t_FAE1IFgbbvm8uMyf_V-UtsjIaqHKgVh5bF0DB5TQdrgyJ8kdtGF1397AobYsJYg8zAxOXwFyWtd32Q",
-    rating: 4.9,
-    reviewCount: 67,
-    completedSessions: 72,
-    yearsOfExperience: 11,
-    expertise: ["Operations", "Scaling"],
-    domainTags: ["Logistics", "Marketplace"],
-    isVerified: true,
-    availabilityHint: "Thứ 2, Thứ 6",
-    hourlyRate: 1800000,
-    supportedDurations: [30, 60, 90],
-    suitableFor: ["Vận hành", "Mở rộng quy mô", "OKRs", "COO Office", "Process Design"],
-    biography: "11 năm kinh nghiệm vận hành tại các startup hàng đầu Đông Nam Á. Cựu COO của Gojek Vietnam, đã dẫn dắt công ty từ 200 nhân viên lên 2,000+ nhân viên trong 3 năm. Chuyên gia xây dựng hệ thống vận hành, OKRs và văn hóa công ty.",
-    philosophy: "Vận hành xuất sắc là kết quả của hệ thống rõ ràng, con người đúng vị trí và văn hóa minh bạch.",
-    ratingBreakdown: [
-      { score: 5, count: 55 },
-      { score: 4, count: 10 },
-      { score: 3, count: 2 },
-      { score: 2, count: 0 },
-      { score: 1, count: 0 },
-    ],
-    experience: [
-      { year: "2019 - 2023", role: "COO", company: "Gojek Vietnam", desc: "Scale operations từ 200 lên 2,000+ nhân sự, 15 thành phố, $200M GMV/năm." },
-      { year: "2015 - 2019", role: "Head of Operations", company: "Grab Vietnam", desc: "Xây dựng cơ sở hạ tầng vận hành cho dịch vụ giao đồ ăn và logistics." },
-      { year: "2013 - 2015", role: "Operations Manager", company: "Lazada Vietnam", desc: "Tối ưu fulfillment process, giảm delivery time 40%." },
-    ],
-    skills: [
-      { label: "Operations Strategy", value: 95 },
-      { label: "Organizational Design", value: 88 },
-      { label: "OKR Implementation", value: 85 },
-    ],
-    reviews: [
-      { author: "CEO · MoveX", stage: "Series B", rating: 5, text: "Lan Anh giúp chúng tôi thiết kế lại toàn bộ cơ cấu tổ chức, hiệu quả vận hành tăng 40%." },
-      { author: "COO · FreshMart", stage: "Series A", rating: 5, text: "Kiến thức về operations và scaling cực kỳ sâu và thực tiễn. Rất đáng để đầu tư thời gian." },
-    ],
-  },
-];
+const formatExpertise = (val: string) => EXPERTISE_DICT[val] || val;
+
+const isValidImageUrl = (url?: string | null) => {
+  if (!url) return false;
+  return url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:image/");
+};
 
 // ─── Toast Component ──────────────────────────────────────────────────────────
 
@@ -291,6 +68,75 @@ function StarRow({ rating }: { rating: number }) {
   );
 }
 
+// ─── Loading Skeleton ─────────────────────────────────────────────────────────
+
+function ProfileSkeleton() {
+  return (
+    <StartupShell>
+      <div className="max-w-6xl mx-auto space-y-8 pb-20">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-8">
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+            <div className="size-36 rounded-2xl bg-slate-200 animate-pulse flex-shrink-0" />
+            <div className="flex-1 space-y-4 w-full">
+              <div className="h-8 bg-slate-200 animate-pulse rounded-lg w-64 mx-auto md:mx-0" />
+              <div className="h-5 bg-slate-100 animate-pulse rounded-lg w-48 mx-auto md:mx-0" />
+              <div className="flex gap-2 justify-center md:justify-start">
+                <div className="h-6 bg-slate-100 animate-pulse rounded-lg w-20" />
+                <div className="h-6 bg-slate-100 animate-pulse rounded-lg w-20" />
+                <div className="h-6 bg-slate-100 animate-pulse rounded-lg w-20" />
+              </div>
+              <div className="flex gap-6 justify-center md:justify-start">
+                <div className="h-10 bg-slate-100 animate-pulse rounded-lg w-24" />
+                <div className="h-10 bg-slate-100 animate-pulse rounded-lg w-24" />
+                <div className="h-10 bg-slate-100 animate-pulse rounded-lg w-24" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-8 space-y-6">
+              <div className="h-4 bg-slate-100 animate-pulse rounded w-32" />
+              <div className="space-y-2">
+                <div className="h-4 bg-slate-100 animate-pulse rounded w-full" />
+                <div className="h-4 bg-slate-100 animate-pulse rounded w-3/4" />
+              </div>
+            </div>
+          </div>
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-6 space-y-4">
+              <div className="h-4 bg-slate-100 animate-pulse rounded w-24" />
+              <div className="h-10 bg-slate-100 animate-pulse rounded w-full" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </StartupShell>
+  );
+}
+
+// ─── Error State ──────────────────────────────────────────────────────────────
+
+function ErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <StartupShell>
+      <div className="max-w-6xl mx-auto flex flex-col items-center justify-center py-32 space-y-4">
+        <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
+          <Info className="w-8 h-8 text-red-400" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900">Không tìm thấy chuyên gia</h2>
+        <p className="text-sm text-slate-500">Chuyên gia này không tồn tại hoặc đã xảy ra lỗi khi tải dữ liệu.</p>
+        <Button
+          onClick={onRetry}
+          className="mt-4 h-10 px-6 rounded-xl bg-[#0f172a] text-white text-sm font-semibold hover:bg-slate-700"
+        >
+          Thử lại
+        </Button>
+      </div>
+    </StartupShell>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ExpertProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -299,13 +145,42 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  const mentor = ADVISORS.find(a => a.id === parseInt(id));
-  if (!mentor) notFound();
+  const [advisor, setAdvisor] = useState<IAdvisorDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  // Mock: advisor ID 1 has an accepted mentorship session with this startup
-  const hasActiveMentorship = mentor.id === 1;
+  const fetchAdvisor = async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await GetAdvisorById(parseInt(id)) as unknown as IBackendRes<IAdvisorDetail>;
+      console.log("Fetch Advisor Item Response:", res);
+      // Because we learned from the list API, backend might nest the object inside `res.data.data` or just `res.data`
+      const data = res.data && (res.data as any).data ? (res.data as any).data : res.data;
+      
+      if ((res.success || res.isSuccess) && data) {
+        setAdvisor(data);
+      } else {
+        setError(true);
+      }
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const totalReviews = mentor.ratingBreakdown.reduce((s, b) => s + b.count, 0);
+  useEffect(() => {
+    fetchAdvisor();
+  }, [id]);
+
+  if (loading) return <ProfileSkeleton />;
+  if (error || !advisor) return <ErrorState onRetry={fetchAdvisor} />;
+
+  // TODO: Determine hasActiveMentorship from a real API call (e.g. check if there is an active mentorship with this advisor)
+  const hasActiveMentorship = false;
+
+  const totalReviews = (advisor.ratingBreakdown || []).reduce((s, b) => s + b.count, 0);
 
   return (
     <StartupShell>
@@ -318,26 +193,51 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
           <div className="flex flex-col md:flex-row items-center md:items-start gap-8 relative z-10">
             {/* Avatar */}
             <div className="relative size-36 rounded-2xl overflow-hidden border-4 border-white shadow-xl shadow-amber-500/10 flex-shrink-0">
-              <img src={mentor.avatar} alt={mentor.name} className="w-full h-full object-cover" />
-            </div>
-
-            {/* Info */}
+                {isValidImageUrl(advisor.profilePhotoURL) ? (
+                  <img src={advisor.profilePhotoURL} alt={advisor.fullName} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-slate-100 flex items-center justify-center">
+                    <span className="text-4xl font-bold text-slate-400">
+                      {advisor.fullName?.charAt(0)?.toUpperCase()}
+                    </span>
+                  </div>
+                )}
+              </div>
             <div className="flex-1 space-y-5 text-center md:text-left">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-center md:justify-start gap-2.5 flex-wrap">
-                  <h1 className="text-[28px] font-black text-slate-900 tracking-tight">{mentor.name}</h1>
-                  {mentor.isVerified && (
+                  <h1 className="text-[28px] font-black text-slate-900 tracking-tight">{advisor.fullName}</h1>
+                  {advisor.isVerified && (
                     <span className="flex items-center gap-1 px-2.5 py-1 bg-teal-50 text-teal-600 border border-teal-100 rounded-xl text-[11px] font-semibold">
                       <BadgeCheck className="w-3.5 h-3.5" /> Đã xác minh
                     </span>
                   )}
                 </div>
-                <p className="text-[15px] font-semibold text-slate-400">{mentor.title}</p>
+                  <div className="flex flex-col md:flex-row items-center gap-2 md:gap-4">
+                    <p className="text-[15px] font-semibold text-slate-500">{advisor.title}</p>
+                    {(advisor.company || advisor.linkedInURL) && (
+                      <div className="flex items-center gap-3 text-sm text-slate-400">
+                        {advisor.company && (
+                          <span className="flex items-center gap-1.5 before:hidden md:before:block before:content-['•'] before:mr-3 before:text-slate-300">
+                            <span className="font-medium text-slate-600">{advisor.company}</span>
+                          </span>
+                        )}
+                        {advisor.linkedInURL && (
+                            <a href={advisor.linkedInURL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 hover:underline transition-colors font-medium">
+                              <Image src="/linkedin.svg" alt="LinkedIn" width={16} height={16} unoptimized priority />
+                            LinkedIn
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 <div className="flex flex-wrap gap-1.5 justify-center md:justify-start mt-2">
-                  {mentor.expertise.map(tag => (
-                    <span key={tag} className="px-2.5 py-1 bg-slate-50 border border-slate-100 rounded-lg text-[11px] font-medium text-slate-600">{tag}</span>
-                  ))}
-                  {mentor.domainTags.map(tag => (
+                    {(advisor.expertise || []).map(tag => (
+                        <span key={tag} className="px-2.5 py-1 bg-slate-50 border border-slate-100 rounded-lg text-[11px] font-medium text-slate-600">
+                          {formatExpertise(tag)}
+                        </span>
+                    ))}
+                    {(advisor.domainTags || []).map(tag => (
                     <span key={tag} className="px-2.5 py-1 bg-amber-50 border border-amber-100 rounded-lg text-[11px] font-medium text-amber-700">{tag}</span>
                   ))}
                 </div>
@@ -350,8 +250,8 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                     <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
                   </div>
                   <div>
-                    <p className="text-[16px] font-bold text-slate-900 leading-none">{mentor.rating}</p>
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">{mentor.reviewCount} đánh giá</p>
+                    <p className="text-[16px] font-bold text-slate-900 leading-none">{advisor.averageRating}</p>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">{advisor.reviewCount} đánh giá</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 px-6 border-x border-slate-100">
@@ -359,7 +259,7 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                     <CheckCircle2 className="w-4 h-4 text-blue-500" />
                   </div>
                   <div>
-                    <p className="text-[16px] font-bold text-slate-900 leading-none">{mentor.completedSessions}</p>
+                    <p className="text-[16px] font-bold text-slate-900 leading-none">{advisor.completedSessions}</p>
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">Phiên hoàn thành</p>
                   </div>
                 </div>
@@ -368,7 +268,7 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                     <Briefcase className="w-4 h-4 text-green-500" />
                   </div>
                   <div>
-                    <p className="text-[16px] font-bold text-slate-900 leading-none">{mentor.yearsOfExperience} năm</p>
+                    <p className="text-[16px] font-bold text-slate-900 leading-none">{advisor.yearsOfExperience} năm</p>
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">Kinh nghiệm</p>
                   </div>
                 </div>
@@ -418,29 +318,31 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                 {/* Biography */}
                 <section className="space-y-3">
                   <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Giới thiệu Chuyên gia</h3>
-                  <p className="text-[14px] text-slate-600 leading-relaxed">{mentor.biography}</p>
-                </section>
+                    <p className="text-[14px] text-slate-600 leading-relaxed whitespace-pre-line">{advisor.bio || advisor.biography || "Cố vấn chưa cung cấp thông tin giới thiệu."}</p>
+                  </section>
 
-                {/* Philosophy */}
-                <section className="space-y-3 pt-8 border-t border-slate-50">
-                  <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Triết lý hướng dẫn</h3>
-                  <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 relative">
-                    <MessageSquare className="absolute -top-2 -left-2 w-7 h-7 text-[#eec54e]/20" />
-                    <p className="text-[14px] text-slate-700 font-semibold italic">"{mentor.philosophy}"</p>
-                  </div>
-                </section>
+                  {/* Philosophy */}
+                  {Boolean(advisor.mentorshipPhilosophy || advisor.philosophy) && (
+                    <section className="space-y-3 pt-6 border-t border-slate-50">
+                      <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Triết lý hướng dẫn</h3>
+                      <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 relative">
+                        <MessageSquare className="absolute -top-2 -left-2 w-7 h-7 text-[#eec54e]/20" />
+                        <p className="text-[14px] text-slate-700 font-semibold italic whitespace-pre-line">"{advisor.mentorshipPhilosophy || advisor.philosophy}"</p>
+                      </div>
+                    </section>
+                  )}
 
                 {/* Rating Summary */}
                 <section className="space-y-4 pt-8 border-t border-slate-50">
                   <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Đánh giá & Xếp hạng</h3>
                   <div className="flex items-center gap-8">
                     <div className="text-center flex-shrink-0">
-                      <p className="text-[48px] font-black text-slate-900 leading-none">{mentor.rating}</p>
-                      <StarRow rating={mentor.rating} />
-                      <p className="text-[12px] text-slate-400 mt-1">{mentor.reviewCount} đánh giá</p>
+                      <p className="text-[48px] font-black text-slate-900 leading-none">{advisor.averageRating}</p>
+                      <StarRow rating={advisor.averageRating} />
+                      <p className="text-[12px] text-slate-400 mt-1">{advisor.reviewCount} đánh giá</p>
                     </div>
                     <div className="flex-1 space-y-2">
-                      {[...mentor.ratingBreakdown].reverse().map(({ score, count }) => (
+                        {[...(advisor.ratingBreakdown || [])].reverse().map(({ score, count }) => (
                         <div key={score} className="flex items-center gap-3">
                           <span className="text-[12px] text-slate-400 w-8 text-right">{score}⭐</span>
                           <div className="flex-1 bg-slate-100 rounded-full h-2">
@@ -457,32 +359,36 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                 </section>
 
                 {/* Experience */}
-                <section className="space-y-6 pt-8 border-t border-slate-50">
-                  <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Kinh nghiệm & Thành tựu</h3>
-                  <div className="space-y-8 relative before:absolute before:inset-0 before:left-[11px] before:w-0.5 before:bg-slate-100">
-                    {mentor.experience.map((item, idx) => (
-                      <div key={idx} className="relative pl-10 space-y-1">
-                        <div className="absolute left-0 top-1.5 w-6 h-6 rounded-full bg-white border-2 border-[#eec54e] shadow-sm z-10" />
-                        <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">{item.year}</span>
-                        <h4 className="text-[15px] font-bold text-slate-900">{item.role}</h4>
-                        <p className="text-[13px] font-semibold text-slate-400">{item.company}</p>
-                        <p className="text-[13px] text-slate-500 leading-relaxed">{item.desc}</p>
+{advisor.experience && advisor.experience.length > 0 && (
+                    <section className="space-y-6 pt-8 border-t border-slate-50">
+                      <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Kinh nghiệm & Thành tựu</h3>
+                      <div className="space-y-8 relative before:absolute before:inset-0 before:left-[11px] before:w-0.5 before:bg-slate-100">
+                        {advisor.experience.map((item, idx) => (
+                          <div key={idx} className="relative pl-10 space-y-1">
+                            <div className="absolute left-0 top-1.5 w-6 h-6 rounded-full bg-white border-2 border-[#eec54e] shadow-sm z-10" />
+                            <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">{item.year}</span>
+                            <h4 className="text-[15px] font-bold text-slate-900">{item.role}</h4>
+                            <p className="text-[13px] font-semibold text-slate-400">{item.company}</p>
+                            <p className="text-[13px] text-slate-500 leading-relaxed">{item.desc}</p>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </section>
+                    </section>
+                  )}
 
                 {/* Suitable For */}
-                <section className="space-y-4 pt-8 border-t border-slate-50">
-                  <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Phù hợp với</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {mentor.suitableFor.map(f => (
-                      <span key={f} className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-xl text-[12px] font-medium border border-amber-100">
-                        ✓ {f}
-                      </span>
-                    ))}
-                  </div>
-                </section>
+{advisor.suitableFor && advisor.suitableFor.length > 0 && (
+                    <section className="space-y-4 pt-8 border-t border-slate-50">
+                      <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Phù hợp với</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {(advisor.suitableFor || []).map(f => (
+                          <span key={f} className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-xl text-[12px] font-medium border border-amber-100">
+                            ✓ {f}
+                          </span>
+                        ))}
+                      </div>
+                    </section>
+                  )}
 
               </CardContent>
             </Card>
@@ -492,7 +398,7 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
               <CardContent className="p-8 space-y-6">
                 <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Đánh giá từ Startup</h3>
                 <div className="space-y-4">
-                  {mentor.reviews.map((review, idx) => (
+                    {(advisor.reviews || []).map((review, idx) => (
                     <div key={idx} className="p-5 bg-white border border-slate-100 rounded-2xl space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -529,13 +435,13 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                 </div>
 
                 <div className="flex items-end gap-1">
-                  <span className="text-[32px] font-black text-slate-900 leading-none">{formatVND(mentor.hourlyRate)}</span>
+                  <span className="text-[32px] font-black text-slate-900 leading-none">{formatVND(advisor.hourlyRate)}</span>
                   <span className="text-[13px] text-slate-400 mb-1">/giờ</span>
                 </div>
 
                 <div className="space-y-2">
-                  {mentor.supportedDurations.map(d => {
-                    const price = Math.round(mentor.hourlyRate * d / 60);
+                  {(advisor.supportedDurations || []).map(d => {
+                    const price = Math.round(advisor.hourlyRate * d / 60);
                     return (
                       <div key={d} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl">
                         <span className="text-[12px] font-semibold text-slate-600">{d} phút</span>
@@ -572,7 +478,7 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                       </div>
                       <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Phiên hoàn thành</span>
                     </div>
-                    <span className="text-[13px] font-bold text-slate-900">{mentor.completedSessions}</span>
+                    <span className="text-[13px] font-bold text-slate-900">{advisor.completedSessions}</span>
                   </div>
 
                   <div className="flex items-center justify-between">
@@ -582,7 +488,7 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                       </div>
                       <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Lịch rảnh</span>
                     </div>
-                    <span className="text-[13px] font-bold text-slate-900">{mentor.availabilityHint}</span>
+                    <span className="text-[13px] font-bold text-slate-900">{advisor.availabilityHint}</span>
                   </div>
 
                   <div className="flex items-center justify-between">
@@ -592,7 +498,7 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                       </div>
                       <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Kinh nghiệm</span>
                     </div>
-                    <span className="text-[13px] font-bold text-slate-900">{mentor.yearsOfExperience} năm</span>
+                    <span className="text-[13px] font-bold text-slate-900">{advisor.yearsOfExperience} năm</span>
                   </div>
 
                   <div className="flex items-center justify-between">
@@ -602,8 +508,8 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                       </div>
                       <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Xác minh</span>
                     </div>
-                    <span className={cn("text-[13px] font-bold", mentor.isVerified ? "text-teal-600" : "text-slate-400")}>
-                      {mentor.isVerified ? "Đã xác minh" : "Chưa xác minh"}
+                    <span className={cn("text-[13px] font-bold", advisor.isVerified ? "text-teal-600" : "text-slate-400")}>
+                      {advisor.isVerified ? "Đã xác minh" : "Chưa xác minh"}
                     </span>
                   </div>
                 </div>
@@ -616,7 +522,7 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
               <CardContent className="p-6 space-y-5">
                 <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] pb-4 border-b border-slate-50">Chuyên môn chính</h4>
                 <div className="space-y-4">
-                  {mentor.skills.map((skill, idx) => (
+                  {advisor.skills.map((skill, idx) => (
                     <div key={idx} className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-[13px] font-semibold text-slate-700">{skill.label}</span>
@@ -640,7 +546,15 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
         <MentorshipRequestModal
           isOpen={isRequestModalOpen}
           onClose={() => setIsRequestModalOpen(false)}
-          mentor={{ name: mentor.name, avatar: mentor.avatar, title: mentor.title, hourlyRate: mentor.hourlyRate, supportedDurations: mentor.supportedDurations }}
+          mentor={{
+            advisorID: advisor.advisorID,
+            fullName: advisor.fullName,
+            profilePhotoURL: advisor.profilePhotoURL,
+            title: advisor.title,
+            hourlyRate: advisor.hourlyRate,
+            supportedDurations: advisor.supportedDurations,
+            expertise: advisor.expertise,
+          } as IAdvisorSearchItem}
         />
 
         {/* Toast */}

@@ -27,8 +27,10 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { InvestorConnectionModal } from "@/components/startup/investor-connection-modal";
 import { GetConnectionByInvestorId } from "@/services/connection/connection.api";
-import { GetInvestorById } from "@/services/startup/startup.api";
+// import { GetInvestorById } from "@/services/startup/startup.api";
 import { CreateConversation } from "@/services/messaging/messaging.api";
+
+// ── Types ──────────────────────────────────────────────────────────────────────
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -74,9 +76,10 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
         const loadInvestor = async () => {
             setInvestorLoading(true);
             try {
-                const res = await GetInvestorById(investorId) as any as IBackendRes<IInvestorProfile>;
+                // const res = await GetInvestorById(investorId) as any as IBackendRes<IInvestorProfile>;
+                const res = { success: false, data: null }; // Mock until implemented
                 if (res.success && res.data) {
-                    setInvestor(res.data);
+                    setInvestor(res.data as any);
                 } else {
                     setIsNotFound(true);
                 }
@@ -327,11 +330,11 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                                     { label: "Độ trưởng thành sản phẩm", items: investor.preferredProductMaturity },
                                     { label: "Mức độ kiểm chứng", items: investor.preferredValidationLevel },
                                     { label: "Điểm mạnh ưu tiên", items: investor.preferredStrengths },
-                                ].filter(g => g.items?.length > 0).map(group => (
+                                ].filter(g => (g.items?.length ?? 0) > 0).map(group => (
                                     <div key={group.label} className="space-y-4">
                                         <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{group.label}</p>
                                         <div className="flex flex-wrap gap-2">
-                                            {group.items.map(item => (
+                                            {(group.items ?? []).map(item => (
                                                 <span key={item} className="px-5 py-2.5 bg-[#f8fafc] dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-[12px] font-black text-slate-600 dark:text-slate-300 tracking-tight">
                                                     {item}
                                                 </span>
@@ -342,7 +345,9 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                                 {investor.preferredAIScoreRange && (
                                     <div className="space-y-3">
                                         <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Dải AI Score ưu tiên</p>
-                                        <p className="text-[20px] font-black text-slate-900 dark:text-white">{investor.preferredAIScoreRange}</p>
+                                        <p className="text-[20px] font-black text-slate-900 dark:text-white">
+                                            {typeof investor.preferredAIScoreRange === 'string' ? investor.preferredAIScoreRange : `${(investor.preferredAIScoreRange as any)?.min} – ${(investor.preferredAIScoreRange as any)?.max}`}
+                                        </p>
                                         <p className="text-[12px] text-slate-400 font-medium">Mức độ quan trọng: <span className="font-black text-yellow-600">{investor.aiScoreImportance}</span></p>
                                     </div>
                                 )}
@@ -411,7 +416,7 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                                     <div className="space-y-4">
                                         <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Giai đoạn ưu tiên</p>
                                         <div className="flex flex-wrap gap-2">
-                                            {investor.preferredStages.map(stage => (
+                                            {(investor.preferredStages ?? []).map(stage => (
                                                 <span key={stage} className="px-5 py-2.5 bg-white dark:bg-slate-800 border-2 border-slate-50 dark:border-slate-800 rounded-xl text-[12px] font-black text-slate-600 dark:text-slate-300 tracking-tight">
                                                     {stage}
                                                 </span>
@@ -423,7 +428,7 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                                     <div className="space-y-4 pt-2">
                                         <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Lĩnh vực quan tâm</p>
                                         <div className="flex flex-wrap gap-2">
-                                            {investor.preferredIndustries.map(sector => (
+                                            {(investor.preferredIndustries ?? []).map(sector => (
                                                 <span key={sector} className="px-4 py-2 bg-[#f8fafc] dark:bg-slate-800 text-[11px] font-black text-slate-400 dark:text-slate-500 rounded-xl border border-slate-50 dark:border-slate-700">
                                                     {sector}
                                                 </span>
@@ -496,7 +501,7 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                     investor={investor ? {
                         name: investor.fullName,
                         logo: investor.profilePhotoURL ?? "",
-                        type: investor.firmName || investor.investorType,
+                        type: investor.firmName || investor.investorType || "",
                         investorId: investorId,
                     } : null}
                     onSuccess={handleConnectionSuccess}

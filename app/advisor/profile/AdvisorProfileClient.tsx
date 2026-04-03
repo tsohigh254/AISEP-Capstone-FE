@@ -8,6 +8,7 @@ import {
   Sparkles, Check, ShieldCheck, KeyRound, AlertCircle,
   Loader2, CheckCircle2, Eye, EyeOff, CreditCard, Info,
 } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import { ChangePassword } from "@/services/auth/auth.api";
@@ -20,31 +21,40 @@ import {
 
 /* ─── Constants ──────────────────────────────────────────────── */
 
-const MOCK_INDUSTRIES = [
-  { id: 1, name: "AI & Technology" },
-  { id: 2, name: "Fintech" },
-  { id: 3, name: "Healthcare" },
-  { id: 4, name: "E-commerce" },
-  { id: 5, name: "EdTech" },
-  { id: 6, name: "ClimateTech" },
+const EXPERTISE_OPTIONS = [
+  { value: "FUNDRAISING", label: "Gọi vốn" },
+  { value: "PRODUCT_STRATEGY", label: "Chiến lược SP" },
+  { value: "GO_TO_MARKET", label: "Go-to-market" },
+  { value: "FINANCE", label: "Tài chính" },
+  { value: "LEGAL_IP", label: "Pháp lý & SHTT" },
+  { value: "OPERATIONS", label: "Vận hành" },
+  { value: "TECHNOLOGY", label: "Công nghệ" },
+  { value: "MARKETING", label: "Marketing" },
+  { value: "HR_OR_TEAM_BUILDING", label: "Nhân sự" },
 ];
 
 /* ─── Completeness ───────────────────────────────────────────── */
 
 function calcCompleteness(f: {
-  name: string; title: string;
-  linkedInURL: string;
-  industryFocus: number[]; bio: string; mentorshipPhilosophy: string;
-  isAcceptingNewMentees: boolean; weeklyAvailableHours: number;
+  name: string; title: string; company: string;
+  yearsOfExperience: number | null; website: string; linkedInURL: string;
+  googleMeetLink: string; msTeamsLink: string;
+  primaryExpertise: string; bio: string; mentorshipPhilosophy: string;
+  isBookable: boolean; hourlyRate: number | null; supportedDurations: number[];
 }) {
   const checks = [
     Boolean(f.name?.trim()),
     Boolean(f.title?.trim()),
-    Boolean(f.linkedInURL?.trim()),
-    f.industryFocus.length > 0,
+    Boolean(f.company?.trim()),
+    f.yearsOfExperience !== null && f.yearsOfExperience >= 0,
+    Boolean(f.website?.trim() || f.linkedInURL?.trim()),
+    Boolean(f.primaryExpertise),
     Boolean(f.bio?.trim()),
     Boolean(f.mentorshipPhilosophy?.trim()),
-    !f.isAcceptingNewMentees || (f.weeklyAvailableHours > 0),
+    Boolean(f.googleMeetLink?.trim()),
+    Boolean(f.msTeamsLink?.trim()),
+    !f.isBookable || (f.hourlyRate !== null && f.hourlyRate > 0),
+    !f.isBookable || (f.supportedDurations.length > 0),
   ];
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 }
@@ -80,6 +90,7 @@ function AdvisorProfileClientInner() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /* ── State ─────────────────────────────────────────────────── */
+  const [hasProfile, setHasProfile] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -87,17 +98,21 @@ function AdvisorProfileClientInner() {
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
+  const [profileStatus, setProfileStatus] = useState<string>("Draft");
   const [form, setForm] = useState({
-    name: "", title: "", bio: "", mentorshipPhilosophy: "",
-    linkedInURL: "", industryFocus: [] as number[],
-    sessionFormats: "Online", typicalSessionDuration: 60,
-    weeklyAvailableHours: 5, maxConcurrentMentees: 2,
-    responseTimeCommitment: "24h", isAcceptingNewMentees: false,
+    name: "", title: "", company: "",
+    yearsOfExperience: null as number | null,
+    website: "", linkedInURL: "",
+    bio: "", mentorshipPhilosophy: "",
+    googleMeetLink: "", msTeamsLink: "",
+    isBookable: false,
+    hourlyRate: null as number | null,
+    supportedDurations: [60] as number[],
   });
 
-  const [hasProfile, setHasProfile] = useState(false);
-
-  const [profileCompletion, setProfileCompletion] = useState<number | null>(null);
+  const [primaryExpertise, setPrimaryExpertise] = useState("");
+  const [secondaryExpertises, setSecondaryExpertises] = useState<string[]>([]);
+  const [savedIndustries, setSavedIndustries] = useState<any[]>([]);
 
   /* Password dialog */
   const [showPwDialog, setShowPwDialog] = useState(false);
@@ -106,71 +121,56 @@ function AdvisorProfileClientInner() {
   const [pwError, setPwError] = useState("");
   const [isChangingPw, setIsChangingPw] = useState(false);
 
-  const derivedCompleteness = calcCompleteness(form);
-  const completeness = profileCompletion ?? derivedCompleteness;
+  const completeness = calcCompleteness({ ...form, primaryExpertise });
 
   /* ── Load profile ──────────────────────────────────────────── */
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await GetAdvisorProfile();
-        const payload: any = res?.data ?? res;
-
-        const isSuccess =
-          typeof res?.isSuccess === "boolean"
-            ? res.isSuccess
-            : typeof res?.success === "boolean"
-              ? res.success
-              : Boolean(payload);
-
-        if (isSuccess && payload) {
-          // Existing profile
-          setHasProfile(true);
-
-          const d: any = payload;
-          const items: any[] = Array.isArray(d.items) ? d.items : [];
-
-          setForm({
-            name: d.fullName ?? "",
-            title: d.title ?? "",
-            linkedInURL: d.linkedInURL ?? d.linkedInUrl ?? "",
-            bio: d.bio ?? "",
-            mentorshipPhilosophy: d.mentorshipPhilosophy ?? "",
-            industryFocus: Array.isArray(d.industry) ? d.industry.map((i: any) => i.industryId) : [],
-            sessionFormats: d.avalability?.sessionFormats ?? "Online",
-            typicalSessionDuration: d.avalability?.typicalSessionDuration ?? 60,
-            weeklyAvailableHours: d.avalability?.weeklyAvailableHours ?? 5,
-            maxConcurrentMentees: d.avalability?.maxConcurrentMentees ?? 2,
-            responseTimeCommitment: d.avalability?.responseTimeCommitment ?? "24h",
-            isAcceptingNewMentees: d.avalability?.isAcceptingNewMentees ?? false,
-          });
-
-          const photoUrl = d.profilePhotoURL ?? d.profilePhotoUrl;
-          if (photoUrl) setPhotoPreview(photoUrl);
-
-          setProfileCompletion(null);
+        const res: any = await GetAdvisorProfile();
+        
+        // Backend đã return HTTP 200 OK + "isSuccess": true. Data null nếu chưa có.
+        if (res.isSuccess) {
+          if (res.data) {
+            const d: any = res.data;              console.log("=== API RESPONSE: GET /api/advisors/me ===", d);            
+            
+            const expArray: string[] = Array.isArray(d.expertise) ? d.expertise : [];
+            const apiDurations = Array.isArray(d.supportedDurations) ? d.supportedDurations : [60];
+            
+            setForm({
+              name: d.fullName || "",
+              title: d.title || "",
+              company: d.company || "",
+              yearsOfExperience: d.yearsOfExperience ?? null,
+              website: d.website || "",
+              linkedInURL: d.linkedInURL || "",
+              bio: d.bio || "",
+              mentorshipPhilosophy: d.mentorshipPhilosophy || "",
+              googleMeetLink: d.googleMeetLink || "",
+              msTeamsLink: d.msTeamsLink || "",
+              isBookable: d.hourlyRate ? true : false,
+              hourlyRate: d.hourlyRate ?? null,
+              supportedDurations: Array.from(new Set(apiDurations.map((v: any) => Number(v))) as Set<number>).sort((a: number, b: number) => a - b),
+            });
+            if (d.profilePhotoURL) setPhotoPreview(d.profilePhotoURL);
+            
+            setPrimaryExpertise(expArray[0] || "");
+            setSecondaryExpertises(expArray.slice(1, 4).filter(Boolean));
+            
+            setSavedIndustries(d.industryFocus || []);
+            setHasProfile(true);
+            setProfileStatus(d.profileStatus || "Draft");
+          } else {
+            // isSuccess: true, nhưng data: null -> User mới chưa có Profile
+            setHasProfile(false);
+          }
         } else {
-          // No profile -> show empty form for update/create
-          setHasProfile(false);
-          setPhotoPreview(null);
-          setProfileCompletion(null);
-          setForm({
-            name: "", title: "", bio: "", mentorshipPhilosophy: "",
-            linkedInURL: "", industryFocus: [],
-            sessionFormats: "Online", typicalSessionDuration: 60,
-            weeklyAvailableHours: 5, maxConcurrentMentees: 2,
-            responseTimeCommitment: "24h", isAcceptingNewMentees: false,
-          });
-        }
-      } catch (err: any) {
-        const status = err?.response?.status ?? err?.status;
-        // 404/no-profile -> show empty form
-        if (status === 404) {
-          setHasProfile(false);
-          setLoadError(false);
-        } else {
+          // Các mã lỗi chủ động bắt được kiểu như isSuccess: false
           setLoadError(true);
         }
+      } catch (error: any) {
+        // Lỗi không lường trước (5xx)
+        setLoadError(true);
       } finally {
         setIsLoading(false);
       }
@@ -192,74 +192,102 @@ function AdvisorProfileClientInner() {
   /* ── Save profile ──────────────────────────────────────────── */
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error("Vui lòng nhập tên Advisor"); return; }
-    if (!form.title.trim()) { toast.error("Vui lòng nhập chức vụ hiện tại"); return; }
-    if (!form.linkedInURL.trim()) {
-      toast.error("Vui lòng cung cấp liên kết LinkedIn");
+    
+    if (form.isBookable && (!form.hourlyRate || form.hourlyRate <= 0)) {
+      toast.error("Vui lòng nhập phí tư vấn khi bật tính năng cho phép đặt lịch!");
       return;
     }
-    if (form.industryFocus.length === 0) { toast.error("Vui lòng chọn ít nhất 1 lĩnh vực"); return; }
-    if (!form.bio.trim()) { toast.error("Vui lòng nhập phần giới thiệu bản thân"); return; }
-    if (!form.mentorshipPhilosophy.trim()) { toast.error("Vui lòng nhập triết lý cố vấn"); return; }
+    
+    const urlRegex = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/i;
+    if (form.website && !urlRegex.test(form.website)) {
+      toast.error("Định dạng Website không hợp lệ!"); return;
+    }
+    let formattedLinkedIn = form.linkedInURL;
+    if (formattedLinkedIn && !formattedLinkedIn.startsWith("http://") && !formattedLinkedIn.startsWith("https://")) {
+      formattedLinkedIn = `https://${formattedLinkedIn}`;
+    }
+
+    if (formattedLinkedIn && !formattedLinkedIn.includes("linkedin.com/")) {
+      toast.error("Đường dẫn LinkedIn không hợp lệ!"); return;
+    }
+    if (form.googleMeetLink && !form.googleMeetLink.includes("meet.google.com/")) {
+      toast.error("Đường dẫn Google Meet không hợp lệ!"); return;
+    }
+
     setIsSaving(true);
+    const payload = {
+      title: form.title || undefined,
+      company: form.company || undefined,
+      bio: form.bio || undefined,
+      experienceYears: form.yearsOfExperience ?? undefined,
+      website: form.website || undefined,
+      linkedInURL: formattedLinkedIn || undefined,
+      googleMeetLink: form.googleMeetLink || undefined,
+      msTeamsLink: form.msTeamsLink || undefined,
+      mentorshipPhilosophy: form.mentorshipPhilosophy || undefined,
+      profilePhotoFile: profilePhoto ?? undefined,
+      items: primaryExpertise
+        ? [
+            { category: primaryExpertise, yearsOfExperience: form.yearsOfExperience },
+            ...secondaryExpertises.map(c => ({ category: c }))
+          ]
+        : [],
+      servicePricing: {
+        isBookable: form.isBookable,
+        hourlyRate: form.hourlyRate,
+        currency: "VND" as const,
+        supportedDurations: form.supportedDurations,
+      },
+      advisorIndustryFocus: savedIndustries.map((item: any) => ({ industryId: item.industryId })),
+    };
     try {
-      const payloadProfile: any = {
-        fullName: form.name,
-        title: form.title,
-        bio: form.bio,
-        linkedInURL: form.linkedInURL,
-        mentorshipPhilosophy: form.mentorshipPhilosophy,
-        advisorIndustryFocus: form.industryFocus.map(id => ({ industryId: id })),
-      };
-      if (profilePhoto) {
-        payloadProfile.profilePhotoURL = profilePhoto;
-      }
-
+      let res: any;
       if (hasProfile) {
-        await UpdateAdvisorProfile(payloadProfile);
+        res = await UpdateAdvisorProfile(form.name, payload);
       } else {
-        await CreateAdvisorProfile(payloadProfile);
-        setHasProfile(true);
+        res = await CreateAdvisorProfile(form.name, payload);
       }
 
-      await UpdateAdvisorAvailability({
-        sessionFormats: form.sessionFormats,
-        typicalSessionDuration: form.typicalSessionDuration,
-        weeklyAvailableHours: form.weeklyAvailableHours,
-        maxConcurrentMentees: form.maxConcurrentMentees,
-        responseTimeCommitment: form.responseTimeCommitment,
-        isAcceptingNewMentees: form.isAcceptingNewMentees
-      });
+      if (res && res.isSuccess === false) {
+        // Validation error from backend
+        const errorMsg = res.data?.[0]?.messages?.[0] || res.message || "Lưu hồ sơ thất bại";
+        toast.error(`Lỗi: ${errorMsg}`);
+        return;
+      }
 
+      setHasProfile(true);
       toast.success("Lưu hồ sơ thành công");
-
-      const refRes = await GetAdvisorProfile();
-      const refData: any = refRes?.data ?? refRes;
-      if (refRes?.isSuccess && refData) {
-        const d: any = refData;
-        setForm({
-            name: d.fullName ?? "",
-            title: d.title ?? "",
-            linkedInURL: d.linkedInURL ?? d.linkedInUrl ?? "",
-            bio: d.bio ?? "",
-            mentorshipPhilosophy: d.mentorshipPhilosophy ?? "",
-            industryFocus: Array.isArray(d.industry) ? d.industry.map((i: any) => i.industryId) : [],
-            sessionFormats: d.avalability?.sessionFormats ?? form.sessionFormats,
-            typicalSessionDuration: d.avalability?.typicalSessionDuration ?? form.typicalSessionDuration,
-            weeklyAvailableHours: d.avalability?.weeklyAvailableHours ?? form.weeklyAvailableHours,
-            maxConcurrentMentees: d.avalability?.maxConcurrentMentees ?? form.maxConcurrentMentees,
-            responseTimeCommitment: d.avalability?.responseTimeCommitment ?? form.responseTimeCommitment,
-            isAcceptingNewMentees: d.avalability?.isAcceptingNewMentees ?? form.isAcceptingNewMentees,
-        });
-
-        const photoUrl = d.profilePhotoURL ?? d.profilePhotoUrl;
-        if (photoUrl) setPhotoPreview(photoUrl);
-      }
-
-      setProfilePhoto(null);
-    } catch {
+    } catch (error: any) {
       toast.error("Lưu hồ sơ thất bại. Vui lòng thử lại.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  /* ── Change Availability ───────────────────────────────────── */
+  const [isTogglingAvail, setIsTogglingAvail] = useState(false);
+  const handleToggleAvailability = async () => {
+    if (profileStatus !== "Approved") return;
+    
+    // Optimistic UI
+    const prev = form.isBookable;
+    setForm(p => ({ ...p, isBookable: !prev }));
+    setIsTogglingAvail(true);
+    
+    try {
+      const res: any = await UpdateAdvisorAvailability(!prev);
+      if (res && res.isSuccess === false) {
+        setForm(p => ({ ...p, isBookable: prev }));
+        const errorMsg = res.message || res.data?.[0]?.messages?.[0] || "Không thể bật nhận tư vấn";
+        toast.error(`Lỗi: ${errorMsg}`);
+      } else {
+        toast.success(!prev ? "Đã BẬT nhận yêu cầu tư vấn" : "Đã TẮT nhận yêu cầu tư vấn");
+      }
+    } catch (e: any) {
+      setForm(p => ({ ...p, isBookable: prev }));
+      toast.error(e?.response?.data?.message || "Có lỗi xảy ra khi thay đổi trạng thái khả dụng.");
+    } finally {
+      setIsTogglingAvail(false);
     }
   };
 
@@ -319,6 +347,31 @@ function AdvisorProfileClientInner() {
     );
   }
 
+  /* ── Empty Profile CTA ─────────────────────────────────────── */
+  if (hasProfile === false && form.name === "") {
+    return (
+      <AdvisorShell>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-5 animate-in fade-in zoom-in-95 duration-500">
+          <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-amber-50 to-amber-100/50 flex items-center justify-center border border-amber-200/50 shadow-sm">
+            <Sparkles className="w-9 h-9 text-amber-500" />
+          </div>
+          <div className="text-center max-w-md">
+            <h2 className="text-[22px] font-bold text-slate-900 mb-2">Chào mừng bạn đến với AISEP</h2>
+            <p className="text-[14px] text-slate-500 leading-relaxed">
+              Bạn chưa có hồ sơ cố vấn. Hãy tạo hồ sơ ngay để các Startup có thể tìm thấy và kết nối với bạn nhé!
+            </p>
+          </div>
+          <button
+            onClick={() => setForm(p => ({ ...p, name: " " }))} 
+            className="px-6 py-3 bg-[#eec54e] text-white text-[14px] font-semibold rounded-xl hover:bg-[#d4ae3d] hover:shadow-lg hover:-translate-y-0.5 transition-all outline-none focus:ring-4 focus:ring-[#eec54e]/20"
+          >
+            Bắt đầu tạo hồ sơ
+          </button>
+        </div>
+      </AdvisorShell>
+    );
+  }
+
   /* ── JSX ───────────────────────────────────────────────────── */
   return (
     <AdvisorShell>
@@ -351,13 +404,14 @@ function AdvisorProfileClientInner() {
                 </div>
                 <div>
                   <button
+                    type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className="flex items-center gap-2 px-4 h-9 rounded-xl border border-slate-200 text-[12px] font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all"
                   >
                     <Camera className="w-3.5 h-3.5" /> Thay đổi ảnh
                   </button>
                   <p className="text-[11px] text-slate-400 mt-1.5">JPG, PNG — tối đa 5MB</p>
-                  <input type="file" ref={fileInputRef} onChange={handlePhoto} accept="image/*" className="hidden" />
+                  <input type="file" ref={fileInputRef} onChange={handlePhoto} accept="image/jpeg, image/png" className="hidden" />
                 </div>
               </div>
 
@@ -384,12 +438,50 @@ function AdvisorProfileClientInner() {
                   </div>
                 </div>
 
+                <div>
+                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Công ty / Tổ chức</label>
+                  <div className="relative">
+                    <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                    <input value={form.company} onChange={e => setForm(p => ({ ...p, company: e.target.value }))}
+                      placeholder="AI Tech Ventures"
+                      className={cn(inputClass(), "pl-10")} />
+                  </div>
+                </div>
 
+                <div>
+                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Số năm kinh nghiệm</label>
+                  <input
+                    type="number" min={0} max={60}
+                    value={form.yearsOfExperience ?? ""}
+                    onKeyDown={e => {
+                      if (["e", "E", "+", "-", "."].includes(e.key)) e.preventDefault();
+                    }}
+                    onChange={e => {
+                      let val = e.target.value === "" ? null : parseInt(e.target.value, 10);
+                      if (val !== null) {
+                        if (val > 60) val = 60;
+                        if (val < 0) val = 0;
+                      }
+                      setForm(p => ({ ...p, yearsOfExperience: val }));
+                    }}
+                    placeholder="8"
+                    className={inputClass()} />
+                </div>
+
+                <div>
+                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Website</label>
+                  <div className="relative">
+                    <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                    <input value={form.website} onChange={e => setForm(p => ({ ...p, website: e.target.value }))}
+                      placeholder="https://example.com"
+                      className={cn(inputClass(), "pl-10")} />
+                  </div>
+                </div>
 
                 <div>
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">LinkedIn URL</label>
                   <div className="relative">
-                    <Linkedin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                    <img src="/linkedin.svg" alt="LinkedIn" className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" />
                     <input value={form.linkedInURL} onChange={e => setForm(p => ({ ...p, linkedInURL: e.target.value }))}
                       placeholder="https://linkedin.com/in/username"
                       className={cn(inputClass(), "pl-10")} />
@@ -408,6 +500,7 @@ function AdvisorProfileClientInner() {
                   <textarea
                     value={form.bio}
                     onChange={e => setForm(p => ({ ...p, bio: e.target.value }))}
+                    maxLength={1000}
                     placeholder="Tóm tắt kinh nghiệm và giá trị bạn mang lại cho Startup..."
                     rows={4}
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 text-[13px] text-slate-700 placeholder:text-slate-300 outline-none focus:border-[#eec54e] focus:ring-2 focus:ring-[#eec54e]/20 resize-none transition-all"
@@ -422,6 +515,7 @@ function AdvisorProfileClientInner() {
                   <textarea
                     value={form.mentorshipPhilosophy}
                     onChange={e => setForm(p => ({ ...p, mentorshipPhilosophy: e.target.value }))}
+                    maxLength={1000}
                     placeholder="Bạn mong muốn hỗ trợ Startup như thế nào? Cách làm việc của bạn ra sao?"
                     rows={4}
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 text-[13px] text-slate-700 placeholder:text-slate-300 outline-none focus:border-[#eec54e] focus:ring-2 focus:ring-[#eec54e]/20 resize-none transition-all"
@@ -431,36 +525,101 @@ function AdvisorProfileClientInner() {
               </div>
             </SectionCard>
  
-            {/* Lĩnh vực tư vấn */}
-            <SectionCard title="Lĩnh vực tư vấn" icon={Sparkles}>
+             {/* Meeting Links */}
+             <SectionCard title="Link họp trực tuyến" icon={Globe}>
+               <div className="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-100 flex items-start gap-2.5">
+                 <ShieldCheck className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+                 <div className="flex-1">
+                   <p className="text-[12px] font-medium text-blue-800">Thông tin bảo mật</p>
+                   <p className="text-[11px] text-blue-700 leading-relaxed">
+                     Các đường dẫn này sẽ được giữ bí mật và chỉ chia sẻ với Startup sau khi buổi tư vấn được xác nhận lịch chính thức.
+                   </p>
+                 </div>
+               </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div>
+                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5 flex items-center gap-2">
+                     <Image src="/google-meet.svg" alt="Google Meet" width={18} height={18} />
+                     Google Meet Link
+                   </label>
+                   <input
+                     value={form.googleMeetLink}
+                     onChange={e => setForm(p => ({ ...p, googleMeetLink: e.target.value }))}
+                     placeholder="https://meet.google.com/xxx-yyyy-zzz"
+                     className={inputClass()}
+                   />
+                 </div>
+                 <div>
+                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5 flex items-center gap-2">
+                     <Image src="/ms-teams.svg" alt="Microsoft Teams" width={18} height={18} />
+                     MS Teams Link
+                   </label>
+                   <input
+                     value={form.msTeamsLink}
+                     onChange={e => setForm(p => ({ ...p, msTeamsLink: e.target.value }))}
+                     placeholder="https://teams.microsoft.com/l/meetup-join/..."
+                     className={inputClass()}
+                   />
+                 </div>
+               </div>
+             </SectionCard>
+
+            {/* Expertise */}
+            <SectionCard title="Chuyên môn" icon={Sparkles}>
               <div className="space-y-5">
                 <div>
+                  <label className="block text-[13px] font-semibold text-slate-700 mb-2">Chuyên môn chính</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {EXPERTISE_OPTIONS.map(opt => (
+                      <button key={opt.value} type="button"
+                        onClick={() => {
+                          setPrimaryExpertise(opt.value);
+                          setSecondaryExpertises(prev => prev.filter(v => v !== opt.value));
+                        }}
+                        className={cn(
+                          "px-3 py-2.5 rounded-xl border text-[12px] font-semibold text-center transition-all",
+                          primaryExpertise === opt.value
+                            ? "border-[#eec54e] bg-[#fdf8e6] text-slate-800"
+                            : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
                   <label className="block text-[13px] font-semibold text-slate-700 mb-2">
-                    Các lĩnh vực hỗ trợ
-                    <span className="text-slate-400 font-normal text-[12px] ml-1">— Chọn nhiều</span>
+                    Chuyên môn phụ
+                    <span className="text-slate-400 font-normal text-[12px] ml-1">— Tối đa 3</span>
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    {MOCK_INDUSTRIES.map(opt => {
-                      const selected = form.industryFocus.includes(opt.id);
+                    {EXPERTISE_OPTIONS.map(opt => {
+                      const selected = secondaryExpertises.includes(opt.value);
+                      const isPrimary = opt.value === primaryExpertise;
+                      const atMax = secondaryExpertises.length >= 3 && !selected;
+                      
                       return (
                         <button 
-                          key={opt.id} 
+                          key={opt.value} 
                           type="button" 
-                          onClick={() => setForm(p => ({
-                            ...p, 
-                            industryFocus: selected 
-                              ? p.industryFocus.filter(id => id !== opt.id)
-                              : [...p.industryFocus, opt.id]
-                          }))}
+                          disabled={isPrimary || atMax}
+                          onClick={() => setSecondaryExpertises(prev =>
+                            prev.includes(opt.value) ? prev.filter(v => v !== opt.value) : [...prev, opt.value]
+                          )}
                           className={cn(
                             "px-3.5 py-1.5 rounded-full text-[12px] font-semibold border transition-all flex items-center gap-1.5",
                             selected 
                               ? "bg-blue-50 text-blue-700 border-blue-200 shadow-sm" 
-                              : "bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-700"
+                              : "bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-700",
+                            isPrimary && "opacity-40 grayscale cursor-not-allowed bg-slate-50 border-slate-100",
+                            atMax && !isPrimary && "opacity-30 cursor-not-allowed"
                           )}
                         >
                           {selected ? <CheckCircle2 className="w-3.5 h-3.5" /> : null}
-                          {opt.name}
+                          {opt.label}
+                          {isPrimary && <span className="text-[9px] font-normal opacity-70 ml-0.5">(Chính)</span>}
                         </button>
                       );
                     })}
@@ -469,80 +628,108 @@ function AdvisorProfileClientInner() {
               </div>
             </SectionCard>
 
-            {/* Availability */}
-            <SectionCard title="Lịch trình hỗ trợ" icon={CreditCard}>
+            {/* Service & Pricing */}
+            <SectionCard title="Dịch vụ & Mức phí" icon={CreditCard}>
               <div className="space-y-6">
-                {/* Accept Mentees Toggle */}
+                {/* Bookable Toggle & Info */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-[14px] font-bold text-slate-800">Đang nhận hỗ trợ (Open for Mentees)</p>
-                      {form.isAcceptingNewMentees ? (
+                      <p className="text-[14px] font-bold text-slate-800">Nhận yêu cầu tư vấn</p>
+                      {form.isBookable ? (
                         <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider animate-pulse">Đang mở</span>
                       ) : (
                         <span className="px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-500 text-[10px] font-bold uppercase tracking-wider">Đang tắt</span>
                       )}
                     </div>
                     <p className="text-[12px] text-slate-500 leading-relaxed">
-                      Khi bật, Startup có thể tìm thấy bạn và gửi yêu cầu đặt lịch hỗ trợ trực tiếp.
+                      {profileStatus !== "Approved" 
+                        ? "Hồ sơ của bạn chưa được Admin phê duyệt. Tính năng nhận yêu cầu đang bị khóa." 
+                        : "Khi bật, Startup có thể tìm thấy bạn và gửi yêu cầu đặt lịch tư vấn trực tiếp."}
                     </p>
                   </div>
-                  
+
                   {/* Custom Toggle Switch */}
-                  <button 
+                  <button
                     type="button"
-                    onClick={() => setForm(p => ({ ...p, isAcceptingNewMentees: !p.isAcceptingNewMentees }))}
+                    disabled={profileStatus !== "Approved" || isTogglingAvail}
+                    onClick={handleToggleAvailability}
                     className={cn(
                       "relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#eec54e] focus:ring-offset-2",
-                      form.isAcceptingNewMentees ? "bg-[#eec54e]" : "bg-slate-200"
+                      profileStatus !== "Approved" ? "bg-slate-300 opacity-50 cursor-not-allowed" : (form.isBookable ? "bg-[#eec54e]" : "bg-slate-200")
                     )}
                   >
+                    {isTogglingAvail ? (
+                      <Loader2 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-white z-10" />
+                    ) : null}
                     <span
                       aria-hidden="true"
                       className={cn(
                         "pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                        form.isAcceptingNewMentees ? "translate-x-5" : "translate-x-0"
+                        form.isBookable ? "translate-x-5" : "translate-x-0",
+                        isTogglingAvail && "opacity-0"
                       )}
                     />
                   </button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Hourly Rate */}
                   <div>
-                    <label className="block text-[13px] font-semibold text-slate-700 mb-2">Số giờ tối đa mỗi tuần</label>
-                    <input 
-                      type="number" min={0} max={100}
-                      value={form.weeklyAvailableHours}
-                      onChange={e => setForm(p => ({ ...p, weeklyAvailableHours: parseInt(e.target.value) || 0 }))}
-                      className={inputClass()}
-                      disabled={!form.isAcceptingNewMentees}
-                    />
+                    <label className="block text-[13px] font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
+                      Đơn giá theo giờ (Hourly Rate)
+                      <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={form.hourlyRate ? form.hourlyRate.toLocaleString("vi-VN") : ""}
+                        onChange={e => {
+                          const raw = e.target.value.replace(/\D/g, "");
+                          setForm(p => ({ ...p, hourlyRate: raw === "" ? null : parseInt(raw, 10) }));
+                        }}
+                        placeholder="Ví dụ: 500.000"
+                        className={cn(inputClass(), "pr-20")}
+                      />
+                      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-bold uppercase">
+                        VNĐ / giờ
+                      </div>
+                    </div>
                   </div>
 
+                  {/* Durations */}
                   <div>
-                    <label className="block text-[13px] font-semibold text-slate-700 mb-2">Số lượng Mentee tối đa</label>
-                    <input 
-                      type="number" min={1} max={50}
-                      value={form.maxConcurrentMentees}
-                      onChange={e => setForm(p => ({ ...p, maxConcurrentMentees: parseInt(e.target.value) || 1 }))}
-                      className={inputClass()}
-                      disabled={!form.isAcceptingNewMentees}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[13px] font-semibold text-slate-700 mb-2">Thời lượng tiêu chuẩn (phút)</label>
+                    <label className="block text-[13px] font-semibold text-slate-700 mb-2">
+                      Thời lượng hỗ trợ
+                      <span className="text-slate-400 font-normal text-[12px] ml-1.5">— Phút</span>
+                    </label>
                     <div className="flex flex-wrap gap-2">
-                      {[30, 45, 60].map(d => {
-                        const selected = form.typicalSessionDuration === d;
+                      {[30, 60, 90, 120].map(d => {
+                        const selected = form.supportedDurations.some(v => Number(v) === d);
                         return (
                           <button
-                            key={d} type="button"
-                            onClick={() => setForm(p => ({ ...p, typicalSessionDuration: d }))}
-                            disabled={!form.isAcceptingNewMentees}
+                            key={d}
+                            type="button"
+                            onClick={() => {
+                              if (selected && form.supportedDurations.length === 1) {
+                                toast.error("Vui lòng chọn ít nhất 1 thời lượng hỗ trợ!");
+                                return;
+                              }
+                              setForm(p => {
+                                const newDurations = selected
+                                  ? p.supportedDurations.filter(v => Number(v) !== d)
+                                  : [...p.supportedDurations, d];
+                                return {
+                                  ...p,
+                                  supportedDurations: Array.from(new Set(newDurations.map((v: any) => Number(v))) as Set<number>).sort((a: number, b: number) => a - b)
+                                };
+                              });
+                            }}
                             className={cn(
                               "px-3.5 py-1.5 rounded-xl text-[12px] font-bold border transition-all",
-                              selected ? "bg-[#171611] text-white border-[#171611] shadow-sm" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
+                              selected 
+                                ? "bg-[#171611] text-white border-[#171611] shadow-sm" 
+                                : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
                             )}
                           >
                             {d}m
@@ -551,43 +738,80 @@ function AdvisorProfileClientInner() {
                       })}
                     </div>
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-[13px] font-semibold text-slate-700 mb-2">Hình thức tương tác</label>
-                    <div className="flex flex-wrap gap-2">
-                      {["Online", "Offline", "Mixed"].map(f => {
-                        const selected = form.sessionFormats === f;
-                        return (
-                          <button
-                            key={f} type="button"
-                            onClick={() => setForm(p => ({ ...p, sessionFormats: f }))}
-                            disabled={!form.isAcceptingNewMentees}
-                            className={cn(
-                              "px-3.5 py-1.5 rounded-xl text-[12px] font-bold border transition-all",
-                              selected ? "bg-blue-50 text-blue-700 border-blue-200 shadow-sm" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
-                            )}
-                          >
-                            {f}
-                          </button>
-                        );
-                      })}
+                {/* Price Preview Table */}
+                {form.hourlyRate && form.hourlyRate > 0 && form.supportedDurations.length > 0 && (
+                  <div className="mt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-1 h-4 rounded-full bg-[#eec54e]" />
+                      <p className="text-[13px] font-bold text-slate-800 tracking-tight">Xem trước phân bổ doanh thu</p>
+                      <Info className="w-3.5 h-3.5 text-slate-300" />
+                    </div>
+                    <div className="rounded-2xl border border-slate-100 overflow-hidden">
+                      <table className="w-full text-[12px]">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-100">
+                            <th className="px-4 py-3 text-left font-bold">Thời lượng</th>
+                            <th className="px-4 py-3 text-right font-bold text-slate-500">Giá buổi (100%)</th>
+                            <th className="px-4 py-3 text-right font-bold text-blue-400/80">Phí nền tảng (15%)</th>
+                            <th className="px-4 py-3 text-right font-bold text-emerald-600">Thực nhận dự kiến</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {form.supportedDurations.map(d => {
+                            const price = Math.round((form.hourlyRate! * d) / 60);
+                            const fee = Math.round(price * 0.15);
+                            const payout = price - fee;
+                            
+                            const fmt = (val: number) => val.toLocaleString('vi-VN');
+                            
+                            return (
+                              <tr key={d} className="hover:bg-slate-50 transition-colors">
+                                <td className="px-4 py-3 font-bold text-slate-700">{d} phút</td>
+                                <td className="px-4 py-3 text-right font-semibold text-slate-900">{fmt(price)} đ</td>
+                                <td className="px-4 py-3 text-right text-slate-400">-{fmt(fee)} đ</td>
+                                <td className="px-4 py-3 text-right">
+                                  <span className="inline-flex items-center justify-center px-2 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-bold">
+                                    {fmt(payout)} đ
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-100/50 flex items-start gap-2.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-500 mt-0.5" />
+                      <p className="text-[11px] text-amber-700 leading-relaxed italic">
+                        Lưu ý: Mức thực nhận trên là dự kiến dựa trên phí nền tảng hiện tại (15%). Số tiền thanh toán cuối cùng có thể thay đổi tùy thuộc vào các chương trình khuyến mãi hoặc chính sách thuế tại thời điểm thanh toán.
+                      </p>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             </SectionCard>
 
             {/* Save button */}
             <div className="flex justify-end gap-3">
               <button
-                onClick={() => router.push("/advisor")}
+                type="button"
+                onClick={(e) => { e.preventDefault(); router.push("/advisor"); }}
                 className="px-5 h-10 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-500 hover:bg-slate-50 transition-all"
               >
                 Hủy
               </button>
               <button
-                onClick={handleSave} disabled={isSaving}
-                className="bg-[#0f172a] text-white text-[13px] font-bold px-6 h-10 rounded-xl hover:bg-slate-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                type="button"
+                onClick={(e) => { 
+                  e.preventDefault(); 
+                  if (isSaving) return;
+                  const target = e.currentTarget;
+                  setTimeout(() => target.blur(), 0);
+                  handleSave(); 
+                }}
+                className={cn("bg-[#0f172a] text-white text-[13px] font-bold px-6 h-10 rounded-xl hover:bg-slate-700 transition-all flex items-center gap-2", isSaving && "opacity-50 cursor-not-allowed pointer-events-none")}
               >
                 {isSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Đang lưu...</> : <><CheckCircle2 className="w-4 h-4" /> Lưu thay đổi</>}
               </button>
@@ -618,11 +842,16 @@ function AdvisorProfileClientInner() {
                 {[
                   { label: "Họ và tên", done: Boolean(form.name?.trim()) },
                   { label: "Chức vụ", done: Boolean(form.title?.trim()) },
-                  { label: "Liên kết LinkedIn", done: Boolean(form.linkedInURL?.trim()) },
-                  { label: "Lĩnh vực tư vấn", done: form.industryFocus.length > 0 },
+                  { label: "Công ty / Tổ chức", done: Boolean(form.company?.trim()) },
+                  { label: "Số năm kinh nghiệm", done: form.yearsOfExperience !== null },
+                  { label: "Ít nhất 1 liên kết công khai", done: Boolean(form.website?.trim() || form.linkedInURL?.trim()) },
+                  { label: "Chuyên môn chính", done: Boolean(primaryExpertise) },
                   { label: "Giới thiệu bản thân", done: Boolean(form.bio?.trim()) },
                   { label: "Triết lý cố vấn", done: Boolean(form.mentorshipPhilosophy?.trim()) },
-                  { label: "Sẵn sàng hỗ trợ", done: !form.isAcceptingNewMentees || form.weeklyAvailableHours > 0 },
+                  { label: "Link Google Meet", done: Boolean(form.googleMeetLink?.trim()) },
+                  { label: "Link MS Teams", done: Boolean(form.msTeamsLink?.trim()) },
+                  { label: "Đơn giá tư vấn", done: form.hourlyRate !== null && form.hourlyRate > 0 },
+                  { label: "Thời lượng hỗ trợ", done: form.supportedDurations.length > 0 },
                 ].map((item, i) => (
                   <li key={i} className="flex items-center gap-2.5">
                     <div className={cn(
@@ -644,6 +873,7 @@ function AdvisorProfileClientInner() {
               <p className="text-[14px] font-bold text-slate-800 mb-3">Thao tác nhanh</p>
               <div className="space-y-2">
                 <button
+                  type="button"
                   onClick={() => router.push("/advisor/kyc")}
                   className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all text-left group"
                 >
@@ -657,6 +887,7 @@ function AdvisorProfileClientInner() {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => setShowPwDialog(true)}
                   className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all text-left"
                 >
@@ -726,11 +957,14 @@ function AdvisorProfileClientInner() {
             </div>
 
             <div className="flex gap-3 mt-5">
-              <button onClick={() => { setShowPwDialog(false); setPwError(""); setPwForm({ old: "", next: "", confirm: "" }); }}
+              <button
+                type="button" 
+                onClick={() => { setShowPwDialog(false); setPwError(""); setPwForm({ old: "", next: "", confirm: "" }); }}
                 className="flex-1 h-10 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-500 hover:bg-slate-50 transition-all">
                 Hủy
               </button>
               <button
+                type="button"
                 onClick={handleChangePw}
                 disabled={!pwForm.old || !pwForm.next || !pwForm.confirm || isChangingPw}
                 className="flex-1 h-10 bg-[#0f172a] text-white text-[13px] font-bold rounded-xl hover:bg-slate-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"

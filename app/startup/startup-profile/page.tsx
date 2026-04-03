@@ -21,32 +21,7 @@ const STAGE_LABELS: Record<string, string> = {
     "SeriesA": "Series A", "SeriesB": "Series B", "SeriesC": "Series C+", "Growth": "Tăng trưởng (Growth)"
 };
 
-/** Chuẩn hoá id thành viên (API có thể trả teamMemberId camelCase). */
-function teamMemberRowId(m: ITeamMember & { teamMemberId?: number }): number {
-    return m.teamMemberID ?? m.teamMemberId ?? 0;
-}
-
-/** Ước lượng độ đầy đủ dựa trên các trường GET /api/startups/me (IStartupProfile). */
-function computeProfileCompleteness(p: IStartupProfile): number {
-    const checks = [
-        !!p.companyName?.trim(),
-        !!p.oneLiner?.trim(),
-        !!p.description?.trim(),
-        p.industryID != null && p.industryID > 0,
-        p.stage !== undefined && p.stage !== null && `${p.stage}` !== "",
-        !!p.logoURL?.trim(),
-        !!p.problemStatement?.trim(),
-        !!p.solutionSummary?.trim(),
-        !!p.marketScope?.trim(),
-        (Number(p.fundingAmountSought) > 0 || Number(p.currentFundingRaised) > 0),
-        !!p.contactEmail?.trim(),
-        !!p.fileCertificateBusiness?.trim(),
-    ];
-    const n = checks.filter(Boolean).length;
-    return Math.round((n / checks.length) * 100);
-}
-
-const TABS = ["Tổng quan", "Đội ngũ & Xác thực"] as const;
+const TABS = ["Tổng quan", "Kinh doanh", "Gọi vốn", "Đội ngũ & Xác thực", "Liên hệ"] as const;
 type Tab = typeof TABS[number];
 
 function Tag({ children, variant = "default" }: { children: React.ReactNode; variant?: "default" | "green" | "violet" | "amber" | "blue" }) {
@@ -78,8 +53,8 @@ function InfoPair({ label, value, isLink }: { label: string; value?: string | nu
 
 export default function StartupProfileViewPage() {
     const [activeTab, setActiveTab] = useState<Tab>("Tổng quan");
-    const [p, setP] = useState<IStartupProfile | null>(null);
-    const [members, setMembers] = useState<ITeamMember[]>([]);
+    const [p, setP] = useState<any>(null);
+    const [members, setMembers] = useState<any[]>([]);
     const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -88,24 +63,17 @@ export default function StartupProfileViewPage() {
             setLoading(true);
             try {
                 const [resProfile, resMembers, indData] = await Promise.all([
-                    GetStartupProfile(),
-                    GetMembers(),
+                    GetStartupProfile() as any,
+                    GetMembers() as any,
                     GetIndustriesFlat().catch(() => [] as IIndustryFlat[]),
                 ]);
-                const profileRes = resProfile as unknown as IBackendRes<IStartupProfile>;
-                const membersRes = resMembers as unknown as IBackendRes<ITeamMember[]>;
-                if ((profileRes.success || profileRes.isSuccess) && profileRes.data) {
-                    setP(profileRes.data);
+                if ((resProfile.success || resProfile.isSuccess) && resProfile.data) {
+                    setP(resProfile.data);
                 } else {
                     setP(null);
                 }
-                if ((membersRes.success || membersRes.isSuccess) && Array.isArray(membersRes.data)) {
-                    setMembers(
-                        membersRes.data.map((m) => ({
-                            ...m,
-                            teamMemberID: m.teamMemberID ?? (m as ITeamMember & { teamMemberId?: number }).teamMemberId ?? 0,
-                        })),
-                    );
+                if ((resMembers.success || resMembers.isSuccess) && Array.isArray(resMembers.data)) {
+                    setMembers(resMembers.data);
                 }
                 setIndustries(indData);
             } catch {
@@ -140,10 +108,11 @@ export default function StartupProfileViewPage() {
 
     const companyName = p.companyName || "Chưa có tên";
     const initials = companyName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
-    const completeness = computeProfileCompleteness(p);
+    const completeness = p.profileCompleteness || 0;
     const completenessColor = completeness >= 80 ? "bg-emerald-500" : completeness >= 50 ? "bg-[#e6cc4c]" : "bg-rose-400";
     
     // SafeArea values
+    const currentNeeds = Array.isArray(p.currentNeeds) ? p.currentNeeds : [];
     const targetFunding = Number(p.fundingAmountSought) || 0;
     const raisedAmount = Number(p.currentFundingRaised) || 0;
     const fundingProgress = targetFunding > 0 ? Math.round((raisedAmount / targetFunding) * 100) : 0;
@@ -151,23 +120,19 @@ export default function StartupProfileViewPage() {
     const foundedDateDisplay = p.foundedDate
         ? new Date(p.foundedDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })
         : null;
-    const foundedYear = p.foundedDate ? new Date(p.foundedDate).getFullYear() : undefined;
+    const foundedYear = p.foundedDate ? new Date(p.foundedDate).getFullYear() : p.foundedYear;
 
-    const displayIndustry =
-        p.industryName?.trim()
-        || industries.find((x) => x.industryID === p.industryID)?.industryName;
-    const stageKey = p.stage != null ? String(p.stage) : "";
-    const displayStage = STAGE_LABELS[stageKey] || stageKey;
-    const statusLower = (p.profileStatus || "").toLowerCase();
-    const isApproved = !!p.approvedAt || statusLower.includes("approv");
-    const isVisibleToInvestors = p.isVisible === true;
+    const displayIndustry = p.industry || industries.find(x => x.industryID === p.industryID)?.industryName;
+    const displayStage = STAGE_LABELS[p.stage?.toString()] || p.stage;
+    const isApproved = !!(p.approvedAt || p.approvedBy);
+    
+    // Kiểm tra visibility (Backend có thể trả về string "Visible" hoặc boolean true)
+    const isVisibleStatus = p.visibilityStatus === "Visible" || p.visibilityStatus === "visible" || p.isVisible === true;
 
     return (
         <div className="space-y-5">
-            {activeTab === "Tổng quan" && (
-                <>
-                    {/* ── Hero Card ── */}
-                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+            {/* ── Hero Card ── */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
                 {/* Cover */}
                 <div className="h-32 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 relative">
                     <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:32px_32px]" />
@@ -176,8 +141,8 @@ export default function StartupProfileViewPage() {
                         <Link href="/startup/startup-profile/visibility"
                             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/30 backdrop-blur-sm border border-white/10 text-white text-[11px] font-medium hover:bg-black/50 transition-colors"
                         >
-                            <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", isVisibleToInvestors ? "bg-emerald-400" : "bg-slate-400")} />
-                            {isVisibleToInvestors ? "Đang hiển thị với nhà đầu tư & cố vấn" : "Đang ẩn khỏi nhà đầu tư & cố vấn"}
+                            <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", isVisibleStatus ? "bg-emerald-400" : "bg-slate-400")} />
+                            {isVisibleStatus ? "Đang hiển thị với nhà đầu tư & cố vấn" : "Đang ẩn khỏi nhà đầu tư & cố vấn"}
                             <ChevronRight className="w-3 h-3 text-white/50" />
                         </Link>
                     </div>
@@ -200,12 +165,22 @@ export default function StartupProfileViewPage() {
                         <p className="text-[13px] text-slate-500 mt-0.5">{p.oneLiner || "Chưa có khẩu hiệu"}</p>
                     </div>
 
-                    {/* Tags — phân cấp: primary (stage/industry/funding) */}
+                    {/* Tags — phân cấp: primary (stage/industry/funding) vs secondary (location) */}
                     <div className="flex flex-wrap items-center gap-1.5 mb-5">
                         {/* Primary */}
                         {displayStage && <Tag variant="green"><TrendingUp className="w-3 h-3" />{displayStage}</Tag>}
-                        <Tag><Building2 className="w-3 h-3 text-slate-400" />{displayIndustry || "Chưa có ngành"}</Tag>
+                        <Tag><Building2 className="w-3 h-3 text-slate-400" />{displayIndustry || "Chưa có ngành"}{p.subIndustry ? ` / ${p.subIndustry}` : ""}</Tag>
                         {p.marketScope && <Tag variant="blue">{p.marketScope}</Tag>}
+                        {/* Secondary — divider + lighter style */}
+                        <span className="text-slate-200 text-[14px] mx-0.5">·</span>
+                        <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+                            <MapPin className="w-3 h-3" />{p.location || "Chưa rõ vị trí"}
+                        </span>
+                        {p.productStatus && (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+                                <span className="text-slate-200">·</span> {p.productStatus}
+                            </span>
+                        )}
                     </div>
 
                     {/* Actionable completion bar */}
@@ -218,6 +193,13 @@ export default function StartupProfileViewPage() {
                             <div className={cn("h-full rounded-full transition-all", completenessColor)} style={{ width: `${completeness}%` }} />
                         </div>
                         <div className="flex flex-wrap gap-1.5">
+                            {p.profileStatus?.toUpperCase() !== "APPROVED" && (
+                                <Link href="/startup/verification"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 text-[11px] font-medium border border-amber-100/60 hover:bg-amber-100 transition-colors"
+                                >
+                                    + KYC chưa hoàn tất
+                                </Link>
+                            )}
                             {members.length === 0 && (
                                 <Link href="/startup/startup-profile/team"
                                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 text-[11px] font-medium border border-amber-100/60 hover:bg-amber-100 transition-colors"
@@ -233,9 +215,7 @@ export default function StartupProfileViewPage() {
                         </div>
                     </div>
                 </div>
-                    </div>
-                </>
-            )}
+            </div>
 
             {/* ── Tab Navigation ── */}
             <div className="flex items-center gap-1 bg-white rounded-xl border border-slate-200/80 p-1 w-fit shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
@@ -260,6 +240,22 @@ export default function StartupProfileViewPage() {
                 <div className="grid grid-cols-12 gap-5">
                     {/* Left */}
                     <div className="col-span-12 lg:col-span-8 space-y-5">
+                        {/* Problem / Solution */}
+                        <div className="grid grid-cols-2 gap-4">
+                            {[
+                                { icon: AlertTriangle, label: "Vấn đề", text: p.problemStatement || "Chưa cập nhật vấn đề", color: "text-rose-500" },
+                                { icon: Lightbulb, label: "Giải pháp", text: p.solutionSummary || "Chưa cập nhật giải pháp", color: "text-amber-500" },
+                            ].map(({ icon: Icon, label, text, color }) => (
+                                <div key={label} className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <Icon className={cn("w-4 h-4", color)} />
+                                        <h3 className="text-[13px] font-semibold text-slate-700">{label}</h3>
+                                    </div>
+                                    <p className="text-[13px] text-slate-500 leading-relaxed">{text}</p>
+                                </div>
+                            ))}
+                        </div>
+
                         {/* Description */}
                         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
                             <div className="flex items-center gap-2">
@@ -269,6 +265,18 @@ export default function StartupProfileViewPage() {
                             <p className="text-[13px] text-slate-500 leading-relaxed">{p.description || "Chưa cập nhật mô tả"}</p>
                         </div>
 
+                        {/* Current Needs */}
+                        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
+                            <div className="flex items-center gap-2">
+                                <Target className="w-4 h-4 text-slate-400" />
+                                <h3 className="text-[13px] font-semibold text-slate-700">Nhu cầu hiện tại</h3>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {currentNeeds.length > 0 ? currentNeeds.map((n: string) => (
+                                    <span key={n} className="px-3 py-1.5 rounded-lg bg-[#fdfbe9] text-[#171611] text-[12px] font-medium border border-[#e6cc4c]/25">{n}</span>
+                                )) : <span className="text-[12px] text-slate-400">Chưa có thông tin nhu cầu</span>}
+                            </div>
+                        </div>
                     </div>
 
                     {/* Right sidebar */}
@@ -278,10 +286,12 @@ export default function StartupProfileViewPage() {
                             <div className="space-y-3">
                                 {[
                                     { icon: Layers, label: "Giai đoạn", val: displayStage || "-" },
-                                    { icon: Building2, label: "Ngành", val: displayIndustry || "-" },
+                                    { icon: Building2, label: "Ngành", val: `${displayIndustry || "-"} ${p.subIndustry ? `/ ${p.subIndustry}` : ""}` },
                                     { icon: Globe, label: "Thị trường", val: p.marketScope || "-" },
+                                    { icon: CheckCircle2, label: "Sản phẩm", val: p.productStatus || "-" },
                                     { icon: Calendar, label: "Thành lập", val: foundedDateDisplay || (foundedYear ? `${foundedYear}` : "-") },
                                     { icon: Users, label: "Team size", val: p.teamSize ? `${p.teamSize} người` : "-" },
+                                    { icon: MapPin, label: "Địa điểm", val: `${p.location || ""}, ${p.country || ""}`.replace(/^,\s|,$\s/g, '') || "-" },
                                 ].map(({ icon: Icon, label, val }) => (
                                     <div key={label} className="flex items-center gap-3">
                                         <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center flex-shrink-0">
@@ -306,7 +316,7 @@ export default function StartupProfileViewPage() {
                 </div>
             )}
 
-            {activeTab === "Tổng quan" && (!p.problemStatement && !p.solutionSummary && !p.marketScope) && (
+            {activeTab === "Kinh doanh" && (!p.problemStatement && !p.solutionSummary && !p.marketScope && !p.productStatus) && (
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-10 text-center space-y-3">
                     <Lightbulb className="w-8 h-8 text-slate-200 mx-auto" />
                     <p className="text-[13px] text-slate-400">Chưa có thông tin kinh doanh.</p>
@@ -316,7 +326,7 @@ export default function StartupProfileViewPage() {
                 </div>
             )}
 
-            {activeTab === "Tổng quan" && (p.problemStatement || p.solutionSummary || p.marketScope) && (
+            {activeTab === "Kinh doanh" && (p.problemStatement || p.solutionSummary || p.marketScope || p.productStatus) && (
                 <div className="grid grid-cols-12 gap-5">
                     <div className="col-span-12 lg:col-span-8 space-y-5">
                         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-5">
@@ -330,17 +340,24 @@ export default function StartupProfileViewPage() {
                                 <p className="text-[13px] text-slate-600 leading-relaxed">{p.solutionSummary || "-"}</p>
                             </div>
                         </div>
+                        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
+                            <h3 className="text-[13px] font-semibold text-slate-700 flex items-center gap-2"><Target className="w-4 h-4 text-slate-400" /> Nhu cầu hiện tại</h3>
+                            <div className="flex flex-wrap gap-2">
+                                {currentNeeds.length > 0 ? currentNeeds.map((n: string) => <span key={n} className="px-3 py-1.5 rounded-lg bg-[#fdfbe9] text-[#171611] text-[12px] font-medium border border-[#e6cc4c]/25">{n}</span>) : <span className="text-[12px] text-slate-400">Chưa có</span>}
+                            </div>
+                        </div>
                     </div>
                     <div className="col-span-12 lg:col-span-4 space-y-4">
                         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-4">
                             <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest">Thị trường</h3>
                             <InfoPair label="Phạm vi thị trường" value={p.marketScope} />
+                            <InfoPair label="Trạng thái sản phẩm" value={p.productStatus} />
                         </div>
                     </div>
                 </div>
             )}
 
-            {activeTab === "Tổng quan" && !targetFunding && !raisedAmount && (
+            {activeTab === "Gọi vốn" && !targetFunding && !raisedAmount && (
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-10 text-center space-y-3">
                     <DollarSign className="w-8 h-8 text-slate-200 mx-auto" />
                     <p className="text-[13px] text-slate-400">Chưa có thông tin gọi vốn.</p>
@@ -350,7 +367,7 @@ export default function StartupProfileViewPage() {
                 </div>
             )}
 
-            {activeTab === "Tổng quan" && (targetFunding > 0 || raisedAmount > 0) && (
+            {activeTab === "Gọi vốn" && (targetFunding > 0 || raisedAmount > 0) && (
                 <div className="grid grid-cols-12 gap-5">
                     {[
                         { label: "Giai đoạn gọi vốn", value: displayStage || "-", icon: TrendingUp, sub: "Vòng hiện tại" },
@@ -389,7 +406,7 @@ export default function StartupProfileViewPage() {
                             </h3>
                             <div className="divide-y divide-slate-100">
                                 {members.length > 0 ? members.map(m => (
-                                    <div key={teamMemberRowId(m)} className="flex gap-4 py-5 first:pt-0 last:pb-0">
+                                    <div key={m.teamMemberID} className="flex gap-4 py-5 first:pt-0 last:pb-0">
                                         <div className="w-12 h-12 rounded-full overflow-hidden shrink-0 bg-slate-100 border border-slate-200">
                                             <img src={m.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.fullName)}&background=random`} alt={m.fullName} className="w-full h-full object-cover" />
                                         </div>
@@ -401,7 +418,7 @@ export default function StartupProfileViewPage() {
                                                 </p>
                                                 {m.linkedInURL && (
                                                     <a href={m.linkedInURL} target="_blank" rel="noreferrer" className="hover:bg-blue-50 p-1.5 rounded-lg transition-colors">
-                                                        <Image src="https://thesvg.org/icons/linkedin/default.svg" alt="LinkedIn" width={16} height={16} unoptimized />
+                                                        <Image src="/linkedin.svg" alt="LinkedIn" width={16} height={16} />
                                                     </a>
                                                 )}
                                             </div>
@@ -413,26 +430,21 @@ export default function StartupProfileViewPage() {
                             </div>
                         </div>
 
-                        {p.fileCertificateBusiness && (
-                            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
-                                <h3 className="text-[13px] font-semibold text-slate-700 flex items-center gap-2"><FileText className="w-4 h-4 text-slate-400" /> Giấy chứng nhận ĐKKD</h3>
-                                <a href={p.fileCertificateBusiness} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-[12px] font-medium hover:bg-blue-100 transition-colors">
-                                    Xem tài liệu <ArrowUpRight className="w-3.5 h-3.5" />
-                                </a>
-                            </div>
-                        )}
+                        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
+                            <h3 className="text-[13px] font-semibold text-slate-700 flex items-center gap-2"><Sparkles className="w-4 h-4 text-[#e6cc4c]" /> Chỉ số traction</h3>
+                            <p className="text-[13px] text-slate-600 leading-relaxed font-mono bg-slate-50 px-4 py-3 rounded-xl border border-slate-100">{p.metricSummary || "Chưa có dữ liệu traction"}</p>
+                        </div>
                     </div>
                     <div className="col-span-12 lg:col-span-4 space-y-4">
                         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
                             <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest">Xác thực đội ngũ</h3>
                             <div className="flex items-center gap-2.5">
                                 <div className={cn("w-2 h-2 rounded-full",
-                                    statusLower.includes("approv") ? "bg-emerald-500"
-                                    : statusLower.includes("pending") || statusLower.includes("chờ") ? "bg-amber-400"
-                                    : p.profileStatus ? "bg-sky-400"
+                                    p.validationStatus?.toLowerCase().includes("validat") ? "bg-emerald-500"
+                                    : p.validationStatus ? "bg-amber-400"
                                     : "bg-slate-300"
                                 )} />
-                                <span className="text-[13px] font-medium text-slate-700">{p.profileStatus || "—"}</span>
+                                <span className="text-[13px] font-medium text-slate-700">{p.validationStatus || "Chưa xác thực"}</span>
                             </div>
                             <InfoPair label="Quy mô team" value={p.teamSize ? `${p.teamSize} người` : undefined} />
                         </div>
@@ -441,24 +453,21 @@ export default function StartupProfileViewPage() {
                             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
                                 <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest">Thông tin duyệt</h3>
                                 {p.approvedAt && <InfoPair label="Ngày duyệt" value={new Date(p.approvedAt).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })} />}
-                                {p.approvedBy != null && p.approvedBy !== "" && (
-                                    <InfoPair label="Duyệt bởi" value={String(p.approvedBy)} />
-                                )}
+                                {p.approvedBy && <InfoPair label="Duyệt bởi" value={p.approvedBy} />}
                             </div>
                         )}
                     </div>
                 </div>
             )}
 
-            {activeTab === "Tổng quan" && (
+            {activeTab === "Liên hệ" && (
                 <div className="grid grid-cols-12 gap-5">
                     <div className="col-span-12 lg:col-span-6 bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-4">
                         <h3 className="text-[13px] font-semibold text-slate-700">Liên hệ trực tiếp</h3>
                         <div className="space-y-3">
-                            <InfoPair label="Người đăng ký (Applicant)" value={`${p.fullNameOfApplicant || ""} ${p.roleOfApplicant ? `- ${p.roleOfApplicant}` : ""}`} />
-                            <InfoPair label="Mã số kinh doanh" value={p.businessCode} />
                             <InfoPair label="Email" value={p.contactEmail} />
                             <InfoPair label="Điện thoại" value={p.contactPhone} />
+                            <InfoPair label="Địa chỉ" value={p.location || p.country ? `${p.location || ""}, ${p.country || ""}`.replace(/^,\s|,$\s/g, '') : undefined} />
                         </div>
                     </div>
                     <div className="col-span-12 lg:col-span-6 bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-4">

@@ -16,11 +16,10 @@ export const FORMAT_CFG: Record<ConsultingFormat, {
     shortLabel: "Google Meet",
     icon: (
       <Image
-        src="https://thesvg.org/icons/google-meet/default.svg"
+        src="/google-meet.svg"
         alt="Google Meet"
         width={14}
         height={14}
-        unoptimized
       />
     ),
     color: "text-emerald-700",
@@ -32,11 +31,10 @@ export const FORMAT_CFG: Record<ConsultingFormat, {
     shortLabel: "MS Teams",
     icon: (
       <Image
-        src="https://thesvg.org/icons/microsoft-teams/default.svg"
+        src="/ms-teams.svg"
         alt="Microsoft Teams"
         width={14}
         height={14}
-        unoptimized
       />
     ),
     color: "text-violet-700",

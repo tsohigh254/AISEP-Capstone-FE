@@ -79,7 +79,7 @@ export function AddUserModal({ isOpen, onClose, onSave }: AddUserModalProps) {
                 // Handle validation errors from backend
                 if (res.error?.details && res.error.details.length > 0) {
                     const fieldErrors: Record<string, string> = {};
-                    res.error.details.forEach((d: IErrorDetail<unknown>) => {
+                    res.error.details.forEach((d: IErrorDetail<any>) => {
                         fieldErrors[d.field.toLowerCase()] = d.message;
                     });
                     setErrors(fieldErrors);

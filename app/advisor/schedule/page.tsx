@@ -8,8 +8,7 @@ import {
 } from "lucide-react";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import { FormatBadge } from "@/components/advisor/consulting-format-badge";
-import type { IConsultingSession, ConsultingSessionStatus } from "@/types/advisor-consulting";
-import { getMockSessions } from "@/services/advisor/advisor-consulting.mock";
+import { GetAdvisorSessions } from "@/services/advisor/advisor.api";
 import { cn } from "@/lib/utils";
 import { IssueReportModal, type IssueReportContext } from "@/components/shared/issue-report-modal";
 
@@ -34,21 +33,34 @@ function isSameWeek(d: Date, ref: Date) {
 }
 
 
-/* ─── Status config ──────────────────────────────────────────── */
+/* ─── Status config (BE values) ─────────────────────────────── */
 
-const STATUS_CFG: Record<ConsultingSessionStatus, { label: string; dot: string; badge: string }> = {
-  PENDING_CONFIRMATION: { label: "Chờ xác nhận", dot: "bg-amber-400", badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
-  SCHEDULED: { label: "Đã xác nhận", dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
-  COMPLETED: { label: "Hoàn thành", dot: "bg-slate-400", badge: "bg-slate-50 text-slate-600 border-slate-200/80" },
-  CANCELLED: { label: "Đã huỷ", dot: "bg-red-400", badge: "bg-red-50 text-red-600 border-red-200/80" },
+type SessionStatus = "Scheduled" | "Completed" | "Cancelled" | "Pending" | "Requested";
+
+const STATUS_CFG: Record<string, { label: string; dot: string; badge: string }> = {
+  Scheduled: { label: "Đã lên lịch", dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
+  Completed: { label: "Hoàn thành", dot: "bg-slate-400", badge: "bg-slate-50 text-slate-600 border-slate-200/80" },
+  Cancelled: { label: "Đã huỷ", dot: "bg-red-400", badge: "bg-red-50 text-red-600 border-red-200/80" },
+  Pending: { label: "Chờ xác nhận", dot: "bg-amber-400", badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
+  Requested: { label: "Chờ xử lý", dot: "bg-amber-400", badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
 };
 
-const DATE_ACCENT: Record<ConsultingSessionStatus, string> = {
-  SCHEDULED: "border-l-emerald-500 bg-emerald-50/40",
-  PENDING_CONFIRMATION: "border-l-amber-500 bg-amber-50/30",
-  COMPLETED: "border-l-slate-400 bg-slate-50/50",
-  CANCELLED: "border-l-red-400 bg-red-50/30",
+const DATE_ACCENT: Record<string, string> = {
+  Scheduled: "border-l-emerald-500 bg-emerald-50/40",
+  Pending: "border-l-amber-500 bg-amber-50/30",
+  Requested: "border-l-amber-500 bg-amber-50/30",
+  Completed: "border-l-slate-400 bg-slate-50/50",
+  Cancelled: "border-l-red-400 bg-red-50/30",
 };
+
+function mapMeetingFormat(fmt?: string): "GOOGLE_MEET" | "MICROSOFT_TEAMS" {
+  if (fmt === "MicrosoftTeams") return "MICROSOFT_TEAMS";
+  return "GOOGLE_MEET";
+}
+
+function getStartupName(session: any): string {
+  return session.startupName || session.startup?.displayName || session.startup?.name || "Startup";
+}
 
 /* ─── Tabs ───────────────────────────────────────────────────── */
 
@@ -57,25 +69,35 @@ type TabKey = "upcoming" | "completed";
 /* ─── Page ───────────────────────────────────────────────────── */
 
 export default function AdvisorSchedulePage() {
-  const [sessions, setSessions] = useState<IConsultingSession[]>([]);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>("upcoming");
   const [issueContext, setIssueContext] = useState<IssueReportContext | null>(null);
 
-  const openIssue = (e: React.MouseEvent, session: IConsultingSession) => {
+  const openIssue = (e: React.MouseEvent, session: any) => {
     e.preventDefault();
     e.stopPropagation();
     setIssueContext({
       entityType: "CONSULTING_SESSION",
-      entityId: session.id,
+      entityId: String(session.sessionID ?? session.id ?? ""),
       entityTitle: `Buổi tư vấn · ${session.objective}`,
-      otherPartyName: session.startup.displayName,
+      otherPartyName: getStartupName(session),
     });
   };
 
-  useEffect(() => { setSessions(getMockSessions()); }, []);
+  useEffect(() => {
+    setLoading(true);
+    GetAdvisorSessions({ pageSize: 100 })
+      .then((res: any) => {
+        const items = res?.data?.items ?? res?.items ?? [];
+        setSessions(Array.isArray(items) ? items : []);
+      })
+      .catch(() => setSessions([]))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const upcoming = sessions.filter(s => s.status === "PENDING_CONFIRMATION" || s.status === "SCHEDULED");
-  const completed = sessions.filter(s => s.status === "COMPLETED" || s.status === "CANCELLED");
+  const upcoming = sessions.filter(s => s.status === "Scheduled" || s.status === "Pending" || s.status === "Requested");
+  const completed = sessions.filter(s => s.status === "Completed" || s.status === "Cancelled");
   const displayed = activeTab === "upcoming" ? upcoming : completed;
 
   const now = new Date();
@@ -141,7 +163,12 @@ export default function AdvisorSchedulePage() {
         </div>
 
         {/* Session cards */}
-        {displayed.length === 0 ? (
+        {loading ? (
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] py-20 flex flex-col items-center justify-center gap-3">
+            <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-500 rounded-full animate-spin" />
+            <p className="text-[13px] text-slate-400">Đang tải lịch tư vấn…</p>
+          </div>
+        ) : displayed.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] py-20 flex flex-col items-center justify-center gap-3">
             <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center">
               <AlertCircle className="w-6 h-6 text-slate-300" />
@@ -154,19 +181,19 @@ export default function AdvisorSchedulePage() {
           <div className="space-y-2.5">
             {displayed.map(session => {
               const start = new Date(session.scheduledStartAt);
-              const cfg = STATUS_CFG[session.status];
+              const cfg = STATUS_CFG[session.status] ?? STATUS_CFG["Scheduled"];
 
               return (
                 <Link
-                  key={session.id}
-                  href={`/advisor/requests/${session.requestId}`}
+                  key={session.sessionID ?? session.id}
+                  href={`/advisor/requests/${session.mentorshipID ?? session.requestId}`}
                   className="group block bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] hover:border-slate-300/80 transition-all duration-200 overflow-hidden"
                 >
                   <div className="flex items-stretch">
                     {/* Left date accent */}
                     <div className={cn(
                       "w-20 shrink-0 border-l-4 flex flex-col items-center justify-center py-4",
-                      DATE_ACCENT[session.status]
+                      DATE_ACCENT[session.status] ?? DATE_ACCENT["Scheduled"]
                     )}>
                       <span className="text-[10px] text-slate-400 font-semibold">{VN_DAYS[start.getDay()]}</span>
                       <span className="text-[24px] font-bold text-slate-900 leading-none mt-0.5">{start.getDate()}</span>
@@ -177,7 +204,7 @@ export default function AdvisorSchedulePage() {
                     <div className="flex-1 min-w-0 px-5 py-4 flex items-center gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[14px] font-bold text-slate-900">{session.startup.displayName}</span>
+                          <span className="text-[14px] font-bold text-slate-900">{getStartupName(session)}</span>
                           <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold border", cfg.badge)}>
                             <span className={cn("w-1.5 h-1.5 rounded-full", cfg.dot)} />
                             {cfg.label}
@@ -189,29 +216,12 @@ export default function AdvisorSchedulePage() {
                             <Clock className="w-3.5 h-3.5 text-slate-400" />
                             {formatTime(session.scheduledStartAt)} - {formatTime(session.scheduledEndAt)}
                           </span>
-                          <FormatBadge format={session.meetingMode} size="sm" />
-                          {/* Confirmation dots */}
-                          <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center gap-1 text-[10px]">
-                              {session.confirmation.advisorConfirmedAt
-                                ? <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                                : <Clock className="w-3 h-3 text-slate-300" />
-                              }
-                              <span className={session.confirmation.advisorConfirmedAt ? "text-emerald-600 font-medium" : "text-slate-400"}>Advisor</span>
-                            </span>
-                            <span className="inline-flex items-center gap-1 text-[10px]">
-                              {session.confirmation.startupConfirmedAt
-                                ? <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                                : <Clock className="w-3 h-3 text-slate-300" />
-                              }
-                              <span className={session.confirmation.startupConfirmedAt ? "text-emerald-600 font-medium" : "text-slate-400"}>Startup</span>
-                            </span>
-                          </div>
+                          <FormatBadge format={mapMeetingFormat(session.meetingFormat ?? session.meetingMode)} size="sm" />
                         </div>
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {session.status === "COMPLETED" && (
+                        {session.status === "Completed" && (
                           <button
                             onClick={(e) => openIssue(e, session)}
                             title="Báo cáo sự cố"

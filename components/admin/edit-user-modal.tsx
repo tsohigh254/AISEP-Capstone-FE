@@ -24,7 +24,7 @@ interface EditUserModalProps {
 }
 
 export function EditUserModal({ isOpen, onClose, onSaved, userId }: EditUserModalProps) {
-    const [user, setUser] = useState<IAdminUser | null>(null);
+    const [user, setUser] = useState<IUser | null>(null);
     const [loadingUser, setLoadingUser] = useState(false);
 
     const [newPassword, setNewPassword] = useState("");
@@ -45,7 +45,7 @@ export function EditUserModal({ isOpen, onClose, onSaved, userId }: EditUserModa
     const fetchUser = async (id: number) => {
         setLoadingUser(true);
         try {
-            const res = await GetUserById(id) as unknown as IBackendRes<IAdminUser>;
+            const res = await GetUserById(id) as unknown as IBackendRes<IUser>;
             if (res.success && res.data) {
                 setUser(res.data);
             }

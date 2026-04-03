@@ -19,7 +19,7 @@ interface ViewUserModalProps {
 }
 
 export function ViewUserModal({ isOpen, onClose, userId }: ViewUserModalProps) {
-    const [user, setUser] = useState<IAdminUser | null>(null);
+    const [user, setUser] = useState<IUser | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -37,7 +37,7 @@ export function ViewUserModal({ isOpen, onClose, userId }: ViewUserModalProps) {
         setLoading(true);
         setError(null);
         try {
-            const res = await GetUserById(id) as unknown as IBackendRes<IAdminUser>;
+            const res = await GetUserById(id) as unknown as IBackendRes<IUser>;
             if (res.success && res.data) {
                 setUser(res.data);
             } else {

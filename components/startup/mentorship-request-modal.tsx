@@ -4,43 +4,42 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import { X, Send, CheckCircle2, BadgeCheck, Clock, Check, Plus, Trash2, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { CreateMentorship } from "@/services/startup/startup-mentorship.api";
+import { ICreateMentorshipRequest, MeetingFormat, IAdvisorSearchItem } from "@/types/startup-mentorship";
 
 const formatVND = (n: number) => n.toLocaleString('vi-VN') + '₫';
 
 interface MentorshipRequestModalProps {
     isOpen: boolean;
     onClose: () => void;
-    mentor: { name: string; avatar: string; title?: string; hourlyRate?: number; supportedDurations?: number[] } | null;
+    mentor: IAdvisorSearchItem | null;
 }
 
-const SCOPE_OPTIONS = [
-    { value: "strategy",    label: "Chiến lược" },
-    { value: "fundraising", label: "Gọi vốn" },
-    { value: "product",     label: "Product" },
-    { value: "engineering", label: "Kỹ thuật" },
-    { value: "marketing",   label: "Marketing" },
-    { value: "legal",       label: "Pháp lý" },
-    { value: "operations",  label: "Vận hành" },
-];
-
-const DURATIONS = [
-    { value: "30", label: "30 phút" },
-    { value: "60", label: "60 phút" },
-    { value: "90", label: "90 phút" },
-];
+const EXPERTISE_DICT: Record<string, string> = {
+  FUNDRAISING: "Gọi vốn",
+  PRODUCT_STRATEGY: "Chiến lược SP",
+  GO_TO_MARKET: "Go-to-market",
+  FINANCE: "Tài chính",
+  LEGAL_IP: "Pháp lý & SHTT",
+  OPERATIONS: "Vận hành",
+  TECHNOLOGY: "Công nghệ",
+  MARKETING: "Marketing",
+  HR_OR_TEAM_BUILDING: "Nhân sự",
+};
 
 const PLATFORMS = [
     {
         value: "meet",
         label: "Google Meet",
-        icon: <Image src="https://thesvg.org/icons/google-meet/default.svg" alt="Google Meet" width={16} height={16} unoptimized />,
+        icon: <Image src="/google-meet.svg" alt="Google Meet" width={16} height={16} />,  
         activeColor: "text-emerald-600",
         activeBg: "bg-emerald-50 border-emerald-200 text-emerald-800",
     },
     {
         value: "teams",
         label: "Microsoft Teams",
-        icon: <Image src="https://thesvg.org/icons/microsoft-teams/default.svg" alt="Microsoft Teams" width={16} height={16} unoptimized />,
+        icon: <Image src="/ms-teams.svg" alt="Microsoft Teams" width={16} height={16} />,
         activeColor: "text-violet-600",
         activeBg: "bg-violet-50 border-violet-200 text-violet-800",
     },
@@ -98,7 +97,7 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
 
     const canSubmit = objective.trim() && problemContext.trim() && scope.length > 0;
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         setSubmitted(true);
         const errs: FormErrors = {};
         if (!objective.trim())     errs.objective     = "Vui lòng nhập mục tiêu buổi tư vấn";
@@ -106,8 +105,58 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
         if (scope.length === 0)    errs.scope          = "Vui lòng chọn ít nhất một phạm vi";
         setErrors(errs);
         if (Object.keys(errs).length > 0) return;
+
         setIsSubmitting(true);
-        setTimeout(() => { setIsSubmitting(false); setIsSuccess(true); setTimeout(onClose, 2400); }, 1500);
+
+        const durationMinutes = parseInt(duration);
+
+        const preferredFormat: MeetingFormat = platform === "meet" ? "GoogleMeet" : "MicrosoftTeams";
+
+        const requestedSlots = slots
+            .filter(s => s.date && s.time)
+            .map(s => {
+                const startAt = new Date(`${s.date}T${s.time}:00`).toISOString();
+                const endDate = new Date(`${s.date}T${s.time}:00`);
+                endDate.setMinutes(endDate.getMinutes() + durationMinutes);
+                const endAt = endDate.toISOString();
+                return {
+                    startAt,
+                    endAt,
+                    timezone,
+                };
+            });
+
+        const body: ICreateMentorshipRequest = {
+            advisorID: mentor!.advisorID,
+            objective: objective.trim(),
+            problemContext: problemContext.trim(),
+            challengeDescription: problemContext.trim() || objective.trim(),
+            scopeTags: scope,
+            durationMinutes: parseInt(duration),
+            preferredFormat,
+            ...(additionalNotes.trim() ? { additionalNotes: additionalNotes.trim() } : {}),
+            ...(requestedSlots.length > 0 ? { requestedSlots } : {}),
+        };
+
+        try {
+            const res = (await CreateMentorship(body)) as any;
+            
+            if (res.isSuccess || res.success) {
+                setIsSuccess(true);
+                setTimeout(onClose, 2400);
+            } else {
+                let errorMsg = res.message || "Gửi yêu cầu thất bại. Vui lòng thử lại.";
+                if (errorMsg === "An active or pending mentorship with this advisor already exists.") {
+                    errorMsg = "Bạn đã có một yêu cầu đang chờ phản hồi hoặc đang hoạt động với Cố vấn này.";
+                }
+                toast.error(errorMsg);
+            }
+        } catch (error: any) {
+            const message = error?.response?.data?.message || "Đã xảy ra lỗi khi gửi yêu cầu. Vui lòng thử lại.";
+            toast.error(message);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     if (!isOpen || !mentor) return null;
@@ -125,14 +174,14 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                     <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3.5 min-w-0">
                             <div className="relative flex-shrink-0">
-                                <img src={mentor.avatar} alt={mentor.name} className="w-12 h-12 rounded-[14px] object-cover ring-2 ring-white shadow-md" />
+                                <img src={mentor.profilePhotoURL} alt={mentor.fullName} className="w-12 h-12 rounded-[14px] object-cover ring-2 ring-white shadow-md" />
                                 <div className="absolute -bottom-1 -right-1 w-[18px] h-[18px] bg-amber-400 rounded-full flex items-center justify-center ring-2 ring-white">
                                     <BadgeCheck className="w-2.5 h-2.5 text-white" />
                                 </div>
                             </div>
                             <div className="min-w-0">
                                 <p className="text-[10.5px] font-bold text-amber-500 uppercase tracking-[0.1em] mb-0.5">Gửi yêu cầu đến</p>
-                                <p className="text-[15px] font-bold text-slate-900 leading-tight truncate">{mentor.name}</p>
+                                <p className="text-[15px] font-bold text-slate-900 leading-tight truncate">{mentor.fullName}</p>
                                 {mentor.title && <p className="text-[12px] text-slate-400 truncate mt-0.5">{mentor.title}</p>}
                             </div>
                         </div>
@@ -152,7 +201,7 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                             </div>
                             <h3 className="text-[18px] font-bold text-slate-900">Yêu cầu đã được gửi!</h3>
                             <p className="text-[13px] text-slate-500 mt-2 max-w-[240px] leading-relaxed">
-                                <span className="font-semibold text-slate-700">{mentor.name}</span> sẽ phản hồi trong vòng 24–48 giờ.
+                                <span className="font-semibold text-slate-700">{mentor.fullName}</span> sẽ phản hồi trong vòng 24–48 giờ.
                             </p>
                             <div className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-amber-50 rounded-full border border-amber-100/80">
                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
@@ -204,7 +253,8 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                                     <span className="text-[11px] text-slate-400">Chọn một hoặc nhiều</span>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                    {SCOPE_OPTIONS.map(opt => {
+                                    {(mentor?.expertise || []).map(exp => {
+                                        const opt = { value: exp, label: EXPERTISE_DICT[exp] || exp };
                                         const active = scope.includes(opt.value);
                                         return (
                                             <button key={opt.value} type="button" onClick={() => toggleScope(opt.value)}
@@ -255,15 +305,15 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                             <div className="space-y-2">
                                 <span className="text-[12.5px] font-semibold text-slate-700">Thời lượng</span>
                                 <div className="p-1 bg-slate-50 border border-slate-200 rounded-xl flex gap-1">
-                                    {DURATIONS.map(d => (
-                                        <button key={d.value} type="button" onClick={() => setDuration(d.value)}
+                                    {(mentor?.supportedDurations || [30, 60, 90]).map(d => (
+                                        <button key={d} type="button" onClick={() => setDuration(String(d))}
                                             className={cn(
                                                 "flex-1 flex items-center justify-center py-2 rounded-[9px] text-[12px] font-semibold transition-all",
-                                                duration === d.value
+                                                duration === String(d)
                                                     ? "bg-white text-slate-900 shadow-sm border border-slate-200"
                                                     : "text-slate-400 hover:text-slate-600"
                                             )}>
-                                            {d.label}
+                                            {d} phút
                                         </button>
                                     ))}
                                 </div>

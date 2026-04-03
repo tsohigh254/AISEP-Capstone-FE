@@ -4,13 +4,14 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Search, Inbox, Clock, CalendarCheck, CheckCircle2, ArrowRight,
-  AlertCircle, X
+  AlertCircle, X, Timer, Briefcase
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import { FormatBadge } from "@/components/advisor/consulting-format-badge";
 import type { IConsultingRequest, ConsultingRequestStatus } from "@/types/advisor-consulting";
-import { getMockRequests } from "@/services/advisor/advisor-consulting.mock";
+import { GetAdvisorMentorships, AcceptMentorshipRequest } from "@/services/advisor/advisor.api";
+import { mapMentorshipToConsultingRequest } from "@/services/advisor/advisor.mapper";
 import { toast } from "sonner";
 
 /* ─── Constants ──────────────────────────────────────────────── */
@@ -19,7 +20,7 @@ type TabKey = "all" | ConsultingRequestStatus;
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "Tất cả" },
-  { key: "REQUESTED", label: "Chờ xử lý" },
+  { key: "PENDING", label: "Chờ xử lý" },
   { key: "ACCEPTED", label: "Đã nhận" },
   { key: "SCHEDULED", label: "Đã lên lịch" },
   { key: "COMPLETED", label: "Đã diễn ra" },
@@ -29,11 +30,12 @@ const TABS: { key: TabKey; label: string }[] = [
 ];
 
 const STATUS_LABEL: Record<ConsultingRequestStatus, string> = {
-  REQUESTED: "Chờ xử lý", ACCEPTED: "Đã nhận", SCHEDULED: "Đã lên lịch",
+  PENDING: "Chờ xử lý", REQUESTED: "Chờ xử lý", ACCEPTED: "Đã nhận", SCHEDULED: "Đã lên lịch",
   COMPLETED: "Đã diễn ra", FINALIZED: "Đã hoàn thành", REJECTED: "Đã từ chối", CANCELLED: "Đã huỷ",
 };
 
 const STATUS_CFG: Record<ConsultingRequestStatus, { dot: string; badge: string }> = {
+  PENDING: { dot: "bg-amber-400", badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
   REQUESTED: { dot: "bg-amber-400", badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
   ACCEPTED:  { dot: "bg-blue-400",  badge: "bg-blue-50 text-blue-700 border-blue-200/80" },
   SCHEDULED: { dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
@@ -99,7 +101,7 @@ function RequestCard({
   const firstSlot = req.preferredSlots[0] ?? null;
   const cfg = STATUS_CFG[req.status];
   const expiry = req.expiresAt ? expiryCountdown(req.expiresAt) : null;
-  const isRequested = req.status === "REQUESTED";
+  const isRequested = req.status === "PENDING";
 
   return (
     <div className={cn(
@@ -112,10 +114,14 @@ function RequestCard({
         <div className="flex items-center gap-4">
           {/* Avatar */}
           <div className={cn(
-            "w-11 h-11 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[15px] font-bold shrink-0 shadow-sm",
-            getAvatarColor(req.startup.displayName)
+            "w-11 h-11 rounded-xl flex items-center justify-center text-[15px] font-bold shrink-0 shadow-sm shrink-0 overflow-hidden",
+            !req.startup.logoUrl ? cn("bg-gradient-to-br text-white", getAvatarColor(req.startup.displayName)) : "bg-white border border-slate-100"
           )}>
-            {initial}
+            {req.startup.logoUrl ? (
+              <img src={req.startup.logoUrl} alt={req.startup.displayName} className="w-full h-full object-cover" />
+            ) : (
+              initial
+            )}
           </div>
 
           {/* Content */}
@@ -125,6 +131,10 @@ function RequestCard({
                 {req.startup.displayName}
               </span>
               <FormatBadge format={req.preferredFormat} size="sm" />
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-medium border border-slate-200/60 shadow-sm">
+                <Timer className="w-3 h-3" />
+                {req.durationMinutes} phút
+              </span>
               {expiry && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-500">
                   <Clock className="w-3 h-3" />
@@ -132,14 +142,32 @@ function RequestCard({
                 </span>
               )}
             </div>
-            <p className="text-[13px] text-slate-500 truncate mt-0.5">{req.objective}</p>
-            <div className="flex items-center gap-3 mt-1.5">
+            
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
+                <Briefcase className="w-3 h-3 text-slate-400" />
+                {req.startup.industry} • {req.startup.stage}
+              </span>
+            </div>
+
+            <p className="text-[13px] text-slate-600 truncate mt-1.5 font-medium">{req.objective}</p>
+            
+            <div className="flex items-center gap-4 mt-2">
               <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                <Clock className="w-3 h-3" />
+                <Clock className="w-3.5 h-3.5" />
                 {relativeTime(req.submittedAt)}
               </span>
-              {firstSlot && (
-                <span className="text-[11px] text-slate-400 flex items-center gap-1">
+              {firstSlot && isRequested && (
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50/80 border border-blue-100">
+                  <CalendarCheck className="w-3 h-3 text-blue-500" />
+                  <span className="text-[11px] font-semibold text-blue-700">
+                    Đề xuất: {formatSlotPreview(firstSlot.startAt)} 
+                    {req.preferredSlots.length > 1 && <span className="ml-1 text-blue-500">(+{req.preferredSlots.length - 1})</span>}
+                  </span>
+                </div>
+              )}
+              {firstSlot && !isRequested && (
+                <span className="text-[11px] text-slate-500 flex items-center gap-1">
                   <CalendarCheck className="w-3 h-3" />
                   {formatSlotPreview(firstSlot.startAt)}
                 </span>
@@ -163,7 +191,7 @@ function RequestCard({
         </div>
       </Link>
 
-      {/* Quick actions for REQUESTED */}
+      {/* Quick actions for PENDING */}
       {isRequested && onAccept && (
         <div className="px-5 pb-4 flex items-center gap-2 border-t border-amber-100 pt-3 mt-0">
           <button
@@ -196,15 +224,36 @@ export default function AdvisorRequestsPage() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [requestToAccept, setRequestToAccept] = useState<string | null>(null);
 
-  useEffect(() => { setRequests(getMockRequests()); }, []);
+const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => { 
+    async function loadRequests() {
+      try {
+        setIsLoading(true);
+        const res = await GetAdvisorMentorships({ pageSize: 100 });
+
+        // API now strictly returns IBackendRes<IPagingData<IMentorshipRequest>> 
+        if (res.isSuccess || res.success) {
+           const itemsArray = res.data?.items || [];
+           const mapped: IConsultingRequest[] = itemsArray.map(mapMentorshipToConsultingRequest);
+           setRequests(mapped);
+        }
+      } catch(err) {
+        console.error("Failed to load mentorships:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadRequests();
+  }, []);
 
   const counts = useMemo(() => {
-    const c = { REQUESTED: 0, ACCEPTED: 0, SCHEDULED: 0, COMPLETED: 0, FINALIZED: 0, REJECTED: 0, CANCELLED: 0 };
+    const c = { PENDING: 0, ACCEPTED: 0, SCHEDULED: 0, COMPLETED: 0, FINALIZED: 0, REJECTED: 0, CANCELLED: 0 };
     for (const r of requests) if (r.status in c) c[r.status as keyof typeof c]++;
     return c;
   }, [requests]);
 
-  const pending = useMemo(() => requests.filter(r => r.status === "REQUESTED"), [requests]);
+  const pending = useMemo(() => requests.filter(r => r.status === "PENDING"), [requests]);
 
   const filtered = useMemo(() => {
     let list = requests;
@@ -224,23 +273,36 @@ export default function AdvisorRequestsPage() {
     setIsConfirmOpen(true);
   };
 
-  const onConfirmAccept = () => {
+  const onConfirmAccept = async () => {
     if (!requestToAccept) return;
     const id = requestToAccept;
-    setRequests(prev => prev.map(r =>
-      r.id === id
-        ? { ...r, status: "ACCEPTED" as ConsultingRequestStatus, acceptedAt: new Date().toISOString() }
-        : r
-    ));
-    toast.success("Đã chấp nhận yêu cầu tư vấn");
+    
+    // Optimistic unmount
     setIsConfirmOpen(false);
     setRequestToAccept(null);
+
+    try {
+      const res = await AcceptMentorshipRequest(id);
+      if (res.isSuccess || res.success) {
+        setRequests(prev => prev.map(r =>
+          r.id === id
+            ? { ...r, status: "ACCEPTED" as ConsultingRequestStatus, acceptedAt: new Date().toISOString() }
+            : r
+        ));
+        toast.success("Đã chấp nhận yêu cầu tư vấn");
+      } else {
+        toast.error(res.message || "Không thể nhận yêu cầu này");
+      }
+    } catch (err) {
+      toast.error("Có lỗi xảy ra khi gọi API");
+      console.error(err);
+    }
   };
 
   // When tab = "all" and no search: group pending on top, rest below
   const showGrouped = activeTab === "all" && !search.trim() && pending.length > 0;
   const nonPendingFiltered = showGrouped
-    ? filtered.filter(r => r.status !== "REQUESTED")
+    ? filtered.filter(r => r.status !== "PENDING")
     : filtered;
 
   return (
@@ -303,7 +365,7 @@ export default function AdvisorRequestsPage() {
                   <span className={cn(
                     "text-[10px] rounded-full px-1.5 py-0.5 font-bold leading-none",
                     activeTab === tab.key ? "bg-white/20 text-white" : "bg-slate-100 text-slate-400",
-                    tab.key === "REQUESTED" && activeTab !== tab.key && count > 0 && "bg-amber-100 text-amber-600"
+                    tab.key === "PENDING" && activeTab !== tab.key && count > 0 && "bg-amber-100 text-amber-600"
                   )}>
                     {count}
                   </span>
@@ -346,8 +408,8 @@ export default function AdvisorRequestsPage() {
                 <RequestCard
                   key={req.id}
                   req={req}
-                  onAccept={req.status === "REQUESTED" ? handleQuickAccept : undefined}
-                  showUrgent={req.status === "REQUESTED"}
+                  onAccept={req.status === "PENDING" ? handleQuickAccept : undefined}
+                  showUrgent={req.status === "PENDING"}
                 />
               ))}
             </div>

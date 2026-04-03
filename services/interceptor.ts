@@ -45,7 +45,7 @@ function getTokenFromResponseBody(body: any): string | null {
 
 function isAuthEndpoint(url?: string): boolean {
   if (!url) return false;
-  return url.includes("/api/auth/refresh-token") || url.includes("/api/auth/logout");
+  return url.includes("/api/auth/refresh-token") || url.includes("/api/auth/logout") || url.includes("/login");
 }
 
 // Request interceptor: gắn Bearer token

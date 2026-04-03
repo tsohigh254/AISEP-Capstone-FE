@@ -49,11 +49,17 @@ export function AdvisorHeader({
   const gridRef = useRef<HTMLDivElement>(null);
 
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const displayUserName = profileName || user?.email || userName;
 
   useEffect(() => {
     GetAdvisorProfile().then((res: any) => {
-      if (res?.isSuccess && res.data?.fullName) setProfileName(res.data.fullName);
+      if (res?.isSuccess && res.data) {
+        if (res.data.fullName) setProfileName(res.data.fullName);
+        if (res.data.profilePhotoURL || res.data.profilePhotoUrl) {
+          setProfilePhoto(res.data.profilePhotoURL || res.data.profilePhotoUrl);
+        }
+      }
     }).catch(() => {});
   }, []);
 
@@ -172,9 +178,13 @@ export function AdvisorHeader({
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             >
               <div className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-[#e6cc4c]/40 group-hover/avatar:ring-[#e6cc4c]/70 transition-all shadow-sm">
-                <div className="w-full h-full bg-gradient-to-br from-[#e6cc4c]/30 to-[#F0A500]/20 flex items-center justify-center text-[#C8A000] font-black text-sm uppercase">
-                  {displayUserName?.[0] ?? "A"}
-                </div>
+                {profilePhoto ? (
+                  <img src={profilePhoto} alt={displayUserName ?? "Avatar"} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-[#e6cc4c]/30 to-[#F0A500]/20 flex items-center justify-center text-[#C8A000] font-black text-sm uppercase">
+                    {displayUserName?.[0] ?? "A"}
+                  </div>
+                )}
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white"></span>
             </button>
@@ -185,9 +195,13 @@ export function AdvisorHeader({
                 <div className="px-4 pt-4 pb-3 bg-gradient-to-br from-[#fdf8e6] via-[#fffdf5] to-white border-b border-slate-100/80">
                   <div className="flex items-center gap-3">
                     <div className="w-11 h-11 rounded-xl overflow-hidden ring-2 ring-[#e6cc4c]/40 flex-shrink-0 shadow-sm">
-                      <div className="w-full h-full bg-gradient-to-br from-[#e6cc4c]/40 to-[#F0A500]/30 flex items-center justify-center text-[#C8A000] font-black text-base uppercase">
-                        {displayUserName?.[0] ?? "A"}
-                      </div>
+                        {profilePhoto ? (
+                          <img src={profilePhoto} alt={displayUserName ?? "Avatar"} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-[#e6cc4c]/40 to-[#F0A500]/30 flex items-center justify-center text-[#C8A000] font-black text-base uppercase">
+                            {displayUserName?.[0] ?? "A"}
+                          </div>
+                        )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-[13px] font-black text-[#171611] tracking-tight truncate">{displayUserName}</p>

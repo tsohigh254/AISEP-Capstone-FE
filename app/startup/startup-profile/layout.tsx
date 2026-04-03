@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { StartupShell } from "@/components/startup/startup-shell";
@@ -11,11 +11,17 @@ import { Settings } from "lucide-react";
 
 const NavigationContent = ({ children }: { children: React.ReactNode }) => {
     const pathname = usePathname();
+    const searchParams = useSearchParams();
     const isViewMode = pathname === "/startup/startup-profile";
-    // Edit mode: Gom toàn bộ thông tin tạo/cập nhật ở 1 tab (/info), member tách ở (/team)
+    const currentTabId = searchParams.get("tab") || "overview";
+
+    // Chỉ chứa đúng 5 Tab hiển thị y hệt màn hình View (Khán giả)
     const editTabs = [
-        { id: "info", label: "Tổng quan", href: "/startup/startup-profile/info", match: pathname.includes("/info") && !pathname.includes("/team") },
+        { id: "overview", label: "Tổng quan", href: "/startup/startup-profile/info?tab=overview", match: pathname.includes("/info") && currentTabId === "overview" },
+        { id: "business", label: "Kinh doanh", href: "/startup/startup-profile/info?tab=business", match: pathname.includes("/info") && currentTabId === "business" },
+        { id: "funding", label: "Gọi vốn", href: "/startup/startup-profile/info?tab=funding", match: pathname.includes("/info") && currentTabId === "funding" },
         { id: "team", label: "Đội ngũ & Xác thực", href: "/startup/startup-profile/team", match: pathname.includes("/team") },
+        { id: "contact", label: "Liên hệ", href: "/startup/startup-profile/info?tab=contact", match: pathname.includes("/info") && currentTabId === "contact" },
     ];
 
     const isVisibilitySettings = pathname.includes("/visibility");
