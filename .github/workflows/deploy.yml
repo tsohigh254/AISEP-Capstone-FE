@@ -16,7 +16,9 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            set -e
             cd /var/www/aisep/repo/AISEP-Capstone-FE
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
             cd /var/www/aisep/repo
-            docker compose up -d --build frontend
+            docker compose up -d --build --no-deps frontend
