@@ -23,17 +23,28 @@ jobs:
             cd /var/www/aisep/repo
             docker compose up -d --build --no-deps frontend
             
-            echo "Flushing Nginx DNS cache for new container IP..."
-            docker compose restart nginx proxy reverse-proxy web 2>/dev/null || true
-            for c in $(docker ps -q); do docker exec "$c" nginx -s reload 2>/dev/null || true; done
+            echo "Waiting 20s for Next.js to fully boot inside container..."
+            sleep 20
             
-            echo "Waiting for frontend to start..."
+            echo "Reloading reverse proxy to pick up new container IP..."
+            # Find the nginx/proxy container dynamically and reload its config
+            NGINX_CTR=$(docker ps --format '{{.Names}}' | grep -iE 'nginx|proxy|caddy|traefik' | grep -v frontend | head -1)
+            if [ -n "$NGINX_CTR" ]; then
+              echo "  Found proxy container: $NGINX_CTR"
+              docker exec "$NGINX_CTR" nginx -s reload 2>/dev/null \
+                || docker exec "$NGINX_CTR" sh -c 'kill -HUP 1' 2>/dev/null \
+                || docker restart "$NGINX_CTR" 2>/dev/null \
+                || true
+            else
+              echo "  No proxy container found, skipping reload"
+            fi
+            
+            echo "Checking frontend health..."
             for i in {1..4}; do
               sleep 5
-              # Use -m 10 to prevent curl from hanging during 504 Gateway Timeouts
               STATUS=$(curl -m 10 -so /dev/null -w '%{http_code}' https://aisep.xyz/ 2>/dev/null || echo "000")
               if [ "$STATUS" = "200" ]; then
-                echo "âœ… Frontend is healthy (HTTP $STATUS)"
+                echo "✅ Frontend is healthy (HTTP $STATUS)"
                 exit 0
               fi
               echo "  attempt $i/4 (HTTP $STATUS)..."
