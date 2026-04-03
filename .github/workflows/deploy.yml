@@ -22,15 +22,21 @@ jobs:
             git reset --hard origin/main
             cd /var/www/aisep/repo
             docker compose up -d --build --no-deps frontend
+            
+            echo "Flushing Nginx DNS cache for new container IP..."
+            docker compose restart nginx proxy reverse-proxy web 2>/dev/null || true
+            for c in $(docker ps -q); do docker exec "$c" nginx -s reload 2>/dev/null || true; done
+            
             echo "Waiting for frontend to start..."
-            for i in {1..20}; do
+            for i in {1..4}; do
               sleep 5
-              STATUS=$(curl -so /dev/null -w '%{http_code}' https://aisep.xyz/ 2>/dev/null || echo "000")
+              # Use -m 10 to prevent curl from hanging during 504 Gateway Timeouts
+              STATUS=$(curl -m 10 -so /dev/null -w '%{http_code}' https://aisep.xyz/ 2>/dev/null || echo "000")
               if [ "$STATUS" = "200" ]; then
                 echo "âœ… Frontend is healthy (HTTP $STATUS)"
                 exit 0
               fi
-              echo "  attempt $i/20 (HTTP $STATUS)..."
+              echo "  attempt $i/4 (HTTP $STATUS)..."
             done
             echo "❌ Frontend health check failed"
             docker logs repo-frontend-1 --tail 50
