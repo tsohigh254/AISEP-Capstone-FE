@@ -11,8 +11,7 @@ export interface IInvestorKYCSubmission {
   organizationName?: string;
   currentRoleTitle?: string;
   location?: string;
-  linkedinOrWebsite?: string;
-  mainLink?: string; // Link chính (Website/LinkedIn)
+  website?: string;
   avatar?: string;
   shortThesisSummary?: string;
   preferredIndustries?: string[];
@@ -56,6 +55,18 @@ export interface IInvestorKYCStatus {
   };
   previousSubmission?: Partial<IInvestorKYCSubmission>;
   draftData?: Partial<IInvestorKYCSubmission>;
+  submittedData?: {
+    investorCategory: string;
+    fullName: string;
+    contactEmail: string;
+    organizationName?: string;
+    currentRoleTitle?: string;
+    location?: string;
+    website?: string;
+    linkedInURL?: string;
+    submitterRole?: string;
+    taxIdOrBusinessCode?: string;
+  };
   remarks?: string;
   flaggedFields?: string[];
   history?: {

@@ -76,7 +76,7 @@ export function InvestorReviewStep({ data, onBack, onSubmit, isSubmitting, files
           <Item label="Tổ chức" value={data.organizationName} />
           <Item label="Vị trí / Chức vụ" value={data.currentRoleTitle} />
           <Item label="Địa điểm" value={data.location} />
-          <Item label="Website / LinkedIn" value={data.linkedinOrWebsite} />
+          <Item label="Website / LinkedIn" value={data.website} />
           <Item label="Investment Thesis" value={data.shortThesisSummary} full />
           <Item label="Lĩnh vực quan tâm" value={data.preferredIndustries} />
           <Item label="Giai đoạn ưu tiên" value={data.preferredStages} />

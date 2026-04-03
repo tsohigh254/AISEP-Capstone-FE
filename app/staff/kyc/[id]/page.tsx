@@ -3,7 +3,11 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ApproveStartupRegistration, RejectStartupRegistration } from "@/services/staff/registration.api";
+import { 
+  ApproveStartupRegistration, ApproveAdvisorRegistration, ApproveInvestorRegistration,
+  RejectStartupRegistration, RejectAdvisorRegistration, RejectInvestorRegistration,
+  GetPendingStartupById, GetPendingAdvisorById, GetPendingInvestorById
+} from "@/services/staff/registration.api";
 import axios from "@/services/interceptor";
 import { useAuth } from "@/context/context";
 import {
@@ -40,17 +44,10 @@ import {
   HARD_FAIL_VALUES
 } from "@/types/staff-kyc";
 
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
 // --- Types ---
 type KYCStatus = "PENDING" | "IN_REVIEW" | "PENDING_MORE_INFO" | "APPROVED" | "REJECTED" | "FAILED";
-
-// --- Subtype Resolver Mock ---
-const getSubtypeById = (id: string): KYCSubtype => {
-  if (id.endsWith("002")) return "STARTUP_NO_ENTITY";
-  if (id.endsWith("003")) return "INSTITUTIONAL_INVESTOR";
-  if (id.endsWith("004")) return "INDIVIDUAL_INVESTOR";
-  if (id.endsWith("005")) return "ADVISOR";
-  return "STARTUP_ENTITY";
-};
 
 // --- Helper Functions ---
 const AVATAR_COLORS = [
@@ -68,14 +65,6 @@ function getAvatarGradient(name: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
-const DUMMY_ENTITY_NAMES: Record<KYCSubtype, string> = {
-  STARTUP_ENTITY: "TechAlpha Co.",
-  STARTUP_NO_ENTITY: "Project Phoenix",
-  INSTITUTIONAL_INVESTOR: "Global Venture Fund",
-  INDIVIDUAL_INVESTOR: "Nguyễn Văn A (Cá nhân)",
-  ADVISOR: "Trần Thị Cố Vấn"
-};
-
 const STATUS_CFG: Record<KYCStatus | "FAILED", { label: string, badge: string, dot: string }> = {
   PENDING: { label: "Chờ xử lý", badge: "bg-amber-50 text-amber-700 border-amber-200/80", dot: "bg-amber-400" },
   IN_REVIEW: { label: "Đang soát xét", badge: "bg-blue-50 text-blue-700 border-blue-200/80", dot: "bg-blue-400" },
@@ -85,58 +74,102 @@ const STATUS_CFG: Record<KYCStatus | "FAILED", { label: string, badge: string, d
   FAILED: { label: "Thẩm định thất bại", badge: "bg-red-50 text-red-700 border-red-200/80", dot: "bg-red-400" },
 };
 
+// --- Subtype Resolver ---
+const getSubtypeById = (id: string): KYCSubtype => {
+  if (id.startsWith("ADVISOR-")) return "ADVISOR";
+  if (id.startsWith("INVESTOR-")) return "INDIVIDUAL_INVESTOR";
+  if (id.endsWith("002")) return "STARTUP_NO_ENTITY";
+  if (id.endsWith("003")) return "INSTITUTIONAL_INVESTOR";
+  if (id.endsWith("004")) return "INDIVIDUAL_INVESTOR";
+  if (id.endsWith("005")) return "ADVISOR";
+  return "STARTUP_ENTITY";
+};
+
 export default function KYCDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const { id } = React.use(params);
-  const realId = id.replace("STARTUP-", "");
-  
+  const realId = id.split("-")[1];
+  const numericId = parseInt(realId);
+
   const [activeTab, setActiveTab] = useState<"INFO" | "HISTORY">("INFO");
-  const subtype = useMemo(() => getSubtypeById(id), [id]);
+  const [detectedSubtype, setDetectedSubtype] = useState<KYCSubtype>(getSubtypeById(id));
+
+  // Use React Query for data fetching
+  const { data: realData, isLoading: loading } = useQuery({
+    queryKey: ["kyc-detail", id],
+    queryFn: async () => {
+      let res;
+      if (id.startsWith("STARTUP-")) {
+        res = await GetPendingStartupById(numericId);
+      } else if (id.startsWith("ADVISOR-")) {
+        res = await GetPendingAdvisorById(numericId);
+      } else if (id.startsWith("INVESTOR-")) {
+        res = await GetPendingInvestorById(numericId);
+      }
+      return (res as any)?.data;
+    },
+    enabled: !!id && !isNaN(numericId),
+  });
+
+  const subtype = detectedSubtype;
   const config = KYC_SUBTYPE_CONFIGS[subtype];
-  const SubtypeIcon = config.icon;
-  
-  // Real data state
-  const [entityName, setEntityName] = useState("Đang tải dữ liệu...");
-  const [realData, setRealData] = useState<any>(null);
+
+  const entityName = useMemo(() => {
+    if (!realData) return "Đang tải dữ liệu...";
+    if (id.startsWith("STARTUP-")) return realData.companyName || "N/A";
+    if (id.startsWith("ADVISOR-")) return realData.fullName || "N/A";
+    if (id.startsWith("INVESTOR-")) return realData.fullName || "N/A";
+    return "N/A";
+  }, [realData, id]);
 
   useEffect(() => {
-    if(!id.includes("STARTUP")) {
-        setEntityName("Đối tượng Mock: " + id);
-        return;
-    }
-    axios.get(`/api/startups/${realId}`).then(res => {
-      console.log("FETCHED STARTUP:", res);
-      // Handle different wrapper scenarios
-      let actualData = res;
-      if (res && (res as any).data && ((res as any).success || typeof (res as any).isSuccess !== 'undefined')) {
-        actualData = (res as any).data;
+    if (realData) {
+      if (id.startsWith("STARTUP-")) {
+        setDetectedSubtype(realData.businessCode ? "STARTUP_ENTITY" : "STARTUP_NO_ENTITY");
+      } else if (id.startsWith("ADVISOR-")) {
+        setDetectedSubtype("ADVISOR");
+      } else if (id.startsWith("INVESTOR-")) {
+        setDetectedSubtype(realData.firmName ? "INSTITUTIONAL_INVESTOR" : "INDIVIDUAL_INVESTOR");
       }
-      
-      setRealData(actualData);
-      setEntityName((actualData as any)?.companyName || "Chưa cập nhật tên");
-    }).catch(console.error);
-  }, [id, realId]);
+    }
+  }, [realData, id]);
 
   const avatarGradient = useMemo(() => getAvatarGradient(entityName), [entityName]);
 
   // Initialize assessments
-  const [assessments, setAssessments] = useState<Record<string, AssessmentValue>>(
-    Object.fromEntries(config.fields.map(f => [f.id, f.options[0]]))
-  );
+  const [assessments, setAssessments] = useState<Record<string, AssessmentValue>>({});
 
-  const [internalNote, setInternalNote] = useState("");
-  const [showConfirm, setShowConfirm] = useState(false);
+  // Reset assessments when subtype changes to ensure "Confirm" button activates for the correct fields
+  useEffect(() => {
+    if (config) {
+      setAssessments(Object.fromEntries(config.fields.map((f: any) => [f.id, f.options[0]])));
+    }
+  }, [subtype]);
 
   const updateAssessment = (fieldId: string, val: AssessmentValue) => {
     setAssessments(prev => ({ ...prev, [fieldId]: val }));
   };
 
   const result = useMemo(() => getSuggestedResult(subtype, assessments), [subtype, assessments]);
-  const isComplete = Object.keys(assessments).length === config.fields.length;
+  const isComplete = useMemo(() => {
+    if (!config) return false;
+    return config.fields.every(f => assessments[f.id] !== undefined);
+  }, [config, assessments]);
 
   const [isSuccess, setIsSuccess] = useState(false);
+  const [internalNote, setInternalNote] = useState("");
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [previewFile, setPreviewFile] = useState<string | null>(null);
+
+  if (loading) return (
+    <div className="min-h-[400px] flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-[#eec54e] border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 
   if (isSuccess) {
+// ... (success view remains same)
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center animate-in zoom-in-95 duration-500">
         <div className="w-24 h-24 rounded-full bg-emerald-50 flex items-center justify-center mb-6 relative">
@@ -259,16 +292,56 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                       let realValue: React.ReactNode = field.value || "—";
                       
                       if (realData) {
-                        // Cập nhật lại các ID trường tương ứng với cấu hình thật từ staff-kyc.ts
-                        if (field.id === "legalName" || field.id === "projectName") realValue = realData.companyName || realData.fullName || "—";
-                        if (field.id === "taxId") realValue = realData.bussinessCode || realData.businessCode || "—";
-                        if (field.id === "submitterName" || field.id === "repName" || field.id === "fullName") realValue = realData.fullNameOfApplicant || realData.submitterName || realData.fullName || "Hệ thống chưa lưu";
-                        if (field.id === "submitterRole" || field.id === "repRole") realValue = realData.roleOfApplicant || "Người nộp thay";
-                        if (field.id === "workEmail") realValue = realData.contactEmail || realData.email || "—";
-                        if (field.id === "officialLink" || field.id === "website") realValue = realData.website || realData.socialLink || "—";
+                        // Priority 1: Direct ID matches
+                        if (field.id === "legalName") realValue = realData.companyName || "—";
+                        else if (field.id === "projectName") realValue = realData.companyName || "—";
+                        else if (field.id === "taxId" || field.id === "orgTaxId") realValue = realData.businessCode || "—";
                         
-                        if (field.id.includes("license") || field.id.includes("File") || field.id.includes("doc_") || field.id === "licenseFile") {
-                          realValue = realData.fileCertificateBusiness ? "Tài liệu đính kèm" : "Tài liệu chưa được lưu trong API này";
+                        else if (field.id === "submitterName") realValue = realData.fullNameOfApplicant || realData.fullName || "—";
+                        else if (field.id === "repName" || field.id === "investorName" || field.id === "advisorName") realValue = realData.fullName || "—";
+                        
+                        else if (field.id === "workEmail" || field.id === "contactEmail" || field.id === "email") {
+                          realValue = realData.contactEmail || realData.email || "—";
+                        }
+                        
+                        else if (field.id === "submitterRole" || field.id === "repRole") {
+                          realValue = realData.submitterRole || realData.roleOfApplicant || "—";
+                        }
+                        
+                        else if (field.id === "officialLink" || field.id === "website" || field.id === "publicLink") {
+                          realValue = realData.website || "—";
+                        }
+                        
+                        else if (field.id === "linkedin") {
+                          realValue = realData.linkedInURL || realData.linkedinURL || "—";
+                        }
+                        
+                        else if (field.id === "primaryExpertise") {
+                          realValue = realData.expertise || (realData.industryFocus && realData.industryFocus[0]?.industry) || "—";
+                        }
+                        
+                        else if (field.id === "orgLegalName" || field.id === "firmName" || field.id === "org") {
+                          realValue = realData.currentOrganization || realData.firmName || "—";
+                        }
+
+                        else if (field.id === "title") {
+                          realValue = realData.title || "—";
+                        }
+
+                        // Fallback/Generic handle
+                        if (realValue === "—") {
+                          // Try to find property by name (case insensitive)
+                          const key = Object.keys(realData).find(k => k.toLowerCase() === field.id.toLowerCase());
+                          if (key) {
+                            const val = (realData as any)[key];
+                            if (val && typeof val !== "object") realValue = String(val);
+                          }
+                        }
+                        
+                        if (field.type === "file") {
+                           const hasFile = realData.fileCertificateBusiness || realData.proofFile || realData.orgProofFile || 
+                                           realData.idProofFileURL || realData.investmentProofFileURL;
+                           realValue = hasFile ? "Tài liệu đính kèm" : "Chưa tải lên";
                         }
                       }
 
@@ -287,14 +360,26 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                               <ExternalLink className="w-3.5 h-3.5" />
                             </a>
                            )}
-                           {field.type === "file" && (
+                          {field.type === "file" && (
                             <div className="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl border border-slate-100 group-hover:bg-white transition-colors">
                               <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
                                 <FileText className="w-4 h-4 text-red-500" />
                               </div>
                               <div className="min-w-0">
-                                <p className="font-semibold text-slate-700 text-[12px] truncate">Tài liệu định kèm (Minh họa)</p>
-                                <button className="text-blue-600 hover:text-blue-800 font-medium text-[11px] uppercase tracking-tight">Xem tài liệu</button>
+                                <p className="font-semibold text-slate-700 text-[12px] truncate">
+                                  {field.label}
+                                </p>
+                                <button 
+                                  onClick={() => {
+                                    const fileUrl = realData?.idProofFileURL || realData?.investmentProofFileURL || 
+                                                   realData?.proofFile || realData?.fileCertificateBusiness;
+                                    if (fileUrl) window.open(fileUrl, "_blank");
+                                    else toast.error("Không tìm thấy file tệp đính kèm");
+                                  }}
+                                  className="text-blue-600 hover:text-blue-800 font-medium text-[11px] uppercase tracking-tight"
+                                >
+                                  {realValue === "Chưa tải lên" ? "Không có tài liệu" : "Xem tài liệu"}
+                                </button>
                               </div>
                             </div>
                            )}
@@ -519,17 +604,26 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                   onClick={async () => {
                     try {
                         const staffId = user?.userId || 1;
-                        if (result.suggestedDecision === "APPROVE") {
-                            await ApproveStartupRegistration(staffId, Number(realId), result.totalScore);
-                            toast.success("Đã duyệt hồ sơ thành công");
-                        } else {
-                            await RejectStartupRegistration(staffId, Number(realId), internalNote || "Hồ sơ chưa đạt yêu cầu");
-                            toast.success("Đã từ chối hồ sơ");
+                        const numericId = Number(realId);
+                        const isApprove = result.suggestedDecision === "APPROVE";
+                        
+                        if (id.startsWith("STARTUP-")) {
+                            if (isApprove) await ApproveStartupRegistration(staffId, numericId, result.totalScore);
+                            else await RejectStartupRegistration(staffId, numericId, internalNote || "Không đạt");
+                        } else if (id.startsWith("ADVISOR-")) {
+                            if (isApprove) await ApproveAdvisorRegistration(staffId, numericId, result.totalScore);
+                            else await RejectAdvisorRegistration(staffId, numericId, internalNote || "Không đạt");
+                        } else if (id.startsWith("INVESTOR-")) {
+                            const isInst = subtype === "INSTITUTIONAL_INVESTOR";
+                            if (isApprove) await ApproveInvestorRegistration(staffId, numericId, result.totalScore, isInst);
+                            else await RejectInvestorRegistration(staffId, numericId, internalNote || "Không đạt");
                         }
+
+                        toast.success(isApprove ? "Đã duyệt hồ sơ thành công" : "Đã từ chối hồ sơ");
                         setIsSuccess(true);
                         setShowConfirm(false);
                     } catch (err: any) {
-                        toast.error("Lỗi khi xử lý hồ sơ: " + err.message);
+                        toast.error("Lỗi khi xử lý hồ sơ: " + (err.response?.data?.message || err.message));
                     }
                   }}
                >

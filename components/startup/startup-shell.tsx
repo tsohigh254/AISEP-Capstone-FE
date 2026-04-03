@@ -6,6 +6,10 @@ import { StartupHeader } from "@/components/startup/startup-header";
 import { ChevronRight } from "lucide-react";
 import React from "react";
 import { AuthGuard } from "@/components/auth-guard";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { GetStartupProfile } from "@/services/startup/startup.api";
+import { Loader2 } from "lucide-react";
 
 const routeLabels: Record<string, string> = {
   startup: "Workspace",
@@ -76,6 +80,53 @@ type StartupShellProps = {
 };
 
 export function StartupShell({ children }: StartupShellProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    // Only guard if NOT already on the onboard page
+    if (pathname === "/startup/onboard") {
+      setChecking(false);
+      return;
+    }
+
+    GetStartupProfile()
+      .then((res) => {
+        const data = res as unknown as IBackendRes<any>;
+        if (!data.success && !data.isSuccess) {
+          // If 404 or explicitly "Profile not found", go to onboard
+          router.replace("/startup/onboard");
+        } else if (data.data?.profileStatus === "Draft") {
+          // If still in draft, go to onboard
+          router.replace("/startup/onboard");
+        } else {
+          setChecking(false);
+        }
+      })
+      .catch((err) => {
+        // If 404/400 (Not Found), go to onboard
+        const status = err?.response?.status;
+        if (status === 404 || status === 400) {
+          router.replace("/startup/onboard");
+        } else {
+          // Other errors (server down?), maybe let them through or show error
+          setChecking(false); 
+        }
+      });
+  }, [pathname, router]);
+
+  if (checking && pathname !== "/startup/onboard") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8f8f6]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-[#eec54e] animate-spin" />
+          <p className="text-slate-500 font-medium text-sm">Đang tải Workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <AuthGuard allowedRoles={["Startup"]}>
       <div className="min-h-screen bg-[#f8f8f6] text-[#171611] font-be-vietnam-pro selection:bg-[#e6cc4c]/30">

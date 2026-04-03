@@ -208,3 +208,15 @@ export const SearchInvestors = (params: { page?: number; pageSize?: number; keyw
 export const GetInvestorById = (id: number) => {
     return axios.get<IBackendRes<IInvestorProfile>>(`/api/investors/${id}`);
 }
+
+export const GetStartupKYCStatus = () => {
+    return axios.get<IBackendRes<any>>(`/api/startups/me/kyc/status`);
+};
+
+export const SubmitStartupKYC = (data: any) => {
+    return axios.post<IBackendRes<any>>(`/api/startups/me/kyc/submit`, data);
+};
+
+export const SaveStartupKYCDraft = (data: any) => {
+    return axios.patch<IBackendRes<any>>(`/api/startups/me/kyc/draft`, data);
+};

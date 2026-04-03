@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCountUp } from "@/lib/useCountUp";
 import { cn } from "@/lib/utils";
 import { 
@@ -18,32 +19,141 @@ import {
   TrendingUp, 
   Search, 
   MoreVertical,
-  Bookmark
+  Bookmark,
+  Loader2, 
+  AlertTriangle, 
+  ShieldCheck as ShieldCheckIcon
 } from "lucide-react";
+import { GetInvestorProfile } from "@/services/investor/investor.api";
+import { GetInvestorKYCStatus } from "@/services/investor/investor-kyc";
+import { IInvestorKYCStatus } from "@/types/investor-kyc";
 import { InvestorPublicProfileModal } from "@/components/investor/investor-public-profile-modal";
+import { toast } from "sonner";
 
 export default function InvestorDashboardPage() {
+  const router = useRouter();
   const [showPublicProfile, setShowPublicProfile] = useState(false);
-  const profileProgress = useCountUp(80, 1200, 0);
-  const connectCount = useCountUp(14, 1200, 0);
-  const docCount = useCountUp(45, 800, 10);
-  const viewCount = useCountUp(128, 600, 50);
+  const [profile, setProfile] = useState<any | null>(null);
+  const [kycStatus, setKycStatus] = useState<IInvestorKYCStatus | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchDashboardData = async () => {
+    setIsLoading(true);
+    try {
+      const [profileRes, kycRes] = await Promise.all([
+        GetInvestorProfile(),
+        GetInvestorKYCStatus()
+      ]);
+
+      if (profileRes.isSuccess) setProfile(profileRes.data);
+      if (kycRes.isSuccess) setKycStatus(kycRes.data as any);
+
+      // Simple Redirection Guard: If profile is incomplete, send to onboard
+      if (profileRes.isSuccess && (!profileRes.data || profileRes.data.profileStatus === "Draft")) {
+          router.push("/investor/onboard");
+      }
+    } catch (err) {
+      toast.error("Lỗi khi tải dữ liệu Dashboard");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const profileProgressCount = useMemo(() => {
+    if (!profile) return 0;
+    const fields = [
+        profile.fullName, profile.firmName, profile.title, 
+        profile.bio, profile.location, profile.website, 
+        profile.linkedInURL, profile.investmentThesis
+    ];
+    const filled = fields.filter(f => !!f).length;
+    return Math.round((filled / fields.length) * 100);
+  }, [profile]);
+
+  const profileProgress = useCountUp(profileProgressCount, 1200, 0);
+  const connectCount = useCountUp(0, 1200, 0); // Placeholder for actual connections
+  const docCount = useCountUp(0, 800, 0); // Placeholder for actual docs
+  const viewCount = useCountUp(0, 600, 0); // Placeholder for actual views
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Loader2 className="w-10 h-10 animate-spin text-[#e6cc4c]" />
+        <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest">Đang tải dữ liệu...</p>
+      </div>
+    );
+  }
+
+  const isVerified = kycStatus?.workflowStatus === "VERIFIED";
+  const isPending = kycStatus?.workflowStatus === "PENDING_REVIEW";
+  const isFailed = kycStatus?.workflowStatus === "VERIFICATION_FAILED";
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      
+      {/* Verification CTA Banner */}
+      {!isVerified && !isPending && (
+          <div className="bg-[#e6cc4c]/10 border-2 border-dashed border-[#e6cc4c]/40 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#e6cc4c]/20 flex items-center justify-center text-[#e6cc4c]">
+                      <ShieldCheckIcon className="w-6 h-6" />
+                  </div>
+                  <div>
+                      <h4 className="text-[14px] font-bold text-slate-800">Tài khoản chưa được xác thực (KYC)</h4>
+                      <p className="text-[12px] text-slate-500">Xác thực ngay để nhận được sự tin tưởng từ các Startup và truy cập dữ liệu chuyên sâu.</p>
+                  </div>
+              </div>
+              <Link href="/investor/kyc" className="px-6 py-2 bg-[#171611] text-white text-[12px] font-bold rounded-xl hover:bg-slate-700 transition-all whitespace-nowrap">
+                  Xác thực ngay
+              </Link>
+          </div>
+      )}
+
+      {isPending && (
+          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-center gap-3">
+              <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+              <p className="text-[13px] font-medium text-blue-700">Hồ sơ định danh của bạn đang được duyệt. Quá trình này có thể mất 1-2 ngày làm việc.</p>
+          </div>
+      )}
+
+      {isFailed && (
+          <div className="bg-red-50 border border-red-100 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-500" />
+                  <p className="text-[13px] font-medium text-red-700">Xác thực thất bại. Vui lòng kiểm tra lại hồ sơ và nộp lại.</p>
+              </div>
+              <Link href="/investor/kyc" className="px-5 py-2 bg-red-600 text-white text-[12px] font-bold rounded-xl hover:bg-red-700 transition-all">
+                  Nộp lại hồ sơ
+              </Link>
+          </div>
+      )}
+
       <div className="grid grid-cols-12 gap-6">
         <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl p-6 shadow-sm border border-neutral-surface flex flex-col md:flex-row gap-6">
           <div className="w-full md:w-48 h-48 rounded-xl bg-slate-900 overflow-hidden shrink-0 relative flex items-center justify-center">
             <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-950" />
-            <span className="text-white text-7xl font-black relative z-10">V</span>
+            <span className="text-white text-7xl font-black relative z-10">{profile?.fullName?.charAt(0) || "V"}</span>
           </div>
           <div className="flex-1 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-2xl font-bold text-[#171611]">Chào mừng, VinaCapital Ventures</h1>
-                <span className="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-black rounded-full border border-green-200 uppercase tracking-[0.1em]">Đã Xác Thực</span>
+                <h1 className="text-2xl font-bold text-[#171611]">Chào mừng, {profile?.fullName || profile?.firmName || "Nhà đầu tư"}</h1>
+                {isVerified ? (
+                    <span className="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-black rounded-full border border-green-200 uppercase tracking-[0.1em] flex items-center gap-1">
+                        <ShieldCheckIcon className="w-3 h-3" /> Đã Xác Thực
+                    </span>
+                ) : (
+                    <span className="px-3 py-1 bg-slate-100 text-slate-500 text-[10px] font-black rounded-full border border-slate-200 uppercase tracking-[0.1em]">Chưa Xác Thực</span>
+                )}
               </div>
-              <p className="text-neutral-muted text-sm mb-6 leading-relaxed">Hồ sơ nhà đầu tư của bạn hiện đạt 80%. Cập nhật thêm "Investment Thesis" để nhận được các danh sách Startup gọi vốn từ AI phù hợp nhất.</p>
+              <p className="text-neutral-muted text-sm mb-6 leading-relaxed">
+                Hồ sơ nhà đầu tư của bạn hiện đạt {profileProgressCount}%. 
+                {profileProgressCount < 100 ? " Hãy cập nhật đầy đủ thông tin để AI đề xuất Startup chính xác hơn." : " Hồ sơ của bạn đã được tối ưu cho việc matching."}
+              </p>
               <div className="space-y-2 mb-6">
                 <div className="flex justify-between text-xs font-bold text-[#171611]">
                   <span>Tiến độ hoàn thiện hồ sơ</span>

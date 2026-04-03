@@ -223,7 +223,7 @@ export function KYCHub({ status, onStart, onContinue, onResubmit }: KYCHubProps)
               { label: "Loại nhà đầu tư", value: previousSubmission.investorType || (previousSubmission as any).investorCategory },
               { label: "Vị trí hiện tại", value: previousSubmission.currentRoleTitle },
               { label: "Tên tổ chức", value: previousSubmission.organizationName },
-              { label: "Website / LinkedIn", value: previousSubmission.linkedinOrWebsite },
+              { label: "Website / LinkedIn", value: previousSubmission.website },
             ].map((row, i) => row.value ? (
               <div key={i} className="flex items-start justify-between gap-4 py-2 border-b border-slate-50 last:border-0 md:[&:nth-last-child(-n+2)]:border-0">
                 <span className="text-[12px] text-slate-400 font-medium shrink-0">{row.label}</span>

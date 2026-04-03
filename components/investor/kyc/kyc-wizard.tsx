@@ -12,12 +12,20 @@ import { IInvestorKYCStatus, IInvestorKYCSubmission } from "@/types/investor-kyc
 /* ─── Constants ──────────────────────────────────────────────── */
 
 const INVESTOR_TYPES = [
-  { value: "INDIVIDUAL_ANGEL", label: "Nhà đầu tư thiên thần (Cá nhân)" },
-  { value: "VENTURE_CAPITAL", label: "Quỹ đầu tư mạo hiểm (VC)" },
-  { value: "PRIVATE_EQUITY", label: "Quỹ đầu tư tư nhân (PE)" },
-  { value: "FAMILY_OFFICE", label: "Văn phòng gia đình (Family Office)" },
-  { value: "CORPORATE_VC", label: "Quỹ đầu tư doanh nghiệp (CVC)" },
-  { value: "ACCELERATOR_INCUBATOR", label: "Vườn ươm / Tăng tốc khởi nghiệp" },
+  { value: "INDIVIDUAL_ANGEL", label: "Nhà đầu tư thiên thần (Cá nhân)", category: "INDIVIDUAL_ANGEL" },
+  { value: "VENTURE_CAPITAL", label: "Quỹ đầu tư mạo hiểm (VC)", category: "INSTITUTIONAL" },
+  { value: "PRIVATE_EQUITY", label: "Quỹ đầu tư tư nhân (PE)", category: "INSTITUTIONAL" },
+  { value: "FAMILY_OFFICE", label: "Văn phòng gia đình (Family Office)", category: "INSTITUTIONAL" },
+  { value: "CORPORATE_VC", label: "Quỹ đầu tư doanh nghiệp (CVC)", category: "INSTITUTIONAL" },
+  { value: "ACCELERATOR_INCUBATOR", label: "Vườn ươm / Tăng tốc khởi nghiệp", category: "INSTITUTIONAL" },
+];
+
+const SUBMITTER_ROLES = [
+  { value: "PARTNER", label: "Đối tác (Partner)" },
+  { value: "INVESTMENT_MANAGER", label: "Quản lý đầu tư" },
+  { value: "ANALYST", label: "Chuyên viên phân tích" },
+  { value: "LEGAL_REPRESENTATIVE", label: "Đại diện pháp luật" },
+  { value: "AUTHORIZED_PERSON", label: "Người được ủy quyền" },
 ];
 
 const ACCEPTED_TYPES = ["application/pdf", "image/jpeg", "image/png"];
@@ -41,10 +49,13 @@ function buildInitialForm(status: IInvestorKYCStatus, isResubmit: boolean): Part
     fullName: src?.fullName ?? status.submissionSummary?.fullName ?? "",
     contactEmail: src?.contactEmail ?? "",
     declarationAccepted: src?.declarationAccepted ?? false,
-    investorType: src?.investorType ?? src?.investorCategory ?? "",
+    investorCategory: src?.investorCategory ?? "INDIVIDUAL_ANGEL",
+    investorType: src?.investorType ?? "",
     currentRoleTitle: src?.currentRoleTitle ?? "",
     organizationName: src?.organizationName ?? "",
-    linkedinOrWebsite: src?.linkedinOrWebsite ?? "",
+    website: src?.website ?? "",
+    taxIdOrBusinessCode: src?.taxIdOrBusinessCode ?? "",
+    submitterRole: src?.submitterRole ?? "PARTNER",
   };
 }
 
@@ -120,7 +131,7 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
     if (!formData.investorType) e.investorType = "Vui lòng chọn loại hình nhà đầu tư";
     if (!formData.currentRoleTitle?.trim()) e.currentRoleTitle = "Vui lòng nhập chức vụ của bạn";
     if (!formData.organizationName?.trim()) e.organizationName = "Vui lòng nhập tên công ty/quỹ";
-    if (!formData.linkedinOrWebsite?.trim()) e.linkedinOrWebsite = "Vui lòng nhập LinkedIn hoặc Website";
+    if (!formData.website?.trim()) e.website = "Vui lòng nhập LinkedIn hoặc Website";
     
     if (!idFile && !isResubmit) e.idOrBusinessLicenseFile = "Vui lòng tải lên giấy phép KD hoặc CCCD";
     
@@ -165,11 +176,19 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
     setIsSubmitting(true);
     try {
       const fd = new FormData();
-      Object.entries(formData).forEach(([k, v]) => {
-        if (v !== undefined && v !== null) fd.append(k, String(v));
-      });
-      if (idFile) fd.append("idOrBusinessLicenseFile", idFile);
-      if (proofFile) fd.append("investmentProofFile", proofFile);
+      
+      // Map to Backend DTO (PascalCase in C# DTO but JS usually sends camelCase which ASP.NET maps)
+      fd.append("InvestorCategory", formData.investorCategory ?? "INDIVIDUAL_ANGEL");
+      fd.append("FullName", formData.fullName ?? "");
+      fd.append("ContactEmail", formData.contactEmail ?? "");
+      fd.append("OrganizationName", formData.organizationName ?? "");
+      fd.append("CurrentRoleTitle", formData.currentRoleTitle ?? "");
+      fd.append("Website", formData.website ?? "");
+      fd.append("TaxIdOrBusinessCode", formData.taxIdOrBusinessCode ?? "");
+      fd.append("SubmitterRole", formData.submitterRole ?? "");
+      
+      if (idFile) fd.append("idProof", idFile);
+      if (proofFile) fd.append("investmentProof", proofFile);
       
       await onSubmit(fd);
     } catch { 
@@ -365,7 +384,11 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => { set("investorType", opt.value); clearErr("investorType"); }}
+                    onClick={() => { 
+                      set("investorType", opt.value); 
+                      set("investorCategory", opt.category);
+                      clearErr("investorType"); 
+                    }}
                     className={cn(
                       "px-4 py-3 rounded-xl border text-[12px] font-bold text-center transition-all flex flex-col items-center justify-center gap-1",
                       formData.investorType === opt.value
@@ -380,6 +403,31 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
               </div>
               <FlagNote name="investorType" /><ErrNote name="investorType" />
             </div>
+
+            {/* Submitter Role (Conditional for Institutional) */}
+            {formData.investorCategory === "INSTITUTIONAL" && (
+              <div>
+                <FieldLabel name="submitterRole" required>Vai trò của bạn trong tổ chức</FieldLabel>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {SUBMITTER_ROLES.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => { set("submitterRole", opt.value); clearErr("submitterRole"); }}
+                      className={cn(
+                        "px-4 py-2 rounded-xl border text-[11px] font-bold text-center transition-all",
+                        formData.submitterRole === opt.value
+                          ? "border-[#171611] bg-[#171611] text-white"
+                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-400",
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <ErrNote name="submitterRole" />
+              </div>
+            )}
 
             {/* Org + Role */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -405,16 +453,28 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
               </div>
             </div>
 
-            {/* Website / LinkedIn */}
-            <div>
-              <FieldLabel name="linkedinOrWebsite" required>LinkedIn / Website tổ chức</FieldLabel>
-              <input
-                value={formData.linkedinOrWebsite ?? ""}
-                onChange={e => { set("linkedinOrWebsite", e.target.value); clearErr("linkedinOrWebsite"); }}
-                placeholder="https://linkedin.com/company/..."
-                className={inputClass("linkedinOrWebsite")}
-              />
-              <FlagNote name="linkedinOrWebsite" /><ErrNote name="linkedinOrWebsite" />
+            {/* Website + Tax ID */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <FieldLabel name="website" required>LinkedIn / Website</FieldLabel>
+                <input
+                  value={formData.website ?? ""}
+                  onChange={e => { set("website", e.target.value); clearErr("website"); }}
+                  placeholder="https://linkedin.com/..."
+                  className={inputClass("website")}
+                />
+                <FlagNote name="website" /><ErrNote name="website" />
+              </div>
+              <div>
+                <FieldLabel name="taxIdOrBusinessCode">Mã số thuế / Mã số doanh nghiệp</FieldLabel>
+                <input
+                  value={formData.taxIdOrBusinessCode ?? ""}
+                  onChange={e => { set("taxIdOrBusinessCode", e.target.value); clearErr("taxIdOrBusinessCode"); }}
+                  placeholder="Nhập MST (nếu có)"
+                  className={inputClass("taxIdOrBusinessCode")}
+                />
+                <ErrNote name="taxIdOrBusinessCode" />
+              </div>
             </div>
 
             {/* File Upload Sections */}

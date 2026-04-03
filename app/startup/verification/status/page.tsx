@@ -59,7 +59,8 @@ function KycStatusPageInner() {
   const [kycCase, setKycCase] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchStatus = async (silent = false) => {
+    if (!silent) setLoading(true);
     GetStartupProfile()
       .then(res => {
         const data = res as unknown as IBackendRes<any>;
@@ -68,8 +69,31 @@ function KycStatusPageInner() {
         }
       })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!silent) setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchStatus();
   }, []);
+
+  // Polling logic when status is pending
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    const status = kycCase?.profileStatus;
+    const isPending = status === "Pending" || status === "PendingKYC";
+
+    if (isPending) {
+      interval = setInterval(() => {
+        fetchStatus(true);
+      }, 10000); // 10 seconds
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [kycCase?.profileStatus]);
 
   if (loading) {
     return (

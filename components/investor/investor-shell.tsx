@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { InvestorHeader } from "@/components/investor/investor-header";
 import { AuthGuard } from "@/components/auth-guard";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { GetInvestorProfile } from "@/services/investor/investor.api";
 
 const routeLabels: Record<string, string> = {
   investor: "Workspace",
@@ -62,8 +63,40 @@ type InvestorShellProps = {
 };
 
 export function InvestorShell({ children }: InvestorShellProps) {
+  const router = useRouter();
   const pathname = usePathname();
   const isOnboarding = pathname.includes("/onboard");
+  const [isCheckingProfile, setIsCheckingProfile] = useState(true);
+
+  useEffect(() => {
+    // Only check if not already on onboarding page
+    if (isOnboarding) {
+        setIsCheckingProfile(false);
+        return;
+    }
+
+    const checkProfile = async () => {
+      try {
+        const res = await GetInvestorProfile();
+        const data = res as unknown as IBackendRes<any>;
+        
+        if (!data.success && !data.isSuccess) {
+           router.replace("/investor/onboard");
+        } else if (!data.data || data.data.profileStatus === "Draft") {
+           router.replace("/investor/onboard");
+        }
+      } catch (err: any) {
+        const status = err?.response?.status;
+        if (status === 404 || status === 400) {
+          router.replace("/investor/onboard");
+        }
+      } finally {
+        setIsCheckingProfile(false);
+      }
+    };
+
+    checkProfile();
+  }, [isOnboarding, router]);
 
   return (
     <AuthGuard allowedRoles={["Investor"]}>

@@ -119,6 +119,18 @@ export const UpdateAdvisorProfile = (
   });
 };
 
+export const GetAdvisorKYCStatus = () => {
+  return axios.get<IBackendRes<any>>("/api/advisors/me/kyc/status");
+};
+
+export const SubmitAdvisorKYC = (data: any) => {
+  return axios.post("/api/advisors/me/kyc/submit", data);
+};
+
+export const SaveAdvisorKYCDraft = (data: any) => {
+  return axios.patch("/api/advisors/me/kyc/draft", data);
+};
+
 export const UpdateAdvisorAvailability = (isAcceptingNewMentees: boolean) => {
   return axios.put(`/api/advisors/me/availability`, {
     isAcceptingNewMentees
@@ -171,3 +183,4 @@ export const GetMentorshipReport = (id: string) => {
 export const GetAdvisorSessions = (params?: { status?: string; page?: number; pageSize?: number }) => {
   return axios.get<IBackendRes<IPagingData<any>>>("/api/mentorships/sessions", { params });
 };
+

@@ -1,35 +1,59 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { KYCHub } from "@/components/investor/kyc/kyc-hub";
 import { KYCWizard } from "@/components/investor/kyc/kyc-wizard";
-import { GetInvestorKYCStatus, SubmitInvestorKYC, SaveInvestorKYCDraft, ResubmitInvestorKYC } from "@/services/investor/investor-kyc.mock";
+import { GetInvestorKYCStatus, SubmitInvestorKYC, SaveInvestorKYCDraft, ResubmitInvestorKYC } from "@/services/investor/investor-kyc";
 import { IInvestorKYCStatus, IInvestorKYCSubmission } from "@/types/investor-kyc";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function InvestorKYCPage() {
+  const router = useRouter();
   const [view, setView] = useState<"HUB" | "WIZARD" | "RESUBMIT">("HUB");
   const [status, setStatus] = useState<IInvestorKYCStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchStatus = async () => {
-    setIsLoading(true);
+  const fetchStatus = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const res = await GetInvestorKYCStatus();
       if (res.isSuccess && res.data) {
         setStatus(res.data);
+      } else if (!res.isSuccess && (res.error?.code === "INVESTOR_PROFILE_NOT_FOUND" || res.statusCode === 404 || res.statusCode === 400)) {
+        // Redirect to onboarding if profile not found
+        if (!silent) {
+          toast.info("Bạn cần khởi tạo hồ sơ nhà đầu tư trước khi xác thực.");
+          router.push("/investor/onboard");
+        }
       }
-    } catch {
-      toast.error("Không thể tải trạng thái KYC. Vui lòng kiểm tra lại kết nối.");
+    } catch (err) {
+      if (!silent) toast.error("Không thể tải trạng thái KYC. Vui lòng kiểm tra lại kết nối.");
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
   useEffect(() => {
     fetchStatus();
   }, []);
+
+  // Polling when status is pending
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    const isPending = status?.workflowStatus === "PENDING_REVIEW" || status?.workflowStatus === "PENDING_MORE_INFO";
+
+    if (isPending && view === "HUB") {
+      interval = setInterval(() => {
+        fetchStatus(true);
+      }, 10000); // Poll every 10 seconds
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [status?.workflowStatus, view]);
 
   const handleSubmit = async (formData: FormData) => {
     try {

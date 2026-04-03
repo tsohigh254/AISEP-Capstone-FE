@@ -17,8 +17,9 @@ import {
   GetInvestorKYCStatus, 
   SubmitInvestorKYC, 
   SaveInvestorKYCDraft 
-} from "@/services/investor/investor-kyc.mock";
-import { IInvestorKYCSubmission } from "@/types/investor-kyc";
+} from "@/services/investor/investor-kyc";
+import { CreateInvestorProfile } from "@/services/investor/investor.api";
+import { IInvestorKYCSubmission, IInvestorKYCStatus } from "@/types/investor-kyc";
 
 const TIMELINE_STEPS = [
   { n: 1, label: "Thông tin cơ bản" },
@@ -33,7 +34,7 @@ export default function InvestorOnboardingPage() {
   const [isCompleted, setIsCompleted] = useState(false);
   const [showSkipDialog, setShowSkipDialog] = useState(false);
   
-  const [formData, setFormData] = useState<Partial<IInvestorKYCSubmission>>({
+  const [formData, setFormData] = useState<Partial<IInvestorKYCSubmission & { investmentThesis?: string }>>({
     investorCategory: "INDIVIDUAL_ANGEL",
     preferredIndustries: [],
     preferredStages: [],
@@ -49,7 +50,7 @@ export default function InvestorOnboardingPage() {
       Boolean(formData.displayName?.trim()),
       Boolean(formData.currentRoleTitle?.trim()),
       Boolean(formData.location?.trim()),
-      Boolean(formData.mainLink?.trim()),
+      Boolean(formData.website?.trim()),
       Boolean(formData.preferredIndustries?.length),
       Boolean(formData.preferredStages?.length),
     ];
@@ -60,8 +61,20 @@ export default function InvestorOnboardingPage() {
 
   useEffect(() => {
     GetInvestorKYCStatus().then(res => {
-      if (res.isSuccess && res.data.draftData) {
-        setFormData(prev => ({ ...prev, ...res.data.draftData }));
+      if (res.isSuccess && res.data?.submittedData) {
+        const data = res.data.submittedData;
+        setFormData(prev => ({ 
+            ...prev, 
+            investorCategory: data.investorCategory as any,
+            fullName: data.fullName,
+            contactEmail: data.contactEmail,
+            organizationName: data.organizationName,
+            currentRoleTitle: data.currentRoleTitle,
+            location: data.location,
+            website: data.website,
+            taxIdOrBusinessCode: data.taxIdOrBusinessCode,
+            submitterRole: data.submitterRole as any
+        }));
       }
     });
   }, []);
@@ -69,10 +82,10 @@ export default function InvestorOnboardingPage() {
   const validate = () => {
     const e: Record<string, string> = {};
     if (step === 3) {
-      if (!formData.displayName?.trim()) e.displayName = "Vui lòng nhập tên hiển thị";
+      if (!formData.displayName?.trim() && !formData.fullName?.trim()) e.displayName = "Vui lòng nhập tên hiển thị";
       if (!formData.currentRoleTitle?.trim()) e.currentRoleTitle = "Vui lòng nhập chức vụ";
       if (!formData.location?.trim()) e.location = "Vui lòng nhập địa điểm";
-      if (!formData.mainLink?.trim()) e.mainLink = "Vui lòng nhập link liên kết (Website/LinkedIn)";
+      if (!formData.website?.trim()) e.website = "Vui lòng nhập link liên kết (Website/LinkedIn)";
       if (!formData.preferredIndustries?.length) e.preferredIndustries = "Chọn ít nhất 1 lĩnh vực";
       if (!formData.preferredStages?.length) e.preferredStages = "Chọn ít nhất 1 giai đoạn";
     }
@@ -111,10 +124,25 @@ export default function InvestorOnboardingPage() {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      await SubmitInvestorKYC(formData as any);
-      setIsCompleted(true);
-      setStep(4);
-      toast.success("Hồ sơ đã được thiết lập thành công!");
+      // Map frontend formData to backend request
+      const requestData = {
+          fullName: formData.fullName || formData.displayName || "",
+          firmName: formData.organizationName,
+          title: formData.currentRoleTitle,
+          location: formData.location,
+          website: formData.website,
+          linkedInURL: formData.website || "",
+          investmentThesis: formData.investmentThesis || ""
+      };
+
+      const res = await CreateInvestorProfile(requestData as any);
+      if (res.isSuccess) {
+        setIsCompleted(true);
+        setStep(4);
+        toast.success("Hồ sơ cơ bản đã được thiết lập thành công!");
+      } else {
+        toast.error(res.message || "Gặp lỗi khi tạo hồ sơ");
+      }
     } catch {
       toast.error("Gặp lỗi khi xử lý hồ sơ");
     } finally {

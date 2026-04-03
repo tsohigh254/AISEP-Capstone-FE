@@ -6,6 +6,10 @@ import { ChevronRight } from "lucide-react";
 import React from "react";
 import { AdvisorHeader } from "@/components/advisor/advisor-header";
 import { AuthGuard } from "@/components/auth-guard";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { GetAdvisorProfile } from "@/services/advisor/advisor.api";
+import { Loader2 } from "lucide-react";
 
 const routeLabels: Record<string, string> = {
   advisor: "Workspace",
@@ -61,6 +65,52 @@ type AdvisorShellProps = {
 };
 
 export function AdvisorShell({ children }: AdvisorShellProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    // Only guard if NOT already on the onboard page
+    if (pathname === "/advisor/onboard") {
+      setChecking(false);
+      return;
+    }
+
+    GetAdvisorProfile()
+      .then((res: any) => {
+        const data = res as unknown as IBackendRes<any>;
+        // A success response might still have no profile if backend returns data: null
+        if (!data.success && !data.isSuccess) {
+           router.replace("/advisor/onboard");
+        } else if (!data.data || data.data.profileStatus === "Draft") {
+           router.replace("/advisor/onboard");
+        } else {
+          // Profile exists and is not draft
+          setChecking(false);
+        }
+      })
+      .catch((err: any) => {
+        const status = err?.response?.status;
+        if (status === 404 || status === 400) {
+          router.replace("/advisor/onboard");
+        } else {
+          // For other errors, we might want to let them through or show error
+          setChecking(false); 
+        }
+      });
+  }, [pathname, router]);
+
+  if (checking && pathname !== "/advisor/onboard") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8f8f6]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-[#eec54e] animate-spin" />
+          <p className="text-slate-500 font-medium text-sm">Đang tải Workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <AuthGuard allowedRoles={["Advisor"]}>
       <div className="min-h-screen bg-[#f8f8f6] text-[#171611] font-be-vietnam-pro selection:bg-[#e6cc4c]/30">

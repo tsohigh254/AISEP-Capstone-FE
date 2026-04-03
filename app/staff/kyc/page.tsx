@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { GetPendingStartups, IPendingStartupDto, IPendingStartupResponse } from "@/services/staff/registration.api";
+import { GetPendingStartups, GetPendingAdvisors, GetPendingInvestors } from "@/services/staff/registration.api";
 import {
   Search,
   Filter,
@@ -26,9 +27,9 @@ import {
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 
-import { 
-  KYCSubtype, 
-  KYC_SUBTYPE_CONFIGS 
+import {
+  KYCSubtype,
+  KYC_SUBTYPE_CONFIGS
 } from "@/types/staff-kyc";
 
 // --- Types ---
@@ -93,45 +94,93 @@ export default function KYCPendingListPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [priorityFilter, setPriorityFilter] = useState<string>("ALL");
 
-  const [realData, setRealData] = useState<IPendingStartupDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Fetch Startups
+  const { data: startupData, isLoading: startupLoading } = useQuery({
+    queryKey: ["kyc-pending-startups"],
+    queryFn: async () => {
+      const res = await GetPendingStartups(1, 50);
+      return (res as any)?.data?.items || [];
+    },
+    staleTime: 0,
+    refetchInterval: 10000,
+  });
 
-  useEffect(() => {
-    // Tạm thời chỉ fetch luồng Startup dựa theo API có sẵn
-    GetPendingStartups(1, 20)
-      .then(res => {
-        const data = res as unknown as IBackendRes<IPendingStartupResponse>;
-        if (data.success || data.isSuccess) {
-          setRealData(data.data?.items || []);
-        }
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+  // Fetch Advisors
+  const { data: advisorData, isLoading: advisorLoading } = useQuery({
+    queryKey: ["kyc-pending-advisors"],
+    queryFn: async () => {
+      const res = await GetPendingAdvisors(1, 50);
+      return (res as any)?.data?.items || [];
+    },
+    staleTime: 0,
+    refetchInterval: 10000,
+  });
 
-  // Map real data to UI format
-  const mappedRealData: KYCSubmission[] = realData.map(item => ({
-    id: `STARTUP-${item.startupID}`,
-    applicantName: item.companyName || "Chưa cập nhật",
-    entityName: item.industryName || "Startup",
-    role: "STARTUP",
-    subtype: "STARTUP_ENTITY",
-    submittedAt: item.updatedAt || new Date().toISOString(),
-    status: item.profileStatus === "Pending" ? "PENDING" : item.profileStatus === "Approved" ? "APPROVED" : item.profileStatus === "UnderReview" ? "IN_REVIEW" : item.profileStatus === "Rejected" ? "REJECTED" : "PENDING",
-    priority: "MEDIUM",
-    slaDays: Math.floor((new Date().getTime() - new Date(item.updatedAt || new Date()).getTime()) / (1000 * 3600 * 24))
-  }));
+  // Fetch Investors
+  const { data: investorData, isLoading: investorLoading } = useQuery({
+    queryKey: ["kyc-pending-investors"],
+    queryFn: async () => {
+      const res = await GetPendingInvestors(1, 50);
+      return (res as any)?.data?.items || [];
+    },
+    staleTime: 0,
+    refetchInterval: 10000,
+  });
 
-  const combinedData = [...mappedRealData, ...DUMMY_KYC.filter(d => activeTab === 'ALL' ? d.role !== 'STARTUP' : true)];
+  const isLoading = startupLoading || advisorLoading || investorLoading;
+
+  const realData = useMemo(() => {
+    if (isLoading) return [];
+
+    const mappedStartups: KYCSubmission[] = (startupData || []).map((item: any) => ({
+      id: `STARTUP-${item.startupID}`,
+      applicantName: item.companyName || "Chưa cập nhật",
+      entityName: item.industryName || "Startup",
+      role: "STARTUP",
+      subtype: "STARTUP_ENTITY",
+      submittedAt: item.updatedAt || new Date().toISOString(),
+      status: (item.profileStatus?.toUpperCase() === "PENDING" || item.profileStatus?.toUpperCase() === "PENDINGKYC") ? "PENDING" : item.profileStatus?.toUpperCase() === "APPROVED" ? "APPROVED" : "PENDING",
+      priority: "MEDIUM",
+      slaDays: Math.floor((new Date().getTime() - new Date(item.updatedAt || new Date()).getTime()) / (1000 * 3600 * 24))
+    }));
+
+    const mappedAdvisors: KYCSubmission[] = (advisorData || []).map((item: any) => ({
+      id: `ADVISOR-${item.advisorID}`,
+      applicantName: item.fullName || "Chưa cập nhật",
+      entityName: item.title || "Chuyên gia",
+      role: "ADVISOR",
+      subtype: "ADVISOR",
+      submittedAt: item.updatedAt || new Date().toISOString(),
+      status: (item.profileStatus?.toUpperCase() === "PENDING" || item.profileStatus?.toUpperCase() === "PENDINGKYC") ? "PENDING" : item.profileStatus?.toUpperCase() === "APPROVED" ? "APPROVED" : "PENDING",
+      priority: "MEDIUM",
+      slaDays: Math.floor((new Date().getTime() - new Date(item.updatedAt || new Date()).getTime()) / (1000 * 3600 * 24))
+    }));
+
+    const mappedInvestors: KYCSubmission[] = (investorData || []).map((item: any) => ({
+      id: `INVESTOR-${item.investorID}`,
+      applicantName: item.fullName || "Chưa cập nhật",
+      entityName: item.firmName || "NĐT Cá nhân",
+      role: "INVESTOR",
+      subtype: item.firmName ? "INSTITUTIONAL_INVESTOR" : "INDIVIDUAL_INVESTOR",
+      submittedAt: item.updatedAt || new Date().toISOString(),
+      status: (item.profileStatus?.toUpperCase() === "PENDING" || item.profileStatus?.toUpperCase() === "PENDINGKYC") ? "PENDING" : item.profileStatus?.toUpperCase() === "APPROVED" ? "APPROVED" : "PENDING",
+      priority: "MEDIUM",
+      slaDays: Math.floor((new Date().getTime() - new Date(item.updatedAt || new Date()).getTime()) / (1000 * 3600 * 24))
+    }));
+
+    return [...mappedStartups, ...mappedAdvisors, ...mappedInvestors];
+  }, [startupData, advisorData, investorData, isLoading]);
+
+  const combinedData = realData;
 
   const filteredData = combinedData.filter(item => {
     const matchesTab = activeTab === "ALL" || item.role === activeTab;
-    const matchesSearch = item.applicantName.toLowerCase().includes(search.toLowerCase()) || 
-                          item.entityName.toLowerCase().includes(search.toLowerCase()) ||
-                          item.id.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = item.applicantName.toLowerCase().includes(search.toLowerCase()) ||
+      item.entityName.toLowerCase().includes(search.toLowerCase()) ||
+      item.id.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "ALL" || item.status === statusFilter;
     const matchesPriority = priorityFilter === "ALL" || item.priority === priorityFilter;
-    
+
     return matchesTab && matchesSearch && matchesStatus && matchesPriority;
   });
 
@@ -171,8 +220,8 @@ export default function KYCPendingListPage() {
               <DropdownMenuTrigger asChild>
                 <button className={cn(
                   "inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-[13px] font-bold transition-all shadow-sm active:scale-95",
-                  activeTab !== "ALL" 
-                    ? "border-[#eec54e] bg-amber-50 text-[#C8A000]" 
+                  activeTab !== "ALL"
+                    ? "border-[#eec54e] bg-amber-50 text-[#C8A000]"
                     : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 )}>
                   <div className="flex items-center gap-2">
@@ -197,8 +246,8 @@ export default function KYCPendingListPage() {
               <DropdownMenuTrigger asChild>
                 <button className={cn(
                   "inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-[13px] font-bold transition-all shadow-sm active:scale-95",
-                  statusFilter !== "ALL" 
-                    ? "border-[#eec54e] bg-amber-50 text-[#C8A000]" 
+                  statusFilter !== "ALL"
+                    ? "border-[#eec54e] bg-amber-50 text-[#C8A000]"
                     : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 )}>
                   <div className="flex items-center gap-2">
@@ -223,8 +272,8 @@ export default function KYCPendingListPage() {
               <DropdownMenuTrigger asChild>
                 <button className={cn(
                   "inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-[13px] font-bold transition-all shadow-sm active:scale-95",
-                  priorityFilter !== "ALL" 
-                    ? "border-[#eec54e] bg-amber-50 text-[#C8A000]" 
+                  priorityFilter !== "ALL"
+                    ? "border-[#eec54e] bg-amber-50 text-[#C8A000]"
                     : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 )}>
                   <div className="flex items-center gap-2">
@@ -246,7 +295,7 @@ export default function KYCPendingListPage() {
 
             {/* Reset Button */}
             {(activeTab !== "ALL" || statusFilter !== "ALL" || priorityFilter !== "ALL" || search !== "") && (
-              <button 
+              <button
                 onClick={() => { setActiveTab("ALL"); setStatusFilter("ALL"); setPriorityFilter("ALL"); setSearch(""); }}
                 className="ml-2 p-2.5 rounded-xl border border-rose-100 bg-rose-50 text-rose-500 hover:bg-rose-100 transition-all active:scale-95"
                 title="Xóa tất cả bộ lọc"
@@ -325,7 +374,7 @@ export default function KYCPendingListPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Link 
+                        <Link
                           href={`/staff/kyc/${item.id}`}
                           className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-[#eec54e]/40 bg-white text-[#C8A000] text-[12px] font-bold hover:bg-[#eec54e] hover:text-white hover:border-[#eec54e] hover:scale-105 transition-all shadow-sm active:scale-95"
                         >
@@ -340,7 +389,7 @@ export default function KYCPendingListPage() {
             </tbody>
           </table>
         </div>
-        
+
         {/* Pagination */}
         <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
           <p className="text-[12px] text-slate-500 font-medium">Hiển thị <span className="text-slate-900 font-bold">5</span> trên 5 hồ sơ</p>

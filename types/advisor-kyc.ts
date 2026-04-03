@@ -9,6 +9,8 @@ export interface IAdvisorKYCSubmission {
   secondaryExpertise?: string[];
   professionalProfileLink?: string;
   basicExpertiseProofFile?: File;
+  bio?: string;
+  mentorshipPhilosophy?: string;
 }
 
 export interface IAdvisorKYCStatus {

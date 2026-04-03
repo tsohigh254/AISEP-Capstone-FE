@@ -103,13 +103,15 @@ export default function AdvisorOnboardingPage() {
 
   /* ── Load existing profile ───────────────────────────────── */
   useEffect(() => {
-    // 1. Check localStorage first (fast)
+    // Removal of localStorage-based redirection to prevent loops based on stale data
+    /*
     const skipped = localStorage.getItem("aisep_advisor_onboarding_skipped") === "true";
     const completed = localStorage.getItem("aisep_advisor_onboarding_completed") === "true";
     if (skipped || completed) {
       router.replace("/advisor");
       return;
     }
+    */
 
     // 2. Check API for profile status
     setPageLoading(true);
@@ -121,11 +123,15 @@ export default function AdvisorOnboardingPage() {
 
         const filled = [d.fullName, d.title, d.company, items[0]?.category, d.bio, d.mentorshipPhilosophy]
           .every(Boolean) && (d.website || d.linkedInURL) && items[0]?.yearsOfExperience !== undefined;
+        
+        // Removal of API-based automatic redirection to allow shell to handle it
+        /*
         if (filled) {
           localStorage.setItem("aisep_advisor_onboarding_completed", "true");
           router.replace("/advisor");
           return;
         }
+        */
 
         // INCOMPLETE → pre-fill form
         setForm({

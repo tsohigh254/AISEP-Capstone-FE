@@ -47,6 +47,8 @@ export default function OnboardingPage() {
     window.scrollTo(0, 0);
   }, []);
 
+  // UseEffect for automatic redirection removed to rely on StartupShell
+  /*
   useEffect(() => {
     GetStartupProfile()
       .then(res => {
@@ -57,6 +59,7 @@ export default function OnboardingPage() {
       })
       .catch(() => {});
   }, []);
+  */
 
   const handleSkip = () => {
     localStorage.setItem("aisep_startup_onboarding_skipped", "true");

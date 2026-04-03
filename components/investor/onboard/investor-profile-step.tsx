@@ -143,16 +143,16 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, onSkip, er
           {errors.location && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.location}</p>}
         </div>
 
-        {/* Main Link */}
+        {/* Website / Main Link */}
         <div className="space-y-1">
           <Label required icon={Globe}>{isInstitutional ? "Website chính thức" : "LinkedIn / Profile link"}</Label>
           <input 
-            value={data.mainLink || ""}
-            onChange={e => set("mainLink", e.target.value)}
+            value={data.website || ""}
+            onChange={e => set("website", e.target.value)}
             placeholder="https://..."
-            className={inputClass("mainLink")}
+            className={inputClass("website")}
           />
-          {errors.mainLink && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.mainLink}</p>}
+          {errors.website && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.website}</p>}
         </div>
 
         {/* Connection Status */}
