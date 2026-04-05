@@ -93,19 +93,17 @@ export function StartupShell({ children }: StartupShellProps) {
 
     GetStartupProfile()
       .then((res) => {
-        const data = res as unknown as IBackendRes<any>;
+        const data = res as unknown as IBackendRes<IStartupProfile | null>;
         if (!data.success && !data.isSuccess) {
-          // If 404 or explicitly "Profile not found", go to onboard
           router.replace("/startup/onboard");
-        } else if (data.data?.profileStatus === "Draft") {
-          // If still in draft, go to onboard
+        } else if (data.data === null || data.data?.profileStatus === "Draft") {
+          // Backend now returns 200 with data:null when the startup profile does not exist yet.
           router.replace("/startup/onboard");
         } else {
           setChecking(false);
         }
       })
       .catch((err) => {
-        // If 404/400 (Not Found), go to onboard
         const status = err?.response?.status;
         if (status === 404 || status === 400) {
           router.replace("/startup/onboard");

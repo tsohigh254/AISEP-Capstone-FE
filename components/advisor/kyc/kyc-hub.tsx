@@ -1,10 +1,19 @@
-"use client";
+﻿"use client";
 
-import React, { useState } from "react";
+import React from "react";
 import {
-  CheckCircle2, Clock, AlertCircle, XCircle, ShieldCheck,
-  History, Info, Download, Award, RefreshCw, FileText,
-  ArrowRight, Star, ChevronDown, ChevronUp,
+  AlertCircle,
+  ArrowRight,
+  Award,
+  CheckCircle2,
+  Clock,
+  FileText,
+  History,
+  Info,
+  RefreshCw,
+  ShieldCheck,
+  Star,
+  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IAdvisorKYCStatus } from "@/types/advisor-kyc";
@@ -14,6 +23,8 @@ interface KYCHubProps {
   onStart: () => void;
   onContinue: () => void;
   onResubmit: () => void;
+  onViewStatus?: () => void;
+  isDetailsRoute?: boolean;
 }
 
 const STATUS_MAP = {
@@ -77,7 +88,7 @@ const FIELD_LABELS: Record<string, string> = {
 
 const EXPERTISE_LABELS: Record<string, string> = {
   FUNDRAISING: "Gọi vốn",
-  PRODUCT_STRATEGY: "Chiến lược SP",
+  PRODUCT_STRATEGY: "Chiến lược sản phẩm",
   GO_TO_MARKET: "Go-to-market",
   FINANCE: "Tài chính",
   LEGAL_IP: "Pháp lý & SHTT",
@@ -87,18 +98,47 @@ const EXPERTISE_LABELS: Record<string, string> = {
   HR_OR_TEAM_BUILDING: "Nhân sự",
 };
 
-export function KYCHub({ status, onStart, onContinue, onResubmit }: KYCHubProps) {
-  const [showDetails, setShowDetails] = useState(false);
-  const { workflowStatus, verificationLabel, explanation, remarks, flaggedFields, history, submissionSummary, previousSubmission } = status;
+function formatExpertise(value?: string) {
+  if (!value) return undefined;
+  return EXPERTISE_LABELS[value] ?? value;
+}
+
+function formatDate(value?: string) {
+  if (!value) return "Chưa cập nhật";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Chưa cập nhật";
+  return date.toLocaleDateString("vi-VN");
+}
+
+export function KYCHub({
+  status,
+  onStart,
+  onContinue,
+  onResubmit,
+  onViewStatus,
+  isDetailsRoute = false,
+}: KYCHubProps) {
+  const {
+    workflowStatus,
+    verificationLabel,
+    explanation,
+    remarks,
+    flaggedFields,
+    history,
+    submissionSummary,
+    previousSubmission,
+  } = status;
   const cfg = STATUS_MAP[workflowStatus] ?? STATUS_MAP.NOT_STARTED;
   const { Icon } = cfg;
 
   const isVerified = workflowStatus === "VERIFIED";
   const isVerifiedAdvisor = isVerified && verificationLabel === "VERIFIED_ADVISOR";
+  const isBasicVerified = isVerified && verificationLabel === "BASIC_VERIFIED";
   const needsAction = ["NOT_STARTED", "DRAFT", "PENDING_MORE_INFO", "VERIFICATION_FAILED"].includes(workflowStatus);
   const hasRemarks = !!remarks && (workflowStatus === "PENDING_MORE_INFO" || workflowStatus === "VERIFICATION_FAILED");
-
   const submitted = ["PENDING_REVIEW", "VERIFIED", "VERIFICATION_FAILED", "PENDING_MORE_INFO"].includes(workflowStatus);
+  const shouldShowVerifiedDetails = isVerified && isDetailsRoute && !!previousSubmission;
+
   const checklist = [
     { label: "Thông tin liên hệ (Email, Họ tên)", done: submitted },
     { label: "Vị trí & Tổ chức hiện tại", done: submitted },
@@ -106,127 +146,142 @@ export function KYCHub({ status, onStart, onContinue, onResubmit }: KYCHubProps)
     { label: "Link profile nghề nghiệp", done: submitted },
     { label: "Bằng chứng chuyên môn (PDF/Ảnh)", done: submitted },
   ];
-  const doneCount = checklist.filter(c => c.done).length;
+  const doneCount = checklist.filter((item) => item.done).length;
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-500">
-
-      {/* ── HERO ROW ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-        {/* Hero card — 2/3 */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-[#eec54e]/10 flex items-center justify-center shrink-0">
-              <Icon className="w-5 h-5 text-[#eec54e]" />
+    <div className="animate-in space-y-5 fade-in duration-500">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)] lg:col-span-2">
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eec54e]/10">
+              <Icon className="h-5 w-5 text-[#eec54e]" />
             </div>
-            <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-[22px] font-bold text-slate-900">Xác thực Advisor (KYC)</h1>
-              <span className={cn("px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1", cfg.badge)}>
-                <span className={cn("w-1.5 h-1.5 rounded-full inline-block", cfg.dot)} />
+              <span className={cn("flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold", cfg.badge)}>
+                <span className={cn("inline-block h-1.5 w-1.5 rounded-full", cfg.dot)} />
                 {cfg.label}
               </span>
             </div>
           </div>
 
-          <p className="text-[13px] text-slate-400 mb-5 leading-relaxed">{explanation}</p>
+          <p className="mb-5 text-[13px] leading-relaxed text-slate-400">{explanation}</p>
 
-          {/* Progress */}
-          <div className="space-y-1.5 mb-5">
+          <div className="mb-5 space-y-1.5">
             <div className="flex justify-between text-[12px] text-slate-500">
               <span>Mức độ hoàn thiện hồ sơ</span>
-              <span className="font-semibold text-slate-700">{doneCount}/{checklist.length} mục</span>
+              <span className="font-semibold text-slate-700">
+                {doneCount}/{checklist.length} mục
+              </span>
             </div>
-            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
               <div
-                className="h-full bg-[#eec54e] rounded-full transition-all duration-700 ease-out"
+                className="h-full rounded-full bg-[#eec54e] transition-all duration-700 ease-out"
                 style={{ width: `${(doneCount / checklist.length) * 100}%` }}
               />
             </div>
           </div>
 
-          {/* CTAs */}
           <div className="flex flex-wrap gap-2.5">
             {workflowStatus === "NOT_STARTED" && (
-              <button onClick={onStart}
-                className="bg-[#0f172a] text-white text-[13px] font-bold px-5 h-10 rounded-xl hover:bg-slate-700 transition-all flex items-center gap-2 group">
-                <ShieldCheck className="w-4 h-4" />
+              <button
+                onClick={onStart}
+                className="group flex h-10 items-center gap-2 rounded-xl bg-[#0f172a] px-5 text-[13px] font-bold text-white transition-all hover:bg-slate-700"
+              >
+                <ShieldCheck className="h-4 w-4" />
                 Bắt đầu xác thực
-                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
               </button>
             )}
+
             {workflowStatus === "DRAFT" && (
-              <button onClick={onContinue}
-                className="bg-[#0f172a] text-white text-[13px] font-bold px-5 h-10 rounded-xl hover:bg-slate-700 transition-all flex items-center gap-2 group">
-                <FileText className="w-4 h-4" />
+              <button
+                onClick={onContinue}
+                className="group flex h-10 items-center gap-2 rounded-xl bg-[#0f172a] px-5 text-[13px] font-bold text-white transition-all hover:bg-slate-700"
+              >
+                <FileText className="h-4 w-4" />
                 Tiếp tục điền hồ sơ
-                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
               </button>
             )}
+
             {(workflowStatus === "PENDING_MORE_INFO" || workflowStatus === "VERIFICATION_FAILED") && (
-              <button onClick={onResubmit}
-                className="bg-[#0f172a] text-white text-[13px] font-bold px-5 h-10 rounded-xl hover:bg-slate-700 transition-all flex items-center gap-2">
-                <RefreshCw className="w-4 h-4" />
+              <button
+                onClick={onResubmit}
+                className="flex h-10 items-center gap-2 rounded-xl bg-[#0f172a] px-5 text-[13px] font-bold text-white transition-all hover:bg-slate-700"
+              >
+                <RefreshCw className="h-4 w-4" />
                 {workflowStatus === "PENDING_MORE_INFO" ? "Bổ sung hồ sơ" : "Gửi lại hồ sơ"}
               </button>
             )}
-            {isVerified && (
-              <>
-                <button
-                  onClick={() => setShowDetails(v => !v)}
-                  className="bg-[#0f172a] text-white text-[13px] font-bold px-5 h-10 rounded-xl hover:bg-slate-700 transition-all flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  Xem chi tiết hồ sơ
-                  {showDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                </button>
-                <button onClick={() => window.print()}
-                  className="bg-slate-100 text-slate-700 text-[13px] font-semibold px-5 h-10 rounded-xl hover:bg-slate-200 transition-all flex items-center gap-2">
-                  <Download className="w-4 h-4" />
-                  Tải chứng nhận (PDF)
-                </button>
-              </>
+
+            {isVerified && !isDetailsRoute && (
+              <button
+                onClick={onViewStatus}
+                className="flex h-10 items-center gap-2 rounded-xl bg-[#0f172a] px-5 text-[13px] font-bold text-white transition-all hover:bg-slate-700"
+              >
+                <FileText className="h-4 w-4" />
+                Xem trạng thái chi tiết
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
             )}
+
             {submissionSummary && !isVerified && workflowStatus !== "DRAFT" && (
-              <div className="flex items-center gap-2 px-4 h-10 bg-slate-50 rounded-xl text-[12px] text-slate-400">
-                <FileText className="w-3.5 h-3.5" />
-                Phiên bản #{submissionSummary.version} — {new Date(submissionSummary.submittedAt).toLocaleDateString("vi-VN")}
+              <div className="flex h-10 items-center gap-2 rounded-xl bg-slate-50 px-4 text-[12px] text-slate-400">
+                <FileText className="h-3.5 w-3.5" />
+                Phiên bản #{submissionSummary.version} — {formatDate(submissionSummary.submittedAt)}
               </div>
             )}
           </div>
         </div>
 
-        {/* Badge / Quick info — 1/3 */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
-          <p className="text-[14px] font-bold text-slate-800 mb-4">Trạng thái huy hiệu</p>
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+          <p className="mb-4 text-[14px] font-bold text-slate-800">Trạng thái huy hiệu</p>
 
           {isVerified ? (
             <div className="space-y-3">
-              <div className={cn(
-                "p-4 rounded-xl border flex items-center gap-3",
-                isVerifiedAdvisor ? "bg-[#eec54e]/5 border-[#eec54e]/40" : "bg-slate-50 border-slate-200"
-              )}>
-                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-                  isVerifiedAdvisor ? "bg-[#eec54e]/15" : "bg-slate-100"
-                )}>
-                  {isVerifiedAdvisor
-                    ? <Award className="w-5 h-5 text-[#C8A000]" />
-                    : <Star className="w-5 h-5 text-slate-400" />
-                  }
+              <div
+                className={cn(
+                  "flex items-center gap-3 rounded-xl border p-4",
+                  isVerifiedAdvisor ? "border-[#eec54e]/40 bg-[#eec54e]/5" : "border-slate-200 bg-slate-50",
+                )}
+              >
+                <div
+                  className={cn(
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                    isVerifiedAdvisor ? "bg-[#eec54e]/15" : "bg-slate-100",
+                  )}
+                >
+                  {isVerifiedAdvisor ? (
+                    <Award className="h-5 w-5 text-[#C8A000]" />
+                  ) : (
+                    <Star className="h-5 w-5 text-slate-400" />
+                  )}
                 </div>
                 <div>
                   <p className="text-[13px] font-bold text-slate-800">
                     {isVerifiedAdvisor ? "Verified Advisor" : "Basic Verified"}
                   </p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <p className="mt-0.5 text-[11px] text-slate-400">
                     {isVerifiedAdvisor ? "Xác thực đầy đủ" : "Xác thực cơ bản"}
                   </p>
                 </div>
               </div>
-              {!isVerifiedAdvisor && (
-                <div className="bg-slate-50 rounded-xl px-4 py-3">
-                  <p className="text-[12px] font-semibold text-slate-700 mb-1">Nâng cấp lên Verified Advisor</p>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Hoàn thiện thêm hồ sơ chuyên môn để nhận huy hiệu cao nhất.
+
+              {isVerifiedAdvisor && (
+                <div className="rounded-xl bg-slate-50 px-4 py-3">
+                  <p className="mb-1 text-[12px] font-semibold text-slate-700">Huy hiệu hiện tại</p>
+                  <p className="text-[11px] leading-relaxed text-slate-400">
+                    Hồ sơ của bạn đã đạt mức xác thực đầy đủ dành cho advisor theo kết quả thẩm định hiện tại.
+                  </p>
+                </div>
+              )}
+
+              {isBasicVerified && (
+                <div className="rounded-xl bg-slate-50 px-4 py-3">
+                  <p className="mb-1 text-[12px] font-semibold text-slate-700">Huy hiệu hiện tại</p>
+                  <p className="text-[11px] leading-relaxed text-slate-400">
+                    Hồ sơ của bạn hiện đang ở mức xác thực cơ bản theo kết quả review mới nhất.
                   </p>
                 </div>
               )}
@@ -238,13 +293,16 @@ export function KYCHub({ status, onStart, onContinue, onResubmit }: KYCHubProps)
                 { icon: Award, label: "Huy hiệu", desc: "Nổi bật hơn", color: "text-amber-500", bg: "bg-amber-50" },
                 { icon: Star, label: "Ưu tiên", desc: "Hiển thị đầu", color: "text-violet-500", bg: "bg-violet-50" },
                 { icon: CheckCircle2, label: "Tin tưởng", desc: "Startup yên tâm", color: "text-blue-500", bg: "bg-blue-50" },
-              ].map((item, idx) => (
-                <div key={idx} className="flex flex-col items-center justify-center p-3.5 rounded-xl bg-slate-50 hover:bg-white hover:border hover:border-slate-200 transition-all border border-transparent">
-                  <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center mb-2", item.bg)}>
-                    <item.icon className={cn("w-4 h-4", item.color)} />
+              ].map((item, index) => (
+                <div
+                  key={index}
+                  className="flex flex-col items-center justify-center rounded-xl border border-transparent bg-slate-50 p-3.5 transition-all hover:border-slate-200 hover:bg-white"
+                >
+                  <div className={cn("mb-2 flex h-8 w-8 items-center justify-center rounded-lg", item.bg)}>
+                    <item.icon className={cn("h-4 w-4", item.color)} />
                   </div>
-                  <span className="text-[12px] font-semibold text-slate-700 text-center leading-tight">{item.label}</span>
-                  <span className="text-[10px] text-slate-400 text-center mt-0.5">{item.desc}</span>
+                  <span className="text-center text-[12px] font-semibold leading-tight text-slate-700">{item.label}</span>
+                  <span className="mt-0.5 text-center text-[10px] text-slate-400">{item.desc}</span>
                 </div>
               ))}
             </div>
@@ -252,39 +310,44 @@ export function KYCHub({ status, onStart, onContinue, onResubmit }: KYCHubProps)
         </div>
       </div>
 
-      {/* ── SUBMISSION DETAILS (VERIFIED, toggled) ───────────── */}
-      {isVerified && showDetails && previousSubmission && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden animate-in slide-in-from-top-2 duration-200">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-slate-400" />
+      {shouldShowVerifiedDetails && (
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2 border-b border-slate-100 px-6 py-4">
+            <FileText className="h-4 w-4 text-slate-400" />
             <p className="text-[14px] font-bold text-slate-800">Chi tiết hồ sơ đã xác thực</p>
             {submissionSummary && (
               <span className="ml-auto text-[11px] text-slate-400">
-                Phiên bản #{submissionSummary.version} — {new Date(submissionSummary.submittedAt).toLocaleDateString("vi-VN")}
+                Phiên bản #{submissionSummary.version} — {formatDate(submissionSummary.submittedAt)}
               </span>
             )}
           </div>
-          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+          <div className="grid grid-cols-1 gap-x-8 gap-y-3 p-6 sm:grid-cols-2">
             {[
               { label: "Họ và tên", value: previousSubmission.fullName },
               { label: "Email liên hệ", value: previousSubmission.contactEmail },
               { label: "Vị trí hiện tại", value: previousSubmission.currentRoleTitle },
               { label: "Tổ chức / Công ty", value: previousSubmission.currentOrganization },
-              { label: "Chuyên môn chính", value: previousSubmission.primaryExpertise ? EXPERTISE_LABELS[previousSubmission.primaryExpertise] ?? previousSubmission.primaryExpertise : undefined },
+              { label: "Chuyên môn chính", value: formatExpertise(previousSubmission.primaryExpertise) },
               { label: "Link LinkedIn", value: previousSubmission.professionalProfileLink },
-            ].map((row, i) => row.value ? (
-              <div key={i} className="flex items-start justify-between gap-4 py-2 border-b border-slate-50 last:border-0">
-                <span className="text-[12px] text-slate-400 shrink-0">{row.label}</span>
-                <span className="text-[12px] font-semibold text-slate-700 text-right truncate max-w-[200px]">{row.value}</span>
-              </div>
-            ) : null)}
+            ].map((row, index) =>
+              row.value ? (
+                <div key={index} className="flex items-start justify-between gap-4 border-b border-slate-50 py-2 last:border-0">
+                  <span className="shrink-0 text-[12px] text-slate-400">{row.label}</span>
+                  <span className="max-w-[200px] truncate text-right text-[12px] font-semibold text-slate-700">{row.value}</span>
+                </div>
+              ) : null,
+            )}
+
             {previousSubmission.secondaryExpertise && previousSubmission.secondaryExpertise.length > 0 && (
-              <div className="flex items-start justify-between gap-4 py-2 border-b border-slate-50 sm:col-span-2">
-                <span className="text-[12px] text-slate-400 shrink-0">Chuyên môn phụ</span>
-                <div className="flex flex-wrap gap-1.5 justify-end">
-                  {previousSubmission.secondaryExpertise.map(e => (
-                    <span key={e} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full text-[11px] font-semibold">
-                      {EXPERTISE_LABELS[e] ?? e}
+              <div className="flex items-start justify-between gap-4 border-b border-slate-50 py-2 sm:col-span-2">
+                <span className="shrink-0 text-[12px] text-slate-400">Chuyên môn phụ</span>
+                <div className="flex flex-wrap justify-end gap-1.5">
+                  {previousSubmission.secondaryExpertise.map((item) => (
+                    <span
+                      key={item}
+                      className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600"
+                    >
+                      {formatExpertise(item)}
                     </span>
                   ))}
                 </div>
@@ -294,35 +357,55 @@ export function KYCHub({ status, onStart, onContinue, onResubmit }: KYCHubProps)
         </div>
       )}
 
-      {/* ── REMARKS + FLAGGED FIELDS ─────────────────────────── */}
       {hasRemarks && (
-        <div className={cn(
-          "bg-white rounded-2xl border shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden",
-          workflowStatus === "PENDING_MORE_INFO" ? "border-orange-200" : "border-red-200"
-        )}>
-          <div className={cn(
-            "flex items-center gap-2.5 px-6 py-3.5 border-b",
-            workflowStatus === "PENDING_MORE_INFO" ? "bg-orange-50/60 border-orange-100" : "bg-red-50/60 border-red-100"
-          )}>
-            <AlertCircle className={cn("w-4 h-4", workflowStatus === "PENDING_MORE_INFO" ? "text-orange-500" : "text-red-500")} />
-            <p className={cn("text-[13px] font-bold", workflowStatus === "PENDING_MORE_INFO" ? "text-orange-700" : "text-red-600")}>
-              Ghi chú từ Reviewer
+        <div
+          className={cn(
+            "overflow-hidden rounded-2xl border bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]",
+            workflowStatus === "PENDING_MORE_INFO" ? "border-orange-200" : "border-red-200",
+          )}
+        >
+          <div
+            className={cn(
+              "flex items-center gap-2.5 border-b px-6 py-3.5",
+              workflowStatus === "PENDING_MORE_INFO"
+                ? "border-orange-100 bg-orange-50/60"
+                : "border-red-100 bg-red-50/60",
+            )}
+          >
+            <AlertCircle
+              className={cn(
+                "h-4 w-4",
+                workflowStatus === "PENDING_MORE_INFO" ? "text-orange-500" : "text-red-500",
+              )}
+            />
+            <p
+              className={cn(
+                "text-[13px] font-bold",
+                workflowStatus === "PENDING_MORE_INFO" ? "text-orange-700" : "text-red-600",
+              )}
+            >
+              Ghi chú từ reviewer
             </p>
           </div>
-          <div className="px-6 py-4 space-y-3">
-            <p className="text-[13px] text-slate-600 leading-relaxed">{remarks}</p>
+          <div className="space-y-3 px-6 py-4">
+            <p className="text-[13px] leading-relaxed text-slate-600">{remarks}</p>
             {flaggedFields && flaggedFields.length > 0 && (
               <div>
-                <p className="text-[11px] font-semibold text-slate-400 mb-2">Các trường cần bổ sung / chỉnh sửa:</p>
+                <p className="mb-2 text-[11px] font-semibold text-slate-400">
+                  Các trường cần bổ sung / chỉnh sửa:
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {flaggedFields.map(f => (
-                    <span key={f} className={cn(
-                      "px-2.5 py-1 rounded-full text-[11px] font-semibold border",
-                      workflowStatus === "PENDING_MORE_INFO"
-                        ? "bg-orange-50 text-orange-700 border-orange-200"
-                        : "bg-red-50 text-red-600 border-red-200"
-                    )}>
-                      {FIELD_LABELS[f] ?? f}
+                  {flaggedFields.map((field) => (
+                    <span
+                      key={field}
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+                        workflowStatus === "PENDING_MORE_INFO"
+                          ? "border-orange-200 bg-orange-50 text-orange-700"
+                          : "border-red-200 bg-red-50 text-red-600",
+                      )}
+                    >
+                      {FIELD_LABELS[field] ?? field}
                     </span>
                   ))}
                 </div>
@@ -332,38 +415,37 @@ export function KYCHub({ status, onStart, onContinue, onResubmit }: KYCHubProps)
         </div>
       )}
 
-      {/* ── PENDING REVIEW NOTICE ─────────────────────────────── */}
       {workflowStatus === "PENDING_REVIEW" && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-          <div className="flex items-center gap-2.5 px-6 py-3.5 border-b border-slate-100 bg-amber-50/40">
-            <Clock className="w-4 h-4 text-amber-500" />
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+          <div className="flex items-center gap-2.5 border-b border-slate-100 bg-amber-50/40 px-6 py-3.5">
+            <Clock className="h-4 w-4 text-amber-500" />
             <p className="text-[13px] font-bold text-amber-700">Đang xử lý</p>
           </div>
           <div className="px-6 py-4">
-            <p className="text-[13px] text-slate-500 leading-relaxed">
+            <p className="text-[13px] leading-relaxed text-slate-500">
               Hồ sơ đã được tiếp nhận. Đội ngũ AISEP sẽ xem xét trong <span className="font-semibold text-slate-700">1–3 ngày làm việc</span>. Bạn sẽ nhận thông báo khi có kết quả.
             </p>
           </div>
         </div>
       )}
 
-      {/* ── BOTTOM ROW ───────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-        {/* Checklist */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
-          <p className="text-[14px] font-bold text-slate-800 mb-4">Hồ sơ cần chuẩn bị</p>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+          <p className="mb-4 text-[14px] font-bold text-slate-800">Hồ sơ cần chuẩn bị</p>
           <ul className="space-y-3">
-            {checklist.map((item, idx) => (
-              <li key={idx} className="flex items-center gap-3">
-                <div className={cn(
-                  "w-5 h-5 rounded-full flex items-center justify-center shrink-0 border-2 transition-all",
-                  item.done ? "bg-[#eec54e] border-[#eec54e]" : "border-slate-200 bg-white"
-                )}>
-                  {item.done
-                    ? <CheckCircle2 className="w-3 h-3 text-[#171611]" />
-                    : <div className="w-1 h-1 rounded-full bg-slate-300" />
-                  }
+            {checklist.map((item, index) => (
+              <li key={index} className="flex items-center gap-3">
+                <div
+                  className={cn(
+                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all",
+                    item.done ? "border-[#eec54e] bg-[#eec54e]" : "border-slate-200 bg-white",
+                  )}
+                >
+                  {item.done ? (
+                    <CheckCircle2 className="h-3 w-3 text-[#171611]" />
+                  ) : (
+                    <div className="h-1 w-1 rounded-full bg-slate-300" />
+                  )}
                 </div>
                 <span className={cn("text-[13px]", item.done ? "font-semibold text-slate-700" : "text-slate-400")}>
                   {item.label}
@@ -372,41 +454,42 @@ export function KYCHub({ status, onStart, onContinue, onResubmit }: KYCHubProps)
             ))}
           </ul>
           {needsAction && (
-            <div className="mt-4 pt-3 border-t border-slate-100">
+            <div className="mt-4 border-t border-slate-100 pt-3">
               <p className="text-[11px] text-slate-400">{doneCount}/{checklist.length} mục hoàn thành</p>
             </div>
           )}
         </div>
 
-        {/* History */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-            <History className="w-4 h-4 text-slate-400" />
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] lg:col-span-2">
+          <div className="flex items-center gap-2 border-b border-slate-100 px-6 py-4">
+            <History className="h-4 w-4 text-slate-400" />
             <p className="text-[14px] font-bold text-slate-800">Lịch sử hoạt động</p>
           </div>
 
           {history && history.length > 0 ? (
             <div className="divide-y divide-slate-50">
-              {history.map((item, idx) => (
-                <div key={idx} className="px-6 py-3.5 flex items-start gap-3 hover:bg-slate-50/60 transition-colors">
-                  <div className={cn("w-2 h-2 rounded-full mt-1.5 shrink-0", TIMELINE_DOT[item.status] ?? "bg-slate-300")} />
-                  <div className="flex-1 min-w-0">
+              {history.map((item, index) => (
+                <div key={index} className="flex items-start gap-3 px-6 py-3.5 transition-colors hover:bg-slate-50/60">
+                  <div className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", TIMELINE_DOT[item.status] ?? "bg-slate-300")} />
+                  <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-semibold text-slate-700">{item.action}</p>
                     {item.remark && (
-                      <p className="text-[11px] text-slate-400 italic mt-0.5">"{item.remark}"</p>
+                      <p className="mt-0.5 text-[11px] italic text-slate-400">
+                        &quot;{item.remark}&quot;
+                      </p>
                     )}
                   </div>
-                  <span className="text-[11px] text-slate-400 shrink-0 pt-0.5">{item.date}</span>
+                  <span className="shrink-0 pt-0.5 text-[11px] text-slate-400">{item.date}</span>
                 </div>
               ))}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-14 text-center">
-              <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center mb-3">
-                <Clock className="w-5 h-5 text-slate-300" />
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-50">
+                <Clock className="h-5 w-5 text-slate-300" />
               </div>
               <p className="text-[13px] font-semibold text-slate-400">Chưa có lịch sử hoạt động</p>
-              <p className="text-[11px] text-slate-300 mt-1">Bắt đầu xác thực để theo dõi tiến trình</p>
+              <p className="mt-1 text-[11px] text-slate-300">Bắt đầu xác thực để theo dõi tiến trình</p>
             </div>
           )}
         </div>

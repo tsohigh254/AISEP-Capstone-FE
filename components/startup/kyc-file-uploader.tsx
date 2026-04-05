@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { Upload, FileText, X, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { useRef, useState } from "react";
+import { AlertCircle, FileText, Upload, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface KycFileUploaderProps {
   label?: string;
@@ -21,7 +22,7 @@ export function KycFileUploader({
   maxSizeMB = 10,
   limit = 1,
   onChange,
-  error
+  error,
 }: KycFileUploaderProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -29,15 +30,16 @@ export function KycFileUploader({
 
   const handleFileChange = (newFiles: FileList | null) => {
     if (!newFiles) return;
-    
+
     const validFiles: File[] = [];
     const currentFileCount = files.length;
-    
-    Array.from(newFiles).forEach(file => {
+
+    Array.from(newFiles).forEach((file) => {
       if (file.size > maxSizeMB * 1024 * 1024) {
-        alert(`Dung lượng file "${file.name}" vượt quá ${maxSizeMB}MB`);
+        toast.error(`Dung lượng tệp "${file.name}" vượt quá ${maxSizeMB}MB.`);
         return;
       }
+
       if (validFiles.length + currentFileCount < limit) {
         validFiles.push(file);
       }
@@ -48,7 +50,7 @@ export function KycFileUploader({
       setFiles(updatedFiles);
       onChange?.(updatedFiles);
     }
-    
+
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -60,14 +62,16 @@ export function KycFileUploader({
 
   return (
     <div className="space-y-3">
-      <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-2">
+      <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
         {label} <span className="text-red-500">*</span>
       </label>
-      
-      {/* Upload Zone */}
+
       {files.length < limit && (
         <div
-          onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragOver(true);
+          }}
           onDragLeave={() => setIsDragOver(false)}
           onDrop={(e) => {
             e.preventDefault();
@@ -76,12 +80,12 @@ export function KycFileUploader({
           }}
           onClick={() => fileInputRef.current?.click()}
           className={cn(
-            "relative cursor-pointer rounded-2xl border-2 border-dashed transition-all p-8 flex flex-col items-center text-center",
-            isDragOver 
-              ? "border-[#eec54e] bg-[#eec54e]/5" 
-              : error 
-                ? "border-red-200 bg-red-50/40" 
-                : "border-slate-200 bg-slate-50 hover:bg-white hover:border-[#eec54e]/50"
+            "relative flex cursor-pointer flex-col items-center rounded-2xl border-2 border-dashed p-8 text-center transition-all",
+            isDragOver
+              ? "border-[#eec54e] bg-[#eec54e]/5"
+              : error
+                ? "border-red-200 bg-red-50/40"
+                : "border-slate-200 bg-slate-50 hover:border-[#eec54e]/50 hover:bg-white",
           )}
         >
           <input
@@ -92,51 +96,60 @@ export function KycFileUploader({
             multiple={limit > 1}
             className="hidden"
           />
-          <div className="size-12 rounded-xl bg-white shadow-sm flex items-center justify-center mb-4 transition-all">
-            <Upload className="w-5 h-5 text-slate-400" />
+
+          <div className="mb-4 flex size-12 items-center justify-center rounded-xl bg-white shadow-sm transition-all">
+            <Upload className="h-5 w-5 text-slate-400" />
           </div>
-          <p className="text-[13px] font-semibold text-slate-900 mb-1">
+          <p className="mb-1 text-[13px] font-semibold text-slate-900">
             {files.length === 0 ? "Kéo thả hoặc nhấp để tải lên" : "Tải thêm tài liệu"}
           </p>
-          <p className="text-[12px] text-slate-400 font-medium">
+          <p className="text-[12px] font-medium text-slate-400">
             {description || `Hỗ trợ ${accept} (Tối đa ${maxSizeMB}MB)`}
           </p>
         </div>
       )}
 
-      {/* Files List */}
       {files.length > 0 && (
         <div className="space-y-2">
           {files.map((file, idx) => (
-            <div key={idx} className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex items-center justify-between group animate-in slide-in-from-top-1 duration-200">
+            <div
+              key={idx}
+              className="group flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] animate-in slide-in-from-top-1 duration-200"
+            >
               <div className="flex items-center gap-4">
-                <div className="size-10 rounded-xl bg-slate-50 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-slate-400" />
+                <div className="flex size-10 items-center justify-center rounded-xl bg-slate-50">
+                  <FileText className="h-5 w-5 text-slate-400" />
                 </div>
                 <div>
-                  <p className="text-[13px] font-semibold text-slate-900 truncate max-w-[200px]">{file.name}</p>
-                  <p className="text-[11px] text-slate-400 font-medium">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                  <p className="max-w-[200px] truncate text-[13px] font-semibold text-slate-900">
+                    {file.name}
+                  </p>
+                  <p className="text-[11px] font-medium text-slate-400">
+                    {(file.size / 1024 / 1024).toFixed(2)} MB
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={(e) => { e.stopPropagation(); removeFile(idx); }}
-                  className="p-1.5 hover:bg-red-50 hover:text-red-500 rounded-lg transition-all text-slate-400"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeFile(idx);
+                }}
+                className="rounded-lg p-1.5 text-slate-400 transition-all hover:bg-red-50 hover:text-red-500"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
           ))}
-          <p className="text-[11px] text-slate-400 text-right px-2 font-medium">
+
+          <p className="px-2 text-right text-[11px] font-medium text-slate-400">
             Đã chọn {files.length}/{limit} tài liệu
           </p>
         </div>
       )}
 
       {error && (
-        <p className="text-[11px] text-red-500 font-medium flex items-center gap-1.5 mt-1">
-          <AlertCircle className="w-3.5 h-3.5" />
+        <p className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-red-500">
+          <AlertCircle className="h-3.5 w-3.5" />
           {error}
         </p>
       )}

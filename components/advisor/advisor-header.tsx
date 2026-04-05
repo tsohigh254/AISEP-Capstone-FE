@@ -15,15 +15,16 @@ import {
   Star,
   Clock,
   Calendar,
-  ShieldCheck
+  ShieldCheck,
+  ShieldAlert,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/context";
 import { Logout } from "@/services/auth/auth.api";
-import { GetAdvisorProfile } from "@/services/advisor/advisor.api";
+import { GetAdvisorKYCStatus, GetAdvisorProfile } from "@/services/advisor/advisor.api";
 import { IssueReportModal } from "@/components/shared/issue-report-modal";
-import { ShieldAlert } from "lucide-react";
+import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
 
 type AdvisorHeaderProps = {
   userName?: string;
@@ -50,17 +51,30 @@ export function AdvisorHeader({
 
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+  const [isKycVerified, setIsKycVerified] = useState(false);
   const displayUserName = profileName || user?.email || userName;
 
   useEffect(() => {
-    GetAdvisorProfile().then((res: any) => {
-      if (res?.isSuccess && res.data) {
-        if (res.data.fullName) setProfileName(res.data.fullName);
-        if (res.data.profilePhotoURL || res.data.profilePhotoUrl) {
-          setProfilePhoto(res.data.profilePhotoURL || res.data.profilePhotoUrl);
+    GetAdvisorProfile()
+      .then((response) => {
+        const envelope = response as unknown as IBackendRes<IAdvisorProfile>;
+        if ((envelope.success || envelope.isSuccess) && envelope.data) {
+          if (envelope.data.fullName) setProfileName(envelope.data.fullName);
+          if (envelope.data.profilePhotoURL) {
+            setProfilePhoto(envelope.data.profilePhotoURL);
+          }
         }
-      }
-    }).catch(() => {});
+      })
+      .catch(() => {});
+
+    GetAdvisorKYCStatus()
+      .then((response) => {
+        const envelope = response as unknown as IBackendRes<{ workflowStatus?: string }>;
+        if (envelope.data?.workflowStatus === "VERIFIED") {
+          setIsKycVerified(true);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -168,10 +182,13 @@ export function AdvisorHeader({
           <div className="h-8 w-px bg-slate-100 mx-1" />
 
           {/* User Profile Card */}
-          <div className="flex items-center gap-3 relative w-[220px] justify-end" ref={dropdownRef}>
-            <div className="text-right hidden sm:flex flex-col items-end justify-center min-w-0 flex-1">
+          <div className="flex items-center gap-3.5 relative shrink-0" ref={dropdownRef}>
+            <div className="text-right hidden sm:flex flex-col items-end justify-center min-w-0 max-w-[112px]">
               <p className="text-[13px] font-bold text-[#171611] tracking-tight leading-none truncate w-full text-right">{displayUserName}</p>
-              <p className="text-[10px] text-[#878164] font-medium mt-0.5">Advisor Account</p>
+              <div className="mt-0.5 inline-flex items-center gap-1">
+                <p className="text-[10px] text-[#878164] font-medium">Advisor Account</p>
+                {isKycVerified && <VerifiedRoleMark className="h-3.5 w-3.5" />}
+              </div>
             </div>
             <button
               className="relative flex items-center cursor-pointer group/avatar"
@@ -207,7 +224,10 @@ export function AdvisorHeader({
                       <p className="text-[13px] font-black text-[#171611] tracking-tight truncate">{displayUserName}</p>
                       <div className="flex items-center gap-1.5 mt-1">
                         <span className="inline-flex items-center text-[9px] font-black text-[#C8A000] bg-[#e6cc4c]/20 border border-[#e6cc4c]/40 px-1.5 py-0.5 rounded-md uppercase tracking-wider">PRO</span>
-                        <span className="text-[10px] text-[#878164] font-medium">Advisor</span>
+                        <span className="inline-flex items-center gap-1 text-[10px] text-[#878164] font-medium">
+                          Advisor
+                          {isKycVerified && <VerifiedRoleMark className="h-3.5 w-3.5" />}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -220,11 +240,11 @@ export function AdvisorHeader({
                     { icon: Settings, label: "Cài đặt tài khoản", href: "/advisor/settings", desc: "Bảo mật & thông báo" },
                     { icon: ShieldAlert, label: "Báo cáo sự cố", onClick: () => setIsReportModalOpen(true), desc: "Gửi phản hồi cho AISEP" },
                   ].map((link, idx) => {
-                    if ("href" in link) {
+                    if ("href" in link && typeof link.href === "string") {
                       return (
                         <Link
                           key={link.href}
-                          href={link.href as any}
+                          href={link.href}
                           className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#f8f7f2] transition-colors group/item"
                           onClick={() => setIsDropdownOpen(false)}
                         >

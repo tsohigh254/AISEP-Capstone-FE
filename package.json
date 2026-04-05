@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint:text": "node scripts/check-text-encoding.mjs",
+    "lint": "eslint && npm run lint:text"
   },
   "dependencies": {
     "@microsoft/signalr": "^10.0.0",

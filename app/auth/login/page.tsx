@@ -21,6 +21,7 @@ import {
 import { Login } from "@/services/auth/auth.api";
 import { GetMe } from "@/services/user/user.api";
 import { GetAdvisorProfile } from "@/services/advisor/advisor.api";
+import { GetStartupProfile } from "@/services/startup/startup.api";
 import { useAuth } from "@/context/context";
 
 const parseJwt = (token: string) => {
@@ -70,7 +71,7 @@ export default function LoginPage() {
     validateEmail(value);
   };
 
-  const redirectByUserType = (userType: string | undefined, roles?: string[]) => {
+  const redirectByUserType = async (userType: string | undefined, roles?: string[]) => {
     let type = (userType ?? "").toLowerCase();
 
     // Fallback to roles if userType is empty
@@ -89,16 +90,17 @@ export default function LoginPage() {
 
     switch (type) {
       case "startup":
-        // Check if onboarding was already skipped or completed in this browser
-        if (typeof window !== "undefined") {
-          const skipped = localStorage.getItem("aisep_startup_onboarding_skipped") === "true";
-          const completed = localStorage.getItem("aisep_startup_onboarding_completed") === "true";
-          if (skipped || completed) {
+        try {
+          const startupProfileRes =
+            (await GetStartupProfile()) as unknown as IBackendRes<IStartupProfile>;
+          const startupProfileData = startupProfileRes?.data;
+
+          if ((startupProfileRes?.success || startupProfileRes?.isSuccess) && startupProfileData) {
             router.push("/startup");
           } else {
             router.push("/startup/onboard");
           }
-        } else {
+        } catch {
           router.push("/startup");
         }
         break;
@@ -233,7 +235,7 @@ export default function LoginPage() {
             setIsLoading(false);
           }
         } else {
-          redirectByUserType(targetUserType, targetRoles);
+          await redirectByUserType(targetUserType, targetRoles);
         }
       } else {
         setError(res?.message || "Đăng nhập không thành công");

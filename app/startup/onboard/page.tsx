@@ -1,16 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Building2, MessageSquare, Rocket, CheckCircle2, Sparkles, AlertTriangle } from "lucide-react";
+import { Building2, MessageSquare, Rocket, CheckCircle2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import {
   CreateStartupProfile,
   GetStartupProfile,
@@ -21,21 +15,20 @@ import { Step2 } from "@/components/startup/onboarding-steps/step-2-pitch";
 import { Step3 } from "@/components/startup/onboarding-steps/step-3-launch";
 
 const STEPS = [
-  { id: 1, label: "Định danh",  icon: Building2,    hint: "Tên, ngành, giai đoạn" },
+  { id: 1, label: "Giới thiệu", icon: Building2, hint: "Tên, ngành, giai đoạn" },
   { id: 2, label: "Câu chuyện", icon: MessageSquare, hint: "Vấn đề & giải pháp" },
-  { id: 3, label: "Hoàn tất",   icon: Rocket,        hint: "Bắt đầu hành trình" },
+  { id: 3, label: "Hoàn tất", icon: Rocket, hint: "Bắt đầu hành trình" },
 ];
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [showSkipDialog, setShowSkipDialog] = useState(false);
+  const [checkingProfile, setCheckingProfile] = useState(true);
 
   const [formData, setFormData] = useState({
     startupName: "",
     oneLiner: "",
-    businessCode: "",
     industryID: "",
     stage: "",
     problem: "",
@@ -47,25 +40,32 @@ export default function OnboardingPage() {
     window.scrollTo(0, 0);
   }, []);
 
-  // UseEffect for automatic redirection removed to rely on StartupShell
-  /*
   useEffect(() => {
+    let isMounted = true;
+
     GetStartupProfile()
       .then(res => {
-        const data = res as unknown as IBackendRes<any>;
-        if ((data.success || data.isSuccess) && data.data) {
-          router.replace("/startup");
-        }
-      })
-      .catch(() => {});
-  }, []);
-  */
+        if (!isMounted) return;
 
-  const handleSkip = () => {
-    localStorage.setItem("aisep_startup_onboarding_skipped", "true");
-    toast.info("Đã bỏ qua. Bạn có thể hoàn thiện hồ sơ sau.");
-    router.replace("/startup");
-  };
+        const data = res as unknown as IBackendRes<IStartupProfile | null>;
+        if ((data.success || data.isSuccess) && data.data !== null) {
+          router.replace("/startup/startup-profile");
+          return;
+        }
+
+        setCheckingProfile(false);
+      })
+      .catch(() => {
+        if (isMounted) {
+          setCheckingProfile(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
+
 
   const goNext = () => {
     setCurrentStep(s => Math.min(s + 1, 3));
@@ -97,14 +97,13 @@ export default function OnboardingPage() {
         oneLiner:         formData.oneLiner || formData.startupName,
         stage:            (parseInt(formData.stage) || 0) as StartupStage,
         industryID:       formData.industryID ? parseInt(formData.industryID) : undefined,
-        businessCode: formData.businessCode?.trim() !== "" ? formData.businessCode.trim() : "N/A",
         problemStatement: formData.problem || undefined,
         solutionSummary:  formData.solution || undefined,
         marketScope:      formData.targetAudience || undefined,
         contactEmail:     "startup@aisep.local",
         fullNameOfApplicant: "Startup User",
         roleOfApplicant:  "Founder",
-      } as any;
+      };
       const res = await CreateStartupProfile(payload) as unknown as IBackendRes<string>;
       if (res.success || res.isSuccess) {
         setCurrentStep(3);
@@ -112,28 +111,48 @@ export default function OnboardingPage() {
       } else {
         toast.error(res.message || "Lưu hồ sơ thất bại. Vui lòng thử lại.");
       }
-    } catch (err: any) {
-      if (err?.response?.status === 409) {
-        setCurrentStep(3);
-        window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err: unknown) {
+      const apiError = err as {
+        message?: string;
+        response?: {
+          status?: number;
+          data?: {
+            errors?: Record<string, string[]>;
+            message?: string;
+            title?: string;
+            detail?: string;
+          };
+        };
+      };
+
+      if (apiError.response?.status === 409) {
+        toast.info("Hồ sơ startup đã tồn tại. Đang chuyển về workspace.");
+        router.replace("/startup/startup-profile");
       } else {
-        console.error("API Error Response:", err?.response?.data);
-        let msg = err?.message || "Lỗi kết nối.";
-        
-        if (err?.response?.data?.errors) {
-            const errorKeys = Object.keys(err.response.data.errors);
-            if (errorKeys.length > 0) {
-                // Lấy tất cả các lỗi ghép lại thay vì chỉ lấy lỗi đầu tiên
-                msg = errorKeys.map(k => `${k}: ${err.response.data.errors[k].join(", ")}`).join(" | ");
-            }
-        } else if (err?.response?.data?.message && err?.response?.data?.message !== "Validation failed") {
-            msg = err.response.data.message;
-        } else if (err?.response?.data?.title && err?.response?.data?.title !== "Validation failed") {
-            msg = err.response.data.title; 
-        } else if (err?.response?.data?.detail) {
-            msg = err.response.data.detail;
+        console.error("API Error Response:", apiError.response?.data);
+        let msg = apiError.message || "Lỗi kết nối.";
+
+        if (apiError.response?.data?.errors) {
+          const errorKeys = Object.keys(apiError.response.data.errors);
+          if (errorKeys.length > 0) {
+            msg = errorKeys
+              .map((k) => `${k}: ${apiError.response?.data?.errors?.[k]?.join(", ") || ""}`)
+              .join(" | ");
+          }
+        } else if (
+          apiError.response?.data?.message &&
+          apiError.response.data.message !== "Validation failed"
+        ) {
+          msg = apiError.response.data.message;
+        } else if (
+          apiError.response?.data?.title &&
+          apiError.response.data.title !== "Validation failed"
+        ) {
+          msg = apiError.response.data.title;
+        } else if (apiError.response?.data?.detail) {
+          msg = apiError.response.data.detail;
         }
-        
+
         toast.error(`Chi tiết lỗi: ${msg}`);
       }
     } finally {
@@ -143,13 +162,24 @@ export default function OnboardingPage() {
 
   const progress = ((currentStep - 1) / (STEPS.length - 1)) * 100;
 
+  if (checkingProfile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8f8f6]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-slate-300 border-t-[#eec54e] rounded-full animate-spin" />
+          <p className="text-slate-500 font-medium text-sm">Đang kiểm tra hồ sơ startup...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className="min-h-screen flex flex-col items-center py-12 md:py-20 px-4"
+      className="min-h-screen flex flex-col items-center pt-4 md:pt-6 pb-12 md:pb-16 px-4"
       style={{ fontFamily: "var(--font-be-vietnam-pro), sans-serif" }}
     >
-      {/* ── BADGE ── */}
-      <div className="mb-10 animate-in fade-in slide-in-from-top-4 duration-600">
+      {/* â”€â”€ BADGE â”€â”€ */}
+      <div className="mb-5 animate-in fade-in slide-in-from-top-4 duration-600">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-slate-100 shadow-sm">
           <div className="size-5 rounded-full bg-[#fdf8e6] flex items-center justify-center">
             <Sparkles className="w-3 h-3 text-[#eec54e]" />
@@ -160,8 +190,8 @@ export default function OnboardingPage() {
         </div>
       </div>
 
-      {/* ── HEADING ── */}
-      <div className="text-center mb-12 space-y-2 max-w-lg animate-in fade-in slide-in-from-top-6 duration-600 delay-100">
+      {/* â”€â”€ HEADING â”€â”€ */}
+      <div className="text-center mb-7 space-y-2 max-w-lg animate-in fade-in slide-in-from-top-6 duration-600 delay-100">
         <h1 className="text-[32px] md:text-[38px] font-black text-slate-900 tracking-tighter leading-tight">
           Chào mừng đến AISEP 👋
         </h1>
@@ -171,8 +201,8 @@ export default function OnboardingPage() {
         </p>
       </div>
 
-      {/* ── STEPPER ── */}
-      <div className="w-full max-w-[520px] mb-10 animate-in fade-in duration-700 delay-150">
+      {/* â”€â”€ STEPPER â”€â”€ */}
+      <div className="w-full max-w-[520px] mb-6 animate-in fade-in duration-700 delay-150">
         {/* Step counter */}
         <div className="flex items-center justify-between mb-4 px-1">
           <span className="text-[12px] font-bold text-slate-500">
@@ -225,7 +255,7 @@ export default function OnboardingPage() {
         </div>
       </div>
 
-      {/* ── MAIN CARD ── */}
+      {/* â”€â”€ MAIN CARD â”€â”€ */}
       <div className="w-full max-w-[560px] bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_24px_rgba(0,0,0,0.06)] overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-600 delay-200">
         <div className="p-8 md:p-10">
           {currentStep === 1 && (
@@ -233,7 +263,6 @@ export default function OnboardingPage() {
               data={formData}
               update={setFormData}
               onNext={goNext}
-              onSkip={() => setShowSkipDialog(true)}
             />
           )}
           {currentStep === 2 && (
@@ -251,43 +280,14 @@ export default function OnboardingPage() {
         </div>
       </div>
 
-      {/* ── FOOTER META ── */}
+      {/* â”€â”€ FOOTER META â”€â”€ */}
       {currentStep < 3 && (
-        <p className="mt-8 text-[11px] text-slate-400 animate-in fade-in duration-700 delay-300">
+        <p className="mt-5 text-[11px] text-slate-400 animate-in fade-in duration-700 delay-300">
           🔒 Thông tin của bạn được bảo mật và không chia sẻ cho bên thứ ba.
         </p>
       )}
 
-      {/* ── SKIP DIALOG ── */}
-      <Dialog open={showSkipDialog} onOpenChange={setShowSkipDialog}>
-        <DialogContent className="sm:max-w-[420px] rounded-2xl p-0 overflow-hidden border-none shadow-2xl bg-white">
-          <div className="p-8 space-y-5">
-            <div className="size-14 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center mx-auto">
-              <AlertTriangle className="w-7 h-7 text-amber-500" />
-            </div>
-            <div className="text-center space-y-1.5">
-              <DialogTitle className="text-[17px] font-bold text-slate-900">Bỏ qua lúc này?</DialogTitle>
-              <DialogDescription className="text-[13px] text-slate-500 leading-relaxed px-2">
-                Không sao cả! Bạn vẫn có thể vào Workspace và hoàn thiện hồ sơ sau tại trang <span className="font-semibold text-slate-700">Startup Profile</span>.
-              </DialogDescription>
-            </div>
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <button
-                onClick={() => setShowSkipDialog(false)}
-                className="inline-flex items-center justify-center h-11 rounded-xl font-semibold text-[13px] bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
-              >
-                Tiếp tục điền
-              </button>
-              <button
-                onClick={handleSkip}
-                className="inline-flex items-center justify-center h-11 rounded-xl font-semibold text-[13px] bg-amber-500 text-white hover:bg-amber-600 transition-colors shadow-sm"
-              >
-                Bỏ qua
-              </button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
+

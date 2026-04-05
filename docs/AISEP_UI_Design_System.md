@@ -1,4 +1,3 @@
-# AISEP — UI/UX Design System & Premium Style Guide
 
 > **Purpose:** This document defines every visual rule, token, component pattern, and UX convention used in AISEP's frontend. Any AI assistant working on this codebase **must follow this guide exactly** to produce consistent, premium-quality UI.
 
@@ -15,7 +14,7 @@
 | Toasts | `sonner` (`toast.success`, `toast.error`) |
 | Utilities | `cn()` from `@/lib/utils` (clsx + tailwind-merge) |
 | Language | Vietnamese UI strings. English variable/function names. |
-
+<!--  -->
 ---
 
 ## 2. Color Tokens

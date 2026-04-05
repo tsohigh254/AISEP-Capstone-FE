@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { 
@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/context";
 import { GetInvestorProfile } from "@/services/investor/investor.api";
+import { GetInvestorKYCStatus } from "@/services/investor/investor-kyc";
 import { Logout } from "@/services/auth/auth.api";
 import { 
   GetNotifications, 
@@ -21,6 +22,8 @@ import {
 } from "@/services/notification/notification.api";
 import { NotificationDetailModal } from "./notification-detail-modal";
 import { IssueReportModal } from "@/components/shared/issue-report-modal";
+import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
+import type { IInvestorKYCStatus } from "@/types/investor-kyc";
 
 export function InvestorHeader({ 
   userName = "VinaCapital Ventures",
@@ -45,12 +48,27 @@ export function InvestorHeader({
   const { user, setUser, setAccessToken, setIsAuthen } = useAuth();
 
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [isKycVerified, setIsKycVerified] = useState(false);
   const displayUserName = profileName || user?.email || userName;
 
   useEffect(() => {
-    GetInvestorProfile().then((res: any) => {
-      if (res?.isSuccess && res.data?.fullName) setProfileName(res.data.fullName);
-    }).catch(() => {});
+    GetInvestorProfile()
+      .then((response) => {
+        const envelope = response as unknown as IBackendRes<IInvestorProfile>;
+        if ((envelope.success || envelope.isSuccess) && envelope.data?.fullName) {
+          setProfileName(envelope.data.fullName);
+        }
+      })
+      .catch(() => {});
+
+    GetInvestorKYCStatus()
+      .then((response) => {
+        const envelope = response as unknown as IBackendRes<IInvestorKYCStatus>;
+        if (envelope?.data?.workflowStatus === "VERIFIED") {
+          setIsKycVerified(true);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Notification Detail Modal State
@@ -108,12 +126,12 @@ export function InvestorHeader({
     setIsDetailModalOpen(true);
     
     if (!item.isRead) {
-      handleMarkAsRead(item.notificationId, false);
+      handleMarkAsRead(item.notificationId);
     }
     setIsNotiOpen(false);
   };
 
-  const handleMarkAsRead = async (id: number, currentStatus: boolean) => {
+  const handleMarkAsRead = async (id: number) => {
      try {
        await MarkNotificationAsRead(id, true);
        setNotifications(prev => prev.map(n => n.notificationId === id ? { ...n, isRead: true } : n));
@@ -338,10 +356,13 @@ export function InvestorHeader({
           <div className="h-8 w-px bg-slate-100 dark:bg-slate-800 mx-1" />
 
           {/* User Profile Card */}
-          <div className="flex items-center gap-3 relative" ref={dropdownRef}>
-            <div className="text-right hidden sm:flex flex-col items-end justify-center">
-              <p className="text-[13px] font-bold text-[#171611] tracking-tight leading-none truncate max-w-[160px]">{displayUserName}</p>
-              <p className="text-[10px] text-[#878164] font-medium mt-0.5">Nhà Đầu Tư</p>
+          <div className="flex items-center gap-3.5 relative shrink-0" ref={dropdownRef}>
+            <div className="text-right hidden sm:flex flex-col items-end justify-center min-w-0 max-w-[112px]">
+              <p className="text-[13px] font-bold text-[#171611] tracking-tight leading-none truncate w-full text-right">{displayUserName}</p>
+              <div className="mt-0.5 inline-flex items-center gap-1">
+                <p className="text-[10px] text-[#878164] font-medium">Nhà Đầu Tư</p>
+                {isKycVerified && <VerifiedRoleMark className="h-3.5 w-3.5" />}
+              </div>
             </div>
             <button
               className="relative flex items-center cursor-pointer group/avatar"
@@ -366,7 +387,10 @@ export function InvestorHeader({
                       <p className="text-[14px] font-bold text-[#171611] tracking-tight truncate">{displayUserName}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="inline-flex items-center text-[10px] font-black text-[#d0a64b] bg-[#fef0d2]/70 border border-[#fef0d2] px-2 py-0.5 rounded-full uppercase tracking-wider">PRO</span>
-                        <span className="text-[12px] text-slate-500 font-medium">Investor</span>
+                        <span className="inline-flex items-center gap-1 text-[12px] text-slate-500 font-medium">
+                          Investor
+                          {isKycVerified && <VerifiedRoleMark className="h-3.5 w-3.5" />}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -378,7 +402,7 @@ export function InvestorHeader({
                     { icon: Settings, label: "Cài đặt tài khoản", href: "/investor/settings", desc: "Bảo mật & thông báo" },
                     { icon: ShieldAlert, label: "Báo cáo sự cố", onClick: () => setIsReportModalOpen(true), desc: "Gửi phản hồi cho AISEP" },
                   ].map((link, idx) => {
-                    if ("href" in link) {
+                    if ("href" in link && typeof link.href === "string") {
                       return (
                         <Link
                           key={link.href}
@@ -451,3 +475,4 @@ export function InvestorHeader({
     </header>
   );
 }
+

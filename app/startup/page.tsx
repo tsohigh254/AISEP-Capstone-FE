@@ -33,11 +33,9 @@ import {
 export default function StartupDashboardPage() {
   const router = useRouter();
   const [showProfile, setShowProfile] = useState(false);
-  const [hasProfile, setHasProfile] = useState(true);
 
   useEffect(() => {
     // User explicitly chose to skip onboarding — respect that choice
-    if (localStorage.getItem("aisep_startup_onboarding_skipped") === "true") return;
 
     GetStartupProfile()
       .then(res => {
