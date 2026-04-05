@@ -133,6 +133,7 @@ export default function StartupDiscoveryPage() {
                         <option value="M?i tri?n khai (Pre-Seed/Seed)">M?i tri?n khai (Pre-Seed/Seed)</option>
                         <option value="�ang b�ng n? (Series A+)">�ang b�ng n? (Series A+)</option>
                     </select>
+                    
                 </div>
 
                 {/* Filter Panel - Collapsible */}
