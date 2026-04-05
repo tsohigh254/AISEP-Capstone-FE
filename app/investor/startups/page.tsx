@@ -133,33 +133,7 @@ export default function StartupDiscoveryPage() {
                         <option value="M?i tri?n khai (Pre-Seed/Seed)">M?i tri?n khai (Pre-Seed/Seed)</option>
                         <option value="�ang b�ng n? (Series A+)">�ang b�ng n? (Series A+)</option>
                     </select>
-                    {(() => {
-    const connection = myConnections.find((c: any) => Number(c.startupID) === Number(startup.id));
-    const isPending = connection?.connectionStatus === 'Requested';
-    const isConnected = connection?.connectionStatus === 'Accepted';
-    if (isConnected) {
-        return (
-            <span className='flex-1 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-[13px] font-semibold text-center flex items-center justify-center cursor-default'>
-                Đã kết nối
-            </span>
-        );
-    } else if (isPending) {
-        return (
-            <span className='flex-1 py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-[13px] font-semibold text-center flex items-center justify-center cursor-default'>
-                Chờ phản hồi
-            </span>
-        );
-    } else {
-        return (
-            <button
-                onClick={() => setAddingStartup(startup)}
-                className='flex-1 py-2.5 rounded-xl bg-[#fdf8e6] border border-[#eec54e]/30 text-slate-800 text-[13px] font-semibold hover:bg-[#eec54e] transition-all'
-            >
-                Gửi yêu cầu kết nối
-            </button>
-        );
-    }
-})()}
+                    
                 </div>
 
                 {/* Filter Panel - Collapsible */}
