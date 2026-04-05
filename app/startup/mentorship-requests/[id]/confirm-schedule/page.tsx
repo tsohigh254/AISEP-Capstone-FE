@@ -50,20 +50,34 @@ export default function ConfirmSchedulePage({ params }: { params: Promise<{ id: 
     load();
   }, [id]);
 
-  // Advisor-proposed slots come from BE as requestedSlots with proposedBy === "ADVISOR"
-  const advisorSlots: any[] = ((request as any)?.requestedSlots ?? []).filter(
-    (s: any) => s.proposedBy === "ADVISOR" && s.isActive !== false
-  );
+// Advisor-proposed slots come from BE as requestedSlots with proposedBy === "ADVISOR" or from sessions
+    const allSlots: any[] = [
+      ...((request as any)?.requestedSlots || []),
+      ...((request as any)?.sessions || [])
+    ];
+    const advisorSlots = allSlots.filter((s: any) =>
+      s.isActive !== false &&
+      s.sessionStatus !== "Cancelled" &&
+      s.sessionStatus?.toUpperCase() !== "PROPOSEDBYSTARTUP" &&
+      (s.proposedBy === "ADVISOR" || s.sessionID || s.scheduledStartAt)
+    ).map(s => ({
+      slotID: s.sessionID || s.slotID || s.id,
+      startAt: s.startAt || s.scheduledStartAt,
+      endAt: s.endAt || new Date(new Date(s.startAt || s.scheduledStartAt).getTime() + (s.durationMinutes || 60) * 60000).toISOString(),
+      timezone: s.timezone || "Asia/Ho_Chi_Minh"
+    }));
 
   // Kịch bản A: advisor đã schedule thẳng → status Scheduled, có scheduledAt
-  const isAlreadyScheduled = request?.status === "Scheduled";
-  const scheduledAt: string | null = (request as any)?.scheduledAt ?? null;
-  const scheduledEndAt: string | null = (request as any)?.scheduledEndAt ?? null;
-  const meetingLink: string | null = (request as any)?.meetingLink ?? null;
-  const meetingFormat: string | null = (request as any)?.preferredFormat ?? (request as any)?.meetingFormat ?? null;
+  const isAlreadyScheduled = request?.status === "Scheduled" || request?.status === "InProgress" || (request as any)?.mentorshipStatus === "InProgress" || (request as any)?.mentorshipStatus === "Scheduled";
+  const sessions = (request as any)?.sessions || [];
+  const firstSession = sessions.slice().reverse().find((s: any) => s.meetingUrl || s.meetingURL || s.meetingLink) || sessions[sessions.length - 1] || null;
+  const scheduledAt: string | null = (request as any)?.scheduledAt || firstSession?.scheduledStartAt || null;
+  const scheduledEndAt: string | null = (request as any)?.scheduledEndAt || null;
+  const meetingLink: string | null = (request as any)?.meetingLink || (firstSession?.meetingUrl || firstSession?.meetingURL) || null;
+  const meetingFormat: string | null = (request as any)?.preferredFormat ?? (request as any)?.meetingFormat ?? firstSession?.sessionFormat ?? null;
 
   const handleConfirm = async () => {
-    if (selectedSlotId === null) {
+    if (selectedSlotId === null && !isAlreadyScheduled) {
       toast.error("Vui lòng chọn một khung giờ phù hợp.");
       return;
     }
@@ -86,9 +100,10 @@ export default function ConfirmSchedulePage({ params }: { params: Promise<{ id: 
     );
   }
 
-  const advisor = request?.advisor;
-  const durationMinutes = request?.durationMinutes ?? 60;
+  const advisor = request?.advisor || { fullName: (request as any)?.advisorName, title: "Cố vấn viên", profilePhotoURL: "" };
+  const durationMinutes = request?.durationMinutes || firstSession?.durationMinutes || 60;
   const durationLabel = `${durationMinutes} phút`;
+  const objective = request?.objective || (request as any)?.challengeDescription || "—";
 
   return (
     <StartupShell>
@@ -174,12 +189,12 @@ export default function ConfirmSchedulePage({ params }: { params: Promise<{ id: 
                   <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Cố vấn</p>
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <img src={advisor?.profilePhotoURL || "/images/placeholder-avatar.png"} alt={advisor?.fullName} className="w-11 h-11 rounded-xl object-cover border border-slate-100" />
+                      <img src={advisor?.profilePhotoURL || "/images/placeholder-avatar.png"} alt={advisor?.fullName || "—"} className="w-11 h-11 rounded-xl object-cover border border-slate-100" />
                       <BadgeCheck className="absolute -bottom-1 -right-1 w-4.5 h-4.5 text-amber-500 bg-white rounded-full" />
                     </div>
                     <div>
-                      <p className="text-[13px] font-bold text-slate-900">{advisor?.fullName ?? "—"}</p>
-                      <p className="text-[11px] text-slate-500 leading-snug mt-0.5">{advisor?.title ?? "—"}</p>
+                      <p className="text-[13px] font-bold text-slate-900">{advisor?.fullName || "—"}</p>
+                      <p className="text-[11px] text-slate-500 leading-snug mt-0.5">{advisor?.title || "—"}</p>
                     </div>
                   </div>
                 </div>
@@ -201,7 +216,7 @@ export default function ConfirmSchedulePage({ params }: { params: Promise<{ id: 
                   <div className="space-y-2 text-[12px]">
                     <div className="flex justify-between gap-2">
                       <span className="text-slate-500 flex-shrink-0">Chủ đề</span>
-                      <span className="font-semibold text-slate-700 text-right truncate max-w-[140px]">{request?.objective ?? "—"}</span>
+                      <span className="font-semibold text-slate-700 text-right truncate max-w-[140px]">{objective}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Thời lượng</span>
@@ -353,10 +368,10 @@ export default function ConfirmSchedulePage({ params }: { params: Promise<{ id: 
                     <div>
                       <p className="text-[13px] font-bold text-slate-900">{advisor?.fullName ?? "—"}</p>
                       <p className="text-[11px] text-slate-500 leading-snug mt-0.5">{advisor?.title ?? "—"}</p>
-                      {advisor?.averageRating != null && (
+                      {(advisor as any)?.averageRating != null && (
                         <div className="flex items-center gap-1 mt-1">
                           <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                          <span className="text-[11px] font-bold text-slate-600">{advisor.averageRating.toFixed(1)}</span>
+                          <span className="text-[11px] font-bold text-slate-600">{(advisor as any).averageRating.toFixed(1)}</span>
                         </div>
                       )}
                     </div>

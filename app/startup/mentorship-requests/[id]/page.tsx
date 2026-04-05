@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useCallback } from "react";
 import { notFound, useRouter } from "next/navigation";
@@ -46,7 +46,7 @@ const isValidImageUrl = (url?: string | null) => {
 
 // ─── Status Config ─────────────────────────────────────────────────────────────
 
-type DisplayStatus = MentorshipRequestStatus;
+type DisplayStatus = MentorshipRequestStatus | "InProgress";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; icon: React.ReactNode }> = {
   Requested:  { label: "Chờ phản hồi", color: "text-blue-700",   bg: "bg-blue-50",   border: "border-blue-100",   icon: <Loader2 className="w-3.5 h-3.5 animate-spin" /> },
@@ -54,6 +54,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
   Accepted:   { label: "Đã chấp nhận", color: "text-teal-700",   bg: "bg-teal-50",   border: "border-teal-100",   icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
   Rejected:   { label: "Từ chối",      color: "text-red-600",    bg: "bg-red-50",    border: "border-red-100",    icon: <Ban className="w-3.5 h-3.5" /> },
   Scheduled:  { label: "Đã lên lịch",  color: "text-indigo-700", bg: "bg-indigo-50", border: "border-indigo-100", icon: <Calendar className="w-3.5 h-3.5" /> },
+  InProgress: { label: "Đã lên lịch",  color: "text-indigo-700", bg: "bg-indigo-50", border: "border-indigo-100", icon: <Calendar className="w-3.5 h-3.5" /> },
   Completed:  { label: "Hoàn thành",   color: "text-green-700",  bg: "bg-green-50",  border: "border-green-100",  icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
   Finalized:  { label: "Hoàn thành",   color: "text-green-700",  bg: "bg-green-50",  border: "border-green-100",  icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
   Cancelled:  { label: "Đã hủy",       color: "text-slate-500",  bg: "bg-slate-50",  border: "border-slate-200",  icon: <X className="w-3.5 h-3.5" /> },
@@ -70,9 +71,12 @@ interface TimelineStep {
   failed?: boolean;
 }
 
-function buildTimeline(req: IMentorshipRequest): TimelineStep[] {
-  const status = req.status;
-
+function buildTimeline(req: IMentorshipRequest, isPaid: boolean = false): TimelineStep[] {
+  const status = req.status || (req as any).mentorshipStatus;
+  const sessions = (req as any).sessions || [];
+  const firstSession = sessions.slice().reverse().find((s: any) => s.meetingUrl || s.meetingURL || s.meetingLink) || sessions[sessions.length - 1] || null;
+    const scheduledTime = req.scheduledAt || firstSession?.scheduledStartAt;
+  
   const steps: TimelineStep[] = [
     {
       label: "Yêu cầu đã gửi",
@@ -142,13 +146,7 @@ function buildTimeline(req: IMentorshipRequest): TimelineStep[] {
     steps[1].done = false;
     steps[1].failed = true;
     steps[1].current = true;
-    steps[1].note = req.cancelReason || "Yêu cầu đã bị hủy.";
-    steps[1].time = formatDateTime(req.cancelledAt);
-    return steps;
-  }
-
-  // Accepted — steps 0,1 done
-  if (status === "Accepted") {
+      steps[1].note = req.cancelReason || (req as any).rejectedReason || "Yêu cầu đã bị hủy.";
     steps[1].done = true;
     steps[1].current = true;
     steps[1].note = "Cố vấn đã chấp nhận yêu cầu.";
@@ -158,38 +156,45 @@ function buildTimeline(req: IMentorshipRequest): TimelineStep[] {
   }
 
   // Scheduled — steps 0,1,2 done
-  if (status === "Scheduled") {
+  if (status === "Scheduled" || status === "InProgress") {
     steps[1].done = true;
     steps[1].note = "Cố vấn đã chấp nhận yêu cầu.";
     steps[1].time = formatDateTime(req.acceptedAt);
     steps[2].done = true;
-    steps[2].current = true;
+    steps[2].current = !isPaid;
     steps[2].note = "Lịch hẹn đã được xác nhận.";
-    steps[2].time = formatDateTime(req.scheduledAt);
+    steps[2].time = formatDateTime(scheduledTime);
+    steps[3].current = isPaid;
     steps[3].note = "Đang chờ phiên tư vấn diễn ra.";
     return steps;
   }
 
   // Completed — steps 0,1,2,3,4 done
+  const hasReport = ((req as any).reports || []).length > 0;
+  const hasFeedback = ((req as any).feedbacks || []).length > 0;
+
   if (status === "Completed" || status === "Finalized") {
     steps[1].done = true;
     steps[1].note = "Cố vấn đã chấp nhận.";
     steps[1].time = formatDateTime(req.acceptedAt);
     steps[2].done = true;
     steps[2].note = "Lịch hẹn đã được xác nhận.";
-    steps[2].time = formatDateTime(req.scheduledAt);
+    steps[2].time = formatDateTime(scheduledTime);
     steps[3].done = true;
     steps[3].note = "Phiên tư vấn đã hoàn thành.";
-    steps[3].time = formatDateTime(req.completedAt);
-    steps[4].done = true;
-    steps[4].current = true;
-    steps[4].note = "Cố vấn đã hoàn thành phiên tư vấn.";
-    steps[4].time = formatDateTime(req.completedAt);
+    steps[3].time = formatDateTime(req.completedAt || req.updatedAt || req.createdAt);
+    
+    const isReportAvailable = hasReport || status === "Finalized";
+    steps[4].done = isReportAvailable;
+    steps[4].current = isReportAvailable && !hasFeedback && status !== "Finalized";
+    steps[4].note = isReportAvailable ? "Cố vấn đã cung cấp báo cáo tư vấn." : "Đang chờ báo cáo từ cố vấn.";
+    steps[4].time = isReportAvailable ? formatDateTime(req.updatedAt || req.completedAt) : "";
 
-    if (status === "Finalized") {
+    const isFeedbackDone = hasFeedback || status === "Finalized";
+    if (isFeedbackDone) {
       steps[5].done = true;
       steps[5].current = true;
-      steps[5].note = "Đã đánh giá.";
+      steps[5].note = "Đã gửi đánh giá.";
       steps[4].current = false;
     }
     return steps;
@@ -260,6 +265,14 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
   const [toast, setToast] = useState<string | null>(null);
   const [localStatus, setLocalStatus] = useState<MentorshipRequestStatus | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isPaid, setIsPaid] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && request) {
+      const key = `mentorship_paid_${request.mentorshipID || (request as any).id}`;
+      setIsPaid(localStorage.getItem(key) === "true");
+    }
+  }, [request]);
 
   // Fetch data
   const fetchRequest = useCallback(async () => {
@@ -355,12 +368,16 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
 
   // ─── Derived data ────────────────────────────────────────────────────────────
 
-  const currentStatus = localStatus || request.status;
+  const currentStatus = localStatus || request.status || (request as any).mentorshipStatus;
   const cfg = STATUS_CONFIG[currentStatus] || STATUS_CONFIG["Requested"];
-  const timeline = buildTimeline({ ...request, status: currentStatus });
-  const requestNo = `REQ-${String(request.mentorshipID).padStart(4, "0")}`;
-  const advisor = request.advisor;
+  const timeline = buildTimeline({ ...request, status: currentStatus }, isPaid);
+  const requestNo = `REQ-${String(request.mentorshipID || (request as any).id || 0).padStart(4, "0")}`;
+  const advisor = request.advisor || { fullName: (request as any).advisorName, title: "Cố vấn viên", profilePhotoURL: "" };
   const isCancelled = currentStatus === "Cancelled";
+
+  const sessions = (request as any).sessions || [];
+  const firstSession = sessions.slice().reverse().find((s: any) => s.meetingUrl || s.meetingURL || s.meetingLink) || sessions[sessions.length - 1] || null;
+  const scheduledAtString = request.scheduledAt || firstSession?.scheduledStartAt || null;
 
   return (
     <StartupShell>
@@ -431,40 +448,41 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
         </div>
 
         {/* Rejection Banner */}
-        {currentStatus === "Rejected" && request.rejectionReason && (
-          <div className="bg-red-50 border border-red-100 rounded-2xl p-5 flex gap-4">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-[13px] font-bold text-red-700 mb-1">Lý do từ chối</p>
-              <p className="text-[13px] text-red-600 leading-relaxed">{request.rejectionReason}</p>
-              <button
-                onClick={() => router.push("/startup/experts")}
-                className="mt-3 text-[12px] font-semibold text-red-700 underline underline-offset-2 hover:text-red-900 transition-colors"
-              >
-                Tìm cố vấn phù hợp hơn →
-              </button>
+        {currentStatus === "Rejected" && (request.rejectionReason || (request as any).rejectedReason) && (
+            <div className="bg-red-50 border border-red-100 rounded-2xl p-5 flex gap-4">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[13px] font-bold text-red-700 mb-1">Lý do từ chối</p>
+                <p className="text-[13px] text-red-600 leading-relaxed">{request.rejectionReason || (request as any).rejectedReason}</p>
+                <button
+                  onClick={() => router.push("/startup/experts")}
+                  className="mt-3 text-[12px] font-semibold text-red-700 underline underline-offset-2 hover:text-red-900 transition-colors"
+                >
+                  Tìm cố vấn phù hợp hơn →
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Cancellation Banner */}
-        {currentStatus === "Cancelled" && request.cancelReason && (
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex gap-4">
-            <Ban className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-[13px] font-bold text-slate-600 mb-1">Lý do hủy</p>
-              <p className="text-[13px] text-slate-500 leading-relaxed">{request.cancelReason}</p>
-              {request.cancelledBy && (
-                <p className="text-[11px] text-slate-400 mt-1">Hủy bởi: {request.cancelledBy}</p>
-              )}
-            </div>
+          {/* Cancellation Banner */}
+          {currentStatus === "Cancelled" && (request.cancelReason || (request as any).rejectedReason) && (
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex gap-4">
+              <Ban className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[13px] font-bold text-slate-600 mb-1">Lý do hủy</p>
+                <p className="text-[13px] text-slate-500 leading-relaxed">{request.cancelReason || (request as any).rejectedReason}</p>
+                {request.cancelledBy && (
+                  <p className="text-[11px] text-slate-400 mt-1">Hủy bởi: {request.cancelledBy}</p>
+                )}
+              </div>
           </div>
         )}
 
         {/* Accepted Banner */}
         {currentStatus === "Accepted" && (() => {
-          const advisorSlots = ((request as any)?.requestedSlots ?? []).filter(
-            (s: any) => s.proposedBy === "ADVISOR" && s.isActive !== false
+          const rawSlots = (request as any)?.sessions || (request as any)?.requestedSlots || [];
+          const advisorSlots = rawSlots.filter(
+            (s: any) => s.isActive !== false && s.sessionStatus !== "Cancelled" && s.sessionStatus?.toUpperCase() !== "PROPOSEDBYSTARTUP"
           );
           const hasAdvisorSlots = advisorSlots.length > 0;
           return (
@@ -496,14 +514,59 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
         })()}
 
         {/* Scheduled Banner */}
-        {currentStatus === "Scheduled" && (
+        {(currentStatus === "Scheduled" || currentStatus === "InProgress") && !isPaid && (
           <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 flex gap-4 items-start">
             <Calendar className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-[13px] font-bold text-indigo-800 mb-1">Phiên tư vấn đã được lên lịch</p>
-              <p className="text-[12px] text-indigo-600 leading-relaxed">
-                Lịch hẹn đã được xác nhận vào {formatDateTime(request.scheduledAt)}. Vui lòng chờ phiên tư vấn diễn ra.
+              <p className="text-[13px] font-bold text-indigo-800 mb-2">Phiên tư vấn đã được lên lịch</p>
+              <p className="text-[12px] text-indigo-700 leading-relaxed mb-3">
+                Lịch hẹn đã được cố vấn xác nhận vào {formatDateTime(scheduledAtString)}. Bạn cần xem chi tiết và hoàn tất thanh toán.
               </p>
+              <button
+                onClick={() => router.push(`/startup/mentorship-requests/${request.mentorshipID || (request as any).id || requestNo.replace('REQ-','')}/confirm-schedule`)}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[12px] font-semibold hover:bg-indigo-700 transition-all shadow-sm"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                Xem lịch hẹn & Thanh Toán
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Paid Banner */}
+        {(currentStatus === "Scheduled" || currentStatus === "InProgress") && isPaid && (
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-5 flex gap-4 items-start">
+            <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-[13px] font-bold text-green-800 mb-2">Thanh toán hoàn tất</p>
+              <p className="text-[12px] text-green-700 leading-relaxed mb-3">
+                Lịch hẹn lúc {formatDateTime(scheduledAtString)} đã ghi nhận thanh toán. Vui lòng tham gia phiên tư vấn đúng thông tin đã gửi và xác nhận sau khi kết thúc.
+              </p>
+              {(() => {
+                  const finalLink = (request as any)?.meetingLink || (request as any)?.meetingUrl || firstSession?.meetingUrl || firstSession?.meetingURL;                  console.log("DEBUG: finalLink =>", finalLink, "request =>", request, "firstSession =>", firstSession);                  if (finalLink && finalLink !== "undefined" && finalLink.trim() !== "") {
+                    return (
+                      <a
+                        href={finalLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl text-[12px] font-semibold hover:bg-green-700 transition-all shadow-sm"
+                      >
+                        <Video className="w-3.5 h-3.5" />
+                        Tham gia vào cuộc họp
+                      </a>
+                    );
+                  }
+                  return (
+                    <button
+                      disabled
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-500 border border-slate-200 rounded-xl text-[12px] font-semibold cursor-not-allowed shadow-sm"
+                      title="Cố vấn chưa cung cấp đường dẫn cho cuộc họp này"
+                    >
+                      <Video className="w-3.5 h-3.5" />
+                      Đang chờ cấp link cuộc họp
+                    </button>
+                  );
+                })()}
             </div>
           </div>
         )}
@@ -514,7 +577,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
             <FileText className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-[13px] font-bold text-green-800 mb-1">Phiên tư vấn đã hoàn thành</p>
-              <p className="text-[12px] text-green-700 mb-3">Cố vấn đã hoàn thành phiên tư vấn vào {formatDateTime(request.completedAt)}.</p>
+                <p className="text-[12px] text-green-700 mb-3">Cố vấn đã hoàn thành phiên tư vấn {request.completedAt ? `vào ${formatDateTime(request.completedAt)}.` : '.'}</p>
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => router.push(`/startup/mentorship-requests/${request.mentorshipID}/report`)}
@@ -523,7 +586,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
                   <FileText className="w-3.5 h-3.5" />
                   Xem báo cáo
                 </button>
-                {currentStatus !== "Finalized" && (
+                {currentStatus !== "Finalized" && !((request as any).feedbacks && (request as any).feedbacks.length > 0) && (
                   <button
                     onClick={() => router.push(`/startup/mentorship-requests/${request.mentorshipID}/feedback`)}
                     className="flex items-center gap-2 px-4 py-2 bg-white border border-green-200 text-green-700 rounded-xl text-[12px] font-semibold hover:bg-green-50 transition-all"

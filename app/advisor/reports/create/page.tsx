@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import { getMockSessions } from "@/services/advisor/advisor-consulting.mock";
+import { CreateMentorshipReport, GetAdvisorMentorshipById } from "@/services/advisor/advisor.api";
 import type { IConsultingSession } from "@/types/advisor-consulting";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -120,14 +121,27 @@ function CreateReportContent() {
 
   useEffect(() => {
     if (sessionId) {
-      const ses = getMockSessions().find(s => s.id === sessionId);
-      if (ses) {
-        setSession(ses);
-        setFormData(prev => ({
-          ...prev,
-          title: `Báo cáo tư vấn ${ses.objective} - ${ses.startup.displayName}`
-        }));
-      }
+        GetAdvisorMentorshipById(sessionId)
+          .then((res: any) => {
+            const Object = res.data;
+            if (Object) {
+              const mappedSes: any = {
+                id: null,
+                requestId: Object.mentorshipID?.toString() || Object.id?.toString(),
+                objective: Object.challengeDescription || Object.objective || "Buổi tư vấn",
+                scheduledStartAt: Object.scheduledStartAt || Object.updatedAt || new Date().toISOString(),
+                startup: {
+                  displayName: Object.startupName || Object.startup?.name || "Startup",
+                }
+              };
+              setSession(mappedSes as any);
+              setFormData(prev => ({
+                ...prev,
+                title: `Báo cáo tư vấn ${mappedSes.startup.displayName}`
+              }));
+            }
+          })
+          .catch(console.error);
     }
   }, [sessionId]);
 
@@ -140,19 +154,35 @@ function CreateReportContent() {
     if (activeStep > 1) setActiveStep(activeStep - 1);
   };
 
-  const handleSave = (status: 'DRAFT' | 'SUBMITTED') => {
+  const handleSave = async (status: 'DRAFT' | 'SUBMITTED') => {
     if (status === 'SUBMITTED' && !formData.title) {
         toast.error("Vui lòng nhập tiêu đề báo cáo ở Bước 1");
         setActiveStep(1);
         return;
     }
+    if (!session) return;
     
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      if (status === 'SUBMITTED') {
+        const payload: any = {
+          reportSummary: formData.title + "\n\n" + formData.summary,
+          detailedFindings: formData.discussionOverview + "\n\nKey Findings:\n" + formData.keyFindings + "\n\nRisks:\n" + formData.identifiedRisks,
+          recommendations: formData.advisorRecommendations + "\n\nNext Steps:\n" + formData.nextSteps + "\n\nDeliverables:\n" + formData.deliverablesSummary
+        };
+        if (session.id) {
+            payload.sessionId = parseInt(session.id);
+        }
+        await CreateMentorshipReport(session.requestId, payload);
+      }
       toast.success(status === 'DRAFT' ? "Đã lưu bản nháp thành công" : "Đã gửi báo cáo thành công!");
-      setIsSubmitting(false);
       router.push("/advisor/reports");
-    }, 1000);
+    } catch (error) {
+      toast.error("Có lỗi xảy ra khi nộp báo cáo");
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -588,3 +618,8 @@ export default function CreateReportPage() {
     </AdvisorShell>
   );
 }
+
+
+
+
+

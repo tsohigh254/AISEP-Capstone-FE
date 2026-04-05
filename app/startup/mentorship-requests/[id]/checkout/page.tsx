@@ -9,6 +9,8 @@ import {
   Calendar, Clock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { GetMentorshipById, GetAdvisorById, CreatePaymentLink } from "@/services/startup/startup-mentorship.api";
+import type { IMentorshipRequest, IAdvisorDetail } from "@/types/startup-mentorship";
 
 const formatVND = (n: number) => n.toLocaleString('vi-VN') + '₫';
 
@@ -40,58 +42,75 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
   const { id } = React.use(params);
   const router = useRouter();
 
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardName, setCardName] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvv, setCvv] = useState("");
-  const [cardType, setCardType] = useState<"visa" | "mastercard" | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const formatCardNumber = (val: string) => {
-    const digits = val.replace(/\D/g, "").slice(0, 16);
-    return digits.replace(/(.{4})/g, "$1 ").trim();
-  };
+  const [requestData, setRequestData] = useState<IMentorshipRequest | null>(null);
+  const [advisorData, setAdvisorData] = useState<IAdvisorDetail | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const formatExpiry = (val: string) => {
-    const digits = val.replace(/\D/g, "").slice(0, 4);
-    if (digits.length >= 3) return digits.slice(0, 2) + "/" + digits.slice(2);
-    return digits;
-  };
-
-  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value.replace(/\D/g, "");
-    setCardNumber(formatCardNumber(e.target.value));
-    if (raw.startsWith("4")) setCardType("visa");
-    else if (raw.startsWith("5")) setCardType("mastercard");
-    else setCardType(null);
-  };
-
-  const validate = () => {
-    const errors: Record<string, string> = {};
-    if (cardNumber.replace(/\s/g, "").length < 16) errors.cardNumber = "Số thẻ không hợp lệ.";
-    if (!cardName.trim()) errors.cardName = "Vui lòng nhập tên chủ thẻ.";
-    if (expiry.length < 5) errors.expiry = "Ngày hết hạn không hợp lệ.";
-    if (cvv.length < 3) errors.cvv = "CVV không hợp lệ.";
-    return errors;
-  };
-
-  const handlePay = () => {
-    const errors = validate();
-    if (Object.keys(errors).length > 0) { setFieldErrors(errors); return; }
-    setFieldErrors({});
-    setIsProcessing(true);
-    // Simulate a payment — 80% success for demo
-    setTimeout(() => {
-      setIsProcessing(false);
-      const success = Math.random() > 0.2;
-      router.push(
-        `/startup/mentorship-requests/${id}/checkout/result?status=${success ? "success" : "failed"}&ref=PAY-${Date.now().toString().slice(-8)}`
-      );
-    }, 2200);
-  };
+  React.useEffect(() => {
+    const loadData = async () => {
+      try {
+        const res = await GetMentorshipById(Number(id));
+        if (res.isSuccess && res.data) {
+          setRequestData(res.data);
+          try {
+            // Also fetch the advisor full profile to get the hourlyRate
+            const advRes = await GetAdvisorById(res.data.advisorID || (res.data.advisor as any)?.advisorID || (res.data as any).advisorId);
+            // The interceptor might unwrap axios response
+            setAdvisorData((advRes as any).data || (advRes as any));
+          } catch (advErr) {
+            console.error("Failed to load advisor details", advErr);
+          }
+        }
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, [id]);
 
   const data = MOCK_CHECKOUT;
+  const sessions = (requestData as any)?.sessions || [];
+  const firstSession = sessions.slice().reverse().find((s: any) => s.meetingUrl || s.meetingURL || s.meetingLink) || sessions[sessions.length - 1] || null;
+
+  const actualPrice = advisorData?.hourlyRate || (requestData as any)?.advisor?.hourlyRate || 0; // The price strictly depends on the advisor's hourly rate setting
+  const actualDuration = requestData?.durationMinutes || firstSession?.durationMinutes || 60;
+  const actualTopic = requestData?.objective || (requestData as any)?.challengeDescription || data.topic;
+  const actualTotal = Math.round((actualPrice / 60) * actualDuration) || 0; // Time proportion
+
+  const handlePay = async () => {
+    setIsProcessing(true);
+    // Bypass: Giả lập thanh toán thành công để test luồng
+    // Ở đây sẽ điều hướng thẳng qua trang Result với status=success
+    setTimeout(() => {
+      setIsProcessing(false);
+      const orderCode = parseInt(Date.now().toString().slice(-8), 10);
+      try {
+        localStorage.setItem(`mentorship_paid_${id}`, "true");
+      } catch (e) {}
+      router.push(`/startup/mentorship-requests/${id}/checkout/result?status=success&ref=${orderCode}`);
+    }, 1500);
+  };
+  const scheduledAt = requestData?.scheduledAt || firstSession?.scheduledStartAt || null;
+  const scheduledDateLabel = scheduledAt ? new Date(scheduledAt).toLocaleDateString("vi-VN", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : data.agreedTime.date;
+  const scheduledTimeLabel = scheduledAt ? `${new Date(scheduledAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} (GMT+7)` : data.agreedTime.time;
+
+  const actualAdvisorName = advisorData?.fullName || requestData?.advisor?.fullName || (requestData as any)?.advisorName || "Đang cập nhật...";
+  const actualAdvisorTitle = advisorData?.title || requestData?.advisor?.title || "Cố vấn chuyên môn";
+  const actualAdvisorPhoto = advisorData?.profilePhotoURL || requestData?.advisor?.profilePhotoURL || data.advisor.avatar;
+  const actualAdvisorRating = advisorData?.averageRating || requestData?.advisor?.averageRating || 5.0;
+  const actualIsVerified = advisorData?.isVerified ?? true;
+
+  if (loading) {
+    return (
+      <StartupShell>
+        <div className="max-w-[960px] mx-auto pt-20 text-center text-slate-400 text-[13px]">Đang tải...</div>
+      </StartupShell>
+    );
+  }
 
   return (
     <StartupShell>
@@ -114,106 +133,24 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
             {/* Secure badge */}
             <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 border border-emerald-100 rounded-xl">
               <Lock className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="text-[12px] font-semibold text-emerald-700">Thanh toán được mã hoá và bảo mật bởi AISEP</span>
+              <span className="text-[12px] font-semibold text-emerald-700">Thanh toán bảo mật & tiện lợi qua PayOS (VietQR)</span>
             </div>
 
-            {/* Card Form */}
+            {/* Payment Method Selector */}
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-7">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center">
-                    <CreditCard className="w-4 h-4 text-amber-500" />
-                  </div>
-                  <h2 className="text-[16px] font-bold text-slate-900">Thông tin thẻ thanh toán</h2>
+              <h2 className="text-[16px] font-bold text-slate-900 mb-5">Phương thức thanh toán</h2>
+              
+              <div className="border-2 border-blue-500 bg-blue-50/30 rounded-xl p-4 relative cursor-pointer transition-all">
+                <div className="absolute top-4 right-4 text-blue-500">
+                  <CheckCircle2 className="w-5 h-5" />
                 </div>
-                {/* Card logos */}
-                <div className="flex items-center gap-2">
-                  <div className={cn("px-2.5 py-1 rounded-md border text-[10px] font-black tracking-wide transition-all",
-                    cardType === "visa" ? "bg-blue-600 text-white border-blue-600" : "bg-slate-50 text-slate-400 border-slate-200"
-                  )}>VISA</div>
-                  <div className={cn("px-2 py-1 rounded-md border text-[10px] font-black tracking-wide transition-all",
-                    cardType === "mastercard" ? "bg-orange-500 text-white border-orange-500" : "bg-slate-50 text-slate-400 border-slate-200"
-                  )}>MC</div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                {/* Card Number */}
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Số thẻ</label>
-                  <div className={cn(
-                    "relative flex items-center border rounded-xl overflow-hidden transition-all",
-                    fieldErrors.cardNumber ? "border-red-300 bg-red-50" : "border-slate-200 bg-white focus-within:border-amber-400 focus-within:ring-2 focus-within:ring-amber-100"
-                  )}>
-                    <CreditCard className="w-4 h-4 text-slate-300 ml-3.5 flex-shrink-0" />
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="0000 0000 0000 0000"
-                      value={cardNumber}
-                      onChange={handleCardNumberChange}
-                      className="flex-1 px-3 py-3 text-[14px] font-mono text-slate-800 bg-transparent outline-none placeholder:text-slate-300"
-                    />
-                  </div>
-                  {fieldErrors.cardNumber && <p className="mt-1 text-[11px] text-red-500">{fieldErrors.cardNumber}</p>}
-                </div>
-
-                {/* Cardholder Name */}
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Tên chủ thẻ</label>
-                  <input
-                    type="text"
-                    placeholder="NGUYEN VAN A"
-                    value={cardName}
-                    onChange={e => setCardName(e.target.value.toUpperCase())}
-                    className={cn(
-                      "w-full px-4 py-3 text-[14px] text-slate-800 border rounded-xl outline-none transition-all uppercase",
-                      fieldErrors.cardName
-                        ? "border-red-300 bg-red-50"
-                        : "border-slate-200 bg-white focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-                    )}
-                  />
-                  {fieldErrors.cardName && <p className="mt-1 text-[11px] text-red-500">{fieldErrors.cardName}</p>}
-                </div>
-
-                {/* Expiry + CVV */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Ngày hết hạn</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="MM/YY"
-                      value={expiry}
-                      onChange={e => setExpiry(formatExpiry(e.target.value))}
-                      className={cn(
-                        "w-full px-4 py-3 text-[14px] font-mono text-slate-800 border rounded-xl outline-none transition-all",
-                        fieldErrors.expiry
-                          ? "border-red-300 bg-red-50"
-                          : "border-slate-200 bg-white focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-                      )}
-                    />
-                    {fieldErrors.expiry && <p className="mt-1 text-[11px] text-red-500">{fieldErrors.expiry}</p>}
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-white rounded-lg border border-slate-100 shadow-sm flex items-center justify-center flex-shrink-0">
+                    <img src="https://payos.vn/wp-content/uploads/sites/13/2023/07/payos-logo.svg" alt="PayOS" className="w-8 object-contain" />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                      <span className="flex items-center gap-1">CVV <Info className="w-3 h-3 text-slate-300" /></span>
-                    </label>
-                    <input
-                      type="password"
-                      inputMode="numeric"
-                      placeholder="•••"
-                      maxLength={4}
-                      value={cvv}
-                      onChange={e => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                      className={cn(
-                        "w-full px-4 py-3 text-[14px] font-mono text-slate-800 border rounded-xl outline-none transition-all",
-                        fieldErrors.cvv
-                          ? "border-red-300 bg-red-50"
-                          : "border-slate-200 bg-white focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-                      )}
-                    />
-                    {fieldErrors.cvv && <p className="mt-1 text-[11px] text-red-500">{fieldErrors.cvv}</p>}
+                    <h3 className="text-[14px] font-bold text-slate-900">Mã QR Ngân hàng (VietQR / PayOS)</h3>
+                    <p className="text-[12px] text-slate-500 mt-0.5">Dùng ứng dụng ngân hàng quét mã QR để thanh toán liền mạch</p>
                   </div>
                 </div>
               </div>
@@ -246,7 +183,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
               ) : (
                 <>
                   <Lock className="w-4.5 h-4.5" />
-                  Thanh toán {formatVND(data.sessionPrice)}
+                  Thanh toán {formatVND(actualTotal)}
                 </>
               )}
             </button>
@@ -263,17 +200,17 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Cố vấn</p>
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <img src={data.advisor.avatar} alt={data.advisor.name} className="w-12 h-12 rounded-xl object-cover border border-slate-100" />
-                  {data.advisor.isVerified && (
+                  <img src={actualAdvisorPhoto} alt={actualAdvisorName} className="w-12 h-12 rounded-xl object-cover border border-slate-100" />
+                  {actualIsVerified && (
                     <BadgeCheck className="absolute -bottom-1 -right-1 w-5 h-5 text-amber-500 bg-white rounded-full" />
                   )}
                 </div>
                 <div>
-                  <p className="text-[14px] font-bold text-slate-900 leading-none">{data.advisor.name}</p>
-                  <p className="text-[12px] text-slate-500 mt-0.5 leading-snug">{data.advisor.title}</p>
+                  <p className="text-[14px] font-bold text-slate-900 leading-none">{actualAdvisorName}</p>
+                  <p className="text-[12px] text-slate-500 mt-0.5 leading-snug">{actualAdvisorTitle}</p>
                   <div className="flex items-center gap-1 mt-1">
                     <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                    <span className="text-[12px] font-bold text-slate-600">{data.advisor.rating}</span>
+                    <span className="text-[12px] font-bold text-slate-600">{actualAdvisorRating}</span>
                   </div>
                 </div>
               </div>
@@ -283,14 +220,14 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Chi tiết phiên</p>
               <div className="space-y-2.5 text-[12px]">
-                <p className="text-slate-700 font-semibold leading-snug">{data.topic}</p>
+                <p className="text-slate-700 font-semibold leading-snug">{actualTopic}</p>
                 <div className="flex items-center gap-2 text-slate-500">
                   <Calendar className="w-3.5 h-3.5" />
-                  <span>{data.agreedTime.date}</span>
+                  <span>{scheduledDateLabel}</span>
                 </div>
                 <div className="flex items-center gap-2 text-slate-500">
                   <Clock className="w-3.5 h-3.5" />
-                  <span>{data.agreedTime.time}</span>
+                  <span>{scheduledTimeLabel}</span>
                 </div>
               </div>
             </div>
@@ -300,8 +237,8 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Chi phí</p>
               <div className="space-y-2 text-[13px]">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Phí tư vấn ({data.duration})</span>
-                  <span className="font-semibold text-slate-700">{formatVND(data.sessionPrice)}</span>
+                  <span className="text-slate-500">Phí tư vấn ({actualDuration}m)</span>
+                  <span className="font-semibold text-slate-700">{formatVND(actualTotal)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Phí nền tảng</span>
@@ -309,7 +246,7 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
                 </div>
                 <div className="pt-2 mt-1 border-t border-slate-100 flex justify-between items-center">
                   <span className="text-[14px] font-bold text-slate-800">Tổng cộng</span>
-                  <span className="text-[20px] font-black text-slate-900">{formatVND(data.sessionPrice)}</span>
+                  <span className="text-[20px] font-black text-slate-900">{formatVND(actualTotal)}</span>
                 </div>
               </div>
             </div>

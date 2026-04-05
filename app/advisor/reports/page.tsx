@@ -12,7 +12,7 @@ import { FormatBadge } from "@/components/advisor/consulting-format-badge";
 import type { IConsultationReport, ConsultationReportStatus } from "@/types/advisor-report";
 import type { IConsultingSession } from "@/types/advisor-consulting";
 import { getAdvisorReports } from "@/services/advisor/advisor-report.api";
-import { getMockSessions } from "@/services/advisor/advisor-consulting.mock";
+import { GetAdvisorMentorships } from "@/services/advisor/advisor.api";
 import { IssueReportModal, type IssueReportContext } from "@/components/shared/issue-report-modal";
 
 /* ─── Constants ──────────────────────────────────────────────── */
@@ -181,11 +181,20 @@ export default function AdvisorReportsPage() {
   useEffect(() => {
     async function init() {
       try {
-        const [repData, sesData] = await Promise.all([
+        const [repData, sesRes] = await Promise.all([
           getAdvisorReports(),
-          getMockSessions("COMPLETED")
+          GetAdvisorMentorships({ status: 'Completed', page: 1, pageSize: 100 }).catch(() => ({ data: { items: [], data: [] } }))
         ]);
         
+        const rawItems = (sesRes as any).data?.items || (sesRes as any).data?.data || [];
+        const sesData: IConsultingSession[] = rawItems.map((s: any) => ({
+           id: s.mentorshipID?.toString() || s.id?.toString(),
+           requestId: s.mentorshipID?.toString() || s.id?.toString(),
+           objective: s.challengeDescription || s.topicsDiscussed || "Tư vấn khởi nghiệp",
+           startup: { displayName: s.startupName || s.startup?.name || "Startup" },
+           completedAt: s.completedAt || s.createdAt || new Date().toISOString()
+        }));
+
         // Filter sessions that don't have reports yet
         const existingSessionIds = new Set(repData.map(r => r.sessionId));
         const pending = sesData.filter(s => !existingSessionIds.has(s.id));

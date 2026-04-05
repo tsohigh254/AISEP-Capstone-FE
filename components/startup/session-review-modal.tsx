@@ -18,11 +18,13 @@ import {
     CheckCircle2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SubmitMentorshipFeedback } from "@/services/startup/startup-mentorship.api";
 
 interface SessionReviewModalProps {
     isOpen: boolean;
     onClose: () => void;
     session: {
+        id?: number;
         advisorName: string;
         advisorAvatar: string;
         topic: string;
@@ -38,20 +40,28 @@ export function SessionReviewModal({ isOpen, onClose, session }: SessionReviewMo
     const [isSuccess, setIsSuccess] = useState(false);
 
     const handleSubmit = async () => {
-        if (rating === 0) return;
+        if (rating === 0 || !session?.id) return;
 
         setIsSubmitting(true);
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        setIsSubmitting(false);
-        setIsSuccess(true);
-
-        setTimeout(() => {
-            onClose();
-            setIsSuccess(false);
-            setRating(0);
-            setFeedback("");
-        }, 2000);
+        try {
+            const res = await SubmitMentorshipFeedback(session.id, {
+                rating: rating,
+                comment: feedback
+            });
+            
+            setIsSubmitting(false);
+            setIsSuccess(true);
+            setTimeout(() => {
+                onClose();
+                setIsSuccess(false);
+                setRating(0);
+                setFeedback("");
+            }, 2000);
+        } catch (error) {
+            setIsSubmitting(false);
+            // Handle error silently or log
+            console.error("Failed to submit feedback", error);
+        }
     };
 
     if (!session) return null;

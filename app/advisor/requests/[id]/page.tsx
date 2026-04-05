@@ -49,7 +49,8 @@ import {
   ScheduleMentorshipRequest,
   CancelMentorshipRequest,
   ProposeMentorshipSlots,
-  GetMentorshipReport
+  GetMentorshipReport,
+  CompleteMentorship
 } from "@/services/advisor/advisor.api";
 import { mapMentorshipToConsultingRequest } from "@/services/advisor/advisor.mapper";
 /* ─── Constants ──────────────────────────────────────────────── */
@@ -213,6 +214,7 @@ const requestId = params.id as string;
   ]);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [completeOpen, setCompleteOpen] = useState(false);
   const [acceptOpen, setAcceptOpen] = useState(false);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [proposedTimezone, setProposedTimezone] = useState("Asia/Ho_Chi_Minh");
@@ -270,8 +272,8 @@ const requestId = params.id as string;
         const res = await GetAdvisorProfile();
         if (res.isSuccess && res.data) {
           setAdvisorLinks({
-            googleMeet: (res.data as any).googleMeetLink,
-            msTeams: (res.data as any).msTeamsLink,
+            googleMeet: (res.data as any).googleMeetLink || (res.data as any).GoogleMeetLink,
+            msTeams: (res.data as any).msTeamsLink || (res.data as any).MsTeamsLink,
           });
         }
       } catch (error) {
@@ -301,12 +303,17 @@ const handleAcceptConfirm = async () => {
       await AcceptMentorshipRequest(requestId);
       
       // Then schedule with the selected slot data
+      const preferredLink = request.preferredFormat === "MICROSOFT_TEAMS" ? advisorLinks?.msTeams : advisorLinks?.googleMeet;
+      const alternativeLink = advisorLinks?.googleMeet || advisorLinks?.msTeams || "";
+      const finalMeetingLink = preferredLink || alternativeLink || "https://meet.google.com/test-ai-fallback";
+      
       const schedulePayload = {
         startAt: slot.startAt,
         endAt: slot.endAt,
         timezone: slot.timezone,
-        meetingLink: request.preferredFormat === "MICROSOFT_TEAMS" ? advisorLinks?.msTeams || "" : advisorLinks?.googleMeet || ""
+        meetingLink: finalMeetingLink
       };
+      console.log("PAYLOAD:", schedulePayload, advisorLinks);
       const res = await ScheduleMentorshipRequest(requestId, schedulePayload);
       
       if (res.isSuccess || res.success) {
@@ -503,6 +510,20 @@ const handleCancelConfirm = async () => {
     }
   };
 
+  const handleCompleteConfirm = async () => {
+    try {
+      const res = await CompleteMentorship(requestId);
+      if (res.isSuccess || res.success || (res as any).status === 200 || !(res as any).error) {   
+        setRequest((prev: any) => ({ ...prev, status: "COMPLETED" }));
+        setCompleteOpen(false);
+        toast.success("Đã xác nhận hoàn thành buổi họp");
+      } else {
+        toast.error((res as any)?.message || "Lỗi khi xác nhận hoàn thành");    
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Đã xảy ra lỗi hệ thống");
+    }
+  };
   /* ─── Render ────────────────────────────────────────────────── */
 
   if (loading) {
@@ -881,6 +902,13 @@ const handleCancelConfirm = async () => {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setCompleteOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-white text-[13px] font-medium hover:bg-emerald-700 transition-colors shadow-sm"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      Xác nhận đã họp xong
+                    </button>
                     <button
                       onClick={() => setProposeOpen(true)}
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-[13px] font-medium hover:bg-slate-50 transition-colors"
@@ -1275,6 +1303,32 @@ const handleCancelConfirm = async () => {
               </button>
               <button onClick={handleCancelConfirm} className="px-4 py-2 rounded-xl bg-red-600 text-white text-[13px] font-medium hover:bg-red-700 transition-colors shadow-sm">
                 Xác nhận huỷ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Complete Dialog */}
+      {completeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[15px] font-semibold text-slate-900">Xác nhận hoàn thành</h3>
+              <button onClick={() => setCompleteOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 transition-colors">
+                <X className="w-4 h-4 text-slate-400" />
+              </button>
+            </div>
+            <div className="text-[13px] text-slate-600 mb-6 leading-relaxed">
+              Bạn có chắc chắn muốn đánh dấu buổi tư vấn này đã hoàn thành? Một khi được đánh dấu hoàn thành, bạn sẽ có thể gửi báo cáo tư vấn.
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setCompleteOpen(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-[13px] font-medium hover:bg-slate-50 transition-colors">
+                Huỷ đóng
+              </button>
+              <button onClick={handleCompleteConfirm} className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[13px] font-medium hover:bg-emerald-700 transition-colors shadow-sm inline-flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4" />
+                Xác nhận đã họp xong
               </button>
             </div>
           </div>

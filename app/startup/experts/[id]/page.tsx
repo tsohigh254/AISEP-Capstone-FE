@@ -180,7 +180,8 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
   // TODO: Determine hasActiveMentorship from a real API call (e.g. check if there is an active mentorship with this advisor)
   const hasActiveMentorship = false;
 
-  const totalReviews = (advisor.ratingBreakdown || []).reduce((s, b) => s + b.count, 0);
+    // Check if advisor has configured their hourly rate and durations
+    const isMissingRequiredInfo = typeof advisor.hourlyRate !== "number" || !advisor.supportedDurations || advisor.supportedDurations.length === 0;
 
   return (
     <StartupShell>
@@ -348,7 +349,7 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                           <div className="flex-1 bg-slate-100 rounded-full h-2">
                             <div
                               className="bg-amber-400 h-2 rounded-full transition-all"
-                              style={{ width: totalReviews > 0 ? `${(count / totalReviews) * 100}%` : "0%" }}
+                                style={{ width: (advisor.reviewCount || Number((advisor as any).totalReviews) || 0) > 0 ? `${(count / (advisor.reviewCount || Number((advisor as any).totalReviews) || 1)) * 100}%` : "0%" }}
                             />
                           </div>
                           <span className="text-[12px] text-slate-400 w-5">{count}</span>
@@ -563,3 +564,4 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
     </StartupShell>
   );
 }
+

@@ -91,6 +91,7 @@ export interface IConsultingRequest {
   cancelReason?: string;
   cancelledBy?: string;
   timeline: IConsultingActivity[];
+  feedbacks?: any[];
   advisorRespondedAt?: string;
   acceptedAt?: string;
   rejectedAt?: string;

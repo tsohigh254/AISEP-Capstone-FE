@@ -126,16 +126,112 @@ export default function ConsultingReportPage({ params }: { params: Promise<{ id:
         </div>
 
         {/* Report Content */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-7">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center">
-              <FileText className="w-4 h-4 text-blue-500" />
+        <div className="space-y-6">
+          {/* Tóm tắt */}
+          {(report.summary || report.title) && (
+             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-7">
+               <div className="flex items-center gap-3 mb-5">
+                 <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center">
+                   <Star className="w-4 h-4 text-amber-500" />
+                 </div>
+                 <h2 className="text-[15px] font-bold text-slate-900">{report.title || "Tóm tắt"}</h2>
+               </div>
+               <div className="text-[14px] text-slate-700 leading-relaxed bg-slate-50/50 p-4 rounded-xl border border-slate-100 font-medium whitespace-pre-wrap">
+                 {report.summary}
+               </div>
+             </div>
+          )}
+
+          {/* Nội dung tư vấn */}
+          {(report.discussionOverview || report.keyFindings) && (
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-7">
+               <div className="flex items-center gap-3 mb-5">
+                 <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center">
+                   <FileText className="w-4 h-4 text-blue-500" />
+                 </div>
+                 <h2 className="text-[15px] font-bold text-slate-900">Nội dung tư vấn</h2>
+               </div>
+               <div className="space-y-6">
+                 {report.discussionOverview && (
+                   <div>
+                       <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Nội dung đã thảo luận</h4>
+                       <div className="text-[14px] text-slate-700 leading-relaxed bg-slate-50/50 p-4 rounded-xl border border-slate-100 font-medium whitespace-pre-wrap">
+                           {report.discussionOverview}
+                       </div>
+                   </div>
+                 )}
+                 {report.keyFindings && (
+                   <div>
+                       <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 mt-6">Phát hiện chính (Key Findings)</h4>
+                       <div className="text-[14px] text-slate-700 leading-relaxed bg-slate-50/50 p-4 rounded-xl border border-slate-100 font-medium whitespace-pre-wrap">
+                           {report.keyFindings}
+                       </div>
+                   </div>
+                 )}
+                 {report.identifiedRisks && (
+                   <div>
+                       <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 mt-6">Rủi ro nhận diện</h4>
+                       <div className="text-[14px] text-rose-700 leading-relaxed bg-rose-50/50 p-4 rounded-xl border border-rose-100 font-medium whitespace-pre-wrap">
+                           {report.identifiedRisks}
+                       </div>
+                   </div>
+                 )}
+               </div>
             </div>
-            <h2 className="text-[15px] font-bold text-slate-900">Nội dung báo cáo</h2>
-          </div>
-          <div className="text-[14px] text-slate-700 leading-relaxed whitespace-pre-wrap">
-            {report.content}
-          </div>
+          )}
+
+          {/* Khuyến nghị & Kết luận */}
+          {(report.advisorRecommendations || report.nextSteps) && (
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-7">
+               <div className="flex items-center gap-3 mb-5">
+                 <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
+                   <BadgeCheck className="w-4 h-4 text-emerald-500" />
+                 </div>
+                 <h2 className="text-[15px] font-bold text-slate-900">Khuyến nghị & Kết quả đầu ra</h2>
+               </div>
+               <div className="space-y-6">
+                 {report.advisorRecommendations && (
+                   <div>
+                       <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Khuyến nghị từ cố vấn</h4>
+                       <div className="text-[14px] text-emerald-700 leading-relaxed bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 font-medium whitespace-pre-wrap">
+                           {report.advisorRecommendations}
+                       </div>
+                   </div>
+                 )}
+                 {report.nextSteps && (
+                   <div>
+                       <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 mt-6">Các bước tiếp theo (Next Steps)</h4>
+                       <div className="text-[14px] text-slate-700 leading-relaxed bg-slate-50/50 p-4 rounded-xl border border-slate-100 font-medium whitespace-pre-wrap">
+                           {report.nextSteps}
+                       </div>
+                   </div>
+                 )}
+                 {report.deliverablesSummary && (
+                   <div>
+                       <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 mt-6">Tài liệu / Deliverables</h4>
+                       <div className="text-[14px] text-slate-700 leading-relaxed bg-slate-50/50 p-4 rounded-xl border border-slate-100 font-medium whitespace-pre-wrap">
+                           {report.deliverablesSummary}
+                       </div>
+                   </div>
+                 )}
+               </div>
+            </div>
+          )}
+
+          {/* Fallback to raw content if new fields aren't populated */}
+          {(!report.summary && !report.discussionOverview && !report.advisorRecommendations) && (
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-7">
+               <div className="flex items-center gap-3 mb-5">
+                 <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center">
+                   <FileText className="w-4 h-4 text-blue-500" />
+                 </div>
+                 <h2 className="text-[15px] font-bold text-slate-900">Nội dung báo cáo</h2>
+               </div>
+               <div className="text-[14px] text-slate-700 leading-relaxed whitespace-pre-wrap">
+                 {report.content}
+               </div>
+            </div>
+          )}
         </div>
 
         {/* CTA Footer */}

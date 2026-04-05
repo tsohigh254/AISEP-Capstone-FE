@@ -161,7 +161,7 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
 
     if (!isOpen || !mentor) return null;
 
-    const sessionPrice = mentor.hourlyRate ? Math.round(mentor.hourlyRate * parseInt(duration) / 60) : null;;
+    const sessionPrice = mentor.hourlyRate !== undefined && mentor.hourlyRate !== null ? Math.round(mentor.hourlyRate * parseInt(duration) / 60) : null;
 
     return (
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
@@ -253,7 +253,7 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                                     <span className="text-[11px] text-slate-400">Chọn một hoặc nhiều</span>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                    {(mentor?.expertise || []).map(exp => {
+                                    {((mentor?.expertise && mentor.expertise.length > 0) ? mentor.expertise : Object.keys(EXPERTISE_DICT)).map(exp => {
                                         const opt = { value: exp, label: EXPERTISE_DICT[exp] || exp };
                                         const active = scope.includes(opt.value);
                                         return (
@@ -305,7 +305,7 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                             <div className="space-y-2">
                                 <span className="text-[12.5px] font-semibold text-slate-700">Thời lượng</span>
                                 <div className="p-1 bg-slate-50 border border-slate-200 rounded-xl flex gap-1">
-                                    {(mentor?.supportedDurations || [30, 60, 90]).map(d => (
+                                    {(mentor?.supportedDurations?.length ? mentor.supportedDurations : [30, 60, 90]).map(d => (
                                         <button key={d} type="button" onClick={() => setDuration(String(d))}
                                             className={cn(
                                                 "flex-1 flex items-center justify-center py-2 rounded-[9px] text-[12px] font-semibold transition-all",
@@ -316,6 +316,16 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                                             {d} phút
                                         </button>
                                     ))}
+                                </div>
+                                <div className="mt-3 flex items-center justify-between px-4 py-3 bg-amber-50 border border-amber-100 rounded-xl">
+                                    <div>
+                                        <p className="text-[10.5px] font-semibold text-amber-600 uppercase tracking-wide mb-0.5">Giá phiên tư vấn</p>
+                                        <p className="text-[22px] font-black text-amber-700 leading-none">{(sessionPrice === 0 || sessionPrice === null) ? "Miễn phí" : formatVND(sessionPrice)}</p>
+                                    </div>
+                                    <div className="text-right text-[11px] text-amber-600/80 space-y-0.5">
+                                        <p>{duration} phút · {(!mentor.hourlyRate || mentor.hourlyRate === 0) ? "Miễn phí" : formatVND(mentor.hourlyRate)}/giờ</p>
+                                        {(sessionPrice !== null && sessionPrice > 0) && <p className="text-[10px] text-amber-500 font-medium italic">Chỉ thanh toán sau khi lịch được xác nhận</p>}
+                                    </div>
                                 </div>
                             </div>
 
@@ -381,20 +391,6 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                                     Đề xuất tối đa 3 khung giờ bạn sẵn sàng. Cố vấn sẽ chọn hoặc đề xuất lại.
                                 </p>
                             </div>
-
-                            {/* Session Price Preview */}
-                            {sessionPrice !== null && (
-                                <div className="flex items-center justify-between px-4 py-3 bg-amber-50 border border-amber-100 rounded-xl">
-                                    <div>
-                                        <p className="text-[10.5px] font-semibold text-amber-600 uppercase tracking-wide mb-0.5">Giá phiên tư vấn</p>
-                                        <p className="text-[22px] font-black text-amber-700 leading-none">{formatVND(sessionPrice)}</p>
-                                    </div>
-                                    <div className="text-right text-[11px] text-amber-600/80 space-y-0.5">
-                                        <p>{duration} phút · {formatVND(mentor.hourlyRate!)}/giờ</p>
-                                        <p className="text-[10px] text-amber-500 font-medium italic">Chỉ thanh toán sau khi lịch được xác nhận</p>
-                                    </div>
-                                </div>
-                            )}
                         </>
                     )}
                 </div>

@@ -82,11 +82,23 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
     );
   }
 
-  const advisor = request?.advisor;
-  const sessionDate = request?.scheduledAt
-    ? new Date(request.scheduledAt).toLocaleDateString("vi-VN", { day: "numeric", month: "long", year: "numeric" })
+  const sessions = (request as any)?.sessions || [];
+  const firstSession = sessions.slice().reverse().find((s: any) => s.meetingUrl || s.meetingURL || s.meetingLink) || sessions[sessions.length - 1] || null;
+
+  const advisor = request?.advisor || {
+    fullName: (request as any)?.advisorName,
+    title: "Cố vấn viên",
+    profilePhotoURL: "",
+    averageRating: null
+  };
+
+  const actualDate = request?.scheduledAt || firstSession?.scheduledStartAt || firstSession?.actualStartTime;
+  const sessionDate = actualDate
+    ? new Date(actualDate).toLocaleDateString("vi-VN", { day: "numeric", month: "long", year: "numeric" })
     : "—";
+
   const duration = request?.durationMinutes ? `${request.durationMinutes} phút` : "—";
+  const objective = request?.objective || (request as any)?.challengeDescription || "Tư vấn khởi nghiệp";
 
   return (
     <StartupShell>
@@ -136,13 +148,19 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4">Phiên tư vấn</p>
               <div className="flex items-center gap-4">
                 <div className="relative">
-                  <img src={advisor?.profilePhotoURL || "/images/placeholder-avatar.png"} alt={advisor?.fullName} className="w-14 h-14 rounded-xl object-cover border border-slate-100" />
+                  {advisor?.profilePhotoURL && advisor.profilePhotoURL.trim() !== "" ? (
+                    <img src={advisor.profilePhotoURL} alt={advisor.fullName} className="w-14 h-14 rounded-xl object-cover border border-slate-100" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center">
+                      <span className="text-xl font-bold text-slate-400">{advisor?.fullName?.charAt(0)?.toUpperCase() || "?"}</span>
+                    </div>
+                  )}
                   <BadgeCheck className="absolute -bottom-1 -right-1 w-5 h-5 text-amber-500 bg-white rounded-full" />
                 </div>
                 <div className="flex-1">
                   <p className="text-[15px] font-bold text-slate-900">{advisor?.fullName ?? "—"}</p>
                   <p className="text-[12px] text-slate-500 mt-0.5">{advisor?.title ?? "—"}</p>
-                  <p className="text-[12px] text-slate-400 mt-1">{request?.objective ?? "—"}</p>
+                  <p className="text-[12px] text-slate-400 mt-1">{objective}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-[11px] text-slate-400">{sessionDate}</p>

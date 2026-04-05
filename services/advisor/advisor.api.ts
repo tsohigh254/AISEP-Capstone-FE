@@ -153,30 +153,65 @@ export const GetAdvisorMentorshipById = (id: string) => {
   return axios.get<IBackendRes<IMentorshipRequest>>(`/api/mentorships/${id}`);
 };
 
+export const CompleteMentorship = (id: string | number) => {
+  return axios.put<IBackendRes<IMentorshipRequest>>(`/api/mentorships/${id}/complete`);
+};
+
 export const AcceptMentorshipRequest = (id: string) => {
-  return axios.put<IBackendRes<any>>(`/api/mentorships/${id}/accept`);
+  return axios.post<IBackendRes<any>>(`/api/mentorships/${id}/accept`);
 };
 
 export const RejectMentorshipRequest = (id: string, reason: string) => {
-  return axios.put<IBackendRes<any>>(`/api/mentorships/${id}/reject`, { reason });
+  return axios.post<IBackendRes<any>>(`/api/mentorships/${id}/reject`, { reason });
 };
 
 export const ScheduleMentorshipRequest = (id: string, payload: { startAt: string; endAt: string; meetingLink?: string; timezone?: string }) => {
-  return axios.put<IBackendRes<any>>(`/api/mentorships/${id}/schedule`, payload);
+  const startDate = new Date(payload.startAt);
+  const endDate = new Date(payload.endAt);
+  const durationMinutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000) || 60;
+  
+  return axios.post<IBackendRes<any>>(`/api/mentorships/${id}/sessions`, {
+    scheduledStartAt: payload.startAt,
+    durationMinutes,
+    sessionFormat: payload.meetingLink && payload.meetingLink.includes("teams") ? "MicrosoftTeams" : "GoogleMeet",
+    meetingUrl: payload.meetingLink || ""
+  });
 };
 
 export const CancelMentorshipRequest = (id: string, reason: string) => {
   return axios.put<IBackendRes<any>>(`/api/mentorships/${id}/cancel`, { reason });
 };
 
-// Đề xuất thời gian khác
+// Đề xuất thời gian — tạo session qua endpoint thực tế của backend
 export const ProposeMentorshipSlots = (id: string, payload: { requestedSlots: { startAt: string; endAt: string; timezone: string; note?: string }[] }) => {
-  return axios.put<IBackendRes<any>>(`/api/mentorships/${id}/propose-slots`, payload);
+  // Backend chỉ hỗ trợ tạo từng session, lấy slot đầu tiên để tạo
+  const slot = payload.requestedSlots[0];
+  if (!slot) return Promise.reject(new Error("No slots provided"));
+  
+  const startDate = new Date(slot.startAt);
+  const endDate = new Date(slot.endAt);
+  const durationMinutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000) || 60;
+  
+  return axios.post<IBackendRes<any>>(`/api/mentorships/${id}/sessions`, {
+    scheduledStartAt: slot.startAt,
+    durationMinutes,
+    sessionFormat: "GoogleMeet",
+    meetingUrl: ""
+  });
 };
 
 // Lấy báo cáo tư vấn (nếu có)
 export const GetMentorshipReport = (id: string) => {
-  return axios.get<IBackendRes<any>>(`/api/mentorships/${id}/report`);
+  return axios.get<IBackendRes<any>>(`/api/mentorships/reports/${id}`);
+};
+
+export const CreateMentorshipReport = (id: string, payload: {
+  sessionId?: number;
+  reportSummary: string;
+  detailedFindings?: string;
+  recommendations?: string;
+}) => {
+  return axios.post<IBackendRes<any>>(`/api/mentorships/${id}/reports`, payload);
 };
 
 // Lấy danh sách buổi tư vấn (advisor gọi)

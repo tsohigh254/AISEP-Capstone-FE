@@ -35,23 +35,7 @@ export default function StartupDashboardPage() {
   const [showProfile, setShowProfile] = useState(false);
   const [hasProfile, setHasProfile] = useState(true);
 
-  useEffect(() => {
-    // User explicitly chose to skip onboarding — respect that choice
-    if (localStorage.getItem("aisep_startup_onboarding_skipped") === "true") return;
 
-    GetStartupProfile()
-      .then(res => {
-        const data = res as unknown as IBackendRes<any>;
-        if (!(data.success || data.isSuccess) || !data.data) {
-          router.replace("/startup/onboard");
-        }
-      })
-      .catch(err => {
-        if (err?.response?.status === 404) {
-          router.replace("/startup/onboard");
-        }
-      });
-  }, []);
 
   const profileProgress = useCountUp(65, 1200, 0);
   const aiScore = useCountUp(84, 1200, 150);

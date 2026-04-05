@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import { FormatBadge } from "@/components/advisor/consulting-format-badge";
 import type { IConsultingRequest, ConsultingRequestStatus } from "@/types/advisor-consulting";
-import { GetAdvisorMentorships, AcceptMentorshipRequest } from "@/services/advisor/advisor.api";
+import { GetAdvisorMentorships, AcceptMentorshipRequest, GetMentorshipReport } from "@/services/advisor/advisor.api";
 import { mapMentorshipToConsultingRequest } from "@/services/advisor/advisor.mapper";
 import { toast } from "sonner";
 
@@ -90,11 +90,11 @@ function formatSlotPreview(dateStr: string): string {
 
 function RequestCard({
   req,
-  onAccept,
+  
   showUrgent,
 }: {
   req: IConsultingRequest;
-  onAccept?: (id: string) => void;
+  
   showUrgent?: boolean;
 }) {
   const initial = req.startup.displayName.charAt(0).toUpperCase();
@@ -192,15 +192,9 @@ function RequestCard({
       </Link>
 
       {/* Quick actions for PENDING */}
-      {isRequested && onAccept && (
+      {isRequested && (
         <div className="px-5 pb-4 flex items-center gap-2 border-t border-amber-100 pt-3 mt-0">
-          <button
-            onClick={e => { e.preventDefault(); onAccept(req.id); }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#0f172a] text-white text-[12px] font-semibold hover:bg-[#1e293b] transition-colors shadow-sm"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Chấp nhận
-          </button>
+          
           <Link
             href={`/advisor/requests/${req.id}`}
             className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-[12px] font-semibold hover:bg-slate-50 transition-colors"
@@ -221,30 +215,54 @@ export default function AdvisorRequestsPage() {
   const [search, setSearch] = useState("");
 
   // Confirm dialog state
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [requestToAccept, setRequestToAccept] = useState<string | null>(null);
+  
+  
 
 const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => { 
-    async function loadRequests() {
+    let isMounted = true;
+    async function loadRequests(showLoading = true) {
       try {
-        setIsLoading(true);
+        if (showLoading) setIsLoading(true);
         const res = await GetAdvisorMentorships({ pageSize: 100 });
 
-        // API now strictly returns IBackendRes<IPagingData<IMentorshipRequest>> 
         if (res.isSuccess || res.success) {
-           const itemsArray = res.data?.items || [];
+           const rawData = res.data as any;
+           const itemsArray = rawData?.items || rawData?.data || [];
            const mapped: IConsultingRequest[] = itemsArray.map(mapMentorshipToConsultingRequest);
-           setRequests(mapped);
+
+           await Promise.all(mapped.map(async (item) => {
+               if (item.status === "COMPLETED") {
+                   try {
+                       const reportRes = await GetMentorshipReport(item.id as any);
+                       if (reportRes.isSuccess && reportRes.data) {
+                           item.status = "FINALIZED";
+                       }
+                   } catch(e) {}
+               }
+           }));
+
+           if (isMounted) setRequests(mapped);
         }
       } catch(err) {
         console.error("Failed to load mentorships:", err);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     }
-    loadRequests();
+
+    loadRequests(true);
+    
+    // Polling background update without showing loading spinner
+    const interval = setInterval(() => {
+      loadRequests(false);
+    }, 5000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const counts = useMemo(() => {
@@ -252,7 +270,6 @@ const [isLoading, setIsLoading] = useState(true);
     for (const r of requests) if (r.status in c) c[r.status as keyof typeof c]++;
     return c;
   }, [requests]);
-
   const pending = useMemo(() => requests.filter(r => r.status === "PENDING"), [requests]);
 
   const filtered = useMemo(() => {
@@ -268,36 +285,8 @@ const [isLoading, setIsLoading] = useState(true);
     return list;
   }, [requests, activeTab, search]);
 
-  const handleQuickAccept = (id: string) => {
-    setRequestToAccept(id);
-    setIsConfirmOpen(true);
-  };
 
-  const onConfirmAccept = async () => {
-    if (!requestToAccept) return;
-    const id = requestToAccept;
-    
-    // Optimistic unmount
-    setIsConfirmOpen(false);
-    setRequestToAccept(null);
-
-    try {
-      const res = await AcceptMentorshipRequest(id);
-      if (res.isSuccess || res.success) {
-        setRequests(prev => prev.map(r =>
-          r.id === id
-            ? { ...r, status: "ACCEPTED" as ConsultingRequestStatus, acceptedAt: new Date().toISOString() }
-            : r
-        ));
-        toast.success("Đã chấp nhận yêu cầu tư vấn");
-      } else {
-        toast.error(res.message || "Không thể nhận yêu cầu này");
-      }
-    } catch (err) {
-      toast.error("Có lỗi xảy ra khi gọi API");
-      console.error(err);
-    }
-  };
+  ;
 
   // When tab = "all" and no search: group pending on top, rest below
   const showGrouped = activeTab === "all" && !search.trim() && pending.length > 0;
@@ -339,7 +328,7 @@ const [isLoading, setIsLoading] = useState(true);
             </div>
             <div className="space-y-2">
               {pending.map(req => (
-                <RequestCard key={req.id} req={req} onAccept={handleQuickAccept} showUrgent />
+                <RequestCard key={req.id} req={req}  showUrgent />
               ))}
             </div>
           </div>
@@ -408,53 +397,12 @@ const [isLoading, setIsLoading] = useState(true);
                 <RequestCard
                   key={req.id}
                   req={req}
-                  onAccept={req.status === "PENDING" ? handleQuickAccept : undefined}
+                  
                   showUrgent={req.status === "PENDING"}
                 />
               ))}
             </div>
           )
-        )}
-
-        {/* Confirmation Dialog */}
-        {isConfirmOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 animate-in zoom-in-95 duration-200">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[15px] font-semibold text-slate-900">Xác nhận chấp nhận</h3>
-                <button
-                  onClick={() => setIsConfirmOpen(false)}
-                  className="p-1 rounded-lg hover:bg-slate-100 transition-colors"
-                >
-                  <X className="w-4 h-4 text-slate-400" />
-                </button>
-              </div>
-
-              {/* Body */}
-              <div className="space-y-3">
-                <p className="text-[13px] text-slate-600 leading-relaxed">
-                  Bạn có chắc chắn muốn chấp nhận yêu cầu tư vấn này không? Hành động này sẽ thông báo cho Startup và cho phép bạn tiến hành lên lịch buổi tư vấn.
-                </p>
-              </div>
-
-              {/* Footer */}
-              <div className="flex justify-end gap-2 mt-6">
-                <button
-                  onClick={() => setIsConfirmOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-[13px] font-medium hover:bg-slate-50 transition-colors"
-                >
-                  Huỷ
-                </button>
-                <button
-                  onClick={onConfirmAccept}
-                  className="px-4 py-2 rounded-xl bg-[#0f172a] text-white text-[13px] font-medium hover:bg-[#1e293b] transition-colors shadow-sm"
-                >
-                  Xác nhận
-                </button>
-              </div>
-            </div>
-          </div>
         )}
       </div>
     </AdvisorShell>

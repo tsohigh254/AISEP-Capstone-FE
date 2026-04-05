@@ -231,9 +231,13 @@ function StartupAdvisorsPageInner() {
       }
       const res = await GetMentorships(params) as unknown as IBackendRes<IPagingData<IMentorshipRequest>>;
       if ((res.success || res.isSuccess) && res.data) {
-        setRequests(res.data.items ?? []);
-        if (res.data.paging) {
-          setRequestsTotalPages(Math.max(1, Math.ceil(res.data.paging.totalItems / res.data.paging.pageSize)));
+        // Backend PagedData uses "data" for items, FE type uses "items" — handle both
+        const rawData = res.data as any;
+        setRequests(rawData.items ?? rawData.data ?? []);
+        if (rawData.paging) {
+          setRequestsTotalPages(Math.max(1, Math.ceil(rawData.paging.totalItems / rawData.paging.pageSize)));
+        } else if (rawData.total !== undefined) {
+          setRequestsTotalPages(Math.max(1, Math.ceil(rawData.total / (rawData.pageSize || 15))));
         }
       }
     } catch {
@@ -266,10 +270,12 @@ function StartupAdvisorsPageInner() {
       ]);
       const items: IMentorshipRequest[] = [];
       if ((completedRes.success || completedRes.isSuccess) && completedRes.data) {
-        items.push(...(completedRes.data.items ?? []));
+        const raw = completedRes.data as any;
+        items.push(...(raw.items ?? raw.data ?? []));
       }
       if ((finalizedRes.success || finalizedRes.isSuccess) && finalizedRes.data) {
-        items.push(...(finalizedRes.data.items ?? []));
+        const raw = finalizedRes.data as any;
+        items.push(...(raw.items ?? raw.data ?? []));
       }
       setCompletedMentorships(items);
     } catch {
@@ -354,6 +360,7 @@ function StartupAdvisorsPageInner() {
 
   const handleOpenReview = (item: IMentorshipRequest) => {
     setSelectedSession({
+      id: item.mentorshipID || (item as any).id,
       advisorName: item.advisor?.fullName || "Cố vấn",
       advisorAvatar: item.advisor?.profilePhotoURL || "",
       topic: item.objective || "",

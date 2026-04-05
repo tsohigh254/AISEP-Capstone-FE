@@ -89,18 +89,7 @@ export default function LoginPage() {
 
     switch (type) {
       case "startup":
-        // Check if onboarding was already skipped or completed in this browser
-        if (typeof window !== "undefined") {
-          const skipped = localStorage.getItem("aisep_startup_onboarding_skipped") === "true";
-          const completed = localStorage.getItem("aisep_startup_onboarding_completed") === "true";
-          if (skipped || completed) {
-            router.push("/startup");
-          } else {
-            router.push("/startup/onboard");
-          }
-        } else {
-          router.push("/startup");
-        }
+        router.push("/startup");
         break;
       case "investor":
         router.push("/investor");

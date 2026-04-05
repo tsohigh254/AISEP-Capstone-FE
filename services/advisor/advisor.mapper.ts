@@ -1,24 +1,41 @@
-import type { IConsultingRequest, ConsultingRequestStatus } from "@/types/advisor-consulting";
+﻿import type { IConsultingRequest, ConsultingRequestStatus } from "@/types/advisor-consulting";
 import type { IMentorshipRequest } from "@/types/startup-mentorship";
 
 export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): IConsultingRequest => {
 
   // Map raw slots from BE `requestedSlots` or `preferredSlots` to UI `preferredSlots`
-  const rawSlots: any[] = (item as any).requestedSlots || (item as any).preferredSlots || (item as any).mentorshipRequestedSlots || (item as any).slots || [];
+  const sessions = (item as any).sessions || [];
+  const otherSlots: any[] = (item as any).requestedSlots || (item as any).preferredSlots || (item as any).mentorshipRequestedSlots || (item as any).slots || [];
+  const rawSlots = [...sessions, ...otherSlots];
 
   const mappedSlots = rawSlots.map((slot: any, idx) => {
     // Determine the status. If slot has an existing status use it, otherwise fallback depending on the item's status
-    let statusVal = slot.status ? (slot.status.toUpperCase() === "PENDING" ? "PROPOSED" : slot.status.toUpperCase()) : "PROPOSED";
+    const rawState = slot.status || slot.sessionStatus;
+    let statusVal = rawState ? (rawState.toUpperCase() === "PENDING" ? "PROPOSED" : rawState.toUpperCase()) : "PROPOSED";
     
+    let isProposedByStartup = slot.proposedBy?.toUpperCase() === "STARTUP";
+    if (rawState?.toUpperCase() === "PROPOSEDBYSTARTUP" || rawState?.toUpperCase() === "PROPOSED_BY_STARTUP") {
+        isProposedByStartup = true;
+        statusVal = "PROPOSED";
+    }
+
+    if (statusVal === "SCHEDULED") statusVal = "ACCEPTED";
+
+    const start = slot.startAt || slot.scheduledStartAt;
+    let end = slot.endAt;
+    if (!end && start) {
+        end = new Date(new Date(start).getTime() + (slot.durationMinutes || 60) * 60000).toISOString();
+    }
+
     return {
-      id: slot.id || `slot-${idx}`,
-      proposedBy: (slot.proposedBy?.toUpperCase()) as "STARTUP" | "ADVISOR" || "STARTUP",
-      startAt: slot.startAt,
-      endAt: slot.endAt,
+      id: slot.sessionID?.toString() || slot.id || `slot-${idx}`,
+      proposedBy: isProposedByStartup ? "STARTUP" : "ADVISOR",
+      startAt: start,
+      endAt: end,
       timezone: slot.timezone || "Asia/Ho_Chi_Minh",
-      status: statusVal as "PROPOSED" | "ACCEPTED" | "DECLINED" | "SUPERSEDED",
-      note: slot.note,
-      createdAt: slot.createdAt || item.createdAt || new Date().toISOString()
+      status: statusVal as "PROPOSED" | "ACCEPTED" | "DECLINED" | "SUPERSEDED", 
+      note: slot.note || slot.topicsDiscussed,
+      createdAt: slot.createdAt || (item as any).createdAt || new Date().toISOString()
     };
   });
 
@@ -30,6 +47,9 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
   if (rawStatus === "REQUESTED") normalizedStatus = "PENDING";
   else if (rawStatus === "INPROGRESS" || rawStatus === "IN_PROGRESS") normalizedStatus = "SCHEDULED";
   else normalizedStatus = rawStatus as ConsultingRequestStatus;
+    if (normalizedStatus === "COMPLETED" && (item as any).reports && (item as any).reports.length > 0) {
+      normalizedStatus = "FINALIZED";
+    }
 
   return {
     id: item.mentorshipID?.toString() || (item as any).id,
@@ -50,8 +70,9 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
     preferredFormat: (item.preferredFormat?.toUpperCase() === "GOOGLEMEET"
       ? "GOOGLE_MEET"
       : "MICROSOFT_TEAMS") as any,
-    preferredSlots,
-    slotProposals,
+    preferredSlots: preferredSlots as any,
+    slotProposals: slotProposals as any,
+    feedbacks: (item as any).feedbacks || [],
     confirmation: {
       startupConfirmedAt: (item as any).completionConfirmedByStartup || null,
       advisorConfirmedAt: (item as any).completionConfirmedByAdvisor || null,
@@ -88,6 +109,8 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
         actorType: item.cancelledBy === "Startup" ? "STARTUP" : "ADVISOR",
         createdAt: item.cancelledAt
       }] : []),
+            ...(((item as any).reports && (item as any).reports.length > 0) ? [{ id: "t7", actionType: "REPORT_SUBMITTED", actorType: "ADVISOR", createdAt: (item as any).reports[0].createdAt || item.completedAt }] : []),
+      ...(((item as any).feedbacks && (item as any).feedbacks.length > 0) ? [{ id: "t8", actionType: "FEEDBACK_SUBMITTED", actorType: "STARTUP", createdAt: (item as any).feedbacks[0].createdAt || item.completedAt }] : []),
       ...((item.completedAt) ? [{
         id: "t6",
         actionType: "SESSION_COMPLETED",

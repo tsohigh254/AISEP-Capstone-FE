@@ -11,6 +11,7 @@ export type MentorshipRequestStatus =
   | "Accepted"
   | "Rejected"
   | "Scheduled"
+  | "InProgress"
   | "Completed"
   | "Cancelled"
   | "Finalized";
@@ -113,7 +114,15 @@ export interface IMentorshipReport {
   reportID: number;
   mentorshipID: number;
   advisor: IMentorshipAdvisor;
-  content: string;
+  content: string; // Keep for backward compatibility
+  title?: string;
+  summary?: string;
+  discussionOverview?: string;
+  keyFindings?: string;
+  identifiedRisks?: string;
+  advisorRecommendations?: string;
+  nextSteps?: string;
+  deliverablesSummary?: string;
   createdAt: string;
 }
 

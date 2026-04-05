@@ -1,4 +1,5 @@
 import axios from "../interceptor";
+import { parseReportFields } from "@/lib/report-parser";
 import type {
   ICreateMentorshipRequest,
   ICancelMentorshipRequest,
@@ -78,8 +79,52 @@ export const SubmitMentorshipFeedback = (
   );
 };
 
-export const GetMentorshipReport = (mentorshipId: number) => {
-  return axios.get<IBackendRes<IMentorshipReport>>(
-    `/api/mentorships/${mentorshipId}/report`
-  );
+export const GetMentorshipReport = async (mentorshipId: number) => {
+  const response = await axios.get(`/api/mentorships/${mentorshipId}`);
+  const data = response.data as any;
+  const mentorship = data?.data || data;
+  const actualReport = mentorship?.reports?.[0];
+  
+  if (actualReport) {
+    const mappedReport = {
+      reportID: actualReport.reportID,
+      mentorshipID: actualReport.mentorshipID,
+      createdAt: actualReport.submittedAt || actualReport.createdAt || new Date().toISOString(),
+      ...parseReportFields(actualReport.reportSummary, actualReport.detailedFindings, actualReport.recommendations),
+      content: [
+         actualReport.reportSummary,
+         actualReport.detailedFindings,
+         actualReport.recommendations
+      ].filter(Boolean).join("\n\n"),
+      advisor: {
+        advisorID: mentorship.advisorID,
+        fullName: mentorship.advisorName || "Cố vấn",
+        title: "Chuyên gia / Cố vấn",
+        profilePhotoURL: ""
+      }
+    };
+    return {
+      isSuccess: true,
+      data: mappedReport as any,
+      message: data?.message
+    };
+  }
+  
+  return {
+    isSuccess: false,
+    data: null,
+    message: "Khong tim thay bao cao"
+  };
+};
+
+// ── Payment ──────────────────────────────────────────────────────────────────
+
+export const CreatePaymentLink = (data: {
+  amount: number;
+  orderCode: number;
+  description?: string;
+  returnUrl?: string;
+  cancelUrl?: string;
+}) => {
+  return axios.post("/api/Payment/create-payment-link", data);
 };
