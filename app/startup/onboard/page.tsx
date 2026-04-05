@@ -100,9 +100,6 @@ export default function OnboardingPage() {
         problemStatement: formData.problem || undefined,
         solutionSummary:  formData.solution || undefined,
         marketScope:      formData.targetAudience || undefined,
-        contactEmail:     "startup@aisep.local",
-        fullNameOfApplicant: "Startup User",
-        roleOfApplicant:  "Founder",
       };
       const res = await CreateStartupProfile(payload) as unknown as IBackendRes<string>;
       if (res.success || res.isSuccess) {
