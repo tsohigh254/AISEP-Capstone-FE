@@ -19,8 +19,8 @@ export const AddToWatchlist = (data: ICreateWatchlistItem) => {
 }
 
 export const SearchStartups = (page: number = 1, pageSize: number = 20) => {
-    return axios.get<IBackendRes<IPaginatedRes<IStartupSearchItem>>>(`/api/investors/search`, {
-        params: { page, pageSize }
+    return axios.get<IBackendRes<IPaginatedRes<any>>>(`/api/investors/search`, {
+        params: { page, pageSize, _t: new Date().getTime() }
     });
 }
 

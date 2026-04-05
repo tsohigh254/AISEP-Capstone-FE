@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
@@ -17,6 +18,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AcceptConnection, RejectConnection } from "@/services/connection/connection.api";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { InvestorConnectionModal } from "@/components/startup/investor-connection-modal";
@@ -96,6 +99,22 @@ export default function InvestorsPage() {
   const [connectedPage, setConnectedPage] = useState(1);
   const [connectedTotalPages, setConnectedTotalPages] = useState(1);
   const [connectedKeyword, setConnectedKeyword] = useState("");
+  const handleAcceptConnection = async (id: number) => {
+    try {
+      const res = await AcceptConnection(id) as any;
+      if (res.success) { toast.success("Đã chấp nhận kết nối"); fetchSent(sentPage); fetchConnected(connectedPage); }
+      else { toast.error("Có lỗi xảy ra"); }
+    } catch { toast.error("Có lỗi xảy ra"); }
+  };
+
+  const handleRejectConnection = async (id: number) => {
+    try {
+      const res = await RejectConnection(id, { reason: "Không phù hợp" }) as any;
+      if (res.success) { toast.success("Đã từ chối kết nối"); fetchSent(sentPage); }
+      else { toast.error("Có lỗi xảy ra"); }
+    } catch { toast.error("Có lỗi xảy ra"); }
+  };
+
 
   // ── Modal ──
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
@@ -112,9 +131,9 @@ export default function InvestorsPage() {
     try {
       const res = await SearchInvestors({ page, pageSize: 12, keyword: kw || undefined }) as any as IBackendRes<IPaginatedRes<IInvestorSearchItem>>;
       if (res.success && res.data) {
-        setInvestors(res.data.items);
-        setTotalPages(res.data.paging.totalPages ?? 1);
-        setTotalItems(res.data.paging.totalItems);
+        setInvestors((res.data as any).data || (res.data as any).items || (Array.isArray(res.data) ? res.data : []));
+        setTotalPages(((res.data as any).paging?.totalPages ?? Math.ceil(((res.data as any).total ?? 0) / 12)) || 1);
+        setTotalItems((res.data as any).paging?.totalItems ?? (res.data as any).total ?? 0);
       } else {
         setInvestors([]);
       }
@@ -138,7 +157,7 @@ export default function InvestorsPage() {
       const res = await GetReceivedConnections(1, 100) as any as IBackendRes<IPaginatedRes<IConnectionItem>>;
       if (res.success && res.data) {
         const map: Record<number, IConnectionItem> = {};
-        res.data.items.forEach(c => { map[c.investorID] = c; });
+        ((res.data as any).data || (res.data as any).items || []).forEach((c: any) => { map[c.investorID] = c; });
         setConnectionMap(map);
       }
     } catch { /* 403 hoặc lỗi khác → bỏ qua, nút hành động sẽ mặc định "Gửi lời mời" */ }
@@ -150,8 +169,8 @@ export default function InvestorsPage() {
     try {
       const res = await GetReceivedConnections(page, 10) as any as IBackendRes<IPaginatedRes<IConnectionItem>>;
       if (res.success && res.data) {
-        setSentConnections(res.data.items);
-        setSentTotalPages(res.data.paging.totalPages ?? 1);
+        setSentConnections((res.data as any).data || (res.data as any).items || (Array.isArray(res.data) ? res.data : []));
+        setSentTotalPages(((res.data as any).paging?.totalPages ?? Math.ceil(((res.data as any).total ?? 0) / 10)) || 1);
       }
     } catch { /* 403: BE chưa mở endpoint cho Startup */ } finally {
       setIsLoadingSent(false);
@@ -164,8 +183,8 @@ export default function InvestorsPage() {
     try {
       const res = await GetReceivedConnections(page, 10, "Accepted") as any as IBackendRes<IPaginatedRes<IConnectionItem>>;
       if (res.success && res.data) {
-        setConnected(res.data.items);
-        setConnectedTotalPages(res.data.paging.totalPages ?? 1);
+        setConnected((res.data as any).data || (res.data as any).items || (Array.isArray(res.data) ? res.data : []));
+        setConnectedTotalPages(((res.data as any).paging?.totalPages ?? Math.ceil(((res.data as any).total ?? 0) / 10)) || 1);
       }
     } catch { /* 403: BE chưa mở endpoint cho Startup */ } finally {
       setIsLoadingConnected(false);
@@ -319,56 +338,64 @@ export default function InvestorsPage() {
                 {investors.map((investor) => {
                   const conn = connectionMap[investor.investorID];
                   return (
-                    <div key={investor.investorID} className="group bg-white dark:bg-slate-900 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-2xl hover:shadow-yellow-500/5 hover:-translate-y-1.5 transition-all duration-500 overflow-hidden">
-                      <div className="p-8 text-center space-y-6">
-                        <div className="relative mx-auto size-24">
-                          <div className="absolute inset-0 bg-yellow-400/10 rounded-full blur-2xl group-hover:blur-3xl transition-all opacity-0 group-hover:opacity-100" />
-                          <InvestorAvatar
-                            name={investor.fullName}
-                            url={investor.profilePhotoURL}
-                            size="size-24 rounded-full border-4 border-slate-50 dark:border-slate-800 shadow-md transition-transform duration-500 group-hover:scale-105 relative"
-                          />
-                        </div>
-                        <div>
-                          <h3 className="text-[18px] font-black text-slate-900 dark:text-white group-hover:text-[#eec54e] transition-colors leading-tight">{investor.fullName}</h3>
-                          <p className="text-[12px] text-slate-400 font-semibold mt-1.5">{investor.title || investor.firmName}</p>
+                      <div key={investor.investorID} className="group bg-white dark:bg-slate-900 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-2xl hover:shadow-yellow-500/5 hover:-translate-y-1.5 transition-all duration-500 overflow-hidden flex flex-col h-full">
+                        <div className="p-8 text-center flex flex-col flex-1">
+<div className="relative mx-auto size-[84px] mb-5">
+                            <div className="absolute inset-0 bg-yellow-400/10 rounded-full blur-2xl group-hover:blur-3xl transition-all opacity-0 group-hover:opacity-100" />
+                            <InvestorAvatar
+                              name={investor.fullName}
+                              url={investor.profilePhotoURL}
+                              size="size-[84px] rounded-full border-4 border-slate-50 dark:border-slate-800 shadow-md transition-transform duration-500 group-hover:scale-105 relative"
+                            />
+                          </div>
+                            <div className="mb-5">
+                              <h3 className="text-[18px] font-bold text-slate-900 dark:text-white group-hover:text-[#eec54e] transition-colors leading-tight">{investor.fullName}</h3>
+                            <p className="text-[12px] text-slate-400 font-semibold mt-1.5">{investor.title || investor.firmName}</p>
+                          </div>
+
+<div className="grid grid-cols-3 gap-2 py-3 border-y border-slate-50 dark:border-slate-800 mb-4">
+                            <div className="text-center">
+                              <p className={cn(
+                                "text-[14px] leading-none",
+                                investor.portfolioCount != null ? "font-bold text-slate-900 dark:text-white" : "font-medium text-slate-300 dark:text-slate-600"
+                              )}>
+                                {investor.portfolioCount != null ? `${investor.portfolioCount}+` : "—"}
+                              </p>
+                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Portfolio</p>
+                            </div>
+                            <div className="text-center border-x border-slate-50 dark:border-slate-800">
+                              <p className={cn(
+                                "text-[14px] leading-none truncate",
+                                (investor.ticketSizeMin != null || investor.ticketSizeMax != null) ? "font-bold text-slate-900 dark:text-white" : "font-medium text-slate-300 dark:text-slate-600"
+                              )}>
+                                {formatTicketSize(investor.ticketSizeMin, investor.ticketSizeMax)}
+                              </p>
+                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Ticket Size</p>
+                            </div>
+                            <div className="text-center">
+                              <p className={cn(
+                                "text-[14px] leading-none",
+                                investor.matchScore != null ? "font-bold text-green-500" : "font-medium text-slate-300 dark:text-slate-600"
+                              )}>
+                                {investor.matchScore != null ? `${investor.matchScore}%` : "—"}
+                              </p>
+                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Match</p>
+                          </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2 py-4 border-y border-slate-50 dark:border-slate-800">
-                          <div className="text-center">
-                            <p className="text-[14px] font-black text-slate-900 dark:text-white leading-none">
-                              {investor.portfolioCount != null ? `${investor.portfolioCount}+` : "—"}
-                            </p>
-                            <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-1.5">Portfolio</p>
-                          </div>
-                          <div className="text-center border-x border-slate-50 dark:border-slate-800">
-                            <p className="text-[14px] font-black text-slate-900 dark:text-white leading-none truncate">
-                              {formatTicketSize(investor.ticketSizeMin, investor.ticketSizeMax)}
-                            </p>
-                            <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-1.5">Ticket Size</p>
-                          </div>
-                          <div className="text-center">
-                            <p className={cn(
-                              "text-[14px] font-black leading-none",
-                              investor.matchScore != null ? "text-green-500" : "text-slate-400"
-                            )}>
-                              {investor.matchScore != null ? `${investor.matchScore}%` : "—"}
-                            </p>
-                            <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-1.5">Match</p>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap justify-center gap-1.5">
-                          {(investor.preferredIndustries ?? []).slice(0, 3).map(tag => (
+                          {(investor.preferredIndustries ?? []).length > 0 && (
+                            <div className="flex flex-wrap justify-center gap-1.5 mb-4">
+                              {(investor.preferredIndustries ?? []).slice(0, 3).map(tag => (
                             <span key={tag} className="px-3 py-1.5 bg-[#f8fafc] dark:bg-slate-800 text-[10px] font-black text-slate-600 dark:text-slate-400 rounded-full border border-slate-50 dark:border-slate-700 tracking-tight">
                               {tag}
                             </span>
                           ))}
-                        </div>
+                            </div>
+                          )}
 
-                        <div className="flex gap-3 pt-4">
+                          <div className="flex gap-3 pt-2 mt-auto">
                           <Link href={`/startup/investors/${investor.investorID}`} className="flex-1">
-                            <Button variant="outline" className="w-full h-12 rounded-xl border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white font-bold text-[13px] hover:bg-slate-50">
+                            <Button variant="outline" className="w-full h-[42px] rounded-xl border-slate-200 dark:border-slate-800 text-slate-700 dark:text-white font-bold text-[13px] hover:bg-slate-50 border transition-colors">
                               Xem hồ sơ
                             </Button>
                           </Link>
@@ -376,20 +403,20 @@ export default function InvestorsPage() {
                             <Button
                               onClick={() => handleOpenRequest(investor)}
                               disabled={!investor.acceptingConnections}
-                              className="flex-1 h-12 rounded-xl bg-[#eec54e] hover:bg-[#d4ae3d] text-white font-bold text-[13px] shadow-sm disabled:opacity-50"
+                              className="flex-1 h-[42px] rounded-xl bg-[#eec54e] hover:bg-[#e6b72e] disabled:bg-[#fbf1ce] disabled:text-[#e2b730] disabled:opacity-100 disabled:border-transparent text-slate-900 font-bold text-[13px] shadow-sm whitespace-nowrap transition-colors"
                             >
                               {investor.acceptingConnections ? "Gửi lời mời" : "Đã đóng"}
                             </Button>
                           ) : conn.connectionStatus === "Accepted" ? (
                             <Button
                               onClick={() => router.push(`/startup/messaging?connectionId=${conn.connectionID}`)}
-                              className="flex-1 h-12 rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold text-[13px] shadow-sm gap-1.5"
+                              className="flex-1 h-[42px] rounded-xl bg-[#00c853] hover:bg-[#00b249] text-white font-bold text-[13px] shadow-sm gap-1.5 transition-colors"
                             >
                               <MessageCircle className="size-4" />
                               Nhắn tin
                             </Button>
                           ) : (
-                            <Button variant="outline" disabled className="flex-1 h-12 rounded-xl font-bold text-[13px] opacity-60">
+                            <Button variant="outline" disabled className="flex-1 h-[42px] rounded-[14px] font-bold text-[13px] opacity-100 bg-slate-50 border-slate-200 text-slate-500 transition-colors">
                               {STATUS_LABEL[conn.connectionStatus] ?? conn.connectionStatus}
                             </Button>
                           )}
@@ -469,10 +496,36 @@ export default function InvestorsPage() {
                           </span>
                         </td>
                         <td className="px-8 py-6 text-right">
-                          <button className="p-2 text-slate-400 hover:text-slate-900 transition-colors">
-                            <MoreVertical className="size-5" />
-                          </button>
-                        </td>
+                            {item.connectionStatus === "Requested" ? (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button className="p-2 text-slate-400 hover:text-slate-900 transition-colors">
+                                    <MoreVertical className="size-5" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleAcceptConnection(item.connectionID)}>
+                                    Chấp nhận
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleRejectConnection(item.connectionID)} className="text-red-600 focus:text-red-600">
+                                    Từ chối
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            ) : item.connectionStatus === "Accepted" ? (
+                              <Button
+                                onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
+                                className="h-10 px-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 text-slate-900 dark:text-white border-none text-[12px] font-black gap-2 hover:bg-[#eec54e] hover:text-white transition-all group/btn"
+                              >
+                                <MessageCircle className="size-4 group-hover/btn:scale-110 transition-transform" />
+                                <span>Nhắn tin</span>
+                              </Button>
+                            ) : (
+                              <span className="text-[13px] font-bold text-slate-500">
+                                Đã xử lý
+                              </span>
+                            )}
+                          </td>
                       </tr>
                     ))}
                   </tbody>

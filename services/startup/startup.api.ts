@@ -218,11 +218,11 @@ export const SubmitForApproval = () => {
 }
 
 export const SearchInvestors = (params: { page?: number; pageSize?: number; keyword?: string }) => {
-    return axios.get<IBackendRes<any>>(`/api/investors`, { params });
+    return axios.get<IBackendRes<any>>(`/api/startups/investors`, { params });
 }
 
 export const GetInvestorById = (id: number) => {
-    return axios.get<IBackendRes<IInvestorProfile>>(`/api/investors/${id}`);
+    return axios.get<IBackendRes<IInvestorProfile>>(`/api/startups/investors/${id}`);
 }
 
 export const GetStartupKYCStatus = () => {

@@ -751,7 +751,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => router.push(`/startup/messaging?advisorId=${advisor?.advisorID}`)}
+                  onClick={() => router.push(`/startup/messaging?mentorshipId=${advisor?.advisorID}`)}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 border border-slate-200 rounded-xl text-[12px] font-semibold text-slate-600 hover:bg-slate-50 transition-all"
                 >
                   <MessageSquare className="w-3.5 h-3.5" />

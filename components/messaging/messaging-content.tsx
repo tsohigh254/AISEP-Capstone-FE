@@ -17,10 +17,12 @@ import {
     ChevronUp,
     Lock,
 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/context";
 import { useChat } from "@/hooks/useChat";
 import {
     GetConversations,
+    CreateConversation,
     GetMessages,
     MarkConversationRead,
 } from "@/services/messaging/messaging.api";
@@ -220,6 +222,10 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 /* ------------------------------------------------------------------ */
 
 export function MessagingContent() {
+    const searchParams = useSearchParams();
+    const connectionIdStr = searchParams.get("connectionId");
+    const mentorshipIdStr = searchParams.get("mentorshipId");
+    const conversationIdStr = searchParams.get("conversationId");
     const { user } = useAuth();
 
     const [conversations, setConversations] = useState<IConversation[]>([]);
@@ -251,7 +257,7 @@ export function MessagingContent() {
         GetConversations()
             .then(res => {
                 if (res.success && res.data) {
-                    setConversations(res.data.items ?? []);
+                    setConversations((res.data as any).data || res.data.items || []);
                 } else {
                     setConvError(true);
                 }
@@ -260,7 +266,28 @@ export function MessagingContent() {
             .finally(() => setLoadingConvs(false));
     }, []);
 
-    useEffect(() => { fetchConversations(); }, [fetchConversations]);
+    useEffect(() => {
+        const handleAutoCreate = async () => {
+            let createdId = null;
+            if (conversationIdStr) {
+                createdId = parseInt(conversationIdStr);
+            } else if (connectionIdStr) {
+                const res = await CreateConversation({ connectionId: parseInt(connectionIdStr) });
+                if (res.success && res.data) createdId = res.data.conversationId;
+            } else if (mentorshipIdStr) {
+                const res = await CreateConversation({ mentorshipId: parseInt(mentorshipIdStr) });
+                if (res.success && res.data) createdId = res.data.conversationId;
+            }
+            if (createdId) setSelectedId(createdId);
+            fetchConversations();
+        };
+
+        if (connectionIdStr || mentorshipIdStr || conversationIdStr) {
+            handleAutoCreate();
+        } else {
+            fetchConversations();
+        }
+    }, [connectionIdStr, mentorshipIdStr, conversationIdStr, fetchConversations]);
 
     /* ── Fetch messages when conversation changes ── */
     useEffect(() => {
@@ -271,8 +298,8 @@ export function MessagingContent() {
         GetMessages(selectedId, 1, 50)
             .then(res => {
                 if (res.success && res.data) {
-                    setMessages([...res.data.items].reverse());
-                    setHasOlderMsgs((res.data.paging.totalPages ?? 1) > 1);
+                    setMessages([...((res.data as any).data || res.data.items || [])].reverse());
+                    setHasOlderMsgs(((res.data as any).total ? Math.ceil((res.data as any).total / 50) : (res.data.paging?.totalPages ?? 1)) > 1);
                 } else {
                     setMsgError(true);
                 }
@@ -294,10 +321,10 @@ export function MessagingContent() {
         GetMessages(selectedId, nextPage, 50)
             .then(res => {
                 if (res.success && res.data) {
-                    const older = [...res.data.items].reverse();
+                    const older = [...((res.data as any).data || res.data.items || [])].reverse();
                     setMessages(prev => [...older, ...prev]);
                     setMsgPage(nextPage);
-                    setHasOlderMsgs((res.data.paging.totalPages ?? 1) > nextPage);
+                    setHasOlderMsgs(((res.data as any).total ? Math.ceil((res.data as any).total / 50) : (res.data.paging?.totalPages ?? 1)) > nextPage);
                     // Keep scroll position stable
                     requestAnimationFrame(() => {
                         if (messagesRef.current) {
@@ -320,21 +347,48 @@ export function MessagingContent() {
         conversationId: selectedId,
         onMessage: (incoming: IIncomingMessage) => {
             if (incoming.conversationId === selectedId) {
-                setMessages(prev => [
-                    ...prev,
-                    {
-                        messageId:         incoming.messageId,
-                        conversationId:    incoming.conversationId,
-                        senderUserId:      incoming.senderId,
-                        senderDisplayName: "",
-                        isMine:            incoming.senderId === user?.userId,
-                        content:           incoming.content,
-                        attachmentUrls:    incoming.attachmentUrl,
-                        isRead:            false,
-                        sentAt:            incoming.createdAt ,
-                        readAt:            null,
-                    } as IMessage,
-                ]);
+                setMessages(prev => {
+                    // Check if there's a pending optimistic message matching this content
+                    const tempIndex = prev.findIndex(m =>
+                        m.isMine &&
+                        m.content === incoming.content &&
+                        // messageId temporary > 1000000000000 (Date.now())
+                        m.messageId > 1000000000000
+                    );
+
+                    // It's mine if it matches a pending message OR if senderId matches the current user
+                    const isMine = tempIndex !== -1 ||
+                                   String(incoming.senderId) === String(user?.userId) ||
+                                   String(incoming.senderId) === String((user as any)?.id) ||
+                                   String(incoming.senderId) === String((user as any)?.data?.userId);
+
+                    if (isMine && tempIndex !== -1) {
+                        const newMsgs = [...prev];
+                        newMsgs[tempIndex] = {
+                            ...newMsgs[tempIndex],
+                            messageId: incoming.messageId,
+                            sentAt: incoming.createdAt
+                        };
+                        return newMsgs;
+                    }
+
+                    // Otherwise add it as a new message
+                    return [
+                        ...prev,
+                        {
+                            messageId:         incoming.messageId,
+                            conversationId:    incoming.conversationId,
+                            senderUserId:      incoming.senderId,
+                            senderDisplayName: "",
+                            isMine:            isMine,
+                            content:           incoming.content,
+                            attachmentUrls:    incoming.attachmentUrl,
+                            isRead:            false,
+                            sentAt:            incoming.createdAt,
+                            readAt:            null,
+                        } as IMessage,
+                    ];
+                });
             } else {
                 setConversations(prev =>
                     prev.map(c =>
@@ -348,7 +402,7 @@ export function MessagingContent() {
     });
 
     /* ── Send message ── */
-    const handleSend = useCallback(() => {
+    const handleSend = useCallback(async () => {
         const text = messageInput.trim();
         if (!text || selectedId == null || sending) return;
         if (text.length > MAX_MESSAGE_LENGTH) return;
@@ -372,19 +426,20 @@ export function MessagingContent() {
         setSending(true);
 
         try {
-            sendMessage(text);
+            await sendMessage(text);
+            
+            // Only update preview if it actually sends successfully
+            setConversations(prev =>
+                prev.map(c => c.conversationId === selectedId
+                    ? { ...c, lastMessagePreview: text, lastMessageAt: new Date().toISOString() }
+                    : c
+                )
+            );
         } catch {
             setMessages(prev => prev.map(m => m.messageId === tempId ? { ...m, _failed: true } : m));
+        } finally {
+            setSending(false);
         }
-        setSending(false);
-
-        // Update conversation preview
-        setConversations(prev =>
-            prev.map(c => c.conversationId === selectedId
-                ? { ...c, lastMessagePreview: text, lastMessageAt: new Date().toISOString() }
-                : c
-            )
-        );
     }, [messageInput, selectedId, sending, sendMessage, user]);
 
     /* ── Retry failed message ── */
@@ -414,7 +469,7 @@ export function MessagingContent() {
     /* ---------------------------------------------------------------- */
 
     return (
-        <div className="flex-1 flex gap-6 lg:gap-10 min-h-[calc(100vh-220px)]">
+        <div className="flex-1 flex gap-6 lg:gap-10 h-[calc(100vh-140px)] min-h-[500px]">
 
             {/* ===== Left — conversation list ===== */}
             <div className="w-full md:w-[360px] flex flex-col shrink-0">

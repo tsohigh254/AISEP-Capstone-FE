@@ -429,7 +429,7 @@ declare global {
     interface IConnectionDetail extends IConnectionItem {}
 
     interface ICreateConnection {
-        investorID: number
-        personalizedMessage: string
+        startupId: number
+        message: string
     }
 }

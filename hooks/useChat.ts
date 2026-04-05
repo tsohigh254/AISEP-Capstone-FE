@@ -16,6 +16,9 @@ interface UseChatReturn {
 }
 
 export function useChat({ conversationId, onMessage }: UseChatOptions): UseChatReturn {
+    const onMessageRef = useRef(onMessage);
+    useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
+
     const connectionRef = useRef<signalR.HubConnection | null>(null);
     const [connectionState, setConnectionState] = useState<ChatConnectionState>("idle");
 
@@ -53,7 +56,7 @@ export function useChat({ conversationId, onMessage }: UseChatOptions): UseChatR
             .build();
 
         // Sự kiện từ Hub
-        connection.on("ReceiveMessage", onMessage);
+        connection.on("ReceiveMessage", (msg) => onMessageRef.current(msg));
         connection.on("Error", (msg: string) => console.error("[ChatHub]", msg));
 
         // Theo dõi trạng thái reconnect
@@ -100,18 +103,18 @@ export function useChat({ conversationId, onMessage }: UseChatOptions): UseChatR
     }, [conversationId]);
 
     const sendMessage = useCallback(
-        (content: string, attachmentUrl?: string) => {
+        async (content: string, attachmentUrl?: string) => {
             const conn = connectionRef.current;
-            if (!conn || conn.state !== signalR.HubConnectionState.Connected) return;
+            if (!conn || conn.state !== signalR.HubConnectionState.Connected) {
+                throw new Error("Chat service is currently not connected");
+            }
             if (conversationId == null) return;
 
-            conn
-                .invoke("SendMessage", {
-                    conversationId,
-                    content,
-                    attachmentUrl: attachmentUrl ?? null,
-                } satisfies ISendMessageBody)
-                .catch(console.error);
+            await conn.invoke("SendMessage", {
+                conversationId,
+                content,
+                attachmentUrl: attachmentUrl ?? null,
+            } satisfies ISendMessageBody);
         },
         [conversationId]
     );
