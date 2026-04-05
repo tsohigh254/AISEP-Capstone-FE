@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, ArrowRight, Globe, TrendingUp, ChevronDown, Sparkles, Hash } from "lucide-react";
+import { Building2, ArrowRight, Globe, TrendingUp, ChevronDown, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
 import { StartupStage } from "@/services/startup/startup.api";
@@ -12,7 +12,6 @@ const inputCls = "w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text
 export interface OnboardFormData {
   startupName: string;
   oneLiner: string;
-  businessCode: string;
   industryID: string;
   stage: string;
   problem: string;
@@ -24,10 +23,9 @@ interface Step1Props {
   data: OnboardFormData;
   update: (data: OnboardFormData) => void;
   onNext: () => void;
-  onSkip?: () => void;
 }
 
-export function Step1({ data, update, onNext, onSkip }: Step1Props) {
+export function Step1({ data, update, onNext }: Step1Props) {
   const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
 
   useEffect(() => {
@@ -87,20 +85,6 @@ export function Step1({ data, update, onNext, onSkip }: Step1Props) {
               value={data.oneLiner}
               onChange={e => update({ ...data, oneLiner: e.target.value.slice(0, 100) })}
               placeholder="Mô tả startup trong một câu ngắn gọn..."
-            />
-          </div>
-        </div>
-
-        {/* Mã số kinh doanh (Business Code) — gửi kèm CreateStartupProfile */}
-        <div className="space-y-1.5">
-          <label className={labelCls}>Mã số kinh doanh (Business Code)</label>
-          <div className="relative group">
-            <Hash className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-[#eec54e] transition-colors" />
-            <input
-              className={inputCls}
-              value={data.businessCode}
-              onChange={e => update({ ...data, businessCode: e.target.value })}
-              placeholder="Ví dụ: 0312345678"
             />
           </div>
         </div>
@@ -167,15 +151,7 @@ export function Step1({ data, update, onNext, onSkip }: Step1Props) {
       </div>
 
       {/* Actions */}
-      <div className="flex items-center justify-between pt-2 border-t border-slate-50">
-        {onSkip ? (
-          <button
-            onClick={onSkip}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-slate-500 text-[13px] font-medium hover:bg-slate-50 transition-colors"
-          >
-            Bỏ qua
-          </button>
-        ) : <div />}
+      <div className="flex items-center justify-end pt-2 border-t border-slate-50">
         <button
           onClick={onNext}
           disabled={!isValid}

@@ -42,7 +42,7 @@ export interface ICreateStartupRequest {
     productStatus?: string
     country?: string
     location?: string
-    FileCertificateBusiness: File
+    FileCertificateBusiness?: File
 }
 
 export interface IUpdateStartupRequest {
@@ -116,11 +116,16 @@ function appendFormValue(formData: FormData, key: string, value: unknown) {
     }
 }
 
+function getStartupFormKey(key: string) {
+    // Backend save contract expects TeamSize in PascalCase for multipart form-data.
+    return key === "teamSize" ? "TeamSize" : key;
+}
+
 export const CreateStartupProfile = (data: ICreateStartupRequest) => {
     const formData = new FormData();
     Object.entries(data).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
-            appendFormValue(formData, key, value);
+            appendFormValue(formData, getStartupFormKey(key), value);
         }
     });
 
@@ -146,7 +151,7 @@ export const UpdateStartupProfile = (data: IUpdateStartupRequest) => {
             return;
         }
         if (value !== undefined && value !== null) {
-            appendFormValue(formData, key, value);
+            appendFormValue(formData, getStartupFormKey(key), value);
         }
     });
 
@@ -225,14 +230,3 @@ export const GetInvestorById = (id: number) => {
     return axios.get<IBackendRes<IInvestorProfile>>(`/api/startups/investors/${id}`);
 }
 
-export const GetStartupKYCStatus = () => {
-    return axios.get<IBackendRes<any>>(`/api/startups/me/kyc/status`);
-};
-
-export const SubmitStartupKYC = (data: any) => {
-    return axios.post<IBackendRes<any>>(`/api/startups/me/kyc/submit`, data);
-};
-
-export const SaveStartupKYCDraft = (data: any) => {
-    return axios.patch<IBackendRes<any>>(`/api/startups/me/kyc/draft`, data);
-};

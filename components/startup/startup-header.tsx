@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,9 @@ import { Logout } from "@/services/auth/auth.api";
 import { useAuth } from "@/context/context";
 import { IssueReportModal } from "@/components/shared/issue-report-modal";
 import { GetStartupProfile } from "@/services/startup/startup.api";
+import { GetStartupKYCStatus } from "@/services/startup/startup-kyc.api";
+import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
+import type { StartupKycCase } from "@/services/startup/startup-kyc.api";
 import {
   GetNotifications,
   MarkNotificationAsRead,
@@ -17,18 +20,19 @@ import {
   DeleteNotification,
 } from "@/services/notification/notification.api";
 
-/* ─── Notification type config ───────────────────────────────── */
+/* Notification type config */
 const NOTI_TYPE_CFG: Record<string, { icon: React.ElementType; bg: string; iconColor: string; label: string; accent: string }> = {
-  SYSTEM:               { icon: Bell,          bg: "bg-slate-100",  iconColor: "text-slate-500",   label: "Hệ thống",   accent: "bg-slate-400" },
-  VERIFICATION:         { icon: ShieldCheck,   bg: "bg-blue-50",    iconColor: "text-blue-500",    label: "Xác minh",   accent: "bg-blue-400" },
-  DOCUMENT:             { icon: FileText,      bg: "bg-violet-50",  iconColor: "text-violet-500",  label: "Tài liệu",   accent: "bg-violet-400" },
-  AI_EVALUATION:        { icon: Brain,         bg: "bg-amber-50",   iconColor: "text-amber-500",   label: "AI",         accent: "bg-amber-400" },
-  CONSULTING:           { icon: Users,         bg: "bg-emerald-50", iconColor: "text-emerald-600", label: "Tư vấn",     accent: "bg-emerald-500" },
-  INVESTOR_INTERACTION: { icon: ShieldAlert,   bg: "bg-rose-50",    iconColor: "text-rose-500",    label: "Nhà đầu tư", accent: "bg-rose-400" },
-  MESSAGE:              { icon: MessageSquare, bg: "bg-cyan-50",    iconColor: "text-cyan-500",    label: "Tin nhắn",   accent: "bg-cyan-400" },
+  SYSTEM: { icon: Bell, bg: "bg-slate-100", iconColor: "text-slate-500", label: "Hệ thống", accent: "bg-slate-400" },
+  VERIFICATION: { icon: ShieldCheck, bg: "bg-blue-50", iconColor: "text-blue-500", label: "Xác minh", accent: "bg-blue-400" },
+  DOCUMENT: { icon: FileText, bg: "bg-violet-50", iconColor: "text-violet-500", label: "Tài liệu", accent: "bg-violet-400" },
+  AI_EVALUATION: { icon: Brain, bg: "bg-amber-50", iconColor: "text-amber-500", label: "AI", accent: "bg-amber-400" },
+  CONSULTING: { icon: Users, bg: "bg-emerald-50", iconColor: "text-emerald-600", label: "Tư vấn", accent: "bg-emerald-500" },
+  INVESTOR_INTERACTION: { icon: ShieldAlert, bg: "bg-rose-50", iconColor: "text-rose-500", label: "Nhà đầu tư", accent: "bg-rose-400" },
+  MESSAGE: { icon: MessageSquare, bg: "bg-cyan-50", iconColor: "text-cyan-500", label: "Tin nhắn", accent: "bg-cyan-400" },
 };
+
 function getNotiTypeCfg(type: string) {
-  return NOTI_TYPE_CFG[type?.toUpperCase()] ?? NOTI_TYPE_CFG["SYSTEM"];
+  return NOTI_TYPE_CFG[type?.toUpperCase()] ?? NOTI_TYPE_CFG.SYSTEM;
 }
 
 function relativeNotiTime(dateStr: string): string {
@@ -41,6 +45,7 @@ function relativeNotiTime(dateStr: string): string {
   if (m > 0) return `${m} phút trước`;
   return "Vừa xong";
 }
+
 
 type StartupHeaderProps = {
   userName?: string;
@@ -69,15 +74,28 @@ export function StartupHeader({
 
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profileLogo, setProfileLogo] = useState<string | null>(null);
+  const [isKycVerified, setIsKycVerified] = useState(false);
   const displayUserName = profileName || user?.email || userName;
 
   useEffect(() => {
-    GetStartupProfile().then((res: any) => {
-      if (res?.isSuccess) {
-        if (res.data?.companyName) setProfileName(res.data.companyName);
-        if (res.data?.logoURL) setProfileLogo(res.data.logoURL);
-      }
-    }).catch(() => { });
+    GetStartupProfile()
+      .then((response) => {
+        const envelope = response as unknown as IBackendRes<IStartupProfile>;
+        if ((envelope.success || envelope.isSuccess) && envelope.data) {
+          if (envelope.data.companyName) setProfileName(envelope.data.companyName);
+          if (envelope.data.logoURL) setProfileLogo(envelope.data.logoURL);
+        }
+      })
+      .catch(() => { });
+
+    GetStartupKYCStatus()
+      .then((response) => {
+        const envelope = response as unknown as IBackendRes<StartupKycCase>;
+        if (envelope.data?.workflowStatus === "APPROVED") {
+          setIsKycVerified(true);
+        }
+      })
+      .catch(() => { });
   }, []);
 
   const fetchNotifications = useCallback(async () => {
@@ -228,8 +246,7 @@ export function StartupHeader({
                         unreadCount > 0 ? "text-slate-500 hover:text-slate-800" : "text-slate-300 cursor-not-allowed"
                       )}
                     >
-                      <CheckCheck className="w-3.5 h-3.5" /> Đọc tất cả
-                    </button>
+                      <CheckCheck className="w-3.5 h-3.5" /> Đọc tất cả</button>
                   </div>
 
                   {/* List */}
@@ -356,10 +373,13 @@ export function StartupHeader({
           <div className="h-8 w-px bg-slate-100 dark:bg-slate-800 mx-1" />
 
           {/* User Profile Card */}
-          <div className="flex items-center gap-3 relative w-[220px] justify-end" ref={dropdownRef}>
-            <div className="text-right hidden sm:flex flex-col items-end justify-center min-w-0 flex-1">
+          <div className="flex items-center gap-3.5 relative shrink-0" ref={dropdownRef}>
+            <div className="text-right hidden sm:flex flex-col items-end justify-center min-w-0 max-w-[112px]">
               <p className="text-[13px] font-bold text-[#171611] tracking-tight leading-none truncate w-full text-right">{displayUserName}</p>
-              <p className="text-[10px] text-[#878164] font-medium mt-0.5">Startup Account</p>
+              <div className="mt-0.5 inline-flex items-center gap-1">
+                <p className="text-[10px] text-[#878164] font-medium">Startup Account</p>
+                {isKycVerified && <VerifiedRoleMark className="h-3.5 w-3.5" />}
+              </div>
             </div>
             <button
               className="relative flex items-center cursor-pointer group/avatar"
@@ -395,7 +415,10 @@ export function StartupHeader({
                       <p className="text-[13px] font-black text-[#171611] tracking-tight truncate">{displayUserName}</p>
                       <div className="flex items-center gap-1.5 mt-1">
                         <span className="inline-flex items-center text-[9px] font-black text-[#C8A000] bg-[#e6cc4c]/20 border border-[#e6cc4c]/40 px-1.5 py-0.5 rounded-md uppercase tracking-wider">PRO</span>
-                        <span className="text-[10px] text-[#878164] font-medium">Startup</span>
+                        <span className="inline-flex items-center gap-1 text-[10px] text-[#878164] font-medium">
+                          Startup
+                          {isKycVerified && <VerifiedRoleMark className="h-3.5 w-3.5" />}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -408,11 +431,11 @@ export function StartupHeader({
                     { icon: Settings, label: "Cài đặt tài khoản", href: "/startup/settings", desc: "Bảo mật & thông báo" },
                     { icon: ShieldAlert, label: "Báo cáo sự cố", onClick: () => setIsReportModalOpen(true), desc: "Gửi phản hồi cho AISEP" },
                   ].map((link, idx) => {
-                    if ("href" in link) {
+                    if ("href" in link && typeof link.href === "string") {
                       return (
                         <Link
                           key={link.href}
-                          href={link.href as any}
+                          href={link.href}
                           className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#f8f7f2] transition-colors group/item"
                           onClick={() => setIsDropdownOpen(false)}
                         >

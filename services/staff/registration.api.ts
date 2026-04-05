@@ -8,6 +8,19 @@ export interface IPendingStartupDto {
     logoURL: string | null;
     profileStatus: string;
     updatedAt: string;
+    startupId?: number;
+    id?: number;
+    applicantName?: string;
+    entityName?: string;
+    submittedAt?: string;
+    workflowStatus?: string;
+    priority?: string;
+    startupVerificationType?: string;
+    submissionSummary?: {
+        startupVerificationType?: string;
+        legalFullName?: string;
+        projectName?: string;
+    } | null;
 }
 
 export interface IPendingAdvisorDto {
@@ -17,7 +30,14 @@ export interface IPendingAdvisorDto {
     profilePhotoURL: string | null;
     profileStatus: string;
     updatedAt: string;
-    industryFocus: any[];
+    industryFocus: unknown[];
+    advisorId?: number;
+    id?: number;
+    applicantName?: string;
+    entityName?: string;
+    submittedAt?: string;
+    workflowStatus?: string;
+    priority?: string;
 }
 
 export interface IPendingInvestorDto {
@@ -28,6 +48,13 @@ export interface IPendingInvestorDto {
     location: string;
     profileStatus: string;
     updatedAt: string;
+    investorId?: number;
+    id?: number;
+    applicantName?: string;
+    entityName?: string;
+    submittedAt?: string;
+    workflowStatus?: string;
+    priority?: string;
 }
 
 export interface IPendingResponse<T> {
@@ -60,34 +87,46 @@ export const GetPendingInvestors = (page: number = 1, pageSize: number = 10) => 
 
 // GET BY ID
 export const GetPendingStartupById = (id: number | string) => {
-    return axios.get<IBackendRes<any>>(`/api/registration/pending/startups/${id}`);
+    return axios.get<IBackendRes<unknown>>(`/api/registration/pending/startups/${id}`);
+};
+
+export const GetPendingStartupKycById = (startupId: number | string) => {
+    return axios.get<IBackendRes<unknown>>(`/api/registration/pending/startups/${startupId}/kyc`);
 };
 
 export const GetPendingAdvisorById = (id: number | string) => {
-    return axios.get<IBackendRes<any>>(`/api/registration/pending/advisors/${id}`);
+    return axios.get<IBackendRes<unknown>>(`/api/registration/pending/advisors/${id}`);
 };
 
 export const GetPendingInvestorById = (id: number | string) => {
-    return axios.get<IBackendRes<any>>(`/api/registration/pending/investors/${id}`);
+    return axios.get<IBackendRes<unknown>>(`/api/registration/pending/investors/${id}`);
 };
 
 // APPROVE
-export const ApproveStartupRegistration = (staffId: number | string, startupId: number | string, score: number = 10) => {
-    return axios.post<IBackendRes<any>>(`/api/registration/approve/startups/${staffId}`, {
+export const ApproveStartupRegistration = (
+    staffId: number | string,
+    startupId: number | string,
+    score: number = 10,
+    remarks?: string,
+    requiresNewEvidence: boolean = false
+) => {
+    return axios.post<IBackendRes<unknown>>(`/api/registration/approve/startups/${staffId}`, {
         startupId,
-        score
+        score,
+        remarks,
+        requiresNewEvidence
     });
 };
 
 export const ApproveAdvisorRegistration = (staffId: number | string, advisorId: number | string, score: number = 10) => {
-    return axios.post<IBackendRes<any>>(`/api/registration/approve/advisors/${staffId}`, {
+    return axios.post<IBackendRes<unknown>>(`/api/registration/approve/advisors/${staffId}`, {
         advisorId,
         score
     });
 };
 
 export const ApproveInvestorRegistration = (staffId: number | string, investorId: number | string, score: number = 10, isInstitutional: boolean = false) => {
-    return axios.post<IBackendRes<any>>(`/api/registration/approve/investors/${staffId}`, {
+    return axios.post<IBackendRes<unknown>>(`/api/registration/approve/investors/${staffId}`, {
         investorId,
         score,
         isInstitutional
@@ -95,22 +134,28 @@ export const ApproveInvestorRegistration = (staffId: number | string, investorId
 };
 
 // REJECT
-export const RejectStartupRegistration = (staffId: number | string, id: number | string, reason: string) => {
-    return axios.post<IBackendRes<any>>(`/api/registration/reject/startups/${staffId}`, {
+export const RejectStartupRegistration = (
+    staffId: number | string,
+    id: number | string,
+    reason: string,
+    requiresNewEvidence: boolean = false
+) => {
+    return axios.post<IBackendRes<unknown>>(`/api/registration/reject/startups/${staffId}`, {
         id,
-        reason
+        reason,
+        requiresNewEvidence
     });
 };
 
 export const RejectAdvisorRegistration = (staffId: number | string, id: number | string, reason: string) => {
-    return axios.post<IBackendRes<any>>(`/api/registration/reject/advisors/${staffId}`, {
+    return axios.post<IBackendRes<unknown>>(`/api/registration/reject/advisors/${staffId}`, {
         id,
         reason
     });
 };
 
 export const RejectInvestorRegistration = (staffId: number | string, id: number | string, reason: string) => {
-    return axios.post<IBackendRes<any>>(`/api/registration/reject/investors/${staffId}`, {
+    return axios.post<IBackendRes<unknown>>(`/api/registration/reject/investors/${staffId}`, {
         id,
         reason
     });

@@ -125,6 +125,7 @@ export default function StartupProfileViewPage() {
     const displayIndustry = p.industry || industries.find(x => x.industryID === p.industryID)?.industryName;
     const displayStage = STAGE_LABELS[p.stage?.toString()] || p.stage;
     const isApproved = !!(p.approvedAt || p.approvedBy);
+    const teamSizeValue = p.teamSize ?? p.TeamSize;
     
     // Kiểm tra visibility (Backend có thể trả về string "Visible" hoặc boolean true)
     const isVisibleStatus = p.visibilityStatus === "Visible" || p.visibilityStatus === "visible" || p.isVisible === true;
@@ -290,7 +291,7 @@ export default function StartupProfileViewPage() {
                                     { icon: Globe, label: "Thị trường", val: p.marketScope || "-" },
                                     { icon: CheckCircle2, label: "Sản phẩm", val: p.productStatus || "-" },
                                     { icon: Calendar, label: "Thành lập", val: foundedDateDisplay || (foundedYear ? `${foundedYear}` : "-") },
-                                    { icon: Users, label: "Team size", val: p.teamSize ? `${p.teamSize} người` : "-" },
+                                    { icon: Users, label: "Team size", val: teamSizeValue ? `${teamSizeValue} người` : "-" },
                                     { icon: MapPin, label: "Địa điểm", val: `${p.location || ""}, ${p.country || ""}`.replace(/^,\s|,$\s/g, '') || "-" },
                                 ].map(({ icon: Icon, label, val }) => (
                                     <div key={label} className="flex items-center gap-3">
@@ -446,7 +447,7 @@ export default function StartupProfileViewPage() {
                                 )} />
                                 <span className="text-[13px] font-medium text-slate-700">{p.validationStatus || "Chưa xác thực"}</span>
                             </div>
-                            <InfoPair label="Quy mô team" value={p.teamSize ? `${p.teamSize} người` : undefined} />
+                            <InfoPair label="Quy mô team" value={teamSizeValue ? `${teamSizeValue} người` : undefined} />
                         </div>
 
                         {isApproved && (

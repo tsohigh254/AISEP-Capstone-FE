@@ -1,264 +1,472 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useState, Suspense } from "react";
-import { StartupShell } from "@/components/startup/startup-shell";
-import { 
-  ShieldCheck, 
-  Clock, 
-  CheckCircle2, 
-  AlertCircle, 
-  Building2, 
-  Users, 
-  ArrowLeft,
-  FileText,
-  MessageSquare,
-  Calendar,
-  ChevronRight,
-  Loader2,
-  Send
-} from "lucide-react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Building2,
+  CheckCircle2,
+  Clock,
+  ExternalLink,
+  FileText,
+  Loader2,
+  MessageSquare,
+  Send,
+} from "lucide-react";
+import { toast } from "sonner";
+import { StartupShell } from "@/components/startup/startup-shell";
 import { cn } from "@/lib/utils";
-import { GetStartupProfile } from "@/services/startup/startup.api";
+import { GetStartupKYCStatus, KycEvidenceFile, StartupKycCase } from "@/services/startup/startup-kyc.api";
 
-const STATUS_CFG: any = {
-  Pending: {
+const RESULT_LABEL_MAP: Record<string, string> = {
+  VERIFIED_COMPANY: "Doanh nghiệp đã xác minh",
+  VERIFIED_FOUNDING_TEAM: "Đội ngũ sáng lập đã xác minh",
+  BASIC_VERIFIED: "Xác minh cơ bản",
+  PENDING_MORE_INFO: "Cần bổ sung thông tin",
+  VERIFICATION_FAILED: "Xác minh thất bại",
+  REJECTED: "Từ chối",
+  NONE: "",
+};
+
+const EXPLANATION_MAP: Record<string, string> = {
+  "KYC has not been submitted.": "Bạn chưa gửi hồ sơ xác minh KYC.",
+  "KYC submission is under review.": "Hồ sơ KYC của bạn đang được đội ngũ AISEP thẩm định.",
+  "Startup KYC has been approved as a verified company.": "Hồ sơ startup đã được phê duyệt với trạng thái doanh nghiệp đã xác minh.",
+  "Startup KYC has been approved as a verified founding team.": "Hồ sơ startup đã được phê duyệt với trạng thái đội ngũ sáng lập đã xác minh.",
+  "Startup KYC has been approved as basic verified.": "Hồ sơ startup đã được phê duyệt với trạng thái xác minh cơ bản.",
+  "Startup KYC has been rejected.": "Hồ sơ KYC của startup đã bị từ chối.",
+};
+
+const STATUS_CFG = {
+  NOT_SUBMITTED: {
+    label: "Chưa bắt đầu",
+    icon: Building2,
+    badge: "bg-slate-50 text-slate-600 border-slate-200/80",
+    dot: "bg-slate-400",
+    title: "Bạn chưa gửi hồ sơ xác minh",
+    subtitle: "Hoàn thiện hồ sơ để AISEP xác thực danh tính startup của bạn.",
+  },
+  DRAFT: {
+    label: "Bản nháp",
+    icon: FileText,
+    badge: "bg-slate-50 text-slate-700 border-slate-200/80",
+    dot: "bg-slate-400",
+    title: "Hồ sơ KYC đang ở trạng thái bản nháp",
+    subtitle: "Bạn có thể tiếp tục chỉnh sửa và gửi hồ sơ khi đã sẵn sàng.",
+  },
+  UNDER_REVIEW: {
+    label: "Đang thẩm định",
     icon: Clock,
-    color: "blue",
-    title: "Đang chờ phê duyệt",
-    subtitle: "Hồ sơ của bạn đang được đội ngũ AISEP thẩm định. Quá trình này thường mất từ 24-48 giờ làm việc.",
-    badge: "Under Review"
+    badge: "bg-blue-50 text-blue-700 border-blue-200/80",
+    dot: "bg-blue-400",
+    title: "Hồ sơ đang được thẩm định",
+    subtitle: "AISEP đang xem xét phiên bản hồ sơ bạn đã gửi gần nhất.",
   },
-  Approved: {
-    icon: CheckCircle2,
-    color: "emerald",
-    title: "Xác minh thành công",
-    subtitle: "Chúc mừng! Startup của bạn đã được xác minh chính thức trên nền tảng AISEP.",
-    badge: "Approved"
-  },
-  Rejected: {
+  PENDING_MORE_INFO: {
+    label: "Cần bổ sung",
     icon: AlertCircle,
-    color: "red",
-    title: "Xác minh không đạt",
-    subtitle: "Hồ sơ của bạn không đủ điều kiện xác minh tại thời điểm này. Vui lòng kiểm tra lý do bên dưới.",
-    badge: "Failed"
-  }
-};
+    badge: "bg-amber-50 text-amber-700 border-amber-200/80",
+    dot: "bg-amber-400",
+    title: "Cần bổ sung thông tin",
+    subtitle: "Vui lòng cập nhật theo yêu cầu để tiếp tục quy trình xác minh.",
+  },
+  APPROVED: {
+    label: "Đã xác minh",
+    icon: CheckCircle2,
+    badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80",
+    dot: "bg-emerald-400",
+    title: "Startup đã được xác minh",
+    subtitle: "Phiên bản hồ sơ gần nhất của bạn đã được phê duyệt.",
+  },
+  REJECTED: {
+    label: "Từ chối",
+    icon: AlertCircle,
+    badge: "bg-red-50 text-red-700 border-red-200/80",
+    dot: "bg-red-400",
+    title: "Hồ sơ chưa đạt xác minh",
+    subtitle: "AISEP đã từ chối phiên bản hồ sơ gần nhất của bạn.",
+  },
+  SUPERSEDED: {
+    label: "Đã thay thế",
+    icon: AlertCircle,
+    badge: "bg-slate-50 text-slate-600 border-slate-200/80",
+    dot: "bg-slate-400",
+    title: "Hồ sơ này đã được thay thế",
+    subtitle: "Vui lòng theo dõi phiên bản KYC đang active mới nhất.",
+  },
+} as const;
 
-const getAvatarColor = (color: string) => {
-  switch (color) {
-    case "blue": return "bg-blue-50 text-blue-500 border-blue-100";
-    case "emerald": return "bg-emerald-50 text-emerald-500 border-emerald-100";
-    case "amber": return "bg-amber-50 text-amber-500 border-amber-100";
-    case "red": return "bg-red-50 text-red-500 border-red-100";
-    default: return "bg-slate-50 text-slate-500 border-slate-100";
-  }
-};
+function getReadableExplanation(explanation?: string, fallback?: string) {
+  if (!explanation) return fallback || "";
+  return EXPLANATION_MAP[explanation] || explanation;
+}
 
-function KycStatusPageInner() {
-  const [kycCase, setKycCase] = useState<any>(null);
+function normalizePublicLink(url?: string) {
+  if (!url || url === "N/A") return "";
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
+function getEvidenceUrl(file: KycEvidenceFile) {
+  const backendBase = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "";
+  const normalizeCandidate = (value?: string) => {
+    if (!value) return "";
+    if (/^https?:\/\//i.test(value)) return value;
+    if (value.startsWith("/")) return backendBase ? `${backendBase}${value}` : value;
+    if (value.startsWith("api/") || value.startsWith("uploads/")) {
+      return backendBase ? `${backendBase}/${value}` : `/${value}`;
+    }
+    return "";
+  };
+
+  return normalizeCandidate(file.url);
+}
+
+function createPendingTab() {
+  const popup = window.open("about:blank", "_blank");
+  if (popup) {
+    popup.opener = null;
+  }
+  return popup;
+}
+
+function openUrlInNewTab(url: string, popup?: Window | null) {
+  if (popup && !popup.closed) {
+    try {
+      popup.location.replace(url);
+      popup.focus?.();
+      return;
+    } catch {
+      popup.close();
+    }
+  }
+  const nextPopup = window.open(url, "_blank");
+  if (nextPopup) {
+    nextPopup.opener = null;
+  }
+}
+
+async function getUrlStatus(url: string): Promise<number | null> {
+  try {
+    const response = await fetch(url, { method: "HEAD" });
+    return response.status;
+  } catch {
+    return null;
+  }
+}
+
+export default function KycStatusPage() {
+  const [kycCase, setKycCase] = useState<StartupKycCase | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchStatus = async (silent = false) => {
-    if (!silent) setLoading(true);
-    GetStartupProfile()
-      .then(res => {
-        const data = res as unknown as IBackendRes<any>;
+  useEffect(() => {
+    const fetchStatus = async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        const res = await GetStartupKYCStatus();
+        const data = res as unknown as IBackendRes<StartupKycCase>;
         if ((data.success || data.isSuccess) && data.data) {
           setKycCase(data.data);
         }
-      })
-      .catch(() => {})
-      .finally(() => {
+      } finally {
         if (!silent) setLoading(false);
-      });
-  };
-
-  useEffect(() => {
-    fetchStatus();
-  }, []);
-
-  // Polling logic when status is pending
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    const status = kycCase?.profileStatus;
-    const isPending = status === "Pending" || status === "PendingKYC";
-
-    if (isPending) {
-      interval = setInterval(() => {
-        fetchStatus(true);
-      }, 10000); // 10 seconds
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
+      }
     };
-  }, [kycCase?.profileStatus]);
+
+    void fetchStatus();
+
+    const interval = setInterval(() => {
+      if (kycCase?.workflowStatus === "UNDER_REVIEW" || kycCase?.workflowStatus === "PENDING_MORE_INFO") {
+        void fetchStatus(true);
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [kycCase?.workflowStatus]);
 
   if (loading) {
     return (
       <StartupShell>
         <div className="flex items-center justify-center py-32">
-          <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+          <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
         </div>
       </StartupShell>
     );
   }
 
   if (!kycCase) return null;
-  const cfg = STATUS_CFG[kycCase.profileStatus] || STATUS_CFG.Pending;
+
+  const workflowStatus = kycCase.workflowStatus || "NOT_SUBMITTED";
+  const cfg = STATUS_CFG[workflowStatus as keyof typeof STATUS_CFG] || STATUS_CFG.NOT_SUBMITTED;
+  const Icon = cfg.icon;
+  const resultLabelText = RESULT_LABEL_MAP[kycCase.resultLabel || "NONE"] || "";
+  const summary = kycCase.submissionSummary;
+  const evidenceFiles = summary?.evidenceFiles || [];
+  const entityName = summary?.legalFullName || summary?.projectName || "Chưa có tên hồ sơ";
+  const canResubmit = workflowStatus === "PENDING_MORE_INFO" || workflowStatus === "REJECTED" || workflowStatus === "SUPERSEDED";
+  const canEditDraft = workflowStatus === "DRAFT" || workflowStatus === "NOT_SUBMITTED";
+  const actionHref = canResubmit ? "/startup/verification/resubmit" : canEditDraft ? "/startup/verification/submit" : "/startup/verification";
+  const feedbackTone =
+    workflowStatus === "REJECTED"
+      ? {
+          box: "bg-red-50 border-red-200",
+          icon: "text-red-500",
+          label: "text-red-600",
+          body: "text-red-700",
+        }
+      : workflowStatus === "PENDING_MORE_INFO"
+        ? {
+            box: "bg-amber-50 border-amber-200",
+            icon: "text-amber-500",
+            label: "text-amber-600",
+            body: "text-amber-700",
+          }
+        : {
+            box: "bg-slate-50 border-slate-200",
+            icon: "text-slate-500",
+            label: "text-slate-600",
+            body: "text-slate-700",
+          };
+  const submittedAtLabel = kycCase.submittedAt ? new Date(kycCase.submittedAt).toLocaleDateString("vi-VN") : "Chưa nộp";
+  const updatedAtLabel = kycCase.updatedAt ? new Date(kycCase.updatedAt).toLocaleDateString("vi-VN") : "Chưa cập nhật";
+
+  const summaryRows = !summary
+    ? []
+    : [
+        { label: summary.startupVerificationType === "WITH_LEGAL_ENTITY" ? "Tên pháp lý" : "Tên dự án", value: entityName },
+        { label: "Email công việc", value: summary.workEmail || summary.contactEmail || "N/A" },
+        { label: "Người đại diện", value: summary.representativeFullName || "N/A" },
+        { label: "Vai trò", value: summary.representativeRole || "N/A" },
+        ...(summary.startupVerificationType === "WITH_LEGAL_ENTITY"
+          ? [{ label: "Mã số doanh nghiệp", value: summary.enterpriseCode || "N/A" }]
+          : []),
+        { label: "Liên kết công khai", value: summary.publicLink || "N/A" },
+      ];
+
+  const handleOpenEvidence = async (file: KycEvidenceFile) => {
+    const popup = createPendingTab();
+    const candidateUrl = getEvidenceUrl(file);
+
+    if (!candidateUrl) {
+      popup?.close();
+      toast.error("Không tìm thấy link xem tài liệu.");
+      return;
+    }
+
+    openUrlInNewTab(candidateUrl, popup);
+
+    const initialStatus = await getUrlStatus(candidateUrl);
+    if (initialStatus !== 401 && initialStatus !== 403) {
+      return;
+    }
+
+    try {
+      const res = await GetStartupKYCStatus();
+      const data = res as unknown as IBackendRes<StartupKycCase>;
+      if ((data.success || data.isSuccess) && data.data) {
+        setKycCase(data.data);
+        const refreshedFile = data.data.submissionSummary?.evidenceFiles?.find((item) => item.id === file.id);
+        const refreshedUrl = refreshedFile ? getEvidenceUrl(refreshedFile) : "";
+        const refreshedStatus = refreshedUrl ? await getUrlStatus(refreshedUrl) : null;
+
+        if (refreshedUrl && refreshedStatus !== 401 && refreshedStatus !== 403) {
+          openUrlInNewTab(refreshedUrl, popup);
+          return;
+        }
+      }
+
+      popup?.close();
+      toast.error("Link xem tài liệu đã hết hạn hoặc không còn khả dụng.");
+    } catch {
+      popup?.close();
+      toast.error("Không thể làm mới link xem tài liệu. Vui lòng thử lại.");
+    }
+  };
 
   return (
     <StartupShell>
-      <div className="max-w-[1000px] mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
-        
-        {/* Page Header Pattern */}
+      <div className="mx-auto max-w-[1100px] space-y-6 pb-20 animate-in fade-in duration-400">
         <div className="flex items-center justify-between border-b border-slate-100 pb-6">
-           <Link 
-            href="/startup/verification" 
-            className="group flex items-center gap-2 text-slate-400 hover:text-slate-900 transition-colors"
-           >
-              <div className="size-8 rounded-full border border-slate-200 flex items-center justify-center group-hover:border-slate-900 group-hover:bg-slate-900 group-hover:text-white transition-all">
-                 <ArrowLeft className="w-4 h-4" />
-              </div>
-              <span className="text-[13px] font-bold">Quay lại Dashboard</span>
-           </Link>
-           <div className="flex items-center gap-2">
-              <span className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wider", 
-                cfg.color === "blue" ? "bg-blue-50 text-blue-700 border-blue-200/80" : 
-                cfg.color === "emerald" ? "bg-emerald-50 text-emerald-700 border-emerald-200/80" : 
-                cfg.color === "amber" ? "bg-amber-50 text-amber-700 border-amber-200/80" : 
-                "bg-red-50 text-red-700 border-red-200/80"
-              )}>
-                 <div className={cn("size-1.5 rounded-full animate-pulse", 
-                   cfg.color === "blue" ? "bg-blue-500" : cfg.color === "emerald" ? "bg-emerald-500" : cfg.color === "amber" ? "bg-amber-500" : "bg-red-500"
-                 )} />
-                 {cfg.badge}
-              </span>
-           </div>
+          <Link href="/startup/verification" className="group flex items-center gap-2 text-slate-400 transition-colors hover:text-slate-900">
+            <div className="flex size-8 items-center justify-center rounded-full border border-slate-200 transition-all group-hover:border-slate-900 group-hover:bg-slate-900 group-hover:text-white">
+              <ArrowLeft className="h-4 w-4" />
+            </div>
+            <span className="text-[13px] font-bold">Quay lại tổng quan</span>
+          </Link>
         </div>
 
-        {/* 2-Column Detail Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-           
-           {/* Main Content (Left) */}
-           <div className="lg:col-span-2 space-y-6">
-              
-              {/* Status Hero Card */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-                 <div className="p-8 space-y-6">
-                    <div className={cn("size-16 rounded-2xl flex items-center justify-center border", getAvatarColor(cfg.color))}>
-                       <cfg.icon className="w-8 h-8" />
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          <div className="space-y-5 lg:col-span-2">
+            <div className="rounded-2xl border border-slate-200/80 bg-white px-6 py-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+              <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-slate-50">
+                      <Icon className="h-6 w-6 text-slate-500" />
                     </div>
-                    <div className="space-y-2">
-                       <h2 className="text-[24px] font-bold text-slate-900 tracking-tight">{cfg.title}</h2>
-                       <p className="text-[15px] text-slate-500 leading-relaxed max-w-lg">{cfg.subtitle}</p>
-                    </div>
-
-                    {kycCase.profileStatus === "Rejected" && (
-                       <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-5 space-y-4">
-                          <div className="flex items-center gap-2 text-amber-700">
-                             <MessageSquare className="w-5 h-5" />
-                             <span className="text-[14px] font-bold">Phản hồi từ AISEP Staff:</span>
-                          </div>
-                          <p className="text-[13px] text-slate-600 leading-relaxed">"Hồ sơ của bạn hiện đang thiếu thông tin giấy phép minh chứng hợp lệ."</p>
-                          <Link 
-                           href="/startup/verification/resubmit"
-                           className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg transition-all"
-                          >
-                             <Send className="w-4 h-4" />
-                             Cập nhật hồ sơ & Gửi lại
-                          </Link>
-                       </div>
-                    )}
-                 </div>
-              </div>
-
-              {/* Submission Summary Section */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-8 space-y-6">
-                 <h3 className="text-[16px] font-bold text-slate-900 flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-slate-400" />
-                    Tóm tắt hồ sơ đã nộp
-                 </h3>
-                 
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
-                    <div className="space-y-1">
-                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Tên đơn vị</p>
-                       <p className="text-[14px] font-medium text-slate-700">{kycCase.companyName}</p>
-                    </div>
-                    <div className="space-y-1">
-                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Email liên hệ</p>
-                       <p className="text-[14px] font-medium text-slate-700">{kycCase.contactEmail || "N/A"}</p>
-                    </div>
-                    <div className="space-y-1">
-                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Người đại diện</p>
-                       <p className="text-[14px] font-medium text-slate-700">{kycCase.fullNameOfApplicant || "N/A"}</p>
-                    </div>
-                 </div>
-
-                 <div className="pt-4 border-t border-slate-50">
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Thông tin hồ sơ</p>
-                    <div className="flex flex-wrap gap-2">
-                       {kycCase.fileCertificateBusiness ? (
-                         <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-100 rounded-lg group hover:border-slate-300 transition-colors cursor-pointer">
-                            <FileText className="w-4 h-4 text-slate-400" />
-                            <span className="text-[12px] text-slate-600 font-medium">Tài liệu đã đính kèm</span>
-                         </div>
-                       ) : <p className="text-[12px] text-slate-400 italic">Thao tác tải lên tài liệu đã được ghi nhận.</p>}
-                    </div>
-                 </div>
-              </div>
-           </div>
-
-           {/* Sidebar (Right) */}
-           <div className="space-y-6">
-              <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-lg space-y-4">
-                 <div className="flex items-center gap-3">
-                    <ShieldCheck className="w-6 h-6 text-[#eec54e]" />
-                    <h4 className="text-[15px] font-bold">Lưu ý an toàn</h4>
-                 </div>
-                 <p className="text-[12px] text-slate-400 leading-relaxed">
-                    AISEP cam kết bảo mật mọi thông tin định danh của bạn. Chỉ những chuyên gia và đối tác được cấp quyền mới có thể xem các tài liệu nhạy cảm.
-                 </p>
-              </div>
-
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-6 space-y-4">
-                 <h4 className="text-[14px] font-bold text-slate-900">Tiến độ quy trình</h4>
-                 <div className="space-y-4 pt-2">
-                    {[
-                      { label: "Gửi hồ sơ", done: true, date: "20/03/2024" },
-                      { label: "Thẩm định sơ bộ", done: true, date: "21/03/2024" },
-                      { label: "Kiểm duyệt cuối", done: false, date: "Dự kiến 22/03" }
-                    ].map((step, i) => (
-                      <div key={i} className="flex items-start gap-3 relative">
-                         <div className={cn("size-5 rounded-full border-2 flex items-center justify-center shrink-0 z-10", step.done ? "bg-emerald-500 border-emerald-500" : "bg-white border-slate-200")}>
-                            {step.done && <CheckCircle2 className="w-3 h-3 text-white" />}
-                         </div>
-                         {i < 2 && <div className={cn("absolute left-[9px] top-5 w-[2px] h-6 bg-slate-100", step.done && "bg-emerald-100")} />}
-                         <div>
-                            <p className={cn("text-[13px] font-bold leading-none", step.done ? "text-slate-900" : "text-slate-400")}>{step.label}</p>
-                            <p className="text-[11px] text-slate-400 mt-1">{step.date}</p>
-                         </div>
+                    <div>
+                      <h1 className="text-[20px] font-bold text-slate-900">{cfg.title}</h1>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-[10px] font-semibold", cfg.badge)}>
+                          <span className={cn("h-1.5 w-1.5 rounded-full", cfg.dot)} />
+                          {cfg.label}
+                        </span>
+                        {resultLabelText && (
+                          <span className="inline-flex items-center rounded-md border border-slate-200/80 bg-slate-50 px-2.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                            {resultLabelText}
+                          </span>
+                        )}
                       </div>
-                    ))}
-                 </div>
-                 <button className="w-full mt-4 py-2 text-[12px] font-bold text-slate-500 hover:text-slate-900 transition-colors border-t border-slate-50 pt-4 flex items-center justify-center gap-2">
-                    Liên hệ hỗ trợ 
-                    <ChevronRight className="w-4 h-4" />
-                 </button>
-              </div>
-           </div>
-        </div>
+                    </div>
+                  </div>
+                  <p className="max-w-[620px] text-[13px] leading-relaxed text-slate-500">
+                    {getReadableExplanation(kycCase.explanation, cfg.subtitle)}
+                  </p>
+                </div>
 
+                <div className="flex shrink-0 flex-col gap-2">
+                  <Link
+                    href={actionHref}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[13px] font-medium transition-colors",
+                      canResubmit ? "bg-[#0f172a] text-white hover:bg-[#1e293b]" : "border border-slate-200 text-slate-700 hover:bg-slate-50"
+                    )}
+                  >
+                    {canResubmit ? "Cập nhật hồ sơ" : canEditDraft ? "Tiếp tục hồ sơ" : "Về tổng quan"}
+                    {canResubmit ? <Send className="h-4 w-4" /> : <ArrowLeft className="h-4 w-4 rotate-180" />}
+                  </Link>
+                </div>
+              </div>
+
+              {kycCase.remarks && (
+                <div className={cn("mt-5 rounded-xl border px-3 py-2.5", feedbackTone.box)}>
+                  <div className="flex items-start gap-2">
+                    <MessageSquare className={cn("mt-0.5 h-4 w-4 shrink-0", feedbackTone.icon)} />
+                    <div>
+                      <p className={cn("mb-1 text-[11px] font-medium uppercase tracking-wide", feedbackTone.label)}>Nhận xét từ staff</p>
+                      <p className={cn("text-[13px]", feedbackTone.body)}>{kycCase.remarks}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200/80 bg-white px-6 py-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+              <h2 className="mb-4 flex items-center gap-2 text-[13px] font-semibold text-slate-900">
+                <FileText className="h-4 w-4 text-slate-400" />
+                Tóm tắt hồ sơ đã nộp
+              </h2>
+
+              {!summary ? (
+                <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                  <p className="text-[13px] text-slate-500">Chưa có hồ sơ KYC nào được gửi.</p>
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-2">
+                    {summaryRows.map((row) => {
+                      const publicLink = row.label === "Liên kết công khai" ? normalizePublicLink(row.value) : "";
+                      return (
+                        <div key={row.label}>
+                          <p className="mb-1 text-[11px] uppercase tracking-wide text-slate-400">{row.label}</p>
+                          {publicLink ? (
+                            <a href={publicLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[13px] text-blue-600 hover:underline">
+                              {row.value}
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          ) : (
+                            <p className="text-[13px] leading-relaxed text-slate-700">{row.value}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="border-t border-slate-100 pt-5">
+                    <p className="mb-3 text-[11px] uppercase tracking-wide text-slate-400">Tài liệu minh chứng</p>
+                    {evidenceFiles.length === 0 ? (
+                      <p className="text-[13px] text-slate-500">Không có tệp đính kèm.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {evidenceFiles.map((file) => {
+                          const fileUrl = getEvidenceUrl(file);
+                          return (
+                            <div key={file.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-[13px] font-medium text-slate-700">{file.fileName}</p>
+                                <p className="mt-1 text-[11px] text-slate-400">
+                                  {file.kind}
+                                  {file.uploadedAt ? ` · ${new Date(file.uploadedAt).toLocaleDateString("vi-VN")}` : ""}
+                                </p>
+                              </div>
+                              {fileUrl ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleOpenEvidence(file)}
+                                  className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                                >
+                                  Xem file
+                                  <ExternalLink className="h-3 w-3" />
+                                </button>
+                              ) : (
+                                <span className="shrink-0 text-[12px] text-slate-400">Chưa có link xem</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-5 lg:col-span-1">
+            <div className="rounded-2xl border border-slate-200/80 bg-white px-6 py-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+              <h2 className="mb-4 flex items-center gap-2 text-[13px] font-semibold text-slate-900">
+                <Clock className="h-4 w-4 text-slate-400" />
+                Mốc thời gian
+              </h2>
+              <div className="space-y-3">
+                <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                  <p className="mb-1 text-[11px] uppercase tracking-wide text-slate-400">Ngày nộp</p>
+                  <p className="text-[13px] font-medium text-slate-700">{submittedAtLabel}</p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                  <p className="mb-1 text-[11px] uppercase tracking-wide text-slate-400">Cập nhật gần nhất</p>
+                  <p className="text-[13px] font-medium text-slate-700">{updatedAtLabel}</p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                  <p className="mb-1 text-[11px] uppercase tracking-wide text-slate-400">Phiên bản</p>
+                  <p className="text-[13px] font-medium text-slate-700">{kycCase.version ?? "N/A"}</p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                  <p className="mb-1 text-[11px] uppercase tracking-wide text-slate-400">Submission ID</p>
+                  <p className="text-[13px] font-medium text-slate-700">{kycCase.submissionId ?? kycCase.id ?? "N/A"}</p>
+                </div>
+              </div>
+            </div>
+
+            {Array.isArray(kycCase.requestedAdditionalItems) && kycCase.requestedAdditionalItems.length > 0 && (
+              <div className="rounded-2xl border border-slate-200/80 bg-white px-6 py-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                <h2 className="mb-4 flex items-center gap-2 text-[13px] font-semibold text-slate-900">
+                  <AlertCircle className="h-4 w-4 text-slate-400" />
+                  Yêu cầu bổ sung
+                </h2>
+                <div className="space-y-3">
+                  {kycCase.requestedAdditionalItems.map((item) => (
+                    <div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <p className="text-[13px] font-medium text-slate-700">{item.title}</p>
+                      <p className="mt-1 text-[12px] text-slate-500">{item.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </StartupShell>
-  );
-}
-
-export default function KycStatusPage() {
-  return (
-    <Suspense>
-      <KycStatusPageInner />
-    </Suspense>
   );
 }

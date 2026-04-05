@@ -85,34 +85,31 @@ export function StartupShell({ children }: StartupShellProps) {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    // Only guard if NOT already on the onboard page
+    if (pathname === "/startup/onboard") {
+      setChecking(false);
+      return;
+    }
+
     GetStartupProfile()
       .then((res) => {
-        const data = res as unknown as IBackendRes<any>;
-        const isSuccess = data.success || data.isSuccess;
-        const profileStatus = data.data?.profileStatus;
-        
-        const hasValidProfile = isSuccess && profileStatus !== "Draft" && profileStatus !== undefined;
-
-        if (!hasValidProfile) {
-          if (pathname !== "/startup/onboard") {
-            router.replace("/startup/onboard");
-          } else {
-            setChecking(false);
-          }
-        } else {
-          // User already has a profile!
-          if (pathname === "/startup/onboard") {
-            router.replace("/startup");
-          } else {
-            setChecking(false);
-          }
-        }
-      })
-      .catch((err) => {
-        if (pathname !== "/startup/onboard") {
+        const data = res as unknown as IBackendRes<IStartupProfile | null>;
+        if (!data.success && !data.isSuccess) {
+          router.replace("/startup/onboard");
+        } else if (data.data === null || data.data?.profileStatus === "Draft") {
+          // Backend now returns 200 with data:null when the startup profile does not exist yet.
           router.replace("/startup/onboard");
         } else {
           setChecking(false);
+        }
+      })
+      .catch((err) => {
+        const status = err?.response?.status;
+        if (status === 404 || status === 400) {
+          router.replace("/startup/onboard");
+        } else {
+          // Other errors (server down?), maybe let them through or show error
+          setChecking(false); 
         }
       });
   }, [pathname, router]);

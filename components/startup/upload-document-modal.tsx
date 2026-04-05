@@ -2,13 +2,32 @@
 
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { X, CloudUpload, ChevronDown, Info, Upload, CheckCircle2, FileText } from "lucide-react";
+import { X, CloudUpload, ChevronDown, Info, Upload, CheckCircle2 } from "lucide-react";
 import { DocumentType, UploadDocument } from "@/services/document/document.api";
 
 interface UploadDocumentModalProps {
     isOpen: boolean;
     onClose: () => void;
     onUploaded?: () => void;
+}
+
+function translateUploadErrorMessage(message?: string | null) {
+    if (!message) return "Tải tài liệu thất bại";
+
+    const normalized = message.toLowerCase();
+
+    if (
+        normalized.includes("only these document extensions are allowed") ||
+        normalized.includes("document extensions are allowed")
+    ) {
+        return "Chỉ cho phép các định dạng tài liệu: .pdf, .ppt, .pptx, .doc, .docx";
+    }
+
+    if (normalized.includes("file too large") || normalized.includes("exceeds")) {
+        return "Dung lượng tệp vượt quá giới hạn cho phép.";
+    }
+
+    return message;
 }
 
 export function UploadDocumentModal({ isOpen, onClose, onUploaded }: UploadDocumentModalProps) {
@@ -70,8 +89,9 @@ export function UploadDocumentModal({ isOpen, onClose, onUploaded }: UploadDocum
 
             onUploaded?.();
             onClose();
-        } catch (e: any) {
-            setSubmitError(e?.message ?? "Upload tài liệu thất bại");
+        } catch (e: unknown) {
+            const error = e as { message?: string };
+            setSubmitError(translateUploadErrorMessage(error?.message));
         } finally {
             setSubmitting(false);
         }

@@ -131,6 +131,11 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
     const [saveError, setSaveError] = useState<string | null>(null);
     const [saveSuccess, setSaveSuccess] = useState(false);
 
+    const getTeamSizeValue = useCallback((data: IStartupProfile & { TeamSize?: string | number }) => {
+        const raw = data.teamSize ?? data.TeamSize;
+        return raw != null ? String(raw) : "";
+    }, []);
+
     const fetchProfile = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -167,7 +172,7 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                     contactPhone: data.contactPhone || "",
                     linkedInURL: data.linkedInURL || "",
                     subIndustry: data.subIndustry || "",
-                    teamSize: data.teamSize || "",
+                    teamSize: getTeamSizeValue(data as IStartupProfile & { TeamSize?: string | number }),
                     currentNeeds: Array.isArray(data.currentNeeds)
                         ? data.currentNeeds
                         : typeof data.currentNeeds === 'string'
@@ -199,7 +204,7 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [getTeamSizeValue]);
 
     const updateForm = useCallback((field: string, value: any) => {
         setForm(prev => ({ ...prev, [field]: value }));
