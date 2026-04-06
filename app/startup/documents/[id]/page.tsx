@@ -17,6 +17,7 @@ import {
     HashDocument,
     SubmitDocumentToBlockchain,
     CheckOnchainStatus,
+    VerifyDocumentOnchain,
 } from "@/services/document/document.api";
 
 /* ─── Types ───────────────────────────────────────────────── */
@@ -484,15 +485,26 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     const handleVerifyBlockchain = async () => {
         const backendDocId = Number(id);
         setLocalBcStatus("pending");
-        showToast("Đang kiểm tra on-chain...", "info");
+        showToast("Đang xác minh on-chain...", "info");
         try {
-            const res = await CheckOnchainStatus(backendDocId);
-            const v = res?.data;
-            const statusStr = String(v?.status ?? "").toLowerCase();
-            if (statusStr.includes("failed") || statusStr.includes("error")) setLocalBcStatus("failed");
-            else if (statusStr.includes("pending")) setLocalBcStatus("pending");
-            else if (v?.onChainVerified) setLocalBcStatus("matched");
-            else setLocalBcStatus("mismatch");
+            const res = await VerifyDocumentOnchain(backendDocId);
+            const v = res?.data as any;
+            if (v?.onChainVerified) {
+                setLocalBcStatus("matched");
+                showToast("Tài liệu đã được xác minh trên blockchain!", "success");
+            } else {
+                const status = String(v?.status ?? "").toLowerCase();
+                if (status.includes("notfound")) {
+                    setLocalBcStatus("not_submitted");
+                    showToast("Tài liệu chưa được ghi trên blockchain", "info");
+                } else if (status.includes("mismatch")) {
+                    setLocalBcStatus("mismatch");
+                    showToast("Hash không khớp — tài liệu có thể đã bị sửa đổi", "error");
+                } else {
+                    setLocalBcStatus("mismatch");
+                    showToast("Không thể xác minh trên blockchain", "error");
+                }
+            }
 
             if (v?.computedHash && v.computedHash !== "—") {
                 setDoc(prev => ({ ...prev, hash: v.computedHash }));
@@ -500,10 +512,9 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                     prev.map(ver => (ver.isCurrent ? { ...ver, hashShort: shortHash(v.computedHash) } : ver))
                 );
             }
-            showToast("Hoàn tất kiểm tra on-chain", "success");
         } catch (e: any) {
             setLocalBcStatus("failed");
-            showToast(e?.message ?? "Kiểm tra on-chain thất bại", "error");
+            showToast(e?.message ?? "Xác minh on-chain thất bại", "error");
         }
     };
 
