@@ -5,26 +5,24 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCountUp } from "@/lib/useCountUp";
 import { cn } from "@/lib/utils";
-import { 
-  Building2, 
-  Target, 
-  Brain, 
-  Eye, 
-  Handshake, 
-  Sparkles, 
-  FolderOpen, 
-  MessageSquare, 
-  FileText, 
+import {
+  Building2,
+  Target,
+  Brain,
+  Eye,
+  Handshake,
+  Sparkles,
+  FolderOpen,
   FileEdit,
-  TrendingUp, 
-  Search, 
+  TrendingUp,
+  Search,
   MoreVertical,
   Bookmark,
-  Loader2, 
-  AlertTriangle, 
+  Loader2,
+  AlertTriangle,
   ShieldCheck as ShieldCheckIcon
 } from "lucide-react";
-import { GetInvestorProfile } from "@/services/investor/investor.api";
+import { GetInvestorProfile, GetInvestorWatchlist } from "@/services/investor/investor.api";
 import { GetInvestorKYCStatus } from "@/services/investor/investor-kyc";
 import { IInvestorKYCStatus } from "@/types/investor-kyc";
 import { InvestorPublicProfileModal } from "@/components/investor/investor-public-profile-modal";
@@ -33,20 +31,23 @@ import { toast } from "sonner";
 export default function InvestorDashboardPage() {
   const router = useRouter();
   const [showPublicProfile, setShowPublicProfile] = useState(false);
-  const [profile, setProfile] = useState<any | null>(null);
+  const [profile, setProfile] = useState<IInvestorProfile | null>(null);
   const [kycStatus, setKycStatus] = useState<IInvestorKYCStatus | null>(null);
+  const [watchlist, setWatchlist] = useState<IWatchlistItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
-      const [profileRes, kycRes] = await Promise.all([
+      const [profileRes, kycRes, watchlistRes] = await Promise.all([
         GetInvestorProfile(),
-        GetInvestorKYCStatus()
+        GetInvestorKYCStatus(),
+        GetInvestorWatchlist(1, 5),
       ]);
 
-      if (profileRes.isSuccess) setProfile(profileRes.data);
+      if (profileRes.isSuccess) setProfile(profileRes.data ?? null);
       if (kycRes.isSuccess) setKycStatus(kycRes.data as any);
+      if (watchlistRes.isSuccess) setWatchlist(watchlistRes.data?.items ?? []);
 
       // Simple Redirection Guard: If profile is incomplete, send to onboard
       if (profileRes.isSuccess && (!profileRes.data || profileRes.data.profileStatus === "Draft")) {
@@ -285,43 +286,55 @@ export default function InvestorDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-surface">
-                {[
-                  { name: "TechAlpha Co.", action: "Tải lên Pitch Deck v3", date: "Hôm nay, 10:24", icon: FileText, iconColor: "text-red-500", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDPGo-MuNE1TA-f-CzA3CrxNhiTpXx6O33MdUq3W-IaDVQ7ym67WVsYzj_6y6DQg7FbffRXZWJQ18VrNJYBVodrdwsmss985qeqimmBjPdnV8vkYvC_Q0fjlVaghZCf_kvrqxGxP3dHivWdkDz8TKh0loaFMvqcs5oad2AIl1Y8j3vh7qi0ytZkwm8RLLxKFAiP7YQiEOYFqcO6_VLODJkRpYPEu1mAFYT3uLh98c8wUw33fLRLbsIZOwPUkI4ofRFvsVh95t_5Ghc" },
-                  { name: "MediChain AI", action: "Nhận đánh giá AI: 88 điểm", date: "Hôm qua, 15:30", icon: Brain, iconColor: "text-purple-500", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDKY4d1Y63lERm80mlyRmr3m2Np_8yG6dWJUtCxN7kvLrLu89DM4CSm8QpBtvvwm3konSP-3BflEBvD1vqDcqq91_XkNfgpXBi-GPYd-hBFOCZXxz2lwC-9Czkenukr5SyakSEBVtFO25lNewwy9nxMzGyi50hodZ59AUpBSMAX5bRNom8hV9w2Ni1St46YJ1PH-4LxUjHCc1vVLoVNzGnhOEiEB8wmQvzY7Ci7l7jd4qiiMK_8yyL4A1qfApGUmiShlRKOIamZjWU" },
-                  { name: "GreenEats", action: "Đã phản hồi Connection", date: "12/05/2024", icon: MessageSquare, iconColor: "text-emerald-500", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDSyd89CCj_zHc_LuQhWMmfq2Fe9NIXo7kap3iqhwQmj6hnZ6O9G9_TEa34oVVb9u8J5WLiZKx69vTFAGzAy-bhFnogecGAGCURhKAi82skiJ-lqbRY4oyNOkcPGFCpuJzHA_CY1eapDWvsmjvttoJFOY2UyF6XDh5BVzml3HhIGL0xmQAsEIg5td4Imhf83cA9Ksa2iMq1iLFJOYjkRWnuond7_4mFqlM6HrmkPr8BPArVgb-lQuIG9HHfZKUjbN28uwltwj3MkxM" },
-                ].map((item, idx) => (
-                  <tr key={idx} className="hover:bg-[#f8f8f6]/50 transition-colors group">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-100 flex-shrink-0">
-                          <img src={item.img} alt={item.name} className="w-full h-full object-cover" />
-                        </div>
-                        <span className="text-sm font-bold text-[#171611]">{item.name}</span>
+                {watchlist.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <Bookmark className="w-8 h-8 text-slate-200" />
+                        <p className="text-[13px] font-bold text-slate-400">Chưa có Startup nào trong danh sách theo dõi</p>
+                        <p className="text-[11px] text-slate-400">Khám phá và thêm Startup để theo dõi hoạt động tại đây.</p>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <item.icon className={cn("w-4 h-4", item.iconColor)} />
-                        <span className="text-xs font-bold text-neutral-700 tracking-tight">{item.action}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-xs font-medium text-neutral-muted tracking-tight">{item.date}</td>
-                    <td className="px-6 py-4 text-right pr-6">
-                      <button className="text-neutral-muted hover:text-[#171611] transition-colors p-1 rounded-lg hover:bg-[#f4f4f0]">
-                        <MoreVertical className="w-5 h-5" />
-                      </button>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  watchlist.map((item) => (
+                    <tr key={item.watchlistId} className="hover:bg-[#f8f8f6]/50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-slate-100 flex-shrink-0 flex items-center justify-center text-[11px] font-black text-slate-500">
+                            {item.startupName.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-sm font-bold text-[#171611]">{item.startupName}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <Bookmark className="w-4 h-4 text-orange-500" />
+                          <span className="text-xs font-bold text-neutral-700 tracking-tight">Đã thêm vào danh sách theo dõi</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-xs font-medium text-neutral-muted tracking-tight">
+                        {new Date(item.addedAt).toLocaleDateString("vi-VN")}
+                      </td>
+                      <td className="px-6 py-4 text-right pr-6">
+                        <button className="text-neutral-muted hover:text-[#171611] transition-colors p-1 rounded-lg hover:bg-[#f4f4f0]">
+                          <MoreVertical className="w-5 h-5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </div>
       </div>
 
-      <InvestorPublicProfileModal 
-        open={showPublicProfile} 
-        onOpenChange={setShowPublicProfile} 
+      <InvestorPublicProfileModal
+        open={showPublicProfile}
+        onOpenChange={setShowPublicProfile}
+        profile={profile}
+        isKycVerified={isVerified}
       />
     </div>
   );

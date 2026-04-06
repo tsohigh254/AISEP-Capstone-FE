@@ -405,6 +405,27 @@ declare global {
         title?: string
         bio?: string
         investorType?: string
+        location?: string
+        website?: string
+        linkedInURL?: string
+        investmentThesis?: string
+    }
+
+    interface IUpdateInvestorPreferences {
+        preferredIndustries: string[]
+        preferredStages: string[]
+    }
+
+    interface IUpdateInvestorProfile {
+        fullName?: string
+        firmName?: string
+        title?: string
+        bio?: string
+        location?: string
+        country?: string
+        website?: string
+        linkedInURL?: string
+        investmentThesis?: string
     }
 
     interface IWatchlistItem {

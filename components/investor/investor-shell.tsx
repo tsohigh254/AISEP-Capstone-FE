@@ -31,12 +31,17 @@ function InvestorBreadcrumb() {
   const pathname = usePathname();
   const segments = pathname.split("/").filter(Boolean);
 
-  const crumbs = segments.map((seg, i) => {
-    const href = "/" + segments.slice(0, i + 1).join("/");
-    const label = routeLabels[seg] ?? (/^\d+$/.test(seg) ? "Chi tiết" : seg);
-    const isLast = i === segments.length - 1;
-    return { href, label, isLast };
-  });
+  const SKIP_SEGMENTS = new Set(["edit"]);
+
+  const crumbs = segments
+    .filter(seg => !SKIP_SEGMENTS.has(seg))
+    .map((seg, i, arr) => {
+      const originalIndex = segments.indexOf(seg);
+      const href = "/" + segments.slice(0, originalIndex + 1).join("/");
+      const label = routeLabels[seg] ?? (/^\d+$/.test(seg) ? "Chi tiết" : seg);
+      const isLast = i === arr.length - 1;
+      return { href, label, isLast };
+    });
 
   if (crumbs.length <= 1 || pathname.includes("/onboard")) return null;
 

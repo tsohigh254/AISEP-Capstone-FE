@@ -18,6 +18,25 @@ const roleHomeMap: Record<string, string> = {
   Staff: "/staff",
 };
 
+const knownRoles = ["Startup", "Investor", "Advisor", "Admin", "Staff"] as const;
+
+function getEffectiveUserRole(user?: IUser) {
+  if (!user) return undefined;
+
+  if (user.userType) return user.userType;
+
+  const roles = Array.isArray(user.roles) ? user.roles : [];
+  const lowerRoles = roles.map((role) => role.toLowerCase());
+
+  for (const knownRole of knownRoles) {
+    if (lowerRoles.includes(knownRole.toLowerCase())) {
+      return knownRole;
+    }
+  }
+
+  return undefined;
+}
+
 export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
   const router = useRouter();
   const { user, isAuthen, isLoading } = useAuth();
@@ -33,9 +52,9 @@ export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
       return;
     }
 
-    const userRole = user.userType;
-    if (!allowedRoles.includes(userRole)) {
-      const home = roleHomeMap[userRole] || "/auth/login";
+    const userRole = getEffectiveUserRole(user);
+    if (!userRole || !allowedRoles.includes(userRole)) {
+      const home = userRole ? roleHomeMap[userRole] || "/auth/login" : "/auth/login";
       router.replace(home);
       return;
     }
