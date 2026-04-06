@@ -255,10 +255,13 @@ function EditMetadataModal({ doc, onClose, onSave }: {
 }
 
 /* ─── Blockchain Panel ────────────────────────────────────── */
-function BlockchainPanel({ status, hash, proofStatus, onSubmit, onRetry, onVerify }: {
+function BlockchainPanel({ status, hash, proofStatus, txHash, recordedAt, etherscanUrl, onSubmit, onRetry, onVerify }: {
     status: BlockchainStatus;
     hash: string;
     proofStatus?: string;
+    txHash?: string;
+    recordedAt?: string;
+    etherscanUrl?: string | null;
     onSubmit: () => void | Promise<void>; onRetry: () => void | Promise<void>; onVerify: () => void | Promise<void>;
 }) {
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -341,6 +344,29 @@ function BlockchainPanel({ status, hash, proofStatus, onSubmit, onRetry, onVerif
                                 </button>
                             </div>
                         </div>
+                        {recordedAt && (
+                            <div className="space-y-1.5">
+                                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Thời điểm ghi nhận</p>
+                                <p className="text-[12px] text-slate-600">{new Date(recordedAt).toLocaleString("vi-VN")}</p>
+                            </div>
+                        )}
+                        {txHash && txHash !== "—" && (
+                            <div className="space-y-1.5">
+                                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Transaction Hash</p>
+                                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                    <code className="text-[11px] text-slate-600 font-mono truncate flex-1">{txHash}</code>
+                                    <button onClick={() => copyText(txHash, "tx")} className="flex-shrink-0 text-slate-400 hover:text-slate-600 transition-colors" title="Sao chép TX hash">
+                                        {copiedKey === "tx" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        {etherscanUrl && (
+                            <a href={etherscanUrl} target="_blank" rel="noopener noreferrer"
+                               className="w-full flex items-center justify-center gap-2 py-2 border border-indigo-200 text-indigo-600 bg-indigo-50 rounded-xl text-[12px] font-medium hover:bg-indigo-100 transition-all">
+                                <ExternalLink className="w-3.5 h-3.5" /> Xem trên Etherscan
+                            </a>
+                        )}
                         <div className="space-y-2 pt-1">
                             {isMismatch ? (
                                 <button onClick={onVerify} className="w-full flex items-center justify-center gap-2 py-2 border border-red-200 text-red-600 bg-red-50 rounded-xl text-[12px] font-medium hover:bg-red-100 transition-all">
@@ -477,6 +503,10 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                 showToast(submitRes.message ?? "Gửi blockchain thất bại", "error");
                 return;
             }
+            const submitData = submitRes?.data ?? submitRes;
+            if (submitData?.etherscanUrl) {
+                setDoc(prev => ({ ...prev, txHash: submitData.transactionHash ?? prev.txHash, etherscanUrl: submitData.etherscanUrl } as any));
+            }
             showToast("Đã gửi lên blockchain, đang chờ xác nhận...", "success");
             pollTxStatus(backendDocId);
         } catch (e: any) {
@@ -529,7 +559,12 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
             }
 
             if (v?.computedHash && v.computedHash !== "—") {
-                setDoc(prev => ({ ...prev, hash: v.computedHash }));
+                setDoc(prev => ({
+                    ...prev,
+                    hash: v.computedHash,
+                    recordedAt: v.anchoredAt ?? prev.recordedAt,
+                    etherscanUrl: v.etherscanUrl ?? (prev as any).etherscanUrl,
+                }));
                 setVersions(prev =>
                     prev.map(ver => (ver.isCurrent ? { ...ver, hashShort: shortHash(v.computedHash) } : ver))
                 );
@@ -709,6 +744,9 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                             status={localBcStatus}
                             hash={doc.hash}
                             proofStatus={doc.proofStatus}
+                            txHash={doc.txHash}
+                            recordedAt={doc.recordedAt}
+                            etherscanUrl={(doc as any).etherscanUrl}
                             onSubmit={handleSubmitBlockchain}
                             onRetry={handleRetryBlockchain}
                             onVerify={handleVerifyBlockchain}
