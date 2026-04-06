@@ -88,13 +88,15 @@ function mapBackendTypeToUiType(documentType?: string | null): DocType {
 }
 
 function mapBlockchainStatus(doc: IDocument): BlockchainStatus {
-    const p = String(doc.proofStatus ?? "").toLowerCase();
-    if (!p || p.includes("hashcomputed")) return "not_submitted";
-    if (p.includes("pending") || p.includes("processing")) return "pending";
+    const p = String(doc.proofStatus ?? "").toLowerCase().trim();
+    // Handle numeric values from EF Core LINQ (Anchored=0, Revoked=1, HashComputed=2, Pending=3)
+    if (!p || p === "2" || p.includes("hashcomputed")) return "not_submitted";
+    if (p === "3" || p.includes("pending") || p.includes("processing")) return "pending";
     if (p.includes("mismatch")) return "mismatch";
     if (p.includes("failed") || p.includes("error")) return "failed";
     if (p.includes("matched")) return "matched";
-    if (p.includes("recorded") || p.includes("verified") || p.includes("submitted") || p.includes("anchored")) return "recorded";
+    if (p === "0" || p.includes("recorded") || p.includes("verified") || p.includes("submitted") || p.includes("anchored")) return "recorded";
+    if (p === "1" || p.includes("revoked")) return "failed";
     return "not_submitted";
 }
 
@@ -388,8 +390,10 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
         for (let i = 0; i < 12; i++) {
             await new Promise(r => setTimeout(r, 5000));
             try {
-                const res = await CheckOnchainStatus(docId);
-                const status = String(res?.data?.status ?? "").toLowerCase();
+                const raw = await CheckOnchainStatus(docId) as any;
+                // Interceptor unwraps response.data → raw is IBackendRes
+                const inner = raw?.data;
+                const status = String(inner?.status ?? "").toLowerCase();
                 if (status.includes("confirmed")) {
                     setLocalBcStatus("recorded");
                     setReloadToken(t => t + 1);
@@ -401,8 +405,11 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                     showToast("Giao dịch blockchain thất bại", "error");
                     return;
                 }
+                // If backend returned error (e.g. proof not found), skip
+                if (raw?.isSuccess === false) continue;
             } catch { /* keep polling */ }
         }
+        // After polling timeout, reload to get latest status from DB
         setReloadToken(t => t + 1);
     }, [showToast]);
 
@@ -458,8 +465,18 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
         setLocalBcStatus("pending");
         showToast("Đang gửi lên blockchain...", "info");
         try {
-            await HashDocument(backendDocId);
-            await SubmitDocumentToBlockchain(backendDocId);
+            const hashRes = await HashDocument(backendDocId) as any;
+            if (hashRes && hashRes.isSuccess === false) {
+                setLocalBcStatus("failed");
+                showToast(hashRes.message ?? "Tính hash thất bại", "error");
+                return;
+            }
+            const submitRes = await SubmitDocumentToBlockchain(backendDocId) as any;
+            if (submitRes && submitRes.isSuccess === false) {
+                setLocalBcStatus("failed");
+                showToast(submitRes.message ?? "Gửi blockchain thất bại", "error");
+                return;
+            }
             showToast("Đã gửi lên blockchain, đang chờ xác nhận...", "success");
             pollTxStatus(backendDocId);
         } catch (e: any) {
@@ -473,7 +490,12 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
         setLocalBcStatus("pending");
         showToast("Đang gửi lại yêu cầu ghi nhận...", "info");
         try {
-            await SubmitDocumentToBlockchain(backendDocId);
+            const res = await SubmitDocumentToBlockchain(backendDocId) as any;
+            if (res && res.isSuccess === false) {
+                setLocalBcStatus("failed");
+                showToast(res.message ?? "Gửi lại thất bại", "error");
+                return;
+            }
             showToast("Đã gửi lại, đang chờ xác nhận...", "success");
             pollTxStatus(backendDocId);
         } catch (e: any) {

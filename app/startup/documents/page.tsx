@@ -58,13 +58,15 @@ function mapBackendTypeToUiType(documentType?: string | null): DocType {
 }
 
 function mapBlockchainStatus(doc: IDocument): BlockchainStatus {
-    const p = String(doc.proofStatus ?? "").toLowerCase();
-    if (!p || p.includes("hashcomputed")) return "not_submitted";
-    if (p.includes("pending") || p.includes("processing") || p.includes("calculating")) return "pending";
+    const p = String(doc.proofStatus ?? "").toLowerCase().trim();
+    // Handle numeric values from EF Core LINQ (Anchored=0, Revoked=1, HashComputed=2, Pending=3)
+    if (!p || p === "2" || p.includes("hashcomputed")) return "not_submitted";
+    if (p === "3" || p.includes("pending") || p.includes("processing") || p.includes("calculating")) return "pending";
     if (p.includes("mismatch")) return "mismatch";
     if (p.includes("failed") || p.includes("error")) return "failed";
     if (p.includes("matched")) return "matched";
-    if (p.includes("recorded") || p.includes("verified") || p.includes("submitted") || p.includes("anchored")) return "recorded";
+    if (p === "0" || p.includes("recorded") || p.includes("verified") || p.includes("submitted") || p.includes("anchored")) return "recorded";
+    if (p === "1" || p.includes("revoked")) return "failed";
     return "not_submitted";
 }
 
