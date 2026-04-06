@@ -1,21 +1,17 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { 
-  ArrowLeft, ArrowRight, Building2, MapPin, 
-  Globe, Zap, LayoutGrid, Layers, Info,
-  User, Camera, UserCircle, MessageSquare, Tag, Briefcase
+import {
+  ArrowLeft, ArrowRight, Building2, MapPin,
+  Globe, Zap, Layers, Linkedin,
+  User, Camera, UserCircle, Tag, Briefcase, ChevronDown
 } from "lucide-react";
 import { IInvestorKYCSubmission } from "@/types/investor-kyc";
-
-const INDUSTRY_OPTIONS = [
-  "AI & Machine Learning", "Fintech", "Healthtech", "Edtech", 
-  "Ecommerce", "SaaS", "Web3", "Greentech", "Logistics", "Consumer Tech"
-];
+import { GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
 
 const STAGE_OPTIONS = [
-  "Idea / Concept", "MVP", "Seed", "Series A+", "Pre-IPO"
+  "Idea", "Pre-Seed", "Seed", "Series A", "Series B", "Series C+", "IPO Ready"
 ];
 
 interface InvestorProfileStepProps {
@@ -23,11 +19,10 @@ interface InvestorProfileStepProps {
   onChange: (data: Partial<IInvestorKYCSubmission>) => void;
   onNext: () => void;
   onBack: () => void;
-  onSkip: () => void;
   errors: Record<string, string>;
 }
 
-export function InvestorProfileStep({ data, onChange, onNext, onBack, onSkip, errors }: InvestorProfileStepProps) {
+export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: InvestorProfileStepProps) {
   const set = (key: keyof IInvestorKYCSubmission, val: any) => onChange({ ...data, [key]: val });
 
   const toggleList = (key: keyof IInvestorKYCSubmission, val: string) => {
@@ -37,6 +32,28 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, onSkip, er
   };
 
   const isInstitutional = data.investorCategory === "INSTITUTIONAL";
+
+  const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
+  const [expandedSections, setExpandedSections] = useState<number[]>([]);
+
+  useEffect(() => {
+    GetIndustriesFlat().then(setIndustries).catch(() => {});
+  }, []);
+
+  const parentIndustries = industries.filter(i => !i.parentIndustryID);
+  const childrenMap = industries.reduce((acc, i) => {
+    if (i.parentIndustryID) {
+      if (!acc[i.parentIndustryID]) acc[i.parentIndustryID] = [];
+      acc[i.parentIndustryID].push(i);
+    }
+    return acc;
+  }, {} as Record<number, IIndustryFlat[]>);
+
+  const toggleSection = (id: number) => {
+    setExpandedSections(prev =>
+      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
+    );
+  };
 
   const inputClass = (name: string) => cn(
     "w-full h-11 px-3 py-2.5 rounded-xl border text-[13px] text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20 focus:border-[#eec54e] transition-all bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]",
@@ -51,9 +68,11 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, onSkip, er
     </label>
   );
 
+  const totalSelected = data.preferredIndustries?.length ?? 0;
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 pb-10">
-      
+
       <div className="flex items-center gap-4 mb-2 px-1">
         <div className="w-12 h-12 rounded-2xl bg-[#eec54e]/10 flex items-center justify-center shrink-0 border border-[#eec54e]/20 shadow-sm">
           <User className="w-6 h-6 text-[#eec54e]" />
@@ -65,12 +84,13 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, onSkip, er
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Avatar/Logo - Optional */}
+        {/* Avatar / Logo */}
         <div className="md:col-span-2 flex items-center gap-6 p-6 rounded-2xl bg-slate-50 border border-slate-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
           <div className="w-24 h-24 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-sm group cursor-pointer relative overflow-hidden transition-all hover:border-[#eec54e]/50">
-            <input 
-              type="file" 
-              className="absolute inset-0 opacity-0 cursor-pointer z-10" 
+            <input
+              type="file"
+              accept="image/png,image/jpeg"
+              className="absolute inset-0 opacity-0 cursor-pointer z-10"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) set("avatar", URL.createObjectURL(file));
@@ -89,90 +109,109 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, onSkip, er
             </div>
           </div>
           <div className="space-y-1.5">
-            <h4 className="text-[14px] font-bold text-slate-900 leading-none">Ảnh đại diện / Logo</h4>
+            <h4 className="text-[14px] font-bold text-slate-900 leading-none">
+              {isInstitutional ? "Logo tổ chức" : "Ảnh đại diện"}
+            </h4>
             <p className="text-[13px] text-slate-500 leading-relaxed max-w-[340px] font-normal">
-              {isInstitutional ? "Tải lên Logo chính thức của tổ chức để tăng nhận diện thương hiệu." : "Ảnh chân dung chuyên nghiệp giúp tăng 40% khả năng kết nối thành công."}
+              {isInstitutional
+                ? "Tải lên Logo chính thức của tổ chức để tăng nhận diện thương hiệu."
+                : "Ảnh chân dung chuyên nghiệp giúp tăng 40% khả năng kết nối thành công."}
             </p>
           </div>
         </div>
 
-        {/* Display Name */}
-        <div className="space-y-1">
-          <Label required icon={UserCircle}>{isInstitutional ? "Tên tổ chức" : "Tên hiển thị"}</Label>
-          <input 
-            value={data.displayName || ""}
-            onChange={e => set("displayName", e.target.value)}
-            placeholder={isInstitutional ? "Ví dụ: AISEP Ventures" : "Ví dụ: Nguyễn Văn A"}
-            className={inputClass("displayName")}
-          />
-          {errors.displayName && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.displayName}</p>}
-        </div>
+        {isInstitutional ? (
+          <>
+            <div className="space-y-1">
+              <Label required icon={Building2}>Tên tổ chức</Label>
+              <input
+                value={data.displayName || ""}
+                onChange={e => set("displayName", e.target.value)}
+                placeholder="Ví dụ: AISEP Ventures, Dragon Capital..."
+                className={inputClass("displayName")}
+              />
+              {errors.displayName && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.displayName}</p>}
+            </div>
 
-        {/* Organization - Optional */}
-        <div className="space-y-1">
-          <Label icon={Building2}>Tổ chức / Công ty</Label>
-          <input 
-            value={data.organizationName || ""}
-            onChange={e => set("organizationName", e.target.value)}
-            placeholder="Nơi bạn đang công tác"
-            className={inputClass("organizationName")}
-          />
-        </div>
+            <div className="space-y-1">
+              <Label icon={Globe}>Website chính thức</Label>
+              <input
+                value={data.website || ""}
+                onChange={e => set("website", e.target.value)}
+                placeholder="https://..."
+                className={inputClass("website")}
+              />
+            </div>
 
-        {/* Role / Title */}
-        <div className="space-y-1">
-          <Label required icon={Briefcase}>Chức vụ hiện tại</Label>
-          <input 
-            value={data.currentRoleTitle || ""}
-            onChange={e => set("currentRoleTitle", e.target.value)}
-            placeholder="Ví dụ: Managing Partner, Angel..."
-            className={inputClass("currentRoleTitle")}
-          />
-          {errors.currentRoleTitle && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.currentRoleTitle}</p>}
-        </div>
+            <div className="space-y-1">
+              <Label icon={UserCircle}>Người đại diện / Chức vụ</Label>
+              <input
+                value={data.currentRoleTitle || ""}
+                onChange={e => set("currentRoleTitle", e.target.value)}
+                placeholder="Ví dụ: Managing Partner, Investment Manager..."
+                className={inputClass("currentRoleTitle")}
+              />
+            </div>
 
-        {/* Location */}
-        <div className="space-y-1">
-          <Label required icon={MapPin}>Địa điểm hoạt động</Label>
-          <input 
-            value={data.location || ""}
-            onChange={e => set("location", e.target.value)}
-            placeholder="Ví dụ: Hà Nội, TP. Hồ Chí Minh..."
-            className={inputClass("location")}
-          />
-          {errors.location && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.location}</p>}
-        </div>
+            <div className="space-y-1">
+              <Label icon={MapPin}>Địa điểm hoạt động</Label>
+              <input
+                value={data.location || ""}
+                onChange={e => set("location", e.target.value)}
+                placeholder="Ví dụ: Hà Nội, TP. Hồ Chí Minh..."
+                className={inputClass("location")}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="space-y-1">
+              <Label required icon={UserCircle}>Tên hiển thị</Label>
+              <input
+                value={data.displayName || ""}
+                onChange={e => set("displayName", e.target.value)}
+                placeholder="Ví dụ: Nguyễn Văn A"
+                className={inputClass("displayName")}
+              />
+              {errors.displayName && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.displayName}</p>}
+            </div>
 
-        {/* Website / Main Link */}
-        <div className="space-y-1">
-          <Label required icon={Globe}>{isInstitutional ? "Website chính thức" : "LinkedIn / Profile link"}</Label>
-          <input 
-            value={data.website || ""}
-            onChange={e => set("website", e.target.value)}
-            placeholder="https://..."
-            className={inputClass("website")}
-          />
-          {errors.website && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.website}</p>}
-        </div>
+            <div className="space-y-1">
+              <Label icon={Briefcase}>Chức vụ hiện tại</Label>
+              <input
+                value={data.currentRoleTitle || ""}
+                onChange={e => set("currentRoleTitle", e.target.value)}
+                placeholder="Ví dụ: Angel Investor, Partner..."
+                className={inputClass("currentRoleTitle")}
+              />
+            </div>
 
-        {/* Connection Status */}
-        <div className="space-y-1">
-          <Label required icon={MessageSquare}>Trạng thái kết nối</Label>
-          <select 
-            value={data.acceptingConnectionsStatus || "OPEN"}
-            onChange={e => set("acceptingConnectionsStatus", e.target.value as any)}
-            className={inputClass("acceptingConnectionsStatus")}
-          >
-            <option value="OPEN">Đang mở (Open to connections)</option>
-            <option value="SELECTIVE">Chọn lọc (Selectively open)</option>
-            <option value="CLOSED">Tạm đóng (Not accepting now)</option>
-          </select>
-        </div>
+            <div className="space-y-1">
+              <Label icon={Linkedin}>LinkedIn / Profile link</Label>
+              <input
+                value={data.website || ""}
+                onChange={e => set("website", e.target.value)}
+                placeholder="https://linkedin.com/in/..."
+                className={inputClass("website")}
+              />
+            </div>
 
-        {/* Thesis - Optional */}
+            <div className="space-y-1">
+              <Label icon={MapPin}>Địa điểm hoạt động</Label>
+              <input
+                value={data.location || ""}
+                onChange={e => set("location", e.target.value)}
+                placeholder="Ví dụ: Hà Nội, TP. Hồ Chí Minh..."
+                className={inputClass("location")}
+              />
+            </div>
+          </>
+        )}
+
+        {/* Khẩu vị đầu tư */}
         <div className="md:col-span-2 space-y-1">
           <Label icon={Zap}>Khẩu vị đầu tư (Thesis)</Label>
-          <textarea 
+          <textarea
             value={data.shortThesisSummary || ""}
             onChange={e => set("shortThesisSummary", e.target.value)}
             rows={3}
@@ -181,67 +220,132 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, onSkip, er
           />
         </div>
 
-        {/* Industries */}
-        <div className="md:col-span-2 space-y-4">
-          <Label required icon={Tag}>Lĩnh vực quan tâm</Label>
-          <div className="flex flex-wrap gap-2">
-            {INDUSTRY_OPTIONS.map(opt => (
-              <button 
-                key={opt}
-                type="button"
-                onClick={() => toggleList("preferredIndustries", opt)}
-                className={cn(
-                  "px-3.5 py-2 rounded-xl text-[13px] font-bold border transition-all active:scale-95 shadow-sm",
-                  (data.preferredIndustries || []).includes(opt)
-                    ? "bg-[#eec54e] border-[#eec54e] text-slate-900 shadow-[#eec54e]/20"
-                    : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-                )}
-              >
-                {opt}
-              </button>
-            ))}
+        {/* Lĩnh vực quan tâm — grouped accordion */}
+        <div className="md:col-span-2 space-y-3">
+          <div className="flex items-center justify-between">
+            <Label icon={Tag}>Lĩnh vực quan tâm</Label>
+            {totalSelected > 0 && (
+              <span className="text-[12px] text-slate-500 mb-2">
+                Đã chọn <span className="font-bold text-slate-700">{totalSelected}</span> lĩnh vực
+              </span>
+            )}
           </div>
-          {errors.preferredIndustries && <p className="text-red-500 text-[11px] font-medium mt-1 ml-1">{errors.preferredIndustries}</p>}
+
+          {industries.length === 0 ? (
+            <div className="space-y-2">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-12 rounded-xl bg-slate-100 animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {parentIndustries.map(parent => {
+                const children = childrenMap[parent.industryID] || [];
+                const selectedCount = children.filter(c =>
+                  (data.preferredIndustries || []).includes(c.industryName)
+                ).length;
+                const isExpanded = expandedSections.includes(parent.industryID);
+
+                // Parent có children → accordion; không có → chip trực tiếp
+                if (children.length === 0) {
+                  const isSelected = (data.preferredIndustries || []).includes(parent.industryName);
+                  return (
+                    <button
+                      key={parent.industryID}
+                      type="button"
+                      onClick={() => toggleList("preferredIndustries", parent.industryName)}
+                      className={cn(
+                        "w-full text-left px-4 py-3 rounded-xl border text-[13px] font-semibold transition-all active:scale-[0.99]",
+                        isSelected
+                          ? "bg-[#eec54e]/10 border-[#eec54e] text-slate-900"
+                          : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                      )}
+                    >
+                      {parent.industryName}
+                    </button>
+                  );
+                }
+
+                return (
+                  <div key={parent.industryID} className="border border-slate-200 rounded-xl overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => toggleSection(parent.industryID)}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+                    >
+                      <span className="text-[13px] font-bold text-slate-700">{parent.industryName}</span>
+                      <div className="flex items-center gap-2">
+                        {selectedCount > 0 && (
+                          <span className="bg-[#eec54e] text-slate-900 text-[11px] font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                            {selectedCount}
+                          </span>
+                        )}
+                        <ChevronDown className={cn(
+                          "w-4 h-4 text-slate-400 transition-transform duration-200",
+                          isExpanded && "rotate-180"
+                        )} />
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="px-4 py-3 flex flex-wrap gap-2 bg-white border-t border-slate-100">
+                        {children.map(child => (
+                          <button
+                            key={child.industryID}
+                            type="button"
+                            onClick={() => toggleList("preferredIndustries", child.industryName)}
+                            className={cn(
+                              "px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-all active:scale-95",
+                              (data.preferredIndustries || []).includes(child.industryName)
+                                ? "bg-[#eec54e] border-[#eec54e] text-slate-900"
+                                : "bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-white"
+                            )}
+                          >
+                            {child.industryName}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Stages */}
-        <div className="md:col-span-2 space-y-4">
-          <Label required icon={Layers}>Giai đoạn ưu tiên</Label>
-          <div className="flex flex-wrap gap-2">
-            {STAGE_OPTIONS.map(opt => (
-              <button 
-                key={opt}
-                type="button"
-                onClick={() => toggleList("preferredStages", opt)}
-                className={cn(
-                  "px-3.5 py-2 rounded-xl text-[13px] font-bold border transition-all active:scale-95 shadow-sm",
-                  (data.preferredStages || []).includes(opt)
-                    ? "bg-[#0f172a] border-[#0f172a] text-white"
-                    : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-                )}
-              >
-                {opt}
-              </button>
-            ))}
+        {/* Giai đoạn ưu tiên */}
+        <div className="md:col-span-2 space-y-3">
+          <Label icon={Layers}>Giai đoạn ưu tiên</Label>
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+            {STAGE_OPTIONS.map(opt => {
+              const isSelected = (data.preferredStages || []).includes(opt);
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => toggleList("preferredStages", opt)}
+                  className={cn(
+                    "py-2.5 rounded-xl text-[12px] font-bold border transition-all active:scale-95 text-center",
+                    isSelected
+                      ? "bg-[#0f172a] border-[#0f172a] text-white shadow-sm"
+                      : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                  )}
+                >
+                  {opt}
+                </button>
+              );
+            })}
           </div>
-          {errors.preferredStages && <p className="text-red-500 text-[11px] font-medium mt-1 ml-1">{errors.preferredStages}</p>}
         </div>
       </div>
 
       {/* Navigation */}
       <div className="flex justify-between items-center pt-8 border-t border-slate-100 mt-6">
-        <button 
+        <button
           onClick={onBack}
           className="h-11 px-6 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl flex items-center justify-center gap-2 text-[13px] font-semibold hover:bg-slate-100 transition-all active:scale-[0.98]"
         >
           <ArrowLeft className="w-4 h-4" /> Quay lại
-        </button>
-
-        <button 
-          onClick={onSkip}
-          className="text-[13px] font-bold text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-widest"
-        >
-          Bỏ qua
         </button>
 
         <button

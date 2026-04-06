@@ -2,28 +2,32 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useRef, useEffect, Suspense } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import {
-  Rocket,
-  MailCheck,
-  ShieldCheck,
-  HelpCircle,
-  Pencil,
   ArrowLeft,
-  ArrowRight,
-  Loader2,
   CheckCircle2,
+  HelpCircle,
+  Loader2,
+  MailCheck,
+  Pencil,
 } from "lucide-react";
 import { ResendVerificationEmail, VerifyEmail } from "@/services/auth/auth.api";
 import { useAuth } from "@/context/context";
+
+type AuthPayloadShape = {
+  accessToken?: string;
+  data?: Partial<IUser>;
+  info?: Partial<IUser>;
+  user?: Partial<IUser>;
+};
 
 function VerifyEmailClientInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setUser, setAccessToken, setIsAuthen } = useAuth();
 
-
   const email = searchParams.get("email") || "";
+  const purpose = searchParams.get("purpose");
 
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [cooldown, setCooldown] = useState(60);
@@ -31,147 +35,128 @@ function VerifyEmailClientInner() {
   const [isResending, setIsResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [verifiedUserType, setVerifiedUserType] = useState("");
-  const [verifiedRolesState, setVerifiedRolesState] = useState<string[]>([]);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const parseJwt = (token: string) => {
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        window.atob(base64)
-          .split('')
-          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      return JSON.parse(jsonPayload);
-    } catch (e) {
-      return null;
-    }
-  };
+  const getWorkspacePath = (userType: string) => {
+    const type = userType.toLowerCase();
 
-  const getWorkspacePath = (userType: string | undefined, roles?: string[]) => {
-    const purpose = searchParams.get("purpose");
-    let type = (userType ?? "").toLowerCase();
-
-    // Fallback to roles if userType is empty
-    if (!type && roles && roles.length > 0) {
-      // Find the first role that matches one of our known dashboards
-      const knownRoles = ["startup", "investor", "advisor", "staff", "admin"];
-      const lowerRoles = roles.map(r => r.toLowerCase());
-
-      for (const known of knownRoles) {
-        if (lowerRoles.includes(known)) {
-          type = known;
-          break;
-        }
-      }
-    }
-
-    // Redirect to onboarding if NEW user (register flow)
     if (purpose === "register") {
-      if (type === "advisor" || type === "expert") return "/advisor/onboard";
       if (type === "startup") return "/startup/onboard";
+      if (type === "investor") return "/investor/onboard";
+      if (type === "advisor" || type === "expert") return "/advisor/onboard";
     }
 
     switch (type) {
-      case "startup": return "/startup";
-      case "investor": return "/investor";
+      case "startup":
+        return "/startup";
+      case "investor":
+        return "/investor";
       case "advisor":
-      case "expert": return "/advisor";
-      case "staff": return "/staff";
-      case "admin": return "/admin/users";
-      default: return "/";
+      case "expert":
+        return "/advisor";
+      case "staff":
+        return "/staff";
+      case "admin":
+        return "/admin/users";
+      default:
+        return "/";
     }
+  };
+
+  const extractAuthPayload = (payload: AuthPayloadShape | null | undefined) => {
+    if (!payload?.accessToken) return null;
+
+    const rawUser = payload.data ?? payload.info ?? payload.user;
+    if (!rawUser?.userType) return null;
+
+    const normalizedUser: IUser = {
+      userId: rawUser.userId ?? 0,
+      email: rawUser.email ?? email,
+      userType: rawUser.userType,
+      isActive: rawUser.isActive ?? true,
+      emailVerified: rawUser.emailVerified ?? true,
+      createdAt: rawUser.createdAt ?? "",
+      lastLoginAt: rawUser.lastLoginAt ?? "",
+      roles: Array.isArray(rawUser.roles) ? rawUser.roles : [],
+    };
+
+    return {
+      accessToken: payload.accessToken,
+      user: normalizedUser,
+    };
   };
 
   const handleChange = (index: number, value: string) => {
     if (value && !/^\d$/.test(value)) return;
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-    if (value && index < 5) inputRefs.current[index + 1]?.focus();
+
+    const nextOtp = [...otp];
+    nextOtp[index] = value;
+    setOtp(nextOtp);
+
+    if (value && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
   };
 
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && !otp[index] && index > 0) {
+  const handleKeyDown = (index: number, event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Backspace" && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
   };
 
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const pastedData = e.clipboardData.getData("text").slice(0, 6);
-    if (/^\d+$/.test(pastedData)) {
-      const newOtp = [...otp];
-      for (let i = 0; i < 6; i++) newOtp[i] = pastedData[i] || "";
-      setOtp(newOtp);
-      inputRefs.current[Math.min(pastedData.length - 1, 5)]?.focus();
+  const handlePaste = (event: React.ClipboardEvent) => {
+    event.preventDefault();
+    const pastedData = event.clipboardData.getData("text").slice(0, 6);
+    if (!/^\d+$/.test(pastedData)) return;
+
+    const nextOtp = [...otp];
+    for (let index = 0; index < 6; index += 1) {
+      nextOtp[index] = pastedData[index] || "";
     }
+
+    setOtp(nextOtp);
+    inputRefs.current[Math.min(pastedData.length - 1, 5)]?.focus();
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError(null);
     setSuccessMessage(null);
+
     const otpCode = otp.join("");
     if (otpCode.length !== 6) return;
 
     setIsVerifying(true);
     try {
-      const res = await VerifyEmail(email, otpCode);
-      if (res.success && res.data) {
-        // Safe destructuring to handle both IRegisterInfo and ILoginInfo-like structures
-        const data = res.data as any;
-        const info = data.info || data;
+      const response = await VerifyEmail(email, otpCode);
 
-        const finalUserID = info.userID || info.userId;
-        const finalEmail = info.email;
-        let finalUserType = info.userType;
-        let finalRoles = info.roles;
-        const finalAccessToken = data.accessToken;
-
-        // Fallback: Decode token if backend doesn't send user object fully
-        const decoded = parseJwt(finalAccessToken);
-        if (decoded) {
-          const netCoreRoleClaim = "http://schemas.microsoft.com/ws/2008/06/identity/claims/role";
-          if (decoded[netCoreRoleClaim]) {
-            const rolesFromToken = Array.isArray(decoded[netCoreRoleClaim])
-              ? decoded[netCoreRoleClaim]
-              : [decoded[netCoreRoleClaim]];
-            finalRoles = finalRoles && finalRoles.length > 0 ? finalRoles : rolesFromToken;
-          } else if (decoded.role) {
-            const rolesFromToken = Array.isArray(decoded.role) ? decoded.role : [decoded.role];
-            finalRoles = finalRoles && finalRoles.length > 0 ? finalRoles : rolesFromToken;
-          } else if (decoded.roles) {
-            const rolesFromToken = Array.isArray(decoded.roles) ? decoded.roles : [decoded.roles];
-            finalRoles = finalRoles && finalRoles.length > 0 ? finalRoles : rolesFromToken;
-          }
-
-          if (!finalUserType && decoded.userType) {
-            finalUserType = decoded.userType;
-          }
-        }
-
-        setUser({
-          userId: finalUserID,
-          email: finalEmail,
-          userType: finalUserType,
-          roles: finalRoles
-        } as IUser);
-        setAccessToken(finalAccessToken);
-        setIsAuthen(true);
-        if (typeof window !== "undefined") localStorage.setItem("accessToken", finalAccessToken);
-        setVerifiedUserType(finalUserType || "");
-        setVerifiedRolesState(finalRoles || []);
-        setIsSuccess(true);
-      } else {
-        setError(res.message || "Xác thực OTP không thành công");
+      if (!response.success || !response.data) {
+        setError(response.message || "Xác thực OTP không thành công.");
+        return;
       }
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || "Có lỗi xảy ra. Vui lòng thử lại.");
+
+      const authPayload = extractAuthPayload(response.data as AuthPayloadShape);
+      if (!authPayload) {
+        setError("Phản hồi xác thực không đầy đủ. Vui lòng thử lại.");
+        return;
+      }
+
+      setUser(authPayload.user);
+      setAccessToken(authPayload.accessToken);
+      setIsAuthen(true);
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("accessToken", authPayload.accessToken);
+        localStorage.setItem("user", JSON.stringify(authPayload.user));
+      }
+
+      router.replace(getWorkspacePath(authPayload.user.userType));
+    } catch (requestError) {
+      const message =
+        requestError instanceof Error
+          ? requestError.message
+          : "Có lỗi xảy ra. Vui lòng thử lại.";
+      setError(message);
     } finally {
       setIsVerifying(false);
     }
@@ -179,143 +164,85 @@ function VerifyEmailClientInner() {
 
   const handleResend = async () => {
     if (cooldown > 0 || isResending || !email) return;
+
     setError(null);
     setSuccessMessage(null);
     setIsResending(true);
+
     try {
-      const res = await ResendVerificationEmail(email);
-      if (res.success) {
-        setSuccessMessage("Đã gửi lại mã xác nhận vào email của bạn.");
-        setOtp(["", "", "", "", "", ""]);
-        inputRefs.current[0]?.focus();
-        setCooldown(60);
-      } else {
-        setError(res.message || "Không thể gửi lại mã xác nhận");
+      const response = await ResendVerificationEmail(email);
+      if (!response.success) {
+        setError(response.message || "Không thể gửi lại mã xác nhận.");
+        return;
       }
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || "Có lỗi xảy ra. Vui lòng thử lại.");
+
+      setSuccessMessage("Đã gửi lại mã xác nhận vào email của bạn.");
+      setOtp(["", "", "", "", "", ""]);
+      inputRefs.current[0]?.focus();
+      setCooldown(60);
+    } catch (requestError) {
+      const message =
+        requestError instanceof Error
+          ? requestError.message
+          : "Có lỗi xảy ra. Vui lòng thử lại.";
+      setError(message);
     } finally {
       setIsResending(false);
     }
   };
 
   useEffect(() => {
-    if (!isSuccess) inputRefs.current[0]?.focus();
-  }, [isSuccess]);
+    inputRefs.current[0]?.focus();
+  }, []);
 
   useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = setInterval(() => setCooldown((p) => (p > 0 ? p - 1 : 0)), 1000);
+    if (cooldown <= 0) return undefined;
+
+    const timer = setInterval(() => {
+      setCooldown((previous) => (previous > 0 ? previous - 1 : 0));
+    }, 1000);
+
     return () => clearInterval(timer);
   }, [cooldown]);
 
-  /* ==========================================================
-   *  SCREEN 2 — Xác thực thành công
-   * ========================================================== */
-  if (isSuccess) {
-    return (
-      <div className="min-h-screen bg-[#f8f8f6] flex flex-col" style={{ fontFamily: "var(--font-be-vietnam-pro), sans-serif" }}>
-      <div className="h-16" />
-
-        {/* Main */}
-        <main className="flex-1 flex items-center justify-center px-4 pb-12">
-          <div className="max-w-[520px] w-full">
-            <div className="bg-white rounded-3xl shadow-xl border border-slate-100 px-8 py-12 md:px-12 md:py-14 text-center">
-              {/* Success icon */}
-              <div className="flex justify-center mb-8">
-                <div className="relative">
-                  <div className="w-20 h-20 rounded-full bg-[#f0f042]/20 flex items-center justify-center">
-                    <div className="w-16 h-16 rounded-full bg-[#f0f042] flex items-center justify-center shadow-lg shadow-[#f0f042]/30">
-                      <ShieldCheck className="w-8 h-8 text-slate-900" />
-                    </div>
-                  </div>
-                  <div className="absolute -top-2 -left-3 w-6 h-6 rounded-full bg-[#f0f042]/15" />
-                  <div className="absolute -bottom-1 -right-4 w-5 h-5 rounded-full bg-[#f0f042]/10" />
-                </div>
-              </div>
-
-              <h2 className="text-3xl font-black text-slate-900 mb-4">Xác thực thành công!</h2>
-              <p className="text-slate-500 leading-relaxed mb-10 max-w-sm mx-auto">
-                Tài khoản của bạn đã sẵn sàng. Chào mừng bạn gia nhập hệ sinh thái khởi nghiệp{" "}
-                <span className="font-bold text-slate-900">AISEP</span>.
-              </p>
-
-              <Link
-                href={getWorkspacePath(verifiedUserType, verifiedRolesState)}
-                className="w-full bg-[#f0f042] hover:bg-[#e6e632] text-slate-900 font-bold py-4 rounded-xl shadow-lg shadow-[#f0f042]/20 transition-all flex items-center justify-center gap-2"
-              >
-                <span>Vào Workspace của tôi</span>
-                <ArrowRight className="w-5 h-5" />
-              </Link>
-
-              <Link href="/" className="inline-block mt-5 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors">
-                Quay về Trang chủ
-              </Link>
-            </div>
-          </div>
-        </main>
-
-        {/* Minimal footer */}
-        <footer className="py-8 px-4">
-          <div className="flex flex-col items-center gap-4">
-            <div className="flex items-center gap-6 text-sm font-medium text-slate-400">
-              <button className="hover:text-slate-600 transition-colors">Điều khoản</button>
-              <button className="hover:text-slate-600 transition-colors">Bảo mật</button>
-              <button className="hover:text-slate-600 transition-colors">Liên hệ</button>
-            </div>
-            <p className="text-xs text-slate-400">© 2024 AISEP, Nền tảng hệ sinh thái khởi nghiệp AI.</p>
-            <div className="flex items-center gap-2 mt-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-              <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-              <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-            </div>
-          </div>
-        </footer>
-      </div>
-    );
-  }
-
-  /* ==========================================================
-   *  SCREEN 1 — Nhập mã OTP
-   * ========================================================== */
   return (
-    <div className="min-h-screen bg-[#f8f8f6] flex flex-col" style={{ fontFamily: "var(--font-be-vietnam-pro), sans-serif" }}>
+    <div
+      className="min-h-screen bg-[#f8f8f6] flex flex-col"
+      style={{ fontFamily: "var(--font-be-vietnam-pro), sans-serif" }}
+    >
       <div className="h-[73px]" />
 
-      {/* ===== MAIN ===== */}
       <main className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-[520px] flex flex-col items-center">
-          {/* Card */}
           <div className="w-full bg-white rounded-3xl shadow-xl border border-slate-100 px-8 py-10 md:px-12 md:py-12">
-            {/* Mail Icon */}
             <div className="flex justify-center mb-6">
               <div className="w-16 h-16 rounded-full bg-[#f0f042]/20 flex items-center justify-center">
                 <MailCheck className="w-8 h-8 text-slate-800" />
               </div>
             </div>
 
-            {/* Heading */}
             <div className="text-center mb-8">
-              <h2 className="text-2xl font-black text-slate-900 mb-3">Xác thực Email của bạn</h2>
+              <h2 className="text-2xl font-black text-slate-900 mb-3">Xác thực email của bạn</h2>
               <p className="text-slate-500 text-sm leading-relaxed">
                 Vui lòng nhập mã OTP 6 chữ số đã được gửi đến email:
               </p>
               <p className="text-slate-900 font-bold text-sm mt-1">{email || "(chưa có email)"}</p>
             </div>
 
-            {/* OTP Input */}
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="flex gap-3 justify-center">
                 {otp.map((digit, index) => (
                   <input
                     key={index}
-                    ref={(el) => { inputRefs.current[index] = el; }}
+                    ref={(element) => {
+                      inputRefs.current[index] = element;
+                    }}
                     type="text"
                     inputMode="numeric"
                     maxLength={1}
                     value={digit}
-                    onChange={(e) => handleChange(index, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    onChange={(event) => handleChange(index, event.target.value)}
+                    onKeyDown={(event) => handleKeyDown(index, event)}
                     onPaste={handlePaste}
                     className="w-12 h-14 text-center text-xl font-bold border-2 border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#f0f042] focus:border-[#f0f042] transition-all"
                   />
@@ -323,9 +250,10 @@ function VerifyEmailClientInner() {
               </div>
 
               {error && <p className="text-sm text-red-600 text-center font-medium">{error}</p>}
-              {successMessage && <p className="text-sm text-green-600 text-center font-medium">{successMessage}</p>}
+              {successMessage && (
+                <p className="text-sm text-green-600 text-center font-medium">{successMessage}</p>
+              )}
 
-              {/* Submit */}
               <button
                 type="submit"
                 disabled={otp.join("").length !== 6 || isVerifying || !email}
@@ -345,7 +273,6 @@ function VerifyEmailClientInner() {
               </button>
             </form>
 
-            {/* Resend */}
             <div className="text-center mt-6">
               <p className="text-sm text-slate-500">
                 Không nhận được mã?{" "}
@@ -364,7 +291,6 @@ function VerifyEmailClientInner() {
               </p>
             </div>
 
-            {/* Change email */}
             <div className="text-center mt-4">
               <Link
                 href="/auth/register"
@@ -376,7 +302,6 @@ function VerifyEmailClientInner() {
             </div>
           </div>
 
-          {/* Back link */}
           <Link
             href="/auth/register"
             className="mt-8 inline-flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-slate-600 transition-colors"
@@ -387,13 +312,25 @@ function VerifyEmailClientInner() {
         </div>
       </main>
 
-      {/* ===== FOOTER ===== */}
       <footer className="w-full py-8 border-t border-slate-200 bg-white">
         <div className="max-w-[1440px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-slate-400 text-xs">© 2024 AISEP Platform. All rights reserved.</p>
           <div className="flex items-center gap-6">
             <button className="text-slate-400 hover:text-[#f0f042] transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-5 h-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M2 12h20" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
             </button>
             <button className="text-slate-400 hover:text-[#f0f042] transition-colors">
               <HelpCircle className="w-5 h-5" />

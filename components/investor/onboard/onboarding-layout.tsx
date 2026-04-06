@@ -20,13 +20,22 @@ export function OnboardingLayout({
   isSaving 
 }: OnboardingLayoutProps) {
   return (
-    <div className="h-screen bg-slate-50 flex flex-col items-center animate-in fade-in duration-400 overflow-hidden selection:bg-[#eec54e]/30">
+    <div
+      className="h-screen flex flex-col items-center animate-in fade-in duration-400 overflow-hidden selection:bg-[#eec54e]/30"
+      style={{
+        backgroundImage: "url('/backgroundforonboard.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+        backgroundAttachment: "fixed",
+      }}
+    >
       <div className="w-full flex-1 overflow-y-auto no-scrollbar flex flex-col items-center py-10">
         <div className="w-full max-w-[900px] px-6 my-auto">
         
         {/* Main Form Area (Centered) */}
         <div className="space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-8 md:p-10 relative overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_24px_rgba(0,0,0,0.06)] p-8 md:p-10 relative overflow-hidden">
             {/* Step Background Decor */}
             <div className="absolute top-0 right-0 p-10 opacity-[0.03] pointer-events-none text-slate-200">
               <ShieldCheck className="w-64 h-64 -mr-20 -mt-20 rotate-12" />

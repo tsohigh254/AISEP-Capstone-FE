@@ -36,6 +36,22 @@ export const RemoveFromWatchlist = (watchlistId: number) => {
     return axios.delete<IBackendRes<null>>(`/api/investors/me/watchlist/${watchlistId}`);
 }
 
+export const UpdateInvestorProfile = (data: IUpdateInvestorProfile) => {
+    return axios.put<IBackendRes<IInvestorProfile>>(`/api/investors/me`, data);
+}
+
+export const UploadInvestorPhoto = (file: File) => {
+    const formData = new FormData();
+    formData.append("photo", file);
+    return axios.post<IBackendRes<IInvestorProfile>>(`/api/investors/me/photo`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+    });
+}
+
+export const UpdateInvestorPreferences = (data: IUpdateInvestorPreferences) => {
+    return axios.put<IBackendRes<null>>(`/api/investors/me/preferences`, data);
+}
+
 export const GetKYCStatus = () => {
     // This is a mock implementation for the design phase
     return axios.get<IBackendRes<IKYCStatus>>(`/api/investors/me/kyc/status`);

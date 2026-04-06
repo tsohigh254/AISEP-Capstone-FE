@@ -11,14 +11,13 @@ import { InvestorTypeStep } from "@/components/investor/onboard/investor-type-st
 import { InvestorProfileStep } from "@/components/investor/onboard/investor-profile-step";
 import { ProfilePreviewCard } from "@/components/investor/onboard/profile-preview-card";
 import { WelcomeStep } from "@/components/investor/onboard/welcome-step";
-import { SkipOnboardingDialog } from "@/components/investor/onboard/skip-onboarding-dialog";
 import { OnboardingTimeline } from "@/components/investor/onboard/onboarding-timeline";
 import { 
   GetInvestorKYCStatus, 
   SubmitInvestorKYC, 
   SaveInvestorKYCDraft 
 } from "@/services/investor/investor-kyc";
-import { CreateInvestorProfile } from "@/services/investor/investor.api";
+import { CreateInvestorProfile, UpdateInvestorPreferences } from "@/services/investor/investor.api";
 import { IInvestorKYCSubmission, IInvestorKYCStatus } from "@/types/investor-kyc";
 
 const TIMELINE_STEPS = [
@@ -32,8 +31,6 @@ export default function InvestorOnboardingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
-  const [showSkipDialog, setShowSkipDialog] = useState(false);
-  
   const [formData, setFormData] = useState<Partial<IInvestorKYCSubmission & { investmentThesis?: string }>>({
     investorCategory: "INDIVIDUAL_ANGEL",
     preferredIndustries: [],
@@ -83,11 +80,6 @@ export default function InvestorOnboardingPage() {
     const e: Record<string, string> = {};
     if (step === 3) {
       if (!formData.displayName?.trim() && !formData.fullName?.trim()) e.displayName = "Vui lòng nhập tên hiển thị";
-      if (!formData.currentRoleTitle?.trim()) e.currentRoleTitle = "Vui lòng nhập chức vụ";
-      if (!formData.location?.trim()) e.location = "Vui lòng nhập địa điểm";
-      if (!formData.website?.trim()) e.website = "Vui lòng nhập link liên kết (Website/LinkedIn)";
-      if (!formData.preferredIndustries?.length) e.preferredIndustries = "Chọn ít nhất 1 lĩnh vực";
-      if (!formData.preferredStages?.length) e.preferredStages = "Chọn ít nhất 1 giai đoạn";
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -107,7 +99,6 @@ export default function InvestorOnboardingPage() {
   };
 
   const handleBack = () => setStep(s => s - 1);
-  const handleSkip = () => router.push("/investor");
 
   const handleSaveDraft = async () => {
     setIsSaving(true);
@@ -124,25 +115,35 @@ export default function InvestorOnboardingPage() {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      // Map frontend formData to backend request
-      const requestData = {
-          fullName: formData.fullName || formData.displayName || "",
-          firmName: formData.organizationName,
-          title: formData.currentRoleTitle,
-          location: formData.location,
-          website: formData.website,
-          linkedInURL: formData.website || "",
-          investmentThesis: formData.investmentThesis || ""
+      const isInstitutional = formData.investorCategory === "INSTITUTIONAL";
+      const requestData: ICreateInvestor = {
+        fullName: formData.fullName || formData.displayName || "",
+        firmName: formData.organizationName,
+        title: formData.currentRoleTitle,
+        bio: formData.shortThesisSummary,
+        investorType: formData.investorCategory,
+        location: formData.location,
+        website: isInstitutional ? formData.website : undefined,
+        linkedInURL: !isInstitutional ? formData.website : undefined,
+        investmentThesis: formData.shortThesisSummary,
       };
 
-      const res = await CreateInvestorProfile(requestData as any);
-      if (res.isSuccess) {
-        setIsCompleted(true);
-        setStep(4);
-        toast.success("Hồ sơ cơ bản đã được thiết lập thành công!");
-      } else {
+      const res = await CreateInvestorProfile(requestData);
+      if (!res.isSuccess) {
         toast.error(res.message || "Gặp lỗi khi tạo hồ sơ");
+        return;
       }
+
+      if (formData.preferredIndustries?.length || formData.preferredStages?.length) {
+        await UpdateInvestorPreferences({
+          preferredIndustries: formData.preferredIndustries || [],
+          preferredStages: formData.preferredStages || [],
+        });
+      }
+
+      setIsCompleted(true);
+      setStep(4);
+      toast.success("Hồ sơ cơ bản đã được thiết lập thành công!");
     } catch {
       toast.error("Gặp lỗi khi xử lý hồ sơ");
     } finally {
@@ -245,22 +246,16 @@ export default function InvestorOnboardingPage() {
             />
           )}
           {step === 3 && (
-            <InvestorProfileStep 
-              data={formData} 
-              onChange={setFormData as any} 
-              onNext={handleNext} 
-              onBack={handleBack} 
-              onSkip={() => setShowSkipDialog(true)}
+            <InvestorProfileStep
+              data={formData}
+              onChange={setFormData as any}
+              onNext={handleNext}
+              onBack={handleBack}
               errors={errors}
             />
           )}
         </div>
       </div>
-      <SkipOnboardingDialog 
-        isOpen={showSkipDialog} 
-        onOpenChange={setShowSkipDialog} 
-        onConfirm={handleSkip} 
-      />
     </OnboardingLayout>
   );
 }
