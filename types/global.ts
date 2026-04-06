@@ -347,6 +347,17 @@ declare global {
         lastMessageAt: string | null
     }
 
+    interface IAuditLog {
+        logId: number
+        actorEmail: string
+        actionType: string
+        entityType: string
+        entityId: number | null
+        actionDetails: string | null
+        ipAddress: string
+        createdAt: string
+    }
+
     interface IPermission {
         id: string
         name: string
