@@ -4,8 +4,44 @@ on:
   push:
     branches: [main]
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tsohigh254/aisep-frontend
+
 jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          build-args: |
+            NEXT_PUBLIC_BACKEND_URL=https://aisep.xyz
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   deploy:
+    needs: build-and-push
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to server
@@ -17,38 +53,27 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             set -e
-            cd /var/www/aisep/repo/AISEP-Capstone-FE
-            git fetch origin main
-            git reset --hard origin/main
+
+            # Pull pre-built image
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u tsohigh254 --password-stdin
+            docker pull ghcr.io/tsohigh254/aisep-frontend:latest
+
+            # Restart frontend with new image
             cd /var/www/aisep/repo
-            docker compose up -d --build --no-deps frontend
-            
-            echo "Waiting 20s for Next.js to fully boot inside container..."
-            sleep 20
-            
-            echo "Reloading reverse proxy to pick up new container IP..."
-            # Find the nginx/proxy container dynamically and reload its config
-            NGINX_CTR=$(docker ps --format '{{.Names}}' | grep -iE 'nginx|proxy|caddy|traefik' | grep -v frontend | head -1)
-            if [ -n "$NGINX_CTR" ]; then
-              echo "  Found proxy container: $NGINX_CTR"
-              docker exec "$NGINX_CTR" nginx -s reload 2>/dev/null \
-                || docker exec "$NGINX_CTR" sh -c 'kill -HUP 1' 2>/dev/null \
-                || docker restart "$NGINX_CTR" 2>/dev/null \
-                || true
-            else
-              echo "  No proxy container found, skipping reload"
-            fi
-            
+            docker compose up -d --no-deps frontend
+
+            # Health check
             echo "Checking frontend health..."
+            sleep 10
             for i in {1..4}; do
-              sleep 5
               STATUS=$(curl -m 10 -so /dev/null -w '%{http_code}' https://aisep.xyz/ 2>/dev/null || echo "000")
               if [ "$STATUS" = "200" ]; then
-                echo "✅ Frontend is healthy (HTTP $STATUS)"
+                echo "Frontend is healthy (HTTP $STATUS)"
                 exit 0
               fi
               echo "  attempt $i/4 (HTTP $STATUS)..."
+              sleep 5
             done
-            echo "❌ Frontend health check failed"
+            echo "Frontend health check failed"
             docker logs repo-frontend-1 --tail 50
             exit 1
