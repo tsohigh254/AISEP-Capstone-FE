@@ -88,13 +88,13 @@ function mapBackendTypeToUiType(documentType?: string | null): DocType {
 
 function mapBlockchainStatus(doc: IDocument): BlockchainStatus {
     const p = String(doc.proofStatus ?? "").toLowerCase();
-    if (!p) return "not_submitted";
+    if (!p || p.includes("hashcomputed")) return "not_submitted";
     if (p.includes("pending") || p.includes("processing")) return "pending";
     if (p.includes("mismatch")) return "mismatch";
     if (p.includes("failed") || p.includes("error")) return "failed";
     if (p.includes("matched")) return "matched";
-    if (p.includes("recorded") || p.includes("verified") || p.includes("submitted")) return "recorded";
-    return "recorded";
+    if (p.includes("recorded") || p.includes("verified") || p.includes("submitted") || p.includes("anchored")) return "recorded";
+    return "not_submitted";
 }
 
 function mapBackendDocToUi(doc: IDocument): DocData {
