@@ -433,7 +433,8 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
         try {
             await HashDocument(backendDocId);
             await SubmitDocumentToBlockchain(backendDocId);
-            showToast("Đã gửi lên blockchain (đang chờ xử lý)...", "success");
+            showToast("Đã gửi lên blockchain thành công!", "success");
+            setReloadToken(t => t + 1);
         } catch (e: any) {
             setLocalBcStatus("failed");
             showToast(e?.message ?? "Gửi blockchain thất bại", "error");
@@ -446,7 +447,8 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
         showToast("Đang gửi lại yêu cầu ghi nhận...", "info");
         try {
             await SubmitDocumentToBlockchain(backendDocId);
-            showToast("Đã gửi lại (đang chờ xử lý)...", "success");
+            showToast("Đã gửi lại thành công!", "success");
+            setReloadToken(t => t + 1);
         } catch (e: any) {
             setLocalBcStatus("failed");
             showToast(e?.message ?? "Gửi lại thất bại", "error");
