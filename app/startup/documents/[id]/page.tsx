@@ -411,6 +411,10 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                         hashShort: shortHash(mapped.hash),
                     },
                 ]);
+                // Auto-poll if status is pending on page load
+                if (mapped.blockchainStatus === "pending") {
+                    pollTxStatus(backendDocId);
+                }
             } catch (e: any) {
                 if (cancelled) return;
                 setError(e?.message ?? "Failed to load document");
@@ -422,9 +426,31 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
         return () => {
             cancelled = true;
         };
-    }, [id, reloadToken]);
+    }, [id, reloadToken, pollTxStatus]);
 
     const bc  = BC[localBcStatus];
+
+    const pollTxStatus = useCallback(async (docId: number) => {
+        for (let i = 0; i < 12; i++) {
+            await new Promise(r => setTimeout(r, 5000));
+            try {
+                const res = await CheckOnchainStatus(docId);
+                const status = String(res?.data?.status ?? "").toLowerCase();
+                if (status.includes("confirmed")) {
+                    setLocalBcStatus("recorded");
+                    setReloadToken(t => t + 1);
+                    showToast("Blockchain đã xác nhận thành công!", "success");
+                    return;
+                }
+                if (status.includes("failed")) {
+                    setLocalBcStatus("failed");
+                    showToast("Giao dịch blockchain thất bại", "error");
+                    return;
+                }
+            } catch { /* keep polling */ }
+        }
+        setReloadToken(t => t + 1);
+    }, []);
 
     const handleSubmitBlockchain = async () => {
         const backendDocId = Number(id);
@@ -433,8 +459,8 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
         try {
             await HashDocument(backendDocId);
             await SubmitDocumentToBlockchain(backendDocId);
-            showToast("Đã gửi lên blockchain thành công!", "success");
-            setReloadToken(t => t + 1);
+            showToast("Đã gửi lên blockchain, đang chờ xác nhận...", "success");
+            pollTxStatus(backendDocId);
         } catch (e: any) {
             setLocalBcStatus("failed");
             showToast(e?.message ?? "Gửi blockchain thất bại", "error");
@@ -447,8 +473,8 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
         showToast("Đang gửi lại yêu cầu ghi nhận...", "info");
         try {
             await SubmitDocumentToBlockchain(backendDocId);
-            showToast("Đã gửi lại thành công!", "success");
-            setReloadToken(t => t + 1);
+            showToast("Đã gửi lại, đang chờ xác nhận...", "success");
+            pollTxStatus(backendDocId);
         } catch (e: any) {
             setLocalBcStatus("failed");
             showToast(e?.message ?? "Gửi lại thất bại", "error");
