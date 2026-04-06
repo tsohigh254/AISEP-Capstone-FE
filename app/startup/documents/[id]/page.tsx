@@ -383,6 +383,28 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
         return () => document.removeEventListener("click", close);
     }, [showMoreMenu]);
 
+    const pollTxStatus = useCallback(async (docId: number) => {
+        for (let i = 0; i < 12; i++) {
+            await new Promise(r => setTimeout(r, 5000));
+            try {
+                const res = await CheckOnchainStatus(docId);
+                const status = String(res?.data?.status ?? "").toLowerCase();
+                if (status.includes("confirmed")) {
+                    setLocalBcStatus("recorded");
+                    setReloadToken(t => t + 1);
+                    showToast("Blockchain đã xác nhận thành công!", "success");
+                    return;
+                }
+                if (status.includes("failed")) {
+                    setLocalBcStatus("failed");
+                    showToast("Giao dịch blockchain thất bại", "error");
+                    return;
+                }
+            } catch { /* keep polling */ }
+        }
+        setReloadToken(t => t + 1);
+    }, [showToast]);
+
     useEffect(() => {
         const backendDocId = Number(id);
         if (!Number.isFinite(backendDocId)) notFound();
@@ -429,28 +451,6 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     }, [id, reloadToken, pollTxStatus]);
 
     const bc  = BC[localBcStatus];
-
-    const pollTxStatus = useCallback(async (docId: number) => {
-        for (let i = 0; i < 12; i++) {
-            await new Promise(r => setTimeout(r, 5000));
-            try {
-                const res = await CheckOnchainStatus(docId);
-                const status = String(res?.data?.status ?? "").toLowerCase();
-                if (status.includes("confirmed")) {
-                    setLocalBcStatus("recorded");
-                    setReloadToken(t => t + 1);
-                    showToast("Blockchain đã xác nhận thành công!", "success");
-                    return;
-                }
-                if (status.includes("failed")) {
-                    setLocalBcStatus("failed");
-                    showToast("Giao dịch blockchain thất bại", "error");
-                    return;
-                }
-            } catch { /* keep polling */ }
-        }
-        setReloadToken(t => t + 1);
-    }, []);
 
     const handleSubmitBlockchain = async () => {
         const backendDocId = Number(id);
