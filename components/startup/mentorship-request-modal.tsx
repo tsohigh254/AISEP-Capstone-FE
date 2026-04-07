@@ -62,7 +62,6 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
     const [objective, setObjective]             = useState("");
     const [problemContext, setProblemContext]    = useState("");
     const [additionalNotes, setAdditionalNotes] = useState("");
-    const [meetingUrl, setMeetingUrl]           = useState("");
     const [scope, setScope]                     = useState<string[]>([]);
     const [platform, setPlatform]               = useState<"meet" | "teams">("meet");
     const [duration, setDuration]               = useState("60");
@@ -78,7 +77,6 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
     useEffect(() => {
         if (!isOpen) {
             setObjective(""); setProblemContext(""); setAdditionalNotes("");
-            setMeetingUrl("");
             setScope([]); setPlatform("meet"); setDuration("60");
             setTimezone("Asia/Ho_Chi_Minh"); setSlots([{ date: "", time: "" }]);
             setIsSubmitting(false); setIsSuccess(false);
@@ -139,7 +137,6 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
             preferredFormat,
             expectedDuration: duration,
             expectedScope: scope.join(","),
-            ...(meetingUrl.trim() ? { meetingUrl: meetingUrl.trim() } : {}),
             ...(requestedSlots.length > 0 ? { requestedSlots } : {}),
         };
 
@@ -245,17 +242,6 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                                     placeholder="Các câu hỏi cụ thể hoặc thông tin bổ sung cho cố vấn..."
                                     value={additionalNotes}
                                     onChange={e => setAdditionalNotes(e.target.value)}
-                                />
-                            </Field>
-
-                            {/* Meeting URL */}
-                            <Field label="Meeting URL">
-                                <input
-                                    type="url"
-                                    className={inputCls(false)}
-                                    placeholder="https://meet.google.com/... hoặc https://teams.microsoft.com/..."
-                                    value={meetingUrl}
-                                    onChange={e => setMeetingUrl(e.target.value)}
                                 />
                             </Field>
 
@@ -489,3 +475,4 @@ function Field({
         </div>
     );
 }
+

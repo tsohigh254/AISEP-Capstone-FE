@@ -87,7 +87,6 @@ export interface ICreateMentorshipRequest {
   preferredFormat?: MeetingFormat;
   expectedDuration: string;
   expectedScope?: string;
-  meetingUrl?: string;
   requestedSlots?: {
     startAt: string;
     endAt: string;
