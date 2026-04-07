@@ -103,7 +103,7 @@ export default function StartupDiscoveryPage() {
   useEffect(() => {
     const fetchStartups = async () => {
       try {
-        const res: any = await SearchStartups(1, 50);
+        const res: any = await SearchStartups(undefined, 1, 50);
         const isSuccess = res.isSuccess || res.success || res.statusCode === 200;
 
         if (isSuccess) {

@@ -197,6 +197,46 @@ export default function InvestorsPage() {
     fetchAllSent();
   }, [fetchInvestors, fetchAllSent]);
 
+  // Listen for cross-tab connection updates (so startup UI refreshes when an investor sends a request)
+  useEffect(() => {
+    let bc: BroadcastChannel | null = null;
+    const onMessage = (ev: MessageEvent) => {
+      try {
+        if (ev?.data?.type === "refresh") {
+          fetchAllSent();
+          if (activeTab === "Yêu cầu đã gửi") fetchSent(sentPage);
+          if (activeTab === "Đã kết nối") fetchConnected(connectedPage);
+        }
+      } catch (e) { /* ignore */ }
+    };
+
+    const onStorage = (ev: StorageEvent) => {
+      if (ev.key === "connections-refresh") {
+        fetchAllSent();
+        if (activeTab === "Yêu cầu đã gửi") fetchSent(sentPage);
+        if (activeTab === "Đã kết nối") fetchConnected(connectedPage);
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      try {
+        if ((window as any).BroadcastChannel) {
+          bc = new BroadcastChannel("connections-updates");
+          bc.addEventListener("message", onMessage);
+        } else {
+          window.addEventListener("storage", onStorage);
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    return () => {
+      try {
+        if (bc) bc.close();
+        else window.removeEventListener("storage", onStorage as any);
+      } catch (e) {}
+    };
+  }, [fetchAllSent, fetchSent, fetchConnected, activeTab, sentPage, connectedPage]);
+
   // Reload when tab changes
   useEffect(() => {
     if (activeTab === "Yêu cầu đã gửi") fetchSent(1);

@@ -31,10 +31,11 @@ export function InvestorPublicProfileModal({
   isKycVerified = false,
 }: InvestorPublicProfileModalProps) {
   const displayName = profile?.fullName || profile?.firmName || "Nhà đầu tư";
+  const normalizedInvestorType = profile?.investorType?.toUpperCase().replace(/\s+/g, "_");
   const investorTypeLabel =
-    profile?.investorType === "INSTITUTIONAL"
+    normalizedInvestorType === "INSTITUTIONAL"
       ? "Quỹ đầu tư (VC / CVC)"
-      : profile?.investorType === "INDIVIDUAL_ANGEL"
+      : normalizedInvestorType === "INDIVIDUAL_ANGEL" || normalizedInvestorType === "INDIVIDUALANGEL"
       ? "Angel Investor"
       : profile?.investorType || "Nhà đầu tư";
 

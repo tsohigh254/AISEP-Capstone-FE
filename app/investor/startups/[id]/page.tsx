@@ -1,22 +1,27 @@
 "use client";
 
-import { use } from "react";
+import { use, useState, useEffect } from "react";
 
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { 
   FileText, 
   Brain, 
   Bookmark, 
-  Handshake, 
+    Handshake, 
   Sparkles, 
   MessageSquare,
   TrendingUp,
   AlertTriangle,
   Building2,
   MapPin,
-  FolderOpen
+    FolderOpen,
+    Loader2
 } from "lucide-react";
+import { AddToWatchlist, RemoveFromWatchlist, GetInvestorWatchlist, GetStartupById, GetInvestorProfile, SearchStartups } from "@/services/investor/investor.api";
+import { CreateConnection, GetSentConnections } from "@/services/connection/connection.api";
+import { toast } from "sonner";
 
 // Mock Data (Shared with Discovery page)
 const STARTUPS = [
@@ -113,9 +118,281 @@ function getAvatarColor(id: string): string {
 export default function StartupDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     
-    // Find the startup by ID
-    const startup = STARTUPS.find(s => s.id === id) || STARTUPS[0];
-    const avatarGradient = getAvatarColor(startup.id);
+    const [startupData, setStartupData] = useState<any | null>(null);
+    const [isStartupLoading, setIsStartupLoading] = useState<boolean>(false);
+
+    const [isFollowing, setIsFollowing] = useState<boolean>(false);
+    const [isProcessing, setIsProcessing] = useState<boolean>(false);
+    const [watchlistItemId, setWatchlistItemId] = useState<number | null>(null);
+    const [isInvestor, setIsInvestor] = useState<boolean | null>(null);
+    const [showUnfollowConfirm, setShowUnfollowConfirm] = useState<boolean>(false);
+
+    const [isConnecting, setIsConnecting] = useState<boolean>(false);
+    const [connectionSent, setConnectionSent] = useState<boolean>(false);
+
+    const startup = startupData ?? (STARTUPS.find(s => s.id === id) || STARTUPS[0]);
+    const avatarGradient = getAvatarColor(String(startup.id ?? startup.name ?? id));
+    
+    const notifyWatchlistUpdated = () => {
+        if (typeof window === "undefined") return;
+        try {
+            if ((window as any).BroadcastChannel) {
+                const bc = new BroadcastChannel("watchlist-updates");
+                bc.postMessage({ type: "refresh" });
+                bc.close();
+            } else {
+                localStorage.setItem("watchlist-refresh", Date.now().toString());
+            }
+        } catch (e) {
+            // ignore
+        }
+    };
+
+    useEffect(() => {
+        const checkRole = async () => {
+            try {
+                const res = await GetInvestorProfile();
+                if (res?.isSuccess) setIsInvestor(true);
+                else setIsInvestor(false);
+            } catch (e) {
+                setIsInvestor(false);
+            }
+        };
+        const checkExistingConnection = async () => {
+            try {
+                const numericId = Number(id);
+                if (Number.isNaN(numericId) || numericId <= 0) return;
+                const res = await GetSentConnections(1, 100);
+                if (res?.isSuccess) {
+                    let items: any[] = [];
+                    const d = res.data as any;
+                    if (Array.isArray(d)) items = d;
+                    else if (Array.isArray(d?.data)) items = d.data;
+                    else if (Array.isArray(d?.items)) items = d.items;
+                    const found = items.some((c: any) => {
+                        const cStartupId = Number(c?.startupID ?? c?.startupId ?? c?.StartupID ?? c?.StartupId ?? null);
+                        return cStartupId === numericId;
+                    });
+                    if (found) setConnectionSent(true);
+                }
+            } catch { /* silent */ }
+        };
+        checkRole();
+        checkExistingConnection();
+    }, [id]);
+
+    useEffect(() => {
+        const fetchStartup = async () => {
+            const numericId = Number(id);
+            if (Number.isNaN(numericId) || numericId <= 0) return;
+            setIsStartupLoading(true);
+            try {
+                const res = await GetStartupById(numericId);
+                if (res?.isSuccess) {
+                    const sd: any = res.data;
+                    const fallback = STARTUPS.find(s => s.id === id) || STARTUPS[0];
+                    const normalized = {
+                        id: sd?.startupID ?? sd?.startupId ?? sd?.id ?? numericId,
+                        name: sd?.companyName ?? sd?.CompanyName ?? sd?.name ?? sd?.StartupName ?? sd?.startupName ?? fallback.name,
+                        industry: sd?.industry ?? sd?.Industry ?? fallback.industry,
+                        stage: sd?.stage ?? sd?.Stage ?? fallback.stage,
+                        location: sd?.location ?? sd?.Location ?? sd?.city ?? fallback.location,
+                        target: sd?.target ?? sd?.Target ?? fallback.target,
+                        score: sd?.score ?? sd?.Score ?? fallback.score,
+                        desc: sd?.description ?? sd?.desc ?? sd?.Description ?? fallback.desc,
+                        tags: sd?.tags ?? sd?.Tags ?? fallback.tags,
+                        team: sd?.team ?? sd?.teamMembers ?? fallback.team,
+                        logo: sd?.logo ?? sd?.logoURL ?? fallback.logo,
+                    };
+                    setStartupData(normalized);
+                }
+            } catch (e) {
+                // eslint-disable-next-line no-console
+                console.error("GetStartupById error:", e);
+            } finally {
+                setIsStartupLoading(false);
+            }
+        };
+        fetchStartup();
+    }, [id]);
+
+    useEffect(() => {
+        const checkFollowing = async () => {
+            try {
+                const res = await GetInvestorWatchlist(1, 200);
+                if (res?.isSuccess) {
+                    // support multiple backend shapes: res.data.data, res.data.items, res.items, or res.data as array
+                    let rawItems: any[] = [];
+                    const resDataAny = res.data as any;
+                    if (Array.isArray(res.data)) rawItems = res.data as any[];
+                    else if (Array.isArray(resDataAny?.data)) rawItems = resDataAny.data;
+                    else if (Array.isArray(resDataAny?.items)) rawItems = resDataAny.items;
+                    else if (Array.isArray((res as any)?.items)) rawItems = (res as any).items;
+                    else rawItems = [];
+
+                    const items = rawItems.map((raw) => ({
+                        watchlistId: raw?.watchlistID ?? raw?.watchlistId ?? raw?.WatchlistID ?? raw?.WatchlistId ?? null,
+                        startupID: Number(raw?.startupID ?? raw?.startupId ?? raw?.StartupID ?? raw?.StartupId ?? null) || null,
+                        startupName: raw?.companyName ?? raw?.CompanyName ?? raw?.startupName ?? raw?.StartupName ?? raw?.companyname ?? null,
+                        addedAt: raw?.addedAt ?? raw?.AddedAt ?? raw?.AddedAt ?? null,
+                    }));
+
+                    const numericId = Number(id);
+                    const found = items.find(i => (i.startupID && !Number.isNaN(numericId) ? i.startupID === numericId : (i.startupName && i.startupName === (startupData?.name ?? (STARTUPS.find(s => s.id === id)?.name ?? "")))));
+                    if (found) {
+                        setIsFollowing(true);
+                        setWatchlistItemId(found.watchlistId);
+                    } else {
+                        setIsFollowing(false);
+                        setWatchlistItemId(null);
+                    }
+                }
+            } catch (err) {
+                // ignore silently; user may be unauthenticated
+            }
+        };
+        checkFollowing();
+    }, [id, startupData]);
+
+    const handleFollowClick = async () => {
+        if (isProcessing) return;
+        setIsProcessing(true);
+        try {
+            // Resolve a correct numeric startupId to send to backend.
+            let resolvedStartupId = Number(id) || 0;
+            // If route id is not numeric, try to resolve from fetched startup data or by searching
+            if (!resolvedStartupId || resolvedStartupId <= 0) {
+                if (startupData && Number(startupData?.id)) {
+                    resolvedStartupId = Number(startupData.id);
+                } else {
+                    // try backend search by name
+                    try {
+                        const sres = await SearchStartups(startup.name, 1, 50);
+                        if (sres?.isSuccess) {
+                            const list = ((sres.data as any)?.data ?? (sres.data as any)?.items ?? []) as any[];
+                            const found = list.find(it => (it?.companyName ?? it?.CompanyName ?? it?.name ?? it?.StartupName) === startup.name);
+                            if (found) resolvedStartupId = Number(found?.startupID ?? found?.StartupID ?? found?.id ?? found?.Id ?? 0);
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+                    // fallback: extract digits from slug like SU-1001 -> 1001
+                    if (!resolvedStartupId || resolvedStartupId <= 0) {
+                        const maybe = Number((startup.id || "").toString().replace(/\D/g, ""));
+                        if (maybe && maybe > 0) resolvedStartupId = maybe;
+                    }
+                }
+            }
+
+            if (!isFollowing) {
+                if (!resolvedStartupId || resolvedStartupId <= 0) {
+                    try { localStorage.setItem("watchlist-debug", JSON.stringify({ timestamp: Date.now(), op: "resolve-failed", idParam: id, startupFallback: startup })); } catch(e){}
+                    toast.error("Không xác định được startupId để theo dõi");
+                    return;
+                }
+
+                const res = await AddToWatchlist({ startupID: resolvedStartupId });
+                if (res?.isSuccess) {
+                    const created = res.data as any;
+                    const createdWatchlistId = created?.watchlistID ?? created?.watchlistId ?? created?.WatchlistID ?? created?.WatchlistId ?? null;
+                    setIsFollowing(true);
+                    setWatchlistItemId(createdWatchlistId ?? null);
+                    // store debug info for troubleshooting
+                    try {
+                        const dbg = {
+                            timestamp: Date.now(),
+                            op: "add",
+                            request: { url: "/api/investors/me/watchlist", body: { startupID: resolvedStartupId, StartupId: resolvedStartupId } },
+                            response: { isSuccess: res?.isSuccess ?? false, statusCode: (res as any)?.statusCode ?? null, message: (res as any)?.message ?? null, data: res?.data ?? null }
+                        };
+                        localStorage.setItem("watchlist-debug", JSON.stringify(dbg));
+                    } catch (e) {
+                        // ignore storage errors
+                    }
+                    notifyWatchlistUpdated();
+                    toast.success("Đã thêm vào danh sách theo dõi");
+                } else {
+                    // If backend indicates the startup is already in watchlist (409/conflict), reflect that in UI rather than only showing error.
+                    const msg = (res && (res as any).message) || "Không thể thêm theo dõi";
+                    // common backend codes/messages: "WATCHLIST_EXISTS" or english "already in your watchlist"
+                    if ((res && ((res as any).code === "WATCHLIST_EXISTS" || /already/i.test(msg))) || (res && (res as any).statusCode === 409)) {
+                        // Refresh watchlist to mark as following
+                        try {
+                            const refresh = await GetInvestorWatchlist(1, 200);
+                            if (refresh?.isSuccess) {
+                                let rawItems: any[] = [];
+                                const refreshDataAny = refresh.data as any;
+                                if (Array.isArray(refresh.data)) rawItems = refresh.data as any[];
+                                else if (Array.isArray(refreshDataAny?.data)) rawItems = refreshDataAny.data;
+                                else if (Array.isArray(refreshDataAny?.items)) rawItems = refreshDataAny.items;
+                                else if (Array.isArray((refresh as any)?.items)) rawItems = (refresh as any).items;
+                                else rawItems = [];
+
+                                const found = rawItems.find(r => {
+                                    const sid = Number(r?.startupID ?? r?.startupId ?? r?.StartupID ?? r?.StartupId ?? null) || null;
+                                    return sid === resolvedStartupId || r?.companyName === startup.name || r?.CompanyName === startup.name;
+                                });
+                                        if (found) {
+                                            setIsFollowing(true);
+                                            const foundWatchlistId = found?.watchlistID ?? found?.watchlistId ?? found?.WatchlistID ?? found?.WatchlistId ?? null;
+                                            setWatchlistItemId(foundWatchlistId ?? null);
+                                            try {
+                                                const dbg = {
+                                                    timestamp: Date.now(),
+                                                    op: "add-conflict-refresh",
+                                                    request: { url: "/api/investors/me/watchlist (refresh)" },
+                                                    response: { isSuccess: refresh?.isSuccess ?? false, statusCode: (refresh as any)?.statusCode ?? null, data: refresh?.data ?? null }
+                                                };
+                                                localStorage.setItem("watchlist-debug", JSON.stringify(dbg));
+                                            } catch (e) {}
+                                            notifyWatchlistUpdated();
+                                        }
+                            }
+                        } catch (e) {
+                            // ignore
+                        }
+                        toast.success("Đã có trong danh sách theo dõi");
+                    } else {
+                        toast.error(msg);
+                    }
+                }
+            } else {
+                // Backend delete expects the startupId in the route
+                const idToDelete = resolvedStartupId;
+                try {
+                    const del = await RemoveFromWatchlist(idToDelete);
+                    if (del?.isSuccess) {
+                        // debug store
+                        try {
+                            const dbg = {
+                                timestamp: Date.now(),
+                                op: "remove",
+                                request: { url: `/api/investors/me/watchlist/${idToDelete}`, method: "DELETE" },
+                                response: { isSuccess: del?.isSuccess ?? false, statusCode: (del as any)?.statusCode ?? null, data: del?.data ?? null, message: del?.message ?? null }
+                            };
+                            localStorage.setItem("watchlist-debug", JSON.stringify(dbg));
+                        } catch (e) {}
+                        setIsFollowing(false);
+                        setWatchlistItemId(null);
+                        notifyWatchlistUpdated();
+                        toast.success("Đã gỡ khỏi danh sách theo dõi");
+                    } else {
+                        toast.error(del?.message ?? "Không thể gỡ theo dõi");
+                    }
+                } catch (err) {
+                    // eslint-disable-next-line no-console
+                    console.error("RemoveFromWatchlist error:", err);
+                    toast.error("Lỗi khi gỡ theo dõi");
+                }
+            }
+        } catch (err) {
+            // eslint-disable-next-line no-console
+            console.error("handleFollowClick error:", err);
+            toast.error("Lỗi khi cập nhật danh sách theo dõi");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto w-full">
@@ -131,8 +408,12 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
                 <div className="px-6 pb-6 relative">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 -mt-12 mb-8 relative z-10">
                         <div className="flex flex-col md:flex-row items-start md:items-end gap-4 md:gap-6">
-                            <div className={cn("w-28 h-28 md:w-32 md:h-32 rounded-2xl border-4 border-white shadow-xl flex items-center justify-center text-white text-[32px] md:text-[40px] font-black shrink-0 bg-gradient-to-br transition-transform hover:scale-105 duration-300", avatarGradient)}>
-                                {startup.logo}
+                            <div className={cn("w-28 h-28 md:w-32 md:h-32 rounded-2xl border-4 border-white shadow-xl flex items-center justify-center text-white text-[32px] md:text-[40px] font-black shrink-0 bg-gradient-to-br transition-transform hover:scale-105 duration-300 overflow-hidden", avatarGradient)}>
+                                {startup.logo && (startup.logo.startsWith("http") || startup.logo.startsWith("/")) ? (
+                                    <img src={startup.logo} alt={startup.name} className="w-full h-full object-cover rounded-2xl" />
+                                ) : (
+                                    startup.logo || (startup.name ? startup.name.charAt(0).toUpperCase() : "?")
+                                )}
                             </div>
                             <div className="md:pb-3">
                                 <div className="flex flex-wrap items-center gap-3">
@@ -143,13 +424,101 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
                             </div>
                         </div>
                         <div className="flex items-center gap-3 w-full md:w-auto">
-                            <button className="flex-1 md:flex-none justify-center bg-[#f8f8f6] text-[#171611] border border-slate-200 font-bold px-6 py-2.5 rounded-xl hover:bg-slate-100 transition-all flex items-center gap-2">
-                                <Bookmark className="w-5 h-5" />
-                                Theo dõi
-                            </button>
-                            <button className="flex-1 md:flex-none justify-center bg-[#e6cc4c] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all flex items-center gap-2">
-                                <Handshake className="w-5 h-5" />
-                                Đề nghị kết nối
+                            {isInvestor === false ? (
+                                <button
+                                    onClick={() => toast.error("Chỉ Nhà đầu tư mới có thể theo dõi startup. Vui lòng chuyển tài khoản hoặc tạo hồ sơ Nhà đầu tư.")}
+                                    className="flex-1 md:flex-none justify-center bg-[#f3f3f3] text-neutral-500 border border-slate-200 font-bold px-6 py-2.5 rounded-xl flex items-center gap-2 cursor-not-allowed"
+                                >
+                                    <Bookmark className="w-5 h-5" />
+                                    Chỉ Nhà đầu tư
+                                </button>
+                            ) : (
+                                <>
+                                    <>
+                                        <button
+                                            onClick={() => {
+                                                if (isFollowing) setShowUnfollowConfirm(true);
+                                                else handleFollowClick();
+                                            }}
+                                            disabled={isProcessing}
+                                            className={cn(
+                                                "relative flex-1 md:flex-none justify-center font-bold px-6 py-2.5 rounded-xl transition-all flex items-center gap-2 disabled:opacity-60",
+                                                isFollowing
+                                                    ? "bg-white text-emerald-700 border border-emerald-100"
+                                                    : "bg-[#f8f8f6] text-[#171611] border border-slate-200"
+                                            )}
+                                        >
+                                            <Bookmark className="w-5 h-5" />
+                                            {isProcessing ? (
+                                                <Loader2 className="w-4 h-4 animate-spin text-[#171611]" />
+                                            ) : (
+                                                <span>{isFollowing ? "Đã theo dõi" : "Theo dõi"}</span>
+                                            )}
+                                        </button>
+
+                                        <Dialog open={showUnfollowConfirm} onOpenChange={(open) => setShowUnfollowConfirm(open)}>
+                                          <DialogContent>
+                                            <DialogHeader>
+                                              <DialogTitle>Xác nhận hủy theo dõi</DialogTitle>
+                                            </DialogHeader>
+                                            <DialogDescription>Bạn có chắc muốn bỏ theo dõi "{startup.name}" không? Thao tác này sẽ gỡ startup khỏi danh sách theo dõi của bạn.</DialogDescription>
+                                            <DialogFooter>
+                                              <div className="flex items-center gap-3">
+                                                <button onClick={() => setShowUnfollowConfirm(false)} disabled={isProcessing} className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 font-bold hover:bg-slate-50 transition-all">Hủy</button>
+                                                <button
+                                                  onClick={async () => { setShowUnfollowConfirm(false); await handleFollowClick(); }}
+                                                  disabled={isProcessing}
+                                                  className="px-4 py-2 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-all"
+                                                >
+                                                  {isProcessing ? <Loader2 className="w-4 h-4 animate-spin inline-block" /> : "Bỏ theo dõi"}
+                                                </button>
+                                              </div>
+                                            </DialogFooter>
+                                          </DialogContent>
+                                        </Dialog>
+                                    </>
+                                </>
+                            )}
+                            <button
+                                onClick={async () => {
+                                    const numericId = Number(startup.id);
+                                    if (Number.isNaN(numericId) || numericId <= 0) {
+                                        toast.error("Không xác định được ID startup.");
+                                        return;
+                                    }
+                                    if (connectionSent) {
+                                        toast.info("Bạn đã gửi đề nghị kết nối đến startup này rồi.");
+                                        return;
+                                    }
+                                    setIsConnecting(true);
+                                    try {
+                                        const res = await CreateConnection({ startupId: numericId, message: "" });
+                                        if (res?.isSuccess) {
+                                            setConnectionSent(true);
+                                            toast.success("Đã gửi đề nghị kết nối thành công!");
+                                        } else {
+                                            toast.error((res as any)?.message || "Gửi đề nghị thất bại.");
+                                        }
+                                    } catch (e: any) {
+                                        toast.error(e?.response?.data?.message || "Gửi đề nghị thất bại.");
+                                    } finally {
+                                        setIsConnecting(false);
+                                    }
+                                }}
+                                disabled={isConnecting || connectionSent}
+                                className={cn(
+                                    "flex-1 md:flex-none justify-center font-bold px-6 py-2.5 rounded-xl transition-all flex items-center gap-2 disabled:opacity-60",
+                                    connectionSent
+                                        ? "bg-white text-emerald-700 border border-emerald-200"
+                                        : "bg-[#e6cc4c] text-[#171611] hover:shadow-lg"
+                                )}
+                            >
+                                {isConnecting ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <Handshake className="w-5 h-5" />
+                                )}
+                                {connectionSent ? "Đã gửi kết nối" : "Đề nghị kết nối"}
                             </button>
                         </div>
                     </div>
@@ -160,7 +529,7 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
                                 <h4 className="text-[13px] font-bold text-slate-800 mb-3">Về Startup</h4>
                                 <p className="text-[14px] text-slate-600 leading-relaxed max-w-3xl">{startup.desc}</p>
                                 <div className="flex flex-wrap gap-2 mt-5">
-                                    {startup.tags.map((tag) => (
+                                    {startup.tags.map((tag: string) => (
                                         <span key={tag} className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-default">
                                             {tag}
                                         </span>
@@ -171,10 +540,10 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
                             <div>
                                 <h4 className="text-[13px] font-bold text-slate-800 mb-4">Đội ngũ sáng lập</h4>
                                 <div className="flex flex-wrap gap-4">
-                                    {startup.team.map((member, idx) => (
+                                    {startup.team.map((member: any, idx: number) => (
                                         <div key={idx} className="flex items-center gap-3 bg-slate-50/50 px-5 py-4 rounded-2xl border border-slate-100 min-w-[240px] hover:border-slate-300 transition-all group">
                                             <div className="w-11 h-11 rounded-full bg-slate-200 flex items-center justify-center text-sm font-black text-slate-500 group-hover:bg-[#e6cc4c] group-hover:text-white transition-all">
-                                                {member.name.split(" ").pop()?.charAt(0)}
+                                                {(member.name ?? "?").split(" ").pop()?.charAt(0)}
                                             </div>
                                             <div>
                                                 <p className="text-[14px] font-bold text-[#171611]">{member.name}</p>

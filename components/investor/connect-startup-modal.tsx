@@ -36,10 +36,26 @@ export function ConnectStartupModal({
         message: reason
       };
       const res = await CreateConnection(payload);
-      
       const isSuccess = (res as any)?.isSuccess || (res as any)?.success || (res as any)?.statusCode === 201;
 
-      if (isSuccess || res) {
+      // store debug info for troubleshooting
+      try {
+        const dbg = { timestamp: Date.now(), op: "create-connection", request: payload, response: res };
+        localStorage.setItem("connection-debug", JSON.stringify(dbg));
+      } catch (e) {}
+
+      if (isSuccess) {
+        // notify other tabs to refresh connection lists
+        try {
+          if ((window as any).BroadcastChannel) {
+            const bc = new BroadcastChannel("connections-updates");
+            bc.postMessage({ type: "refresh" });
+            bc.close();
+          } else {
+            localStorage.setItem("connections-refresh", Date.now().toString());
+          }
+        } catch (e) {}
+
         toast.success("Đã gửi yêu cầu kết nối tới " + startup.name + " thành công!");
         onSuccess?.();
         onOpenChange(false);
@@ -48,6 +64,8 @@ export function ConnectStartupModal({
         toast.error((res as any)?.message || "Gặp lỗi khi gửi yêu cầu kết nối");
       }
     } catch (err: any) {
+        // store error debug
+        try { localStorage.setItem("connection-debug", JSON.stringify({ timestamp: Date.now(), op: "create-connection-error", error: err?.response?.data ?? err?.message ?? String(err) })); } catch (e) {}
         toast.error(err?.response?.data?.message || "Gặp lỗi khi gửi yêu cầu kết nối");
     } finally {
         setLoading(false);

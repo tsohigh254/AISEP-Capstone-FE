@@ -18,9 +18,11 @@ export const AddToWatchlist = (data: ICreateWatchlistItem) => {
     return axios.post<IBackendRes<IWatchlistItem>>(`/api/investors/me/watchlist`, data);
 }
 
-export const SearchStartups = (page: number = 1, pageSize: number = 20) => {
+export const SearchStartups = (query?: string, page: number = 1, pageSize: number = 20) => {
+    const params: any = { page, pageSize, _t: new Date().getTime() };
+    if (query) params.q = query;
     return axios.get<IBackendRes<IPaginatedRes<any>>>(`/api/investors/search`, {
-        params: { page, pageSize, _t: new Date().getTime() }
+        params
     });
 }
 
@@ -29,11 +31,12 @@ export const GetRecommendations = () => {
 }
 
 export const GetStartupById = (id: number) => {
-    return axios.get<IBackendRes<IStartupSearchItem>>(`/api/investors/startups/${id}`);
+    return axios.get<IBackendRes<IStartupSearchItem>>(`/api/startups/${id}`);
 }
 
-export const RemoveFromWatchlist = (watchlistId: number) => {
-    return axios.delete<IBackendRes<null>>(`/api/investors/me/watchlist/${watchlistId}`);
+export const RemoveFromWatchlist = (startupId: number) => {
+    // Backend expects the startupId in the route: DELETE /api/investors/me/watchlist/{startupId}
+    return axios.delete<IBackendRes<null>>(`/api/investors/me/watchlist/${startupId}`);
 }
 
 export const UpdateInvestorProfile = (data: IUpdateInvestorProfile) => {

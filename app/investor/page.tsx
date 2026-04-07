@@ -9,7 +9,6 @@ import {
   Building2,
   Target,
   Brain,
-  Eye,
   Handshake,
   Sparkles,
   FolderOpen,
@@ -24,36 +23,94 @@ import {
 } from "lucide-react";
 import { GetInvestorProfile, GetInvestorWatchlist } from "@/services/investor/investor.api";
 import { GetInvestorKYCStatus } from "@/services/investor/investor-kyc";
+import { GetDocument } from "@/services/document/document.api";
+import { GetSentConnections } from "@/services/connection/connection.api";
 import { IInvestorKYCStatus } from "@/types/investor-kyc";
-import { InvestorPublicProfileModal } from "@/components/investor/investor-public-profile-modal";
 import { toast } from "sonner";
 
 export default function InvestorDashboardPage() {
   const router = useRouter();
-  const [showPublicProfile, setShowPublicProfile] = useState(false);
   const [profile, setProfile] = useState<IInvestorProfile | null>(null);
   const [kycStatus, setKycStatus] = useState<IInvestorKYCStatus | null>(null);
   const [watchlist, setWatchlist] = useState<IWatchlistItem[]>([]);
+  const [connectTotal, setConnectTotal] = useState<number>(0);
+  const [docTotal, setDocTotal] = useState<number>(0);
+  const [viewTotal, setViewTotal] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
-      const [profileRes, kycRes, watchlistRes] = await Promise.all([
+      const results = await Promise.allSettled([
         GetInvestorProfile(),
         GetInvestorKYCStatus(),
         GetInvestorWatchlist(1, 5),
+        GetDocument(),
+        GetSentConnections(1, 1),
       ]);
 
-      if (profileRes.isSuccess) setProfile(profileRes.data ?? null);
-      if (kycRes.isSuccess) setKycStatus(kycRes.data as any);
-      if (watchlistRes.isSuccess) setWatchlist(watchlistRes.data?.items ?? []);
+      const [profileResSettled, kycResSettled, watchlistResSettled, docsResSettled, sentConnResSettled] = results;
 
-      // Simple Redirection Guard: If profile is incomplete, send to onboard
-      if (profileRes.isSuccess && (!profileRes.data || profileRes.data.profileStatus === "Draft")) {
+      // Helper to check for 401 in rejected promises
+      const isUnauthorized = (r: PromiseSettledResult<any>) => r.status === "rejected" && r.reason?.response?.status === 401;
+      if (isUnauthorized(profileResSettled) || isUnauthorized(kycResSettled) || isUnauthorized(watchlistResSettled) || isUnauthorized(docsResSettled) || isUnauthorized(sentConnResSettled)) {
+        // Let the interceptor handle session clearing / redirect to login.
+        return;
+      }
+
+      if (profileResSettled.status === "fulfilled") {
+        const profileRes = profileResSettled.value;
+        if (profileRes?.isSuccess) setProfile(profileRes.data ?? null);
+        if (profileRes?.isSuccess && (!profileRes.data || profileRes.data.profileStatus === "Draft")) {
           router.push("/investor/onboard");
+        }
+      }
+
+      if (kycResSettled.status === "fulfilled") {
+        const kycRes = kycResSettled.value;
+        if (kycRes?.isSuccess) setKycStatus(kycRes.data as any);
+      }
+
+      if (watchlistResSettled.status === "fulfilled") {
+        const watchlistRes = watchlistResSettled.value;
+        if (watchlistRes?.isSuccess) {
+          const data = watchlistRes.data as any;
+          // Support multiple backend shapes: array, { data: [...] }, { items: [...] }, or paginated { paging: { totalItems } }
+          let rawItems: any[] = [];
+          if (Array.isArray(data)) rawItems = data;
+          else if (Array.isArray(data?.data)) rawItems = data.data;
+          else if (Array.isArray(data?.items)) rawItems = data.items;
+          else rawItems = [];
+          const items = rawItems.map((raw: any) => ({
+            watchlistId: raw?.watchlistID ?? raw?.watchlistId ?? raw?.WatchlistID ?? raw?.WatchlistId ?? null,
+            investorID: raw?.investorID ?? raw?.investorId ?? raw?.InvestorID ?? raw?.InvestorId ?? null,
+            startupID: raw?.startupID ?? raw?.startupId ?? raw?.StartupID ?? raw?.StartupId ?? null,
+            startupName: raw?.companyName ?? raw?.CompanyName ?? raw?.startupName ?? raw?.StartupName ?? null,
+            addedAt: raw?.addedAt ?? raw?.AddedAt ?? null,
+          }));
+          setWatchlist(items);
+          const watchTotal = (data?.paging?.totalItems ?? items.length ?? 0) as number;
+          setConnectTotal(watchTotal);
+        }
+      }
+
+      if (docsResSettled.status === "fulfilled") {
+        const docsRes = docsResSettled.value;
+        if (docsRes?.isSuccess) {
+          const docs = docsRes.data ?? [];
+          setDocTotal(Array.isArray(docs) ? docs.length : 0);
+        }
+      }
+
+      if (sentConnResSettled.status === "fulfilled") {
+        const sentConnRes = sentConnResSettled.value;
+        const sentTotal = (sentConnRes?.data?.paging?.totalItems ?? sentConnRes?.data?.items?.length ?? 0) as number;
+        setViewTotal(sentTotal);
       }
     } catch (err) {
+      // Unexpected failures (non-network/axios) — log for debugging and notify user
+      // eslint-disable-next-line no-console
+      console.error("fetchDashboardData error:", err);
       toast.error("Lỗi khi tải dữ liệu Dashboard");
     } finally {
       setIsLoading(false);
@@ -76,9 +133,9 @@ export default function InvestorDashboardPage() {
   }, [profile]);
 
   const profileProgress = useCountUp(profileProgressCount, 1200, 0);
-  const connectCount = useCountUp(0, 1200, 0); // Placeholder for actual connections
-  const docCount = useCountUp(0, 800, 0); // Placeholder for actual docs
-  const viewCount = useCountUp(0, 600, 0); // Placeholder for actual views
+  const connectCount = useCountUp(connectTotal, 1200, 0);
+  const docCount = useCountUp(docTotal, 800, 0);
+  const viewCount = useCountUp(viewTotal, 600, 0);
 
   if (isLoading) {
     return (
@@ -167,16 +224,10 @@ export default function InvestorDashboardPage() {
             </div>
             <div className="flex flex-wrap gap-3">
               <Link href="/investor/profile" className="bg-[#e6cc4c] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 group">
-                <FileEdit className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                <FileEdit className="w-5 h-5" />
                 Hoàn thiện hồ sơ
               </Link>
-              <button
-                onClick={() => setShowPublicProfile(true)}
-                className="bg-[#f4f4f0] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:bg-neutral-200 transition-all flex items-center gap-2"
-              >
-                <Eye className="w-5 h-5" />
-                Xem hồ sơ công khai
-              </button>
+
             </div>
           </div>
         </div>
@@ -302,7 +353,7 @@ export default function InvestorDashboardPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-slate-100 flex-shrink-0 flex items-center justify-center text-[11px] font-black text-slate-500">
-                            {item.startupName.charAt(0).toUpperCase()}
+                            {(item.startupName ?? "?").charAt(0).toUpperCase()}
                           </div>
                           <span className="text-sm font-bold text-[#171611]">{item.startupName}</span>
                         </div>
@@ -330,12 +381,6 @@ export default function InvestorDashboardPage() {
         </div>
       </div>
 
-      <InvestorPublicProfileModal
-        open={showPublicProfile}
-        onOpenChange={setShowPublicProfile}
-        profile={profile}
-        isKycVerified={isVerified}
-      />
     </div>
   );
 }
