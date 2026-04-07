@@ -6,7 +6,7 @@ import {
   ArrowLeft, ArrowRight, Target, BarChart4, 
   ShieldCheck, Brain, Star 
 } from "lucide-react";
-import { IInvestorKYCSubmission } from "@/types/investor-kyc";
+import { IInvestorOnboardData } from "@/types/investor-kyc";
 
 const MATURITY_OPTIONS = ["Idea", "MVP", "Early Traction", "Growth", "Scale-up"];
 const VALIDATION_OPTIONS = ["Problem validated", "MVP tested", "Paying users", "Revenue traction", "Repeatable growth"];
@@ -22,16 +22,16 @@ const STRENGTH_OPTIONS = [
 ];
 
 interface InvestorPreferencesStepProps {
-  data: Partial<IInvestorKYCSubmission>;
-  onChange: (data: Partial<IInvestorKYCSubmission>) => void;
+  data: Partial<IInvestorOnboardData>;
+  onChange: (data: Partial<IInvestorOnboardData>) => void;
   onNext: () => void;
   onBack: () => void;
 }
 
 export function InvestorPreferencesStep({ data, onChange, onNext, onBack }: InvestorPreferencesStepProps) {
-  const set = (key: keyof IInvestorKYCSubmission, val: any) => onChange({ ...data, [key]: val });
+  const set = (key: keyof IInvestorOnboardData, val: any) => onChange({ ...data, [key]: val });
 
-  const toggleList = (key: keyof IInvestorKYCSubmission, val: string) => {
+  const toggleList = (key: keyof IInvestorOnboardData, val: string) => {
     const list = (data[key] as string[]) || [];
     if (list.includes(val)) set(key, list.filter(v => v !== val));
     else set(key, [...list, val]);

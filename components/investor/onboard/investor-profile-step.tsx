@@ -7,7 +7,7 @@ import {
   Globe, Zap, Layers, Linkedin,
   User, Camera, UserCircle, Tag, Briefcase, ChevronDown
 } from "lucide-react";
-import { IInvestorKYCSubmission } from "@/types/investor-kyc";
+import { IInvestorOnboardData } from "@/types/investor-kyc";
 import { GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
 
 const STAGE_OPTIONS = [
@@ -15,17 +15,17 @@ const STAGE_OPTIONS = [
 ];
 
 interface InvestorProfileStepProps {
-  data: Partial<IInvestorKYCSubmission>;
-  onChange: (data: Partial<IInvestorKYCSubmission>) => void;
+  data: Partial<IInvestorOnboardData>;
+  onChange: (data: Partial<IInvestorOnboardData>) => void;
   onNext: () => void;
   onBack: () => void;
   errors: Record<string, string>;
 }
 
 export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: InvestorProfileStepProps) {
-  const set = (key: keyof IInvestorKYCSubmission, val: any) => onChange({ ...data, [key]: val });
+  const set = (key: keyof IInvestorOnboardData, val: any) => onChange({ ...data, [key]: val });
 
-  const toggleList = (key: keyof IInvestorKYCSubmission, val: string) => {
+  const toggleList = (key: keyof IInvestorOnboardData, val: string) => {
     const list = (data[key] as string[]) || [];
     if (list.includes(val)) set(key, list.filter(v => v !== val));
     else set(key, [...list, val]);

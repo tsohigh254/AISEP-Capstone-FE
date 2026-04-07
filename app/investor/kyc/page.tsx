@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { KYCHub } from "@/components/investor/kyc/kyc-hub";
 import { KYCWizard } from "@/components/investor/kyc/kyc-wizard";
 import { GetInvestorKYCStatus, SubmitInvestorKYC, SaveInvestorKYCDraft, ResubmitInvestorKYC } from "@/services/investor/investor-kyc";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 export default function InvestorKYCPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [view, setView] = useState<"HUB" | "WIZARD" | "RESUBMIT">("HUB");
   const [status, setStatus] = useState<IInvestorKYCStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -22,46 +23,41 @@ export default function InvestorKYCPage() {
       if (res.isSuccess && res.data) {
         setStatus(res.data);
       } else if (!res.isSuccess && (res.error?.code === "INVESTOR_PROFILE_NOT_FOUND" || res.statusCode === 404 || res.statusCode === 400)) {
-        // Redirect to onboarding if profile not found
         if (!silent) {
           toast.info("Bạn cần khởi tạo hồ sơ nhà đầu tư trước khi xác thực.");
           router.push("/investor/onboard");
         }
       }
-    } catch (err) {
+    } catch {
       if (!silent) toast.error("Không thể tải trạng thái KYC. Vui lòng kiểm tra lại kết nối.");
     } finally {
       if (!silent) setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchStatus();
-  }, []);
+  useEffect(() => { fetchStatus(); }, []);
 
-  // Polling when status is pending
+  useEffect(() => {
+    if (!isLoading && status && searchParams.get("resubmit") === "1") {
+      const canResubmit = status.workflowStatus === "VERIFICATION_FAILED" || status.workflowStatus === "PENDING_MORE_INFO";
+      if (canResubmit) setView("RESUBMIT");
+      router.replace("/investor/kyc");
+    }
+  }, [isLoading, status]);
+
   useEffect(() => {
     let interval: NodeJS.Timeout;
     const isPending = status?.workflowStatus === "PENDING_REVIEW" || status?.workflowStatus === "PENDING_MORE_INFO";
-
     if (isPending && view === "HUB") {
-      interval = setInterval(() => {
-        fetchStatus(true);
-      }, 10000); // Poll every 10 seconds
+      interval = setInterval(() => fetchStatus(true), 10000);
     }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
+    return () => { if (interval) clearInterval(interval); };
   }, [status?.workflowStatus, view]);
 
   const handleSubmit = async (formData: FormData) => {
     try {
-      if (view === "RESUBMIT") {
-        await ResubmitInvestorKYC(formData);
-      } else {
-        await SubmitInvestorKYC(formData);
-      }
+      if (view === "RESUBMIT") await ResubmitInvestorKYC(formData);
+      else await SubmitInvestorKYC(formData);
       await fetchStatus();
       setView("HUB");
       toast.success("Hồ sơ KYC của bạn đã được gửi thành công!");
@@ -71,11 +67,7 @@ export default function InvestorKYCPage() {
   };
 
   const handleSaveDraft = async (data: Partial<IInvestorKYCSubmission>) => {
-    try {
-      await SaveInvestorKYCDraft(data);
-    } catch {
-      // Silent error for auto-save, but could log it
-    }
+    try { await SaveInvestorKYCDraft(data); } catch { /* silent */ }
   };
 
   if (isLoading) {
@@ -98,9 +90,9 @@ export default function InvestorKYCPage() {
           onStart={() => setView("WIZARD")}
           onContinue={() => setView("WIZARD")}
           onResubmit={() => setView("RESUBMIT")}
+          onViewStatus={() => router.push("/investor/kyc/status")}
         />
       )}
-
       {(view === "WIZARD" || view === "RESUBMIT") && status && (
         <KYCWizard
           initialStatus={status}

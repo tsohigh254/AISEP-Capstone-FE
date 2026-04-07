@@ -39,7 +39,10 @@ interface KYCWizardProps {
 /* ─── Helper ─────────────────────────────────────────────────── */
 
 function buildInitialForm(status: IAdvisorKYCStatus, isResubmit: boolean): Partial<IAdvisorKYCSubmission> {
-  const src = isResubmit ? status.previousSubmission : status.draftData;
+  // Khi resubmit: ưu tiên currentSubmission (mới nhất) > previousSubmission (cũ) > draftData
+  const src = isResubmit 
+    ? (status.currentSubmission || status.previousSubmission) 
+    : (status.draftData || status.currentSubmission);
   return {
     fullName: src?.fullName ?? status.submissionSummary?.fullName ?? "",
     contactEmail: src?.contactEmail ?? "",
@@ -67,8 +70,15 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
   const flagged = initialStatus.flaggedFields ?? [];
   const isFlagged = (f: string) => flagged.includes(f);
 
+  const requiresNewEvidenceRaw = initialStatus.requiresNewEvidence ?? (initialStatus as any).RequiresNewEvidence;
+  const requiresNewEvidence = Boolean(isResubmit && requiresNewEvidenceRaw);
+  const evidenceFieldFlagged = isResubmit && flagged.includes("basicExpertiseProofFile");
+  const existingEvidenceFiles = initialStatus.submissionSummary?.evidenceFiles || [];
+  const hasExistingEvidence = existingEvidenceFiles.length > 0;
+
   /* ── Auto-save ─────────────────────────────────────────────── */
   useEffect(() => {
+    if (isResubmit) return; // Không auto-save khi resubmit — tránh reset workflowStatus về DRAFT
     if (step !== 1 || (!formData.fullName && !formData.contactEmail)) return;
     const t = setTimeout(async () => {
       setAutoSaveState("saving");
@@ -114,8 +124,14 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
     if (!formData.currentOrganization?.trim()) e.currentOrganization = "Vui lòng nhập tổ chức";
     if (!formData.primaryExpertise) e.primaryExpertise = "Vui lòng chọn chuyên môn chính";
     if (!formData.professionalProfileLink?.trim()) e.professionalProfileLink = "Vui lòng nhập link LinkedIn";
-    else if (!formData.professionalProfileLink.startsWith("http")) e.professionalProfileLink = "Link phải bắt đầu bằng https://";
-    if (!proofFile && !isResubmit) e.basicExpertiseProofFile = "Vui lòng tải lên bằng chứng";
+    else if (!/^https?:\/\//i.test(formData.professionalProfileLink.trim())) e.professionalProfileLink = "Link phải bắt đầu bằng https://";
+    if (!proofFile) {
+      if (requiresNewEvidence || evidenceFieldFlagged) {
+        e.basicExpertiseProofFile = "Vui lòng tải lên bằng chứng mới theo yêu cầu của Staff";
+      } else if (!hasExistingEvidence) {
+        e.basicExpertiseProofFile = "Vui lòng tải lên bằng chứng";
+      }
+    }
     setErrors(e); return !Object.keys(e).length;
   };
 
@@ -136,9 +152,15 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
     setIsSubmitting(true);
     try {
       const fd = new FormData();
+      // Map FE field names → BE DTO field names
+      const fieldNameMap: Record<string, string> = {
+        currentRoleTitle: "title",
+        professionalProfileLink: "linkedInURL",
+      };
       Object.entries(formData).forEach(([k, v]) => {
-        if (Array.isArray(v)) v.forEach(i => fd.append(`${k}[]`, i));
-        else if (v !== undefined && v !== null) fd.append(k, String(v));
+        const beKey = fieldNameMap[k] || k;
+        if (Array.isArray(v)) v.forEach(i => fd.append(`${beKey}[]`, i));
+        else if (v !== undefined && v !== null) fd.append(beKey, String(v));
       });
       if (proofFile) fd.append("basicExpertiseProofFile", proofFile);
       await onSubmit(fd);
@@ -343,7 +365,13 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
               <div className="grid grid-cols-3 gap-2">
                 {EXPERTISE_OPTIONS.map(opt => (
                   <button key={opt.value} type="button"
-                    onClick={() => { set("primaryExpertise", opt.value); clearErr("primaryExpertise"); }}
+                    onClick={() => { 
+                      set("primaryExpertise", opt.value); 
+                      if ((formData.secondaryExpertise || []).includes(opt.value)) {
+                        set("secondaryExpertise", (formData.secondaryExpertise || []).filter(v => v !== opt.value));
+                      }
+                      clearErr("primaryExpertise"); 
+                    }}
                     className={cn(
                       "px-3 py-2.5 rounded-xl border text-[12px] font-semibold text-center transition-all",
                       formData.primaryExpertise === opt.value
@@ -403,10 +431,25 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
             <div>
               <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
                 Bằng chứng chuyên môn
-                {!isResubmit && <span className="text-red-400 ml-1">*</span>}
-                {isResubmit && <span className="text-slate-400 font-normal text-[12px] ml-1">— Tải mới hoặc giữ file cũ</span>}
+                {(!isResubmit || requiresNewEvidence || evidenceFieldFlagged) && <span className="text-red-400 ml-1">*</span>}
+                {isResubmit && !requiresNewEvidence && !evidenceFieldFlagged && <span className="text-slate-400 font-normal text-[12px] ml-1">— Tải mới hoặc giữ file cũ</span>}
                 {isFlagged("basicExpertiseProofFile") && <span className="ml-2 text-[11px] font-bold text-orange-500">[Cần sửa]</span>}
               </label>
+
+              {isResubmit && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 mb-4">
+                  <p className="text-[12px] font-bold text-amber-800">
+                    {requiresNewEvidence || evidenceFieldFlagged
+                      ? "Bạn cần thay bộ minh chứng cho lần gửi lại"
+                      : "Staff không yêu cầu thay bộ minh chứng hiện tại"}
+                  </p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-amber-700">
+                    {requiresNewEvidence || evidenceFieldFlagged
+                      ? "Tài liệu của lần trước chỉ để bạn đối chiếu. Với lần gửi lại này, staff yêu cầu thay bộ minh chứng nên hệ thống chỉ nhận file mới bạn tải lên bên dưới."
+                      : "Tài liệu của lần trước được hiển thị để bạn đối chiếu. Bạn có thể chỉ sửa thông tin văn bản hoặc liên kết và gửi lại mà không cần tải file mới."}
+                  </p>
+                </div>
+              )}
 
               <div
                 className={cn(
@@ -449,6 +492,108 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
                   </div>
                 )}
               </div>
+              <ErrNote name="basicExpertiseProofFile" />
+
+              {isResubmit && proofFile && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 mt-4">
+                  <p className="text-[12px] font-bold text-emerald-800">
+                    Sẽ gửi tệp mới này đi
+                  </p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-emerald-700">
+                    {requiresNewEvidence
+                      ? "Chỉ các tệp mới bạn vừa chọn mới được gửi trong lần resubmit này. Tài liệu nộp trước sẽ không tự động đi kèm."
+                      : "Bạn đã chọn thay thế minh chứng bằng tệp vừa tải lên."}
+                  </p>
+                </div>
+              )}
+
+              {isResubmit && !requiresNewEvidence && !evidenceFieldFlagged && hasExistingEvidence && proofFile && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 overflow-hidden mt-4">
+                  <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-100">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <p className="text-[12px] font-bold text-amber-800">
+                      Lưu ý — Staff không yêu cầu thay đổi minh chứng
+                    </p>
+                  </div>
+                  <div className="px-4 py-3 space-y-2.5">
+                    <p className="text-[12px] leading-relaxed text-amber-700">
+                      Tài liệu bạn nộp ở lần trước <span className="font-semibold">không bị đánh dấu lỗi</span> và vẫn hợp lệ cho lần gửi lại này. Bạn đang chủ động thay thế bằng file mới.
+                    </p>
+                    <ul className="space-y-1.5 text-[12px] text-amber-700">
+                      <li className="flex items-start gap-2">
+                        <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+                        <span>Nếu bạn <span className="font-semibold">tiếp tục gửi</span>, file mới sẽ thay thế hoàn toàn file cũ — không thể hoàn tác sau khi nộp.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+                        <span>Nếu bạn <span className="font-semibold">không chắc</span>, hãy xóa file vừa chọn — hệ thống sẽ tự động giữ lại tài liệu cũ khi gửi.</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {hasExistingEvidence && (
+                <div className="space-y-2 mt-6">
+                  <div className="flex items-center gap-2">
+                    <p className="text-[12px] font-semibold text-slate-500">
+                      {isResubmit ? "Tài liệu của lần nộp trước" : "Tài liệu đã đính kèm"}
+                    </p>
+                    {isResubmit && (
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        Chỉ để tham khảo
+                      </span>
+                    )}
+                  </div>
+                  {isResubmit && (
+                    <p className="text-[12px] text-slate-400">
+                      {requiresNewEvidence || evidenceFieldFlagged
+                        ? "Tệp này thuộc phiên bản trước đã bị trả lại hoặc cần bổ sung. Nó sẽ không được gửi sang phiên bản mới nếu bạn không tải lại tệp."
+                        : "Tệp này thuộc phiên bản trước. Nếu bạn không tải tệp mới, hệ thống sẽ giữ lại minh chứng này khi bạn gửi lại hồ sơ."}
+                    </p>
+                  )}
+                  <div className="space-y-2">
+                    {existingEvidenceFiles.map((file) => (
+                      <div
+                        key={file.id || file.fileName}
+                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3"
+                      >
+                        <div className="min-w-0">
+                          {isResubmit && (
+                            <div className="mb-1 flex items-center gap-2">
+                              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                                Phiên bản trước
+                              </span>
+                            </div>
+                          )}
+                          <p className="truncate text-[13px] font-semibold text-slate-800">
+                            {file.fileName || "Tệp đính kèm"}
+                          </p>
+                          <p className="text-[11px] text-slate-400">
+                            Chứng minh chuyên môn
+                            {file.uploadedAt && ` · ${new Date(file.uploadedAt).toLocaleDateString("vi-VN")}`}
+                          </p>
+                        </div>
+                        {file.url ? (
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-medium text-slate-600 transition-colors hover:bg-white hover:text-slate-900"
+                          >
+                            {isResubmit ? "Xem file cũ" : "Xem file"}
+                          </a>
+                        ) : (
+                          <span className="shrink-0 text-[12px] text-slate-400">
+                            Chưa có liên kết
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <FlagNote name="basicExpertiseProofFile" /><ErrNote name="basicExpertiseProofFile" />
             </div>
 
@@ -457,12 +602,14 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
                 <ArrowLeft className="w-3.5 h-3.5" /> Quay lại
               </button>
               <div className="flex items-center gap-2.5">
-                <button onClick={handleSaveDraft} disabled={isSavingDraft}
-                  className="text-[13px] font-semibold text-slate-500 hover:text-slate-700 px-4 h-10 rounded-xl border border-slate-200 hover:border-slate-300 transition-all flex items-center gap-1.5 disabled:opacity-50">
-                  {isSavingDraft ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-                  Lưu nháp
-                </button>
-                <button onClick={handleSubmit} disabled={isSubmitting}
+                {!isResubmit && (
+                  <button onClick={handleSaveDraft} disabled={isSavingDraft}
+                    className="text-[13px] font-semibold text-slate-500 hover:text-slate-700 px-4 h-10 rounded-xl border border-slate-200 hover:border-slate-300 transition-all flex items-center gap-1.5 disabled:opacity-50">
+                    {isSavingDraft ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                    Lưu nháp
+                  </button>
+                )}
+                <button onClick={handleSubmit} disabled={isSubmitting || ((requiresNewEvidence || evidenceFieldFlagged) && !proofFile)}
                   className="bg-[#0f172a] text-white text-[13px] font-bold px-6 h-10 rounded-xl hover:bg-slate-700 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                   {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
                   {isSubmitting ? "Đang gửi..." : isResubmit ? "Gửi bản cập nhật" : "Hoàn tất xác thực Advisor"}

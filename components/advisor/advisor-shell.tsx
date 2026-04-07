@@ -18,6 +18,9 @@ const routeLabels: Record<string, string> = {
   schedule: "Lịch tư vấn",
   onboarding: "Đăng ký hồ sơ",
   kyc: "KYC & Xác thực",
+  submit: "Nộp hồ sơ xác thực",
+  resubmit: "Cập nhật hồ sơ",
+  status: "Trạng thái chi tiết",
   messaging: "Tin nhắn",
   notifications: "Thông báo",
   settings: "Cài đặt",
@@ -76,16 +79,23 @@ export function AdvisorShell({ children }: AdvisorShellProps) {
       return;
     }
 
+    // Bypass API check if user already completed or skipped the onboarding flow locally
+    const skipped = localStorage.getItem("aisep_advisor_onboarding_skipped") === "true";
+    const completed = localStorage.getItem("aisep_advisor_onboarding_completed") === "true";
+    
+    if (skipped || completed) {
+      setChecking(false);
+      return;
+    }
+
     GetAdvisorProfile()
       .then((res: any) => {
         const data = res as unknown as IBackendRes<any>;
-        // A success response might still have no profile if backend returns data: null
         if (!data.success && !data.isSuccess) {
            router.replace("/advisor/onboard");
         } else if (!data.data || data.data.profileStatus === "Draft") {
            router.replace("/advisor/onboard");
         } else {
-          // Profile exists and is not draft
           setChecking(false);
         }
       })
@@ -94,7 +104,6 @@ export function AdvisorShell({ children }: AdvisorShellProps) {
         if (status === 404 || status === 400) {
           router.replace("/advisor/onboard");
         } else {
-          // For other errors, we might want to let them through or show error
           setChecking(false); 
         }
       });

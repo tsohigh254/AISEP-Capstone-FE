@@ -21,6 +21,7 @@ const routeLabels: Record<string, string> = {
   recommendations: "Gợi ý AI",
   "ai-chatbot": "AI Chatbot",
   kyc: "Xác thực KYC",
+  status: "Trạng thái",
   messaging: "Tin nhắn",
   notifications: "Thông báo",
   settings: "Cài đặt",

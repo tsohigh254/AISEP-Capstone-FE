@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { 
   ApproveStartupRegistration, ApproveAdvisorRegistration, ApproveInvestorRegistration,
   RejectStartupRegistration, RejectAdvisorRegistration, RejectInvestorRegistration,
-  GetPendingStartupKycById, GetPendingAdvisorById, GetPendingInvestorById
+  GetPendingStartupKycById, GetPendingAdvisorById, GetPendingInvestorKycById
 } from "@/services/staff/registration.api";
 import axios from "@/services/interceptor";
 import { useAuth } from "@/context/context";
@@ -34,14 +34,15 @@ import {
   ShieldAlert
 } from "lucide-react";
 import Link from "next/link";
-import { 
-  KYCSubtype, 
-  AssessmentValue, 
-  KYC_SUBTYPE_CONFIGS, 
+import {
+  KYCSubtype,
+  AssessmentValue,
+  KYC_SUBTYPE_CONFIGS,
   ASSESSMENT_LABELS,
   getSuggestedResult,
   SCORE_MAP,
-  HARD_FAIL_VALUES
+  HARD_FAIL_VALUES,
+  APPROVAL_THRESHOLDS,
 } from "@/types/staff-kyc";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -157,6 +158,18 @@ function getPreviewDocument(data: any, entityId: string): PreviewDocument | null
     };
   }
 
+  if (entityId.startsWith("ADVISOR-")) {
+    const evidenceFiles = data.submissionSummary?.evidenceFiles || [];
+    const file = evidenceFiles[0];
+    const url = getOpenableUrl(file?.url);
+    if (!url) return null;
+    return {
+      url,
+      name: file?.fileName || getFileNameFromUrl(url),
+      fileType: file?.fileType || null,
+    };
+  }
+
   const fallbackUrl = getOpenableUrl(
     data?.idProofFileURL ||
     data?.investmentProofFileURL ||
@@ -204,31 +217,91 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
       } else if (id.startsWith("ADVISOR-")) {
         res = await GetPendingAdvisorById(numericId);
       } else if (id.startsWith("INVESTOR-")) {
-        res = await GetPendingInvestorById(numericId);
+        res = await GetPendingInvestorKycById(numericId);
       }
       return (res as any)?.data;
     },
     enabled: !!id && !isNaN(numericId),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 
   const realData = useMemo(() => {
-    if (!rawData || !id.startsWith("STARTUP-")) return rawData;
+    if (!rawData) return rawData;
 
-    const summary = rawData.submissionSummary;
-    const evidenceFiles = summary?.evidenceFiles || [];
-    const primaryEvidence = evidenceFiles[0];
+    // 1. Chuẩn hóa dữ liệu Startup
+    if (id.startsWith("STARTUP-")) {
+      const summary = rawData.submissionSummary;
+      const evidenceFiles = summary?.evidenceFiles || [];
+      const primaryEvidence = evidenceFiles[0];
 
-    return {
-      ...rawData,
-      companyName: summary?.legalFullName || summary?.projectName || rawData.companyName,
-      businessCode: summary?.enterpriseCode || rawData.businessCode,
-      fullNameOfApplicant: summary?.representativeFullName || rawData.fullNameOfApplicant,
-      submitterRole: summary?.representativeRole || rawData.submitterRole,
-      roleOfApplicant: summary?.representativeRole || rawData.roleOfApplicant,
-      contactEmail: summary?.workEmail || summary?.contactEmail || rawData.contactEmail,
-      website: summary?.publicLink || rawData.website,
-      fileCertificateBusiness: primaryEvidence?.url || rawData.fileCertificateBusiness,
-    };
+      return {
+        ...rawData,
+        companyName: summary?.legalFullName || summary?.projectName || rawData.companyName,
+        businessCode: summary?.enterpriseCode || rawData.businessCode,
+        fullNameOfApplicant: summary?.representativeFullName || rawData.fullNameOfApplicant,
+        submitterRole: summary?.representativeRole || rawData.submitterRole,
+        roleOfApplicant: summary?.representativeRole || rawData.roleOfApplicant,
+        contactEmail: summary?.workEmail || summary?.contactEmail || rawData.contactEmail,
+        website: summary?.publicLink || rawData.website,
+        fileCertificateBusiness: primaryEvidence?.url || rawData.fileCertificateBusiness,
+      };
+    }
+
+    // 2. Chuẩn hóa dữ liệu Advisor
+    if (id.startsWith("ADVISOR-")) {
+      // Helper map chuyên môn sang Tiếng Việt
+      const formatExpertise = (val: any) => {
+        if (!val) return null;
+        const EXPERTISE_LABELS: Record<string, string> = {
+          FUNDRAISING: "Gọi vốn",
+          PRODUCT_STRATEGY: "Chiến lược sản phẩm",
+          GO_TO_MARKET: "Go-to-market",
+          FINANCE: "Tài chính",
+          LEGAL_IP: "Pháp lý & SHTT",
+          OPERATIONS: "Vận hành",
+          TECHNOLOGY: "Công nghệ",
+          MARKETING: "Marketing",
+          HR_OR_TEAM_BUILDING: "Nhân sự",
+        };
+        if (Array.isArray(val)) {
+          return val.map(v => EXPERTISE_LABELS[v] || v).join(", ");
+        }
+        return EXPERTISE_LABELS[val] || val;
+      };
+
+      const expertiseArr = rawData.expertise ? rawData.expertise.split(",") : [];
+
+      return {
+        ...rawData,
+        title: rawData.title || rawData.currentRoleTitle, // Dùng title từ BE
+        linkedin: rawData.linkedInURL || rawData.professionalProfileLink, // Dùng linkedInURL từ BE
+        primaryExpertise: formatExpertise(expertiseArr[0]),
+        secondaryExpertise: formatExpertise(expertiseArr.slice(1)),
+        currentOrganization: rawData.currentOrganization || "—",
+      };
+    }
+
+    // 3. Chuẩn hóa dữ liệu Investor
+    if (id.startsWith("INVESTOR-")) {
+      const summary = rawData.submissionSummary;
+      return {
+        ...rawData,
+        fullName: summary?.fullName || rawData.fullName,
+        contactEmail: summary?.contactEmail || rawData.email,
+        title: summary?.currentRoleTitle || null,
+        currentOrganization: summary?.organizationName || null,
+        location: summary?.location || null,
+        linkedin: summary?.linkedInURL || null,
+        website: summary?.website || null,
+        submitterRole: summary?.submitterRole || null,
+        taxIdOrBusinessCode: summary?.taxIdOrBusinessCode || null,
+        investorEvidenceFiles: summary?.evidenceFiles ?? [],
+        workflowStatus: rawData.workflowStatus,
+      };
+    }
+
+    return rawData;
   }, [rawData, id]);
 
   const subtype = detectedSubtype;
@@ -267,7 +340,8 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
       } else if (id.startsWith("ADVISOR-")) {
         setDetectedSubtype("ADVISOR");
       } else if (id.startsWith("INVESTOR-")) {
-        setDetectedSubtype(realData.firmName ? "INSTITUTIONAL_INVESTOR" : "INDIVIDUAL_INVESTOR");
+        const category = realData.submissionSummary?.investorCategory || realData.investorCategory || realData.investorType;
+        setDetectedSubtype(category === "INSTITUTIONAL" ? "INSTITUTIONAL_INVESTOR" : "INDIVIDUAL_INVESTOR");
       }
     }
   }, [realData, id]);
@@ -285,7 +359,7 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
   }, [subtype]);
 
   useEffect(() => {
-    if (id.startsWith("STARTUP-")) {
+    if (id.startsWith("STARTUP-") || id.startsWith("INVESTOR-")) {
       setRequiresNewEvidence(Boolean(realData?.requiresNewEvidence));
     }
   }, [id, realData?.requiresNewEvidence]);
@@ -300,7 +374,8 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
     return config.fields.every(f => assessments[f.id] !== undefined);
   }, [config, assessments]);
   const fileFieldRequiresNewEvidence = useMemo(() => {
-    if (!id.startsWith("STARTUP-") || !config) return false;
+    if (!config) return false;
+    if (!(id.startsWith("STARTUP-") || id.startsWith("ADVISOR-") || id.startsWith("INVESTOR-"))) return false;
     return config.fields.some(
       (field) =>
         field.type === "file" &&
@@ -309,7 +384,8 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
     );
   }, [assessments, config, id]);
   const effectiveRequiresNewEvidence =
-    id.startsWith("STARTUP-") && (fileFieldRequiresNewEvidence || requiresNewEvidence);
+    (id.startsWith("STARTUP-") || id.startsWith("ADVISOR-") || id.startsWith("INVESTOR-")) &&
+    (fileFieldRequiresNewEvidence || requiresNewEvidence);
 
   const currentPreviewSource = useMemo(
     () => getPreviewDocument(realData, id),
@@ -317,6 +393,10 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
   );
   const startupEvidenceFiles = useMemo(
     () => (id.startsWith("STARTUP-") ? realData?.submissionSummary?.evidenceFiles || [] : []),
+    [id, realData]
+  );
+  const advisorEvidenceFiles = useMemo(
+    () => (id.startsWith("ADVISOR-") ? realData?.submissionSummary?.evidenceFiles || [] : []),
     [id, realData]
   );
 
@@ -398,10 +478,155 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
       return;
     }
 
+    if (id.startsWith("ADVISOR-")) {
+      const currentEvidenceFiles = realData?.submissionSummary?.evidenceFiles || [];
+      const currentFile =
+        currentEvidenceFiles.find((item: { id?: string }) => item.id === targetFileId) ||
+        currentEvidenceFiles[0];
+      let currentUrl = getOpenableUrl(currentFile?.url);
+
+      if (!currentUrl) {
+        toast.error("Không tìm thấy link xem tài liệu.");
+        return;
+      }
+
+      const currentPreview: PreviewDocument = {
+        url: currentUrl,
+        name: currentFile?.fileName || getFileNameFromUrl(currentUrl),
+        fileType: currentFile?.fileType || null,
+      };
+
+      if (mode === "preview") {
+        setPreviewDoc(currentPreview);
+      } else {
+        const popup = createPendingTab();
+        openUrlInNewTab(currentUrl, popup);
+      }
+
+      const currentStatus = await getUrlStatus(currentUrl);
+      if (currentStatus !== 401 && currentStatus !== 403) {
+        return;
+      }
+
+      toast.info("Link hết hạn, đang thử làm mới tài liệu...");
+
+      try {
+        const refreshed = await GetPendingAdvisorById(numericId);
+        const refreshedEnvelope = refreshed as unknown as IBackendRes<any>;
+        const refreshedData = refreshedEnvelope?.data;
+
+        if (refreshedData) {
+          queryClient.setQueryData(["kyc-detail", id], refreshedData);
+
+          const refreshedEvidenceFiles = refreshedData.submissionSummary?.evidenceFiles || [];
+          const refreshedFile =
+            refreshedEvidenceFiles.find((item: { id?: string }) => item.id === (targetFileId || currentFile?.id)) ||
+            refreshedEvidenceFiles[0];
+            
+          let refreshedUrl = getOpenableUrl(refreshedFile?.url);
+
+          const refreshedStatus = refreshedUrl ? await getUrlStatus(refreshedUrl) : null;
+
+          if (refreshedUrl && refreshedStatus !== 401 && refreshedStatus !== 403) {
+            const refreshedPreview: PreviewDocument = {
+              url: refreshedUrl,
+              name: refreshedFile?.fileName || getFileNameFromUrl(refreshedUrl),
+              fileType: refreshedFile?.fileType || null,
+            };
+
+            if (mode === "preview") {
+              setPreviewDoc(refreshedPreview);
+            } else {
+              const popup = createPendingTab();
+              openUrlInNewTab(refreshedUrl, popup);
+            }
+            return;
+          }
+        }
+
+        toast.error("Link xem tài liệu của Advisor đã hết hạn hoặc không còn khả dụng.");
+      } catch {
+        toast.error("Không thể làm mới link xem tài liệu của Advisor. Vui lòng thử lại.");
+      }
+
+      return;
+    }
+
+    if (id.startsWith("INVESTOR-")) {
+      const currentEvidenceFiles = (realData?.investorEvidenceFiles || []) as { id: number; url: string; fileName: string | null; kind: string }[];
+      const currentFile =
+        currentEvidenceFiles.find((item) => String(item.id) === targetFileId) ||
+        currentEvidenceFiles[0];
+      const currentUrl = getOpenableUrl(currentFile?.url);
+
+      if (!currentUrl) {
+        toast.error("Không tìm thấy link xem tài liệu.");
+        return;
+      }
+
+      const currentPreview: PreviewDocument = {
+        url: currentUrl,
+        name: currentFile?.fileName || getFileNameFromUrl(currentUrl),
+        fileType: null,
+      };
+
+      if (mode === "preview") {
+        setPreviewDoc(currentPreview);
+      } else {
+        const popup = createPendingTab();
+        openUrlInNewTab(currentUrl, popup);
+      }
+
+      const currentStatus = await getUrlStatus(currentUrl);
+      if (currentStatus !== 401 && currentStatus !== 403) {
+        return;
+      }
+
+      toast.info("Link hết hạn, đang thử làm mới tài liệu...");
+
+      try {
+        const refreshed = await GetPendingInvestorKycById(numericId);
+        const refreshedEnvelope = refreshed as unknown as IBackendRes<any>;
+        const refreshedData = refreshedEnvelope?.data;
+
+        if (refreshedData) {
+          queryClient.setQueryData(["kyc-detail", id], refreshedData);
+
+          const refreshedEvidenceFiles = (refreshedData.submissionSummary?.evidenceFiles || []) as { id: number; url: string; fileName: string | null; kind: string }[];
+          const refreshedFile =
+            refreshedEvidenceFiles.find((item) => String(item.id) === (targetFileId || String(currentFile?.id))) ||
+            refreshedEvidenceFiles[0];
+          const refreshedUrl = getOpenableUrl(refreshedFile?.url);
+          const refreshedStatus = refreshedUrl ? await getUrlStatus(refreshedUrl) : null;
+
+          if (refreshedUrl && refreshedStatus !== 401 && refreshedStatus !== 403) {
+            const refreshedPreview: PreviewDocument = {
+              url: refreshedUrl,
+              name: refreshedFile?.fileName || getFileNameFromUrl(refreshedUrl),
+              fileType: null,
+            };
+
+            if (mode === "preview") {
+              setPreviewDoc(refreshedPreview);
+            } else {
+              const popup = createPendingTab();
+              openUrlInNewTab(refreshedUrl, popup);
+            }
+            return;
+          }
+        }
+
+        toast.error("Link xem tài liệu của Investor đã hết hạn hoặc không còn khả dụng.");
+      } catch {
+        toast.error("Không thể làm mới link xem tài liệu của Investor. Vui lòng thử lại.");
+      }
+
+      return;
+    }
+
     const fallbackUrl = getOpenableUrl(
       realData?.idProofFileURL ||
       realData?.investmentProofFileURL ||
-      realData?.proofFile ||
       realData?.fileCertificateBusiness
     );
 
@@ -488,6 +713,8 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
 
       {/* Page Header Card */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-6 py-5">
+
+
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
           <div className="flex items-start gap-4">
             <div className={cn("w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[18px] font-bold shrink-0 shadow-sm", avatarGradient)}>
@@ -564,7 +791,7 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                         // Priority 1: Direct ID matches
                         if (field.id === "legalName") realValue = realData.companyName || "—";
                         else if (field.id === "projectName") realValue = realData.companyName || "—";
-                        else if (field.id === "taxId" || field.id === "orgTaxId") realValue = realData.businessCode || "—";
+                        else if (field.id === "taxId" || field.id === "orgTaxId") realValue = realData.businessCode || realData.taxIdOrBusinessCode || "—";
                         
                         else if (field.id === "submitterName") realValue = realData.fullNameOfApplicant || realData.fullName || "—";
                         else if (field.id === "repName") realValue = realData.fullNameOfApplicant || realData.fullName || "—";
@@ -583,15 +810,15 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                         }
                         
                         else if (field.id === "linkedin") {
-                          realValue = realData.linkedInURL || realData.linkedinURL || "—";
+                          realValue = realData.linkedin || realData.linkedInURL || realData.linkedinURL || "—";
                         }
                         
                         else if (field.id === "primaryExpertise") {
-                          realValue = realData.expertise || (realData.industryFocus && realData.industryFocus[0]?.industry) || "—";
+                          realValue = realData.primaryExpertise || realData.expertise || (realData.industryFocus && realData.industryFocus[0]?.industry) || "—";
                         }
                         
                         else if (field.id === "orgLegalName" || field.id === "firmName" || field.id === "org") {
-                          realValue = realData.currentOrganization || realData.firmName || "—";
+                          realValue = realData.currentOrganization || realData.organizationName || realData.firmName || "—";
                         }
 
                         else if (field.id === "title") {
@@ -613,10 +840,14 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                              realValue = startupEvidenceFiles.length > 0
                                ? `${startupEvidenceFiles.length} tài liệu đính kèm`
                                : "Chưa tải lên";
-                           } else {
-                             const hasFile = realData.fileCertificateBusiness || realData.proofFile || realData.orgProofFile || 
-                                              realData.idProofFileURL || realData.investmentProofFileURL;
-                             realValue = hasFile ? "Tài liệu đính kèm" : "Chưa tải lên";
+                           } else if (id.startsWith("ADVISOR-")) {
+                             const hasFiles = advisorEvidenceFiles.length > 0;
+                             realValue = hasFiles
+                               ? `${advisorEvidenceFiles.length} tài liệu đính kèm`
+                               : "Chưa tải lên";
+                           } else if (id.startsWith("INVESTOR-")) {
+                             const files = realData.investorEvidenceFiles || [];
+                             realValue = files.length > 0 ? `${files.length} tài liệu đính kèm` : "Chưa tải lên";
                            }
                         }
                       }
@@ -674,6 +905,77 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                               ) : (
                                 <span className="text-[13px] text-slate-400">Không có tài liệu</span>
                               )
+                            ) : id.startsWith("ADVISOR-") ? (
+                              advisorEvidenceFiles.length > 0 ? (
+                                <div className="space-y-2">
+                                  {advisorEvidenceFiles.map((file: { id?: string; fileName?: string; fileType?: string | null; url?: string | null }, fileIndex: number) => (
+                                    <div
+                                      key={file.id || `${field.id}-${fileIndex}`}
+                                      className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-2.5 transition-colors group-hover:bg-white"
+                                    >
+                                      <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                                        <FileText className="w-4 h-4 text-red-500" />
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="font-semibold text-slate-700 text-[12px] truncate">
+                                          {file.fileName || `${field.label} ${fileIndex + 1}`}
+                                        </p>
+                                        <button
+                                          onClick={() => void handleOpenAttachment("preview", file.id)}
+                                          className="text-blue-600 hover:text-blue-800 font-medium text-[11px] uppercase tracking-tight"
+                                        >
+                                          Xem tài liệu
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl border border-slate-100 group-hover:bg-white transition-colors">
+                                  <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                                    <FileText className="w-4 h-4 text-red-500" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="font-semibold text-slate-700 text-[12px] truncate">
+                                      {field.label}
+                                    </p>
+                                    <button 
+                                      onClick={() => void handleOpenAttachment("preview")}
+                                      className="text-blue-600 hover:text-blue-800 font-medium text-[11px] uppercase tracking-tight"
+                                    >
+                                      {realValue === "Chưa tải lên" ? "Không có tài liệu" : "Xem tài liệu"}
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            ) : id.startsWith("INVESTOR-") ? (
+                              (() => {
+                                const investorFiles = (realData.investorEvidenceFiles || []) as { id: number; url: string; fileName: string | null; kind: string }[];
+                                return investorFiles.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {investorFiles.map((file, fileIndex) => (
+                                      <div key={file.id || fileIndex} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-2.5 transition-colors group-hover:bg-white">
+                                        <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                                          <FileText className="w-4 h-4 text-red-500" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <p className="font-semibold text-slate-700 text-[12px] truncate">
+                                            {file.fileName || file.kind || field.label}
+                                          </p>
+                                          <button
+                                            onClick={() => void handleOpenAttachment("preview", String(file.id))}
+                                            className="text-blue-600 hover:text-blue-800 font-medium text-[11px] uppercase tracking-tight"
+                                          >
+                                            Xem tài liệu
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-[13px] text-slate-400">Không có tài liệu</span>
+                                );
+                              })()
                             ) : (
                               <div className="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl border border-slate-100 group-hover:bg-white transition-colors">
                                 <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
@@ -683,7 +985,7 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                                   <p className="font-semibold text-slate-700 text-[12px] truncate">
                                     {field.label}
                                   </p>
-                                  <button 
+                                  <button
                                     onClick={() => void handleOpenAttachment("preview")}
                                     className="text-blue-600 hover:text-blue-800 font-medium text-[11px] uppercase tracking-tight"
                                   >
@@ -797,6 +1099,81 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                     </div>
                   </div>
                 )}
+                {id.startsWith("ADVISOR-") && advisorEvidenceFiles.length > 1 && (
+                  <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-[12px] font-semibold text-slate-700">
+                        Chọn tài liệu để xem trước
+                      </p>
+                      <span className="text-[11px] text-slate-400">
+                        {advisorEvidenceFiles.length} tệp
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {advisorEvidenceFiles.map((file: { id?: string; fileName?: string; url?: string | null }, fileIndex: number) => {
+                        const fileUrl = getOpenableUrl(file.url);
+                        const isActive =
+                          Boolean(fileUrl && activePreviewDoc?.url === fileUrl) ||
+                          (!fileUrl && activePreviewDoc?.name === (file.fileName || `Tài liệu ${fileIndex + 1}`));
+
+                        return (
+                          <button
+                            key={file.id || `preview-file-${fileIndex}`}
+                            type="button"
+                            onClick={() => void handleOpenAttachment("preview", file.id)}
+                            className={cn(
+                              "inline-flex max-w-full items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors",
+                              isActive
+                                ? "border-[#0f172a] bg-[#0f172a] text-white"
+                                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-100",
+                            )}
+                          >
+                            <FileText className={cn("h-4 w-4 shrink-0", isActive ? "text-white" : "text-slate-400")} />
+                            <span className="max-w-[220px] truncate text-[12px] font-medium">
+                              {file.fileName || `Tài liệu ${fileIndex + 1}`}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {id.startsWith("INVESTOR-") && (realData?.investorEvidenceFiles || []).length > 1 && (
+                  <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-[12px] font-semibold text-slate-700">
+                        Chọn tài liệu để xem trước
+                      </p>
+                      <span className="text-[11px] text-slate-400">
+                        {(realData?.investorEvidenceFiles || []).length} tệp
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {(realData?.investorEvidenceFiles as { id: number; url: string; fileName: string | null; kind: string }[]).map((file, fileIndex) => {
+                        const fileUrl = getOpenableUrl(file.url);
+                        const isActive = Boolean(fileUrl && activePreviewDoc?.url === fileUrl);
+                        return (
+                          <button
+                            key={file.id || `investor-preview-${fileIndex}`}
+                            type="button"
+                            onClick={() => void handleOpenAttachment("preview", String(file.id))}
+                            className={cn(
+                              "inline-flex max-w-full items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors",
+                              isActive
+                                ? "border-[#0f172a] bg-[#0f172a] text-white"
+                                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-100",
+                            )}
+                          >
+                            <FileText className={cn("h-4 w-4 shrink-0", isActive ? "text-white" : "text-slate-400")} />
+                            <span className="max-w-[220px] truncate text-[12px] font-medium">
+                              {file.fileName || file.kind || `Tài liệu ${fileIndex + 1}`}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div className="aspect-[4/3] bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 overflow-hidden transition-colors hover:border-slate-300">
                   {activePreviewDoc?.url ? (
                     isPreviewImage ? (
@@ -860,7 +1237,7 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                   />
                 </div>
 
-                {id.startsWith("STARTUP-") && result.suggestedDecision !== "APPROVE" && (
+                {(id.startsWith("STARTUP-") || id.startsWith("ADVISOR-") || id.startsWith("INVESTOR-")) && result.suggestedDecision !== "APPROVE" && (
                   <div className="space-y-2">
                     <p className="text-[11px] text-slate-400 uppercase tracking-wide font-medium">
                       Yêu cầu minh chứng khi gửi lại
@@ -884,15 +1261,15 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                         <div>
                           <p className="text-[13px] font-semibold text-slate-800">
                             {effectiveRequiresNewEvidence
-                              ? "Bắt startup tải lại bộ minh chứng mới"
+                              ? "Bắt đối tượng tải lại bộ minh chứng mới"
                               : "Cho phép giữ lại minh chứng cũ"}
                           </p>
                           <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
                             {fileFieldRequiresNewEvidence
-                              ? "Trường tài liệu đang bị đánh fail hoặc nghi vấn nghiêm trọng. Startup bắt buộc phải tải bộ file mới khi gửi lại hồ sơ."
+                              ? "Trường tài liệu đang bị đánh fail hoặc nghi vấn nghiêm trọng. Bắt buộc phải tải bộ file mới khi gửi lại hồ sơ."
                               : effectiveRequiresNewEvidence
-                              ? "Bật khi vấn đề nằm ở tài liệu minh chứng. Startup sẽ phải tải bộ file mới khi gửi lại hồ sơ."
-                              : "Dùng khi staff chỉ yêu cầu sửa text hoặc liên kết. Startup có thể gửi lại mà không cần tải file mới."}
+                              ? "Bật khi vấn đề nằm ở tài liệu minh chứng. Bắt buộc phải tải bộ file mới khi gửi lại hồ sơ."
+                              : "Dùng khi staff chỉ yêu cầu sửa thông tin chữ hoặc liên kết. Có thể gửi lại mà không cần tải file mới."}
                           </p>
                         </div>
                         <span
@@ -969,14 +1346,14 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100/50">
                    <div className="flex items-center justify-between mb-1">
                      <span className="text-[11px] font-bold text-emerald-600 uppercase">Đã xác thực</span>
-                     <span className="text-[11px] font-bold text-slate-400">Min 10đ</span>
+                     <span className="text-[11px] font-bold text-slate-400">Min {APPROVAL_THRESHOLDS[subtype].verified}đ</span>
                    </div>
                    <p className="text-[11px] text-slate-500 leading-relaxed font-normal">Không có cảnh báo đỏ hoặc vi phạm nghiêm trọng.</p>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100/50">
                    <div className="flex items-center justify-between mb-1">
                      <span className="text-[11px] font-bold text-blue-600 uppercase">Cơ bản</span>
-                     <span className="text-[11px] font-bold text-slate-400">Min 6đ</span>
+                     <span className="text-[11px] font-bold text-slate-400">Min {APPROVAL_THRESHOLDS[subtype].basic}đ</span>
                    </div>
                    <p className="text-[11px] text-slate-500 leading-relaxed font-normal">Cho phép sai sót nhỏ không ảnh hưởng cốt lõi.</p>
                 </div>
@@ -1061,11 +1438,11 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                             }
                         } else if (id.startsWith("ADVISOR-")) {
                             if (isApprove) await ApproveAdvisorRegistration(staffId, numericId, result.totalScore);
-                            else await RejectAdvisorRegistration(staffId, numericId, internalNote || "Không đạt");
+                            else await RejectAdvisorRegistration(staffId, numericId, internalNote || "Không đạt", effectiveRequiresNewEvidence);
                         } else if (id.startsWith("INVESTOR-")) {
                             const isInst = subtype === "INSTITUTIONAL_INVESTOR";
                             if (isApprove) await ApproveInvestorRegistration(staffId, numericId, result.totalScore, isInst);
-                            else await RejectInvestorRegistration(staffId, numericId, internalNote || "Không đạt");
+                            else await RejectInvestorRegistration(staffId, numericId, internalNote || "Không đạt", effectiveRequiresNewEvidence);
                         }
 
                         toast.success(isApprove ? "Đã duyệt hồ sơ thành công" : "Đã từ chối hồ sơ");

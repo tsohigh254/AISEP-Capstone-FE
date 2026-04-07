@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -125,7 +125,8 @@ export function KycSubmitForm({
   const [uploaderResetKey, setUploaderResetKey] = useState(0);
   const existingEvidenceFiles = initialData?.submissionSummary?.evidenceFiles || [];
   const hasExistingEvidence = existingEvidenceFiles.length > 0;
-  const requiresNewEvidence = Boolean(isResubmit && initialData?.requiresNewEvidence);
+  const requiresNewEvidenceRaw = initialData?.requiresNewEvidence ?? (initialData as any)?.RequiresNewEvidence;
+  const requiresNewEvidence = Boolean(isResubmit && requiresNewEvidenceRaw);
   const shouldWarnAboutReplacingEvidence =
     Boolean(isResubmit) && !requiresNewEvidence && hasExistingEvidence;
 
@@ -428,6 +429,7 @@ export function KycSubmitForm({
                   className={inputCls}
                   value={legalName}
                   onChange={(e) => setLegalName(e.target.value)}
+                  autoComplete="off"
                   placeholder={
                     mode === "WITH_LEGAL_ENTITY"
                       ? "VD: AISEP XYZ JSC"
@@ -467,6 +469,7 @@ export function KycSubmitForm({
                   disabled={loading}
                   value={repName}
                   onChange={(e) => setRepName(e.target.value)}
+                  autoComplete="off"
                   className={inputCls}
                   placeholder="Họ và tên đầy đủ"
                 />
@@ -478,6 +481,7 @@ export function KycSubmitForm({
                   disabled={loading}
                   value={repRole}
                   onChange={(e) => setRepRole(e.target.value)}
+                  autoComplete="off"
                   className={inputCls}
                   placeholder="VD: Founder, CEO"
                 />
@@ -489,6 +493,7 @@ export function KycSubmitForm({
                   disabled={loading}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="off"
                   className={inputCls}
                   placeholder="email@company.com"
                 />

@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import {
   CheckCircle2, Clock, AlertCircle, XCircle, ShieldCheck,
   History, Info, Download, Award, RefreshCw, FileText,
-  ArrowRight, Star, ChevronDown, ChevronUp,
+  ArrowRight, Star, ChevronDown, ChevronUp, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IInvestorKYCStatus } from "@/types/investor-kyc";
@@ -14,6 +14,8 @@ interface KYCHubProps {
   onStart: () => void;
   onContinue: () => void;
   onResubmit: () => void;
+  onViewStatus?: () => void;
+  isDetailsRoute?: boolean;
 }
 
 const STATUS_MAP = {
@@ -75,17 +77,26 @@ const FIELD_LABELS: Record<string, string> = {
   declarationAccepted: "Cam kết",
 };
 
-export function KYCHub({ status, onStart, onContinue, onResubmit }: KYCHubProps) {
+export function KYCHub({ status, onStart, onContinue, onResubmit, onViewStatus, isDetailsRoute = false }: KYCHubProps) {
   const [showDetails, setShowDetails] = useState(false);
-  const { workflowStatus, verificationLabel, explanation, remarks, flaggedFields, history, submissionSummary, previousSubmission } = status;
+  const { workflowStatus, verificationLabel, explanation, remarks, flaggedFields, history, submissionSummary, requiresNewEvidence } = status;
   const cfg = STATUS_MAP[workflowStatus] ?? STATUS_MAP.NOT_STARTED;
   const { Icon } = cfg;
 
   const isVerified = workflowStatus === "VERIFIED";
   const needsAction = ["NOT_STARTED", "DRAFT", "PENDING_MORE_INFO", "VERIFICATION_FAILED"].includes(workflowStatus);
   const hasRemarks = !!remarks && (workflowStatus === "PENDING_MORE_INFO" || workflowStatus === "VERIFICATION_FAILED");
-
   const submitted = ["PENDING_REVIEW", "VERIFIED", "VERIFICATION_FAILED", "PENDING_MORE_INFO"].includes(workflowStatus);
+  const shouldShowDetails = isDetailsRoute && !!submissionSummary && submitted;
+
+  const HISTORY_ACTION_MAP: Record<string, string> = {
+    PENDING_REVIEW: "Hồ sơ đang được xem xét",
+    PENDING_MORE_INFO: "Yêu cầu bổ sung thông tin",
+    VERIFIED: "Hồ sơ đã được xác thực",
+    VERIFICATION_FAILED: "Hồ sơ không đạt",
+    DRAFT: "Bản nháp",
+  };
+
   const checklist = [
     { label: "Thông tin định danh (Tên, Email)", done: submitted },
     { label: "Xác định loại hình Nhà đầu tư", done: submitted },
@@ -166,17 +177,20 @@ export function KYCHub({ status, onStart, onContinue, onResubmit }: KYCHubProps)
                   Xem chi tiết hồ sơ
                   {showDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 </button>
-                <button
-                  className="bg-slate-100 text-slate-700 text-[13px] font-bold px-5 h-10 rounded-xl hover:bg-slate-200 transition-all flex items-center gap-2 border border-slate-200">
-                  <Download className="w-4 h-4" />
-                  Tải chứng nhận (PDF)
-                </button>
               </>
+            )}
+            {submitted && !isDetailsRoute && (
+              <button onClick={onViewStatus}
+                className="bg-[#0f172a] text-white text-[13px] font-bold px-5 h-10 rounded-xl hover:bg-slate-700 transition-all flex items-center gap-2 shadow-sm">
+                <FileText className="w-4 h-4" />
+                Xem trạng thái chi tiết
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             )}
             {submissionSummary && !isVerified && workflowStatus !== "DRAFT" && (
               <div className="flex items-center gap-2 px-4 h-10 bg-slate-50 rounded-xl text-[12px] text-slate-400 font-medium">
                 <FileText className="w-3.5 h-3.5" />
-                Biên bản #{submissionSummary.version} — {new Date(submissionSummary.submittedAt).toLocaleDateString("vi-VN")}
+                Biên bản #{submissionSummary.version}{submissionSummary.submittedAt ? ` — ${new Date(submissionSummary.submittedAt).toLocaleDateString("vi-VN")}` : ""}
               </div>
             )}
           </div>
@@ -204,32 +218,124 @@ export function KYCHub({ status, onStart, onContinue, onResubmit }: KYCHubProps)
         </div>
       </div>
 
+      {/* ── SUBMISSION DETAILS (status route) ───────────────── */}
+      {shouldShowDetails && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden animate-in slide-in-from-top-2 duration-200">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50">
+            <ShieldCheck className="w-4 h-4 text-[#eec54e]" />
+            <p className="text-[14px] font-bold text-slate-800">
+              {isVerified ? "Hồ sơ đã xác thực" : "Hồ sơ đã nộp hệ thống"}
+            </p>
+            <span className="ml-auto text-[11px] font-medium text-slate-400 bg-white px-2 py-1 rounded-lg border border-slate-100">
+              Phiên bản #{submissionSummary!.version}{submissionSummary!.submittedAt ? ` — ${new Date(submissionSummary!.submittedAt).toLocaleDateString("vi-VN")}` : ""}
+            </span>
+          </div>
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
+            {[
+              { label: "Họ và tên", value: submissionSummary!.fullName },
+              { label: "Email liên hệ", value: submissionSummary!.contactEmail },
+              { label: "Loại nhà đầu tư", value: submissionSummary!.investorCategory },
+              { label: "Vị trí hiện tại", value: submissionSummary!.currentRoleTitle },
+              { label: "Tổ chức / Quỹ", value: submissionSummary!.organizationName },
+              { label: "Địa điểm", value: submissionSummary!.location },
+              { label: "Mã số thuế", value: submissionSummary!.taxIdOrBusinessCode },
+              { label: "Vai trò nộp hồ sơ", value: submissionSummary!.submitterRole },
+            ].map((row, i) => row.value ? (
+              <div key={i} className="flex items-center justify-between gap-4 border-b border-slate-50 py-3 last:border-0">
+                <span className="shrink-0 text-[12px] font-medium text-slate-400 uppercase tracking-tight">{row.label}</span>
+                <span className="max-w-[200px] truncate text-right text-[12px] font-semibold text-slate-700">{row.value}</span>
+              </div>
+            ) : null)}
+            {submissionSummary!.linkedInURL && (
+              <div className="flex items-center justify-between gap-4 border-b border-slate-50 py-3">
+                <span className="shrink-0 text-[12px] font-medium text-slate-400 uppercase tracking-tight">LinkedIn</span>
+                <a href={submissionSummary!.linkedInURL} target="_blank" rel="noreferrer"
+                  className="max-w-[200px] truncate text-right text-[12px] font-semibold text-blue-600 hover:underline">
+                  {submissionSummary!.linkedInURL}
+                </a>
+              </div>
+            )}
+            {submissionSummary!.website && (
+              <div className="flex items-center justify-between gap-4 border-b border-slate-50 py-3">
+                <span className="shrink-0 text-[12px] font-medium text-slate-400 uppercase tracking-tight">Website</span>
+                <a href={submissionSummary!.website} target="_blank" rel="noreferrer"
+                  className="max-w-[200px] truncate text-right text-[12px] font-semibold text-blue-600 hover:underline">
+                  {submissionSummary!.website}
+                </a>
+              </div>
+            )}
+          </div>
+
+          {/* Evidence files */}
+          {submissionSummary!.evidenceFiles && submissionSummary!.evidenceFiles.length > 0 && (
+            <div className="px-6 pb-6">
+              <p className="text-[12px] font-medium text-slate-400 uppercase tracking-tight mb-3">Tài liệu đính kèm</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {submissionSummary!.evidenceFiles.map(file => (
+                  <div key={file.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-white transition-colors">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                        <FileText className="w-4 h-4 text-red-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-bold text-slate-700 truncate">{file.fileName || "Tài liệu"}</p>
+                        <p className="text-[10px] text-slate-400">{file.kind} · {new Date(file.uploadedAt).toLocaleDateString("vi-VN")}</p>
+                      </div>
+                    </div>
+                    {file.url && (
+                      <a href={file.url} target="_blank" rel="noreferrer"
+                        className="shrink-0 flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 p-2 hover:bg-blue-50 rounded-lg transition-colors">
+                        Xem <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── SUBMISSION DETAILS (VERIFIED) ────────────────────── */}
-      {isVerified && showDetails && previousSubmission && (
+      {isVerified && showDetails && submissionSummary && (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden animate-in slide-in-from-top-2 duration-200">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50">
             <FileText className="w-4 h-4 text-slate-400" />
             <p className="text-[14px] font-bold text-slate-800">Chi tiết hồ sơ đã xác thực</p>
-            {submissionSummary && (
-              <span className="ml-auto text-[11px] text-slate-400 font-medium">
-                Phiên bản #{submissionSummary.version} — {new Date(submissionSummary.submittedAt).toLocaleDateString("vi-VN")}
-              </span>
-            )}
+            <span className="ml-auto text-[11px] text-slate-400 font-medium">
+              Phiên bản #{submissionSummary.version}{submissionSummary.submittedAt ? ` — ${new Date(submissionSummary.submittedAt).toLocaleDateString("vi-VN")}` : ""}
+            </span>
           </div>
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
             {[
-              { label: "Họ và tên", value: previousSubmission.fullName },
-              { label: "Email liên hệ", value: previousSubmission.contactEmail },
-              { label: "Loại nhà đầu tư", value: previousSubmission.investorType || (previousSubmission as any).investorCategory },
-              { label: "Vị trí hiện tại", value: previousSubmission.currentRoleTitle },
-              { label: "Tên tổ chức", value: previousSubmission.organizationName },
-              { label: "Website / LinkedIn", value: previousSubmission.website },
+              { label: "Họ và tên", value: submissionSummary.fullName },
+              { label: "Email liên hệ", value: submissionSummary.contactEmail },
+              { label: "Loại nhà đầu tư", value: submissionSummary.investorCategory },
+              { label: "Vị trí hiện tại", value: submissionSummary.currentRoleTitle },
+              { label: "Tên tổ chức", value: submissionSummary.organizationName },
+              { label: "LinkedIn", value: submissionSummary.linkedInURL },
+              { label: "Website", value: submissionSummary.website },
             ].map((row, i) => row.value ? (
               <div key={i} className="flex items-start justify-between gap-4 py-2 border-b border-slate-50 last:border-0 md:[&:nth-last-child(-n+2)]:border-0">
                 <span className="text-[12px] text-slate-400 font-medium shrink-0">{row.label}</span>
                 <span className="text-[12px] font-bold text-slate-700 text-right truncate max-w-[200px]">{row.value}</span>
               </div>
             ) : null)}
+          </div>
+        </div>
+      )}
+
+      {/* ── requiresNewEvidence banner ───────────────────────── */}
+      {requiresNewEvidence && (workflowStatus === "PENDING_MORE_INFO" || workflowStatus === "VERIFICATION_FAILED") && (
+        <div className="bg-white rounded-2xl border border-amber-200 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="flex items-center gap-2.5 px-6 py-3.5 border-b border-amber-100 bg-amber-50/60">
+            <AlertCircle className="w-4 h-4 text-amber-500" />
+            <p className="text-[13px] font-bold text-amber-700">Yêu cầu tải lại tài liệu minh chứng</p>
+          </div>
+          <div className="px-6 py-4">
+            <p className="text-[13px] text-slate-600 leading-relaxed">
+              Staff yêu cầu bạn <span className="font-semibold">thay thế bộ tài liệu minh chứng</span> trong lần gửi lại này. Bạn không thể giữ lại file cũ.
+            </p>
           </div>
         </div>
       )}
@@ -313,18 +419,27 @@ export function KYCHub({ status, onStart, onContinue, onResubmit }: KYCHubProps)
 
           {history && history.length > 0 ? (
             <div className="divide-y divide-slate-50">
-              {history.map((item, idx) => (
-                <div key={idx} className="px-6 py-3.5 flex items-start gap-4 hover:bg-slate-50/60 transition-colors">
-                  <div className={cn("w-2 h-2 rounded-full mt-2 shrink-0 shadow-sm", TIMELINE_DOT[item.status] ?? "bg-slate-300")} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-bold text-slate-700">{item.action}</p>
-                    {item.remark && (
-                      <p className="text-[11px] text-slate-400 italic mt-1 font-medium">"{item.remark}"</p>
-                    )}
+              {history.map((item, idx) => {
+                const displayDate = item.reviewedAt || item.submittedAt;
+                const action = HISTORY_ACTION_MAP[item.workflowStatus] ?? item.workflowStatus;
+                return (
+                  <div key={idx} className="px-6 py-3.5 flex items-start gap-4 hover:bg-slate-50/60 transition-colors">
+                    <div className={cn("w-2 h-2 rounded-full mt-2 shrink-0 shadow-sm", TIMELINE_DOT[item.workflowStatus] ?? "bg-slate-300")} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-[13px] font-bold text-slate-700">{action}</p>
+                        <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">#{item.version}</span>
+                      </div>
+                      {item.remarks && (
+                        <p className="text-[11px] text-slate-400 italic mt-1 font-medium">"{item.remarks}"</p>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-slate-400 font-bold shrink-0 whitespace-nowrap">
+                      {displayDate ? new Date(displayDate).toLocaleDateString("vi-VN") : "—"}
+                    </span>
                   </div>
-                  <span className="text-[11px] text-slate-400 font-bold shrink-0">{item.date}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-14 text-center">

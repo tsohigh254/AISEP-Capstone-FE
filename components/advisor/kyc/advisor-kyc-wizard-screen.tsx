@@ -22,17 +22,6 @@ async function fetchAdvisorKycStatus(): Promise<IAdvisorKYCStatus> {
   throw new Error("Failed to fetch advisor KYC status");
 }
 
-function mapAdvisorSubmitPayload(formData: FormData) {
-  return {
-    fullName: formData.get("fullName"),
-    title: formData.get("currentRoleTitle"),
-    bio: formData.get("bio"),
-    linkedInURL: formData.get("professionalProfileLink"),
-    mentorshipPhilosophy: formData.get("mentorshipPhilosophy"),
-    contactEmail: formData.get("contactEmail"),
-  };
-}
-
 function mapAdvisorDraftPayload(data: Partial<IAdvisorKYCSubmission>) {
   const payload: Record<string, unknown> = {};
   if (data.fullName) payload.fullName = data.fullName;
@@ -41,6 +30,9 @@ function mapAdvisorDraftPayload(data: Partial<IAdvisorKYCSubmission>) {
   if (data.professionalProfileLink) payload.linkedInURL = data.professionalProfileLink;
   if (data.mentorshipPhilosophy) payload.mentorshipPhilosophy = data.mentorshipPhilosophy;
   if (data.contactEmail) payload.contactEmail = data.contactEmail;
+  if (data.currentOrganization) payload.currentOrganization = data.currentOrganization;
+  if (data.primaryExpertise) payload.primaryExpertise = data.primaryExpertise;
+  if (data.secondaryExpertise) payload.secondaryExpertise = data.secondaryExpertise;
   return payload;
 }
 
@@ -55,7 +47,8 @@ export function AdvisorKycWizardScreen({ mode }: { mode: AdvisorKycWizardMode })
   });
 
   const submitMutation = useMutation({
-    mutationFn: async (formData: FormData) => SubmitAdvisorKYC(mapAdvisorSubmitPayload(formData)),
+    mutationFn: async (formData: FormData) => SubmitAdvisorKYC(formData),
+
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["advisor-kyc-status"] });
       toast.success("Hồ sơ đã được gửi thành công.");

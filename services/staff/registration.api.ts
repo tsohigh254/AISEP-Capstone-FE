@@ -38,6 +38,14 @@ export interface IPendingAdvisorDto {
     submittedAt?: string;
     workflowStatus?: string;
     priority?: string;
+    submissionSummary?: {
+        evidenceFiles?: {
+            id: string;
+            fileName: string;
+            fileType: string;
+            url: string;
+        }[];
+    } | null;
 }
 
 export interface IPendingInvestorDto {
@@ -102,6 +110,10 @@ export const GetPendingInvestorById = (id: number | string) => {
     return axios.get<IBackendRes<unknown>>(`/api/registration/pending/investors/${id}`);
 };
 
+export const GetPendingInvestorKycById = (id: number | string) => {
+    return axios.get<IBackendRes<unknown>>(`/api/registration/pending/investors/${id}/kyc`);
+};
+
 // APPROVE
 export const ApproveStartupRegistration = (
     staffId: number | string,
@@ -147,16 +159,23 @@ export const RejectStartupRegistration = (
     });
 };
 
-export const RejectAdvisorRegistration = (staffId: number | string, id: number | string, reason: string) => {
+export const RejectAdvisorRegistration = (
+    staffId: number | string, 
+    id: number | string, 
+    reason: string,
+    requiresNewEvidence: boolean = false
+) => {
     return axios.post<IBackendRes<unknown>>(`/api/registration/reject/advisors/${staffId}`, {
         id,
-        reason
+        reason,
+        requiresNewEvidence
     });
 };
 
-export const RejectInvestorRegistration = (staffId: number | string, id: number | string, reason: string) => {
+export const RejectInvestorRegistration = (staffId: number | string, id: number | string, reason: string, requiresNewEvidence: boolean = false) => {
     return axios.post<IBackendRes<unknown>>(`/api/registration/reject/investors/${staffId}`, {
         id,
-        reason
+        reason,
+        requiresNewEvidence
     });
 };

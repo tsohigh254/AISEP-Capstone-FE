@@ -7,10 +7,10 @@ import {
   User, Building2, MapPin, Globe, Zap, 
   LayoutGrid, Layers, Target, Brain, Star 
 } from "lucide-react";
-import { IInvestorKYCSubmission } from "@/types/investor-kyc";
+import { IInvestorOnboardData } from "@/types/investor-kyc";
 
 interface InvestorReviewStepProps {
-  data: Partial<IInvestorKYCSubmission>;
+  data: Partial<IInvestorOnboardData>;
   onBack: () => void;
   onSubmit: () => void;
   isSubmitting: boolean;

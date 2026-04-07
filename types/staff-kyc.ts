@@ -131,8 +131,11 @@ export const KYC_SUBTYPE_CONFIGS: Record<KYCSubtype, KYCConfig> = {
       { id: "investorName", label: "Họ tên đầy đủ", value: "", type: "text", options: ["STRONG_LINK", "PLAUSIBLE_LINK", "CANNOT_VERIFY", "SUSPICIOUS"] },
       { id: "title", label: "Chức danh", value: "", type: "text", options: ["CLEAR_AND_RELEVANT", "BASIC_BUT_WEAK", "UNCLEAR", "IRRELEVANT_OR_SUSPICIOUS"] },
       { id: "org", label: "Tổ chức hiện tại", value: "", type: "text", options: ["ACTIVE_AND_MATCH", "PLAUSIBLE_LINK", "CANNOT_VERIFY", "NOT_RELATED"] },
+      { id: "location", label: "Địa điểm", value: "", type: "text", options: ["CLEAR_AND_RELEVANT", "BASIC_BUT_WEAK", "UNCLEAR", "IRRELEVANT_OR_SUSPICIOUS"] },
+      { id: "taxIdOrBusinessCode", label: "Mã số thuế / CMND", value: "", type: "text", options: ["VALID_MATCH", "FOUND_BUT_DIFFERS", "NOT_FOUND", "INVALID_FORMAT"] },
       { id: "email", label: "Email liên hệ", value: "", type: "text", options: ["ALIGNED", "PERSONAL_BUT_PLAUSIBLE", "UNRELATED", "INVALID"] },
       { id: "linkedin", label: "LinkedIn profile", value: "", type: "link", options: ["ACTIVE_AND_MATCH", "ACTIVE_BUT_WEAK", "INACTIVE_OR_BROKEN", "NOT_RELATED"] },
+      { id: "website", label: "Website", value: "", type: "link", options: ["ACTIVE_AND_MATCH", "ACTIVE_BUT_WEAK", "INACTIVE_OR_BROKEN", "NOT_RELATED"] },
       { id: "proofFile", label: "Chứng minh đầu tư", value: "", type: "file", options: ["CLEAR_AND_RELEVANT", "BASIC_BUT_WEAK", "UNCLEAR", "IRRELEVANT_OR_SUSPICIOUS"] },
       { id: "declaration", label: "Cam kết trung thực", value: "Đã xác nhận", type: "text", options: ["ACCEPTED", "MISSING"] },
     ]
@@ -152,6 +155,15 @@ export const KYC_SUBTYPE_CONFIGS: Record<KYCSubtype, KYCConfig> = {
       { id: "declaration", label: "Cam kết trung thực", value: "Đã xác nhận", type: "text", options: ["ACCEPTED", "MISSING"] },
     ]
   }
+};
+
+// --- Approval Thresholds (verified, basic) per subtype ---
+export const APPROVAL_THRESHOLDS: Record<KYCSubtype, { verified: number; basic: number }> = {
+  STARTUP_ENTITY:         { verified: 10, basic: 6 },
+  STARTUP_NO_ENTITY:      { verified: 8,  basic: 5 },
+  INSTITUTIONAL_INVESTOR: { verified: 10, basic: 6 },
+  INDIVIDUAL_INVESTOR:    { verified: 12, basic: 8 },
+  ADVISOR:                { verified: 11, basic: 7 },
 };
 
 // --- Label Suggestion Logic ---
@@ -223,13 +235,13 @@ export const getSuggestedResult = (subtype: KYCSubtype, assessments: Record<stri
       }
       break;
     case "INDIVIDUAL_INVESTOR":
-      if (totalScore >= 8) {
+      if (totalScore >= 12) {
         suggestedLabel = "Verified Angel Investor";
         suggestedDecision = "APPROVE";
-      } else if (totalScore >= 5) {
+      } else if (totalScore >= 8) {
         suggestedLabel = "Basic Verified";
         suggestedDecision = "APPROVE";
-      } else if (totalScore >= 2) {
+      } else if (totalScore >= 4) {
         suggestedLabel = "Pending More Info";
         suggestedDecision = "PENDING_MORE_INFO";
       }

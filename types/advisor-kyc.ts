@@ -9,8 +9,10 @@ export interface IAdvisorKYCSubmission {
   secondaryExpertise?: string[];
   professionalProfileLink?: string;
   basicExpertiseProofFile?: File;
+  basicExpertiseProofFileURL?: string;
   bio?: string;
   mentorshipPhilosophy?: string;
+  yearsOfExperience?: number;
 }
 
 export interface IAdvisorKYCStatus {
@@ -18,11 +20,26 @@ export interface IAdvisorKYCStatus {
   verificationLabel: "VERIFIED_ADVISOR" | "BASIC_VERIFIED" | "PENDING_MORE_INFO" | "VERIFICATION_FAILED" | "NONE";
   explanation: string;
   lastUpdated: string;
+
+  // ✅ Dữ liệu bản nộp MỚI NHẤT — FE đọc từ đây
+  currentSubmission?: Partial<IAdvisorKYCSubmission>;
+
+  // Metadata + evidence files (signed URL)
   submissionSummary?: {
     fullName: string;
     submittedAt: string;
     version: number;
+    evidenceFiles?: {
+      id?: string;
+      fileName?: string;
+      url?: string;
+      fileType?: string;
+      kind?: string;
+      uploadedAt?: string;
+    }[];
   };
+
+  requiresNewEvidence?: boolean;
   previousSubmission?: Partial<IAdvisorKYCSubmission>;
   draftData?: Partial<IAdvisorKYCSubmission>;
   remarks?: string;

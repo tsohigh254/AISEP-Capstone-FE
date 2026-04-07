@@ -18,7 +18,7 @@ import {
   SaveInvestorKYCDraft 
 } from "@/services/investor/investor-kyc";
 import { CreateInvestorProfile, UpdateInvestorPreferences } from "@/services/investor/investor.api";
-import { IInvestorKYCSubmission, IInvestorKYCStatus } from "@/types/investor-kyc";
+import { IInvestorKYCStatus, IInvestorOnboardData } from "@/types/investor-kyc";
 
 const TIMELINE_STEPS = [
   { n: 1, label: "Thông tin cơ bản" },
@@ -31,12 +31,11 @@ export default function InvestorOnboardingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
-  const [formData, setFormData] = useState<Partial<IInvestorKYCSubmission & { investmentThesis?: string }>>({
-    investorCategory: "INDIVIDUAL_ANGEL",
+  const [formData, setFormData] = useState<IInvestorOnboardData>({
     preferredIndustries: [],
     preferredStages: [],
     acceptingConnectionsStatus: "OPEN",
-    declarationAccepted: true, // Auto-accept for simplified flow or handle in profile
+    declarationAccepted: true,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -58,19 +57,20 @@ export default function InvestorOnboardingPage() {
 
   useEffect(() => {
     GetInvestorKYCStatus().then(res => {
-      if (res.isSuccess && res.data?.submittedData) {
-        const data = res.data.submittedData;
-        setFormData(prev => ({ 
-            ...prev, 
-            investorCategory: data.investorCategory as any,
-            fullName: data.fullName,
-            contactEmail: data.contactEmail,
-            organizationName: data.organizationName,
-            currentRoleTitle: data.currentRoleTitle,
-            location: data.location,
-            website: data.website,
-            taxIdOrBusinessCode: data.taxIdOrBusinessCode,
-            submitterRole: data.submitterRole as any
+      if (res.isSuccess && res.data?.submissionSummary) {
+        const data = res.data.submissionSummary;
+        setFormData(prev => ({
+          ...prev,
+          investorCategory: (data.investorCategory as any) ?? prev.investorCategory,
+          fullName: data.fullName ?? prev.fullName,
+          contactEmail: data.contactEmail ?? prev.contactEmail,
+          organizationName: data.organizationName ?? prev.organizationName,
+          currentRoleTitle: data.currentRoleTitle ?? prev.currentRoleTitle,
+          location: data.location ?? prev.location,
+          website: data.website ?? prev.website,
+          linkedInURL: data.linkedInURL ?? prev.linkedInURL,
+          taxIdOrBusinessCode: data.taxIdOrBusinessCode ?? prev.taxIdOrBusinessCode,
+          submitterRole: data.submitterRole ?? prev.submitterRole,
         }));
       }
     });
@@ -103,7 +103,18 @@ export default function InvestorOnboardingPage() {
   const handleSaveDraft = async () => {
     setIsSaving(true);
     try {
-      await SaveInvestorKYCDraft(formData);
+      await SaveInvestorKYCDraft({
+        investorCategory: formData.investorCategory,
+        fullName: formData.fullName,
+        contactEmail: formData.contactEmail,
+        organizationName: formData.organizationName,
+        currentRoleTitle: formData.currentRoleTitle,
+        location: formData.location,
+        website: formData.website,
+        linkedInURL: formData.linkedInURL,
+        taxIdOrBusinessCode: formData.taxIdOrBusinessCode,
+        submitterRole: formData.submitterRole as any,
+      });
       toast.success("Đã lưu bản nháp");
     } catch {
       toast.error("Lưu bản nháp thất bại");
@@ -124,7 +135,7 @@ export default function InvestorOnboardingPage() {
         investorType: formData.investorCategory,
         location: formData.location,
         website: isInstitutional ? formData.website : undefined,
-        linkedInURL: !isInstitutional ? formData.website : undefined,
+        linkedInURL: !isInstitutional ? formData.linkedInURL : undefined,
         investmentThesis: formData.shortThesisSummary,
       };
 

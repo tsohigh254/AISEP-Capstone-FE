@@ -6,7 +6,7 @@ import {
   ArrowLeft, ArrowRight, ShieldCheck, Upload, 
   X, FileText, CheckCircle2, AlertCircle, Info 
 } from "lucide-react";
-import { IInvestorKYCSubmission } from "@/types/investor-kyc";
+import { IInvestorOnboardData } from "@/types/investor-kyc";
 
 const SUBMITTER_ROLES = [
   { value: "PARTNER", label: "Partner" },
@@ -17,8 +17,8 @@ const SUBMITTER_ROLES = [
 ];
 
 interface InvestorVerificationStepProps {
-  data: Partial<IInvestorKYCSubmission>;
-  onChange: (data: Partial<IInvestorKYCSubmission>) => void;
+  data: Partial<IInvestorOnboardData>;
+  onChange: (data: Partial<IInvestorOnboardData>) => void;
   onNext: () => void;
   onBack: () => void;
   errors: Record<string, string>;
@@ -31,7 +31,7 @@ interface InvestorVerificationStepProps {
 }
 
 export function InvestorVerificationStep({ data, onChange, onNext, onBack, errors, files }: InvestorVerificationStepProps) {
-  const set = (key: keyof IInvestorKYCSubmission, val: any) => onChange({ ...data, [key]: val });
+  const set = (key: keyof IInvestorOnboardData, val: any) => onChange({ ...data, [key]: val });
   const isInstitutional = data.investorCategory === "INSTITUTIONAL";
 
   const inputClass = (name: string) => cn(

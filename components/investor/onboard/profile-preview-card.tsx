@@ -6,10 +6,10 @@ import {
   Building2, MapPin, Globe, ShieldCheck, 
   Layers, Briefcase, Zap, Star 
 } from "lucide-react";
-import { IInvestorKYCSubmission } from "@/types/investor-kyc";
+import { IInvestorOnboardData } from "@/types/investor-kyc";
 
 interface ProfilePreviewCardProps {
-  data: Partial<IInvestorKYCSubmission>;
+  data: Partial<IInvestorOnboardData>;
 }
 
 export function ProfilePreviewCard({ data }: ProfilePreviewCardProps) {

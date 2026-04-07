@@ -1,78 +1,119 @@
 
-export interface IInvestorKYCSubmission {
-  // Step 1: Investor Type
-  investorCategory: "INSTITUTIONAL" | "INDIVIDUAL_ANGEL";
-  investorType?: string;
-  
-  // Step 2: Public Profile
-  displayName?: string; // Tên hiển thị (Quick Onboard)
-  fullName: string;
-  contactEmail: string;
+// Type dùng riêng cho luồng onboarding tạo profile — khác với KYC submission
+export interface IInvestorOnboardData {
+  investorCategory?: "INSTITUTIONAL" | "INDIVIDUAL_ANGEL";
+  fullName?: string;
+  contactEmail?: string;
+  displayName?: string;
   organizationName?: string;
+  legalOrganizationName?: string;
   currentRoleTitle?: string;
   location?: string;
   website?: string;
+  linkedInURL?: string;
   avatar?: string;
+  taxIdOrBusinessCode?: string;
+  submitterRole?: string;
   shortThesisSummary?: string;
+  investmentThesis?: string;
   preferredIndustries?: string[];
   preferredStages?: string[];
   preferredGeographies?: string[];
   preferredMarketScopes?: string[];
   supportOffered?: string[];
   acceptingConnectionsStatus?: "OPEN" | "SELECTIVE" | "CLOSED";
-
-  // Step 3: Preferences & Matching
   preferredProductMaturity?: string[];
   preferredValidationLevel?: string[];
-  preferredAIScoreRange?: string; // e.g. "81-100"
+  preferredAIScoreRange?: string;
   aiScoreImportance?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   preferredStrengths?: string[];
-
-  // Step 4: Verification / KYC
-  // Institutional specific
-  legalOrganizationName?: string;
-  taxIdOrBusinessCode?: string;
-  professionalProfileLink?: string; // Repeat or specific
-  submitterRole?: "PARTNER" | "INVESTMENT_MANAGER" | "ANALYST" | "LEGAL_REPRESENTATIVE" | "AUTHORIZED_PERSON";
-  
-  // Files
+  declarationAccepted?: boolean;
   idOrBusinessLicenseFile?: File;
   investmentProofFile?: File;
-  
+}
+
+export interface IInvestorKYCSubmission {
+  investorCategory: "INSTITUTIONAL" | "INDIVIDUAL_ANGEL";
+
+  fullName: string;
+  contactEmail: string;
   declarationAccepted: boolean;
+
+  organizationName?: string;
+  currentRoleTitle?: string;
+  location?: string;
+  website?: string;
+  linkedInURL?: string;
+  taxIdOrBusinessCode?: string;
+  submitterRole?: "PARTNER" | "INVESTMENT_MANAGER" | "ANALYST" | "LEGAL_REPRESENTATIVE" | "AUTHORIZED_PERSON";
+
+  // Files (form only — not persisted in status)
+  idOrBusinessLicenseFile?: File;
+  investmentProofFile?: File;
+}
+
+export interface IInvestorEvidenceFile {
+  id: number;
+  url: string;
+  fileName: string | null;
+  fileType: string | null;
+  fileSize: number;
+  uploadedAt: string;
+  kind: "ID_PROOF" | "INVESTMENT_PROOF" | "OTHER";
 }
 
 export interface IInvestorKYCStatus {
-  workflowStatus: "NOT_STARTED" | "DRAFT" | "PENDING_REVIEW" | "PENDING_MORE_INFO" | "VERIFIED" | "VERIFICATION_FAILED";
-  verificationLabel: "VERIFIED_INVESTOR_ENTITY" | "VERIFIED_ANGEL_INVESTOR" | "BASIC_VERIFIED" | "NONE";
+  workflowStatus:
+    | "NOT_STARTED"
+    | "DRAFT"
+    | "PENDING_REVIEW"
+    | "PENDING_MORE_INFO"
+    | "VERIFIED"
+    | "VERIFICATION_FAILED";
+
+  verificationLabel:
+    | "NONE"
+    | "BASIC_VERIFIED"
+    | "VERIFIED_INVESTOR_ENTITY"
+    | "VERIFIED_ANGEL_INVESTOR"
+    | "PENDING_MORE_INFO"
+    | "VERIFICATION_FAILED";
+
   explanation: string;
+  remarks: string | null;
+  requiresNewEvidence: boolean;
   lastUpdated: string;
-  submissionSummary?: {
-    fullName: string;
-    submittedAt: string;
+
+  submissionId: number | null;
+  version: number | null;
+  submittedAt: string | null;
+  updatedAt: string | null;
+
+  submissionSummary: {
+    fullName: string | null;
+    investorCategory: string | null;
+    contactEmail: string | null;
+    organizationName: string | null;
+    currentRoleTitle: string | null;
+    location: string | null;
+    website: string | null;
+    linkedInURL: string | null;
+    submitterRole: string | null;
+    taxIdOrBusinessCode: string | null;
+    submittedAt: string | null;
     version: number;
-    investorCategory: string;
-  };
-  previousSubmission?: Partial<IInvestorKYCSubmission>;
-  draftData?: Partial<IInvestorKYCSubmission>;
-  submittedData?: {
-    investorCategory: string;
-    fullName: string;
-    contactEmail: string;
-    organizationName?: string;
-    currentRoleTitle?: string;
-    location?: string;
-    website?: string;
-    linkedInURL?: string;
-    submitterRole?: string;
-    taxIdOrBusinessCode?: string;
-  };
-  remarks?: string;
+    evidenceFiles: IInvestorEvidenceFile[];
+  } | null;
+
   flaggedFields?: string[];
   history?: {
-    action: string;
-    date: string;
-    status: string;
-    remark?: string;
+    submissionId: number;
+    version: number;
+    workflowStatus: string;
+    resultLabel: string;
+    submittedAt: string;
+    reviewedAt: string | null;
+    remarks: string | null;
+    requiresNewEvidence: boolean;
   }[];
 }
