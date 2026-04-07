@@ -83,16 +83,24 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
 
   const handlePay = async () => {
     setIsProcessing(true);
-    // Bypass: Giả lập thanh toán thành công để test luồng
-    // Ở đây sẽ điều hướng thẳng qua trang Result với status=success
-    setTimeout(() => {
+    try {
+      const res = await CreatePaymentLink({
+        amount: actualTotal,
+        mentorshipId: Number(id),
+      });
+      const paymentData = (res as any)?.data?.data || (res as any)?.data;
+      const checkoutUrl = paymentData?.checkoutUrl;
+      if (checkoutUrl) {
+        window.location.href = checkoutUrl;
+      } else {
+        alert("Không thể tạo link thanh toán. Vui lòng thử lại.");
+        setIsProcessing(false);
+      }
+    } catch (err: any) {
+      console.error("Payment error:", err);
+      alert(err?.response?.data?.message || "Có lỗi xảy ra khi tạo thanh toán.");
       setIsProcessing(false);
-      const orderCode = parseInt(Date.now().toString().slice(-8), 10);
-      try {
-        localStorage.setItem(`mentorship_paid_${id}`, "true");
-      } catch (e) {}
-      router.push(`/startup/mentorship-requests/${id}/checkout/result?status=success&ref=${orderCode}`);
-    }, 1500);
+    }
   };
   const scheduledAt = requestData?.scheduledAt || firstSession?.scheduledStartAt || null;
   const scheduledDateLabel = scheduledAt ? new Date(scheduledAt).toLocaleDateString("vi-VN", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : data.agreedTime.date;

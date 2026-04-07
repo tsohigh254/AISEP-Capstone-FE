@@ -121,10 +121,7 @@ export const GetMentorshipReport = async (mentorshipId: number) => {
 
 export const CreatePaymentLink = (data: {
   amount: number;
-  orderCode: number;
-  description?: string;
-  returnUrl?: string;
-  cancelUrl?: string;
+  mentorshipId: number;
 }) => {
   return axios.post("/api/Payment/create-payment-link", data);
 };
