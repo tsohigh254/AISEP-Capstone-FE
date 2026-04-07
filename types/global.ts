@@ -217,6 +217,22 @@ declare global {
     status: string;
   }
 
+  interface IDocument {
+    documentID: number;
+    startupID: number;
+    documentType: string;
+    title: string;
+    version: string;
+    fileUrl: string;
+    isArchived: boolean;
+    isAnalyzed: boolean;
+    analysisStatus: string;
+    uploadedAt: string;
+    proofStatus: string;
+    fileHash: string;
+    transactionHash: string;
+  }
+
   interface IBlockchainChecking {
     documentID: number;
     transactionHash: string;

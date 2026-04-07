@@ -1,43 +1,236 @@
-"use client";
+﻿"use client";
 
-import { useState } from "react";
-import { StartupShell } from "@/components/startup/startup-shell";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { StartupShell } from "@/components/startup/startup-shell";
 import { useCountUp } from "@/lib/useCountUp";
 import { cn } from "@/lib/utils";
+import {
+  FileUp,
+  Brain,
+  Users,
+  Handshake,
+  Sparkles,
+  FolderOpen,
+  MessageSquare,
+  FileText,
+  TrendingUp,
+  AlertTriangle,
+  Eye,
+  MoreVertical
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { 
-  FileEdit, 
-  Eye, 
-  FileUp, 
-  Brain, 
-  Users, 
-  Handshake, 
-  Sparkles, 
-  FolderOpen, 
-  MessageSquare, 
-  FileText, 
-  TrendingUp, 
-  AlertTriangle, 
-  FileDown, 
-  MoreVertical 
-} from "lucide-react";
+import { GetDocument } from "@/services/document/document.api";
+import { GetMentorships, GetMentorshipSessions } from "@/services/startup/startup-mentorship.api";
+import { GetSentConnections, GetReceivedConnections } from "@/services/connection/connection.api"; 
 
 export default function StartupDashboardPage() {
   const [showProfile, setShowProfile] = useState(false);
 
-    // User explicitly chose to skip onboarding — respect that choice
+  // States tải data API thật
+  const [realDocCount, setRealDocCount] = useState(0);
+  const [realConnectCount, setRealConnectCount] = useState(0);
+  const [realAiScore, setRealAiScore] = useState(84); // Vẫn là mockup vì chưa có API chấm điểm AI thực tế
+
+  const [activeHandlingTab, setActiveHandlingTab] = useState<"Consulting" | "Documents" | "Verification">("Consulting");
+  const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
+  const [actionableDocs, setActionableDocs] = useState<any[]>([]);
+  const [recentDocs, setRecentDocs] = useState<any[]>([]);
+
+  const profileProgress = useCountUp(65, 1200, 0); // Vẫn là mockup tiến độ
+
+  // Helper: lấy tên file từ URL nếu backend không cung cấp `title`
+  const fileNameFromUrl = (url?: string | null) => {
+    if (!url) return null;
+    try {
+      const parts = url.split("/");
+      return parts[parts.length - 1] || null;
+    } catch {
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    // 1. Tải thống kê số lượng tài liệu thật
+    GetDocument()
+      .then((res: any) => {
+        const data = res.data;
+        if ((res.success || res.isSuccess) && Array.isArray(data)) {
+          // Xếp tài liệu mới nhất lên đầu tiên theo ngày
+          const sortedDocs = [...data].sort((a: any, b: any) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+          
+          setRealDocCount(sortedDocs.length);
+          
+          // Lọc tài liệu cần xử lý (VD: Chưa được phân tích, hoặc bị Failed)
+          const needsVerifying = sortedDocs.filter((d: any) => d.proofStatus !== "Verified" && d.proofStatus !== "Mục tiêu");
+          setActionableDocs(needsVerifying.slice(0, 3));
+
+          // Gán tài liệu gần đây
+          setRecentDocs(sortedDocs.slice(0, 3));
+        }
+      })
+      .catch(() => {});
+
+    // 2. Tải thống kê số lượng Kết nối (Cố vấn + Nhà đầu tư) thật
+    Promise.all([
+      GetMentorships({ page: 1, pageSize: 1 }),
+      GetSentConnections(1, 1),
+      GetReceivedConnections(1, 1)
+    ])
+      .then(([mentRes, sentConnRes, receivedConnRes]: any) => {
+        let sumConnections = 0;
+        
+        // Cộng tổng số Mentorship
+        if (mentRes.success || mentRes.isSuccess) {
+          sumConnections += mentRes.data?.paging?.totalItems ?? mentRes.data?.totalItems ?? mentRes.data?.items?.length ?? 0;
+        }
+
+        // Cộng thêm kết nối Investor (Gửi và nhận)
+        if (sentConnRes.success || sentConnRes.isSuccess) {
+          sumConnections += sentConnRes.data?.paging?.totalItems ?? sentConnRes.data?.totalItems ?? sentConnRes.data?.items?.length ?? 0;
+        }
+        
+        if (receivedConnRes.success || receivedConnRes.isSuccess) {
+          sumConnections += receivedConnRes.data?.paging?.totalItems ?? receivedConnRes.data?.totalItems ?? receivedConnRes.data?.items?.length ?? 0;
+        }
+        
+        setRealConnectCount(sumConnections);
+      })
+      .catch(() => {});
+
+    // 3. Tải danh sách phiên tư vấn (sessions) — dùng endpoint sessions nếu có
+    GetMentorshipSessions({ page: 1, pageSize: 50 })
+      .then((res: any) => {
+        if (res.success || res.isSuccess) {
+          const rawData = res.data || res;
+          const allSessions = Array.isArray(rawData.items) ? rawData.items
+            : Array.isArray(rawData.data) ? rawData.data
+            : Array.isArray(rawData) ? rawData
+            : [];
+
+          // Lấy thêm danh sách mentorship để biết trạng thái mentorship (ví dụ: Cancelled/Completed)
+          GetMentorships({ page: 1, pageSize: 50 })
+            .then((mentRes: any) => {
+              const rawM = mentRes.data || mentRes;
+              const allMentorships = Array.isArray(rawM.items) ? rawM.items
+                : Array.isArray(rawM.data) ? rawM.data
+                : Array.isArray(rawM) ? rawM
+                : [];
+
+              const mentorshipStatusMap = new Map<number, string>();
+              for (const m of allMentorships) {
+                const id = m.MentorshipID ?? m.mentorshipID ?? m.mentorshipId ?? m.MentorshipId ?? m.id ?? null;
+                const status = String(m.Status || m.status || m.StatusName || m.statusName || m.StatusText || m.statusText || "").toLowerCase();
+                if (id) mentorshipStatusMap.set(Number(id), status);
+              }
+
+              const excluded = [
+                "cancelled","canceled","cancel","cancelled_by_advisor","cancelled_by_user","cancel_by_advisor","cancel_by_user",
+                "rejected","declined","completed","finished","done","closed"
+              ];
+
+              // Chỉ giữ các session hợp lệ: loại bỏ các session có status xấu và các mentorship đã hủy/hoàn thành, và chỉ lấy các phiên còn trong tương lai
+              const actionableFiltered = allSessions.filter((s: any) => {
+                const status = String(s.sessionStatus || s.status || s.SessionStatus || "").toLowerCase();
+                if (excluded.includes(status)) return false;
+
+                const mId = s.MentorshipID ?? s.mentorshipID ?? s.mentorshipId ?? s.MentorshipId ?? s.mentorshipid ?? s.mentorshipId ?? null;
+                const mentorshipStatus = mId ? (mentorshipStatusMap.get(Number(mId)) || "") : "";
+                if (mentorshipStatus && excluded.includes(mentorshipStatus)) return false;
+
+                const scheduledAt = s.scheduledStartAt || s.scheduledAt || s.ScheduledStartAt || s.ScheduledAt || s.startAt || s.StartAt;
+                const start = scheduledAt ? new Date(scheduledAt) : null;
+                if (!start) return false;
+                return start.getTime() >= Date.now();
+              });
+
+              // Sắp xếp theo thời gian (gần nhất trước)
+              actionableFiltered.sort((a: any, b: any) => {
+                const aTime = new Date(a.scheduledStartAt || a.scheduledAt || a.ScheduledStartAt || a.ScheduledAt).getTime() || 0;
+                const bTime = new Date(b.scheduledStartAt || b.scheduledAt || b.ScheduledStartAt || b.ScheduledAt).getTime() || 0;
+                return aTime - bTime;
+              });
 
 
-  const profileProgress = useCountUp(65, 1200, 0);
-  const aiScore = useCountUp(84, 1200, 150);
-  const docCount = useCountUp(12, 800, 300);
-  const connectCount = useCountUp(3, 600, 450);
+              // Gom trùng theo mentorship id để không hiển thị nhiều mục giống nhau
+              const seen = new Set<string>();
+              const uniqueByMentorship: any[] = [];
+              const extractMentorshipId = (s: any) =>
+                s?.MentorshipID ?? s?.mentorshipID ?? s?.mentorshipId ?? s?.MentorshipId ??
+                s?.mentorship?.MentorshipID ?? s?.mentorship?.mentorshipID ?? s?.mentorship?.mentorshipId ?? s?.mentorship?.id ??
+                s?.Mentorship?.MentorshipID ?? s?.mentorship?.MentorshipId ?? s?.mentorship?.id ?? null;
+
+              for (const s of actionableFiltered) {
+                const mIdRaw = extractMentorshipId(s);
+                const key = String(mIdRaw ?? "").trim();
+                if (!key) continue;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                uniqueByMentorship.push(s);
+              }
+
+              // Debug: in ra console để bạn kiểm tra payload và cách FE ghép id
+              // eslint-disable-next-line no-console
+              console.log("[Startup Dashboard] allSessions:", allSessions);
+              // eslint-disable-next-line no-console
+              console.log("[Startup Dashboard] actionableFiltered:", actionableFiltered);
+              // eslint-disable-next-line no-console
+              console.log("[Startup Dashboard] actionableFiltered mappedMentorshipIds:", actionableFiltered.map(extractMentorshipId));
+              // eslint-disable-next-line no-console
+              console.log("[Startup Dashboard] uniqueByMentorship:", uniqueByMentorship);
+
+              setUpcomingSessions(uniqueByMentorship.slice(0, 3));
+            })
+            .catch(() => {
+              // Nếu không lấy được mentorship list thì fallback về filter cục bộ chỉ dựa vào session
+              const actionableFiltered = allSessions.filter((s: any) => {
+                const status = String(s.sessionStatus || s.status || s.SessionStatus || "").toLowerCase();
+                if (["cancelled","canceled","completed"].includes(status)) return false;
+                const scheduledAt = s.scheduledStartAt || s.scheduledAt || s.ScheduledStartAt || s.ScheduledAt || s.startAt || s.StartAt;
+                const start = scheduledAt ? new Date(scheduledAt) : null;
+                if (!start) return false;
+                return start.getTime() >= Date.now();
+              });
+
+              actionableFiltered.sort((a: any, b: any) => {
+                const aTime = new Date(a.scheduledStartAt || a.scheduledAt || a.ScheduledStartAt || a.ScheduledAt).getTime() || 0;
+                const bTime = new Date(b.scheduledStartAt || b.scheduledAt || b.ScheduledStartAt || b.ScheduledAt).getTime() || 0;
+                return aTime - bTime;
+              });
+
+              const seen = new Set<string>();
+              const uniqueByMentorship: any[] = [];
+              const extractMentorshipId = (s: any) =>
+                s?.MentorshipID ?? s?.mentorshipID ?? s?.mentorshipId ?? s?.MentorshipId ??
+                s?.mentorship?.MentorshipID ?? s?.mentorship?.mentorshipID ?? s?.mentorship?.mentorshipId ?? s?.mentorship?.id ??
+                s?.Mentorship?.MentorshipID ?? s?.mentorship?.MentorshipId ?? s?.mentorship?.id ?? null;
+
+              for (const s of actionableFiltered) {
+                const mIdRaw = extractMentorshipId(s);
+                const key = String(mIdRaw ?? "").trim();
+                if (!key) continue;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                uniqueByMentorship.push(s);
+              }
+
+              // eslint-disable-next-line no-console
+              console.log("[Startup Dashboard] fallback uniqueByMentorship:", uniqueByMentorship);
+              setUpcomingSessions(uniqueByMentorship.slice(0, 3));
+            });
+        }
+      })
+      .catch(() => {});
+    }, []);
+
+  const aiScore = useCountUp(realAiScore, 1200, 150);
+  const docCount = useCountUp(realDocCount, 800, 300);
+  const connectCount = useCountUp(realConnectCount, 600, 450);
 
   return (
     <StartupShell>
@@ -69,13 +262,13 @@ export default function StartupDashboardPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={() => setShowProfile(true)}
+                <Link
+                  href="/startup/startup-profile"
                   className="bg-[#f4f4f0] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:bg-neutral-200 transition-all flex items-center gap-2"
                 >
                   <Eye className="w-5 h-5" />
                   Xem hồ sơ công khai
-                </button>
+                </Link>
               </div>
             </div>
           </div>
@@ -148,36 +341,87 @@ export default function StartupDashboardPage() {
             <div className="p-6 border-b border-neutral-surface flex flex-col md:flex-row md:items-center justify-between gap-4">
               <h3 className="font-bold text-lg text-[#171611]">Cần xử lý</h3>
               <div className="flex gap-1 bg-[#f4f4f0] p-1 rounded-xl">
-                <button className="px-4 py-1.5 text-xs font-bold bg-white rounded-lg shadow-sm text-[#171611]">Consulting</button>
-                <button className="px-4 py-1.5 text-xs font-bold text-neutral-muted hover:text-[#171611] transition-colors">Documents</button>
-                <button className="px-4 py-1.5 text-xs font-bold text-neutral-muted hover:text-[#171611] transition-colors">Verification</button>
+                <button 
+                  onClick={() => setActiveHandlingTab("Consulting")}
+                  className={cn("px-4 py-1.5 text-xs font-bold rounded-lg transition-colors", activeHandlingTab === "Consulting" ? "bg-white shadow-sm text-[#171611]" : "text-neutral-muted hover:text-[#171611]")}>
+                  Consulting
+                  {upcomingSessions.length > 0 && <span className="ml-1.5 bg-red-500 text-white rounded-full px-1.5 py-0.5 text-[8px]">{upcomingSessions.length}</span>}
+                </button>
+                <button 
+                  onClick={() => setActiveHandlingTab("Documents")}
+                  className={cn("px-4 py-1.5 text-xs font-bold rounded-lg transition-colors", activeHandlingTab === "Documents" ? "bg-white shadow-sm text-[#171611]" : "text-neutral-muted hover:text-[#171611]")}>
+                  Documents
+                  {actionableDocs.length > 0 && <span className="ml-1.5 bg-red-500 text-white rounded-full px-1.5 py-0.5 text-[8px]">{actionableDocs.length}</span>}
+                </button>
               </div>
             </div>
-            <div className="divide-y divide-neutral-surface">
-              <div className="p-4 flex items-center justify-between hover:bg-[#f8f8f6] transition-colors group">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center">
-                    <MessageSquare className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-[#171611]">Lịch tư vấn với Mentor Nguyễn Văn A</p>
-                    <p className="text-xs text-neutral-muted font-medium italic">Ngày mai, 14:00 • Topic: Pitching Deck</p>
-                  </div>
+            <div className="divide-y divide-neutral-surface min-h-[120px]">
+              {activeHandlingTab === "Consulting" && upcomingSessions.length === 0 && (
+                <div className="p-5 text-center text-sm font-medium text-neutral-400 italic">
+                  Bạn không có phiên tư vấn nào đang chờ xử lý.
                 </div>
-                <button className="bg-[#e6cc4c] px-4 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Tham gia</button>
-              </div>
-              <div className="p-4 flex items-center justify-between hover:bg-[#f8f8f6] transition-colors group">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
-                    <FileText className="w-5 h-5" />
+              )}
+              {activeHandlingTab === "Consulting" && upcomingSessions.map((session, idx) => {
+                const advisorName = session?.advisor?.fullName || session?.advisorName || session?.AdvisorName || "Không tên";
+                const scheduledAt = session?.scheduledStartAt || session?.scheduledAt || session?.ScheduledStartAt || session?.ScheduledAt;
+                const scheduledDate = scheduledAt ? new Date(scheduledAt).toLocaleDateString("vi-VN") : "Sắp xếp";
+                const scheduledTime = scheduledAt ? new Date(scheduledAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "";
+                const topic = session?.objective || session?.topics || session?.TopicsDiscussed || "";
+                const mentorshipId = session?.mentorshipID || session?.mentorshipId || session?.MentorshipID || "";
+
+                return (
+                  <div key={idx} className="p-4 flex items-center justify-between hover:bg-[#f8f8f6] transition-colors group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                        <MessageSquare className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-[#171611]">Lịch tư vấn với Mentor {advisorName}</p>
+                        <p className="text-xs text-neutral-muted font-medium italic">
+                          {scheduledDate} • {scheduledTime}
+                          &nbsp;•&nbsp; Topic: {topic}
+                        </p>
+                        <p className="text-[11px] text-neutral-muted mt-1">ID: {mentorshipId}/{session?.sessionID || session?.sessionId || session?.SessionID || ''}</p>
+                      </div>
+                    </div>
+                    <Link href={`/startup/mentorship-requests/${mentorshipId}`} className="bg-[#e6cc4c] px-4 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                      Xem chi tiết
+                    </Link>
                   </div>
-                  <div>
-                    <p className="text-sm font-bold text-[#171611]">Cập nhật Giấy phép Kinh doanh (Bản mới)</p>
-                    <p className="text-xs text-neutral-muted font-medium italic">Yêu cầu bởi Ban thẩm định</p>
-                  </div>
+                );
+              })}
+
+              {activeHandlingTab === "Documents" && actionableDocs.length === 0 && (
+                <div className="p-5 text-center text-sm font-medium text-neutral-400 italic">
+                  Kho tài liệu của bạn đã được cập nhật đầy đủ.
                 </div>
-                <button className="bg-[#e6cc4c] px-4 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">Tải lên</button>
-              </div>
+              )}
+              {activeHandlingTab === "Documents" && actionableDocs.map((doc, idx) => (
+                <div key={idx} className="p-4 flex items-center justify-between hover:bg-[#f8f8f6] transition-colors group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                            <div>
+                            {/* Prefer explicit title or filename when available, fallback to documentType */}
+                            {(() => {
+                              const name = doc?.title || fileNameFromUrl(doc?.fileUrl) || `Tài liệu ${doc?.documentType || "Mới"}`;
+                              return (
+                                <>
+                                  <p className="text-sm font-bold text-[#171611]">{name} {doc?.version ? `· v${doc.version}` : null}</p>
+                                  <p className="text-xs text-neutral-muted font-medium italic">
+                                    Trạng thái xác thực: <span className="text-red-500">{doc.proofStatus || "Thất bại"}</span> • Cập nhật lúc {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString("vi-VN") : ""}
+                                  </p>
+                                </>
+                              );
+                            })()}
+                          </div>
+                  </div>
+                  <Link href={"/startup/documents"} className="bg-[#e6cc4c] px-4 py-2 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                    Tải lại
+                  </Link>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -198,14 +442,6 @@ export default function StartupDashboardPage() {
                   <li>Đội ngũ Founder có kinh nghiệm thực chiến trong lĩnh vực SaaS.</li>
                 </ul>
               </div>
-              <div className="bg-red-50 p-4 rounded-xl border border-red-100">
-                <p className="text-xs font-bold text-red-800 mb-2 flex items-center gap-1 uppercase tracking-tight">
-                  <AlertTriangle className="w-4 h-4" /> Rủi ro (Risks)
-                </p>
-                <ul className="text-xs text-red-700 space-y-1.5 list-disc ml-4 font-medium">
-                  <li>Chi phí marketing đang tăng nhanh.</li>
-                </ul>
-              </div>
             </div>
           </div>
           <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl shadow-sm border border-neutral-surface overflow-hidden">
@@ -218,32 +454,43 @@ export default function StartupDashboardPage() {
                 <thead className="bg-[#f8f8f6]">
                   <tr className="text-[10px] uppercase text-neutral-muted font-bold tracking-widest">
                     <th className="px-6 py-3 tracking-[0.1em]">TÊN TÀI LIỆU</th>
-                    <th className="px-6 py-3 tracking-[0.1em]">LOẠI</th>
-                    <th className="px-6 py-3 tracking-[0.1em]">NGÀY TẢI</th>
-                    <th className="px-6 py-3 text-right pr-10">Thao tác</th>
+                    <th className="px-6 py-3 tracking-[0.1em]">LOẠI</th>      
+                    <th className="px-6 py-3 tracking-[0.1em]">NGÀY TẢI</th> 
+                    <th className="px-6 py-3 text-right pr-10">Thao tác</th>   
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-surface">
-                  {[
-                    { name: "Pitch_Deck_v2.pdf", type: "Tài liệu gọi vốn", date: "12/05/2024", icon: FileText, iconColor: "text-red-500" },
-                    { name: "Cap_Table_Seed.xlsx", type: "Tài chính", date: "10/05/2024", icon: FileText, iconColor: "text-blue-500" },
-                  ].map((doc, idx) => (
-                    <tr key={idx} className="hover:bg-[#f8f8f6]/50 transition-colors group">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <doc.icon className={cn("w-5 h-5", doc.iconColor)} />
-                          <span className="text-sm font-bold text-[#171611]">{doc.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-xs font-bold text-neutral-muted uppercase tracking-tight">{doc.type}</td>
-                      <td className="px-6 py-4 text-xs font-bold text-neutral-muted tracking-tight">{doc.date}</td>
-                      <td className="px-6 py-4 text-right pr-6">
-                        <button className="text-neutral-muted hover:text-[#171611] transition-colors p-1 rounded-lg hover:bg-[#f4f4f0]">
-                          <MoreVertical className="w-5 h-5" />
-                        </button>
+                  {recentDocs.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-8 text-center text-sm font-medium text-neutral-400 italic">
+                        Chưa có tài liệu nào gần đây
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    recentDocs.map((doc, idx) => (
+                      <tr key={idx} className="hover:bg-[#f8f8f6]/50 transition-colors group">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <FileText className="w-5 h-5 text-yellow-600" />
+                            <span className="text-sm font-bold text-[#171611]">
+                              {doc.title || `Tài liệu ${doc.documentType || "KHÁC"} - ${doc.version || "1.0"}`}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-xs font-bold text-neutral-muted uppercase tracking-tight">
+                          {doc.documentType || "KHÁC"}
+                        </td>
+                        <td className="px-6 py-4 text-xs font-bold text-neutral-muted tracking-tight">
+                          {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString("vi-VN") : "Gần đây"}
+                        </td>
+                        <td className="px-6 py-4 text-right pr-6">
+                          <button className="text-neutral-muted hover:text-[#171611] transition-colors p-1 rounded-lg hover:bg-[#f4f4f0]">
+                            &bull;&bull;&bull;
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -312,15 +559,15 @@ export default function StartupDashboardPage() {
           <div className="px-6 pt-14 pb-6 space-y-6">
             <DialogHeader className="text-left">
               <div className="flex items-center gap-3 flex-wrap">
-                <DialogTitle className="text-2xl font-bold text-[#171611]">
+                <DialogTitle className="text-2xl font-bold text-[#171611]">     
                   AISEP Startup Platform
                 </DialogTitle>
-                <span className="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-black rounded-full border border-green-200 uppercase tracking-[0.1em]">
+                <span className="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-black rounded-full border border-green-200 uppercase tracking-[0.1em]"> 
                   Đã xác thực
                 </span>
               </div>
               <p className="text-sm text-neutral-500 font-medium">
-                SaaS • Hệ sinh thái Khởi nghiệp • TP. Hồ Chí Minh
+                SaaS &bull; Hệ sinh thái Khởi nghiệp &bull; TP. Hồ Chí Minh 
               </p>
             </DialogHeader>
 
@@ -337,15 +584,15 @@ export default function StartupDashboardPage() {
               <h4 className="text-xs font-black text-neutral-400 uppercase tracking-widest mb-3">Chỉ số nổi bật</h4>
               <div className="grid grid-cols-3 gap-3">
                 <div className="bg-[#f8f8f6] rounded-xl p-4 text-center border border-neutral-100">
-                  <p className="text-2xl font-black text-[#171611]">84</p>
+                  <p className="text-2xl font-black text-[#171611]">84</p>      
                   <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mt-1">AI Score</p>
                 </div>
                 <div className="bg-[#f8f8f6] rounded-xl p-4 text-center border border-neutral-100">
-                  <p className="text-2xl font-black text-[#171611]">12</p>
+                  <p className="text-2xl font-black text-[#171611]">12</p>      
                   <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mt-1">Tài liệu</p>
                 </div>
                 <div className="bg-[#f8f8f6] rounded-xl p-4 text-center border border-neutral-100">
-                  <p className="text-2xl font-black text-[#171611]">65%</p>
+                  <p className="text-2xl font-black text-[#171611]">65%</p>     
                   <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mt-1">Hoàn thiện</p>
                 </div>
               </div>
@@ -356,7 +603,7 @@ export default function StartupDashboardPage() {
               <h4 className="text-xs font-black text-neutral-400 uppercase tracking-widest mb-3">Đội ngũ sáng lập</h4>
               <div className="flex flex-wrap gap-3">
                 {[
-                  { name: "Nguyễn Minh Tuấn", role: "CEO & Co-Founder" },
+                  { name: "Nguyễn Minh Tuấn", role: "CEO & Co-Founder" },   
                   { name: "Trần Thị Hồng", role: "CTO" },
                   { name: "Lê Văn Khoa", role: "COO" },
                 ].map((member, idx) => (
@@ -389,11 +636,11 @@ export default function StartupDashboardPage() {
             <div className="flex items-center justify-between bg-[#e6cc4c]/10 border border-[#e6cc4c]/20 rounded-xl p-4">
               <div>
                 <p className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Giai đoạn gọi vốn</p>
-                <p className="text-lg font-bold text-[#171611]">Pre-Seed → Seed</p>
+                <p className="text-lg font-bold text-[#171611]">Pre-Seed &rarr; Seed</p>
               </div>
               <div className="text-right">
                 <p className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Mục tiêu</p>
-                <p className="text-lg font-bold text-[#171611]">$500K</p>
+                <p className="text-lg font-bold text-[#171611]">$500K</p>       
               </div>
             </div>
           </div>
