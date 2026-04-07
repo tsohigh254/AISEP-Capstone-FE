@@ -199,7 +199,8 @@ interface ProposedSlotRow {
 
 export default function AdvisorRequestDetailPage() {
   const params = useParams();
-const requestId = params.id as string;
+  const requestIdParam = params?.id;
+  const requestId = (Array.isArray(requestIdParam) ? requestIdParam[0] : requestIdParam) ?? "";
 
   const [loading, setLoading] = useState(true);
   const [request, setRequest] = useState<IConsultingRequest | null>(null);
@@ -233,6 +234,11 @@ const requestId = params.id as string;
 
   useEffect(() => {
     const loadRequestDetail = async () => {
+      if (!requestId) {
+        setRequest(null);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const res = await GetAdvisorMentorshipById(requestId);
@@ -607,7 +613,7 @@ const handleCancelConfirm = async () => {
                   <Clock className="w-3 h-3" />
                   {relativeTime(request.submittedAt)}
                 </span>
-                <span className="text-[11px] text-slate-400 font-mono">#{request.id}</span>
+                <span className="text-[11px] text-slate-400 font-mono">#{request.mentorshipID}</span>
                 {request.status === "PENDING" && request.expiresAt && (
                   <span className="inline-flex items-center gap-1 text-[11px] text-amber-600 font-medium">
                     <AlertCircle className="w-3 h-3" />
@@ -641,12 +647,6 @@ const handleCancelConfirm = async () => {
                 Nội dung yêu cầu
               </h2>
               <div className="space-y-4">
-
-                {/* 1. Mục tiêu */}
-                <div>
-                  <p className="text-[11px] text-slate-400 uppercase tracking-wide mb-1">Mục tiêu buổi tư vấn</p>
-                  <p className="text-[13px] text-slate-700 leading-relaxed">{request.objective}</p>
-                </div>
 
                 {/* 2. Mô tả vấn đề / thách thức */}
                 {request.problemContext && (
@@ -977,7 +977,7 @@ const handleCancelConfirm = async () => {
                     </div>
                   </div>
                   <Link 
-                    href={`/advisor/reports/create?sessionId=${request.id}`}
+                    href={`/advisor/reports/create?sessionId=${request.mentorshipID}`}
                     className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-[#1e293b] transition-all shadow-sm flex items-center gap-2 w-fit"
                   >
                     <FileText className="w-4 h-4" />
@@ -1399,7 +1399,7 @@ const handleCancelConfirm = async () => {
         onClose={() => setIsReportModalOpen(false)}
         context={{
           entityType: "CONSULTING_REQUEST",
-          entityId: request.id,
+          entityId: String(request.mentorshipID),
           entityTitle: `Yêu cầu tư vấn: ${request.objective}`,
           otherPartyName: request.startup.displayName
         }}

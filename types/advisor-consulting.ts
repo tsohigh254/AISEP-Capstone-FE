@@ -72,7 +72,11 @@ export type ConsultingScopeTag =
 
 // Consulting Request (list item)
 export interface IConsultingRequest {
-  id: string;
+  id?: string;
+  mentorshipID?: number
+  startupID?: number
+  startupName?: string
+  advisorID?: number
   status: ConsultingRequestStatus;
   submittedAt: string;
   expiresAt: string | null;

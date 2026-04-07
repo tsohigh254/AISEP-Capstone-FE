@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono, Manrope, Plus_Jakarta_Sans, Syne } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -43,10 +44,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi">
-      <head></head>
+      <head />
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${manrope.variable} ${plusJakartaSans.variable} ${syne.variable} antialiased`}
       >
+        <Script
+          src="https://cdn.payos.vn/payos-checkout/v1/stable/payos-initialize.js"
+          strategy="beforeInteractive"
+        />
         <Providers>{children}</Providers>
       </body>
     </html>

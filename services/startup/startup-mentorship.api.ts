@@ -6,7 +6,6 @@ import type {
   ICreateMentorshipFeedback,
   IMentorshipRequest,
   IMentorshipSession,
-  IMentorshipReport,
   IAdvisorSearchItem,
   IAdvisorDetail,
 } from "@/types/startup-mentorship";

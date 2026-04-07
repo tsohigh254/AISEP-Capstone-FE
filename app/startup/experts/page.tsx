@@ -1,9 +1,8 @@
 "use client";
 
 import {
-  Star, Search, ChevronRight, ChevronLeft, ChevronDown, Users, Briefcase,
-  MessageSquare, FileText, BarChart3, X, ArrowUpDown, BadgeCheck,
-  CalendarCheck, Video, Monitor, Loader2, Eye
+  Star, Search, ChevronRight, ChevronLeft, ChevronDown, Users, Briefcase, FileText, X, ArrowUpDown, BadgeCheck,
+  CalendarCheck, Video, Loader2, Eye
 } from "lucide-react";
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { MentorshipRequestModal } from "@/components/startup/mentorship-request-modal";
@@ -76,7 +75,7 @@ const EXPERTISE_MAP: Record<string, string> = {
   "AI": "AI",
 };
 
-const mapMeetingFormat = (fmt?: MeetingFormat | null): string => {
+const mapMeetingFormat = (fmt?: MeetingFormat | string | null): string => {
   if (fmt === "GoogleMeet") return "Google Meet";
   if (fmt === "MicrosoftTeams") return "Microsoft Teams";
   return "—";
@@ -321,7 +320,8 @@ function StartupAdvisorsPageInner() {
   const filteredSessions = sessionStatusFilter === "all"
     ? sessions
     : sessions.filter(s => {
-        const mapped = SESSION_STATUS_MAP[s.status]?.label;
+        const sessionStatusKey = (s.status || s.sessionStatus) as string;
+        const mapped = SESSION_STATUS_MAP[sessionStatusKey]?.label;
         return mapped === sessionStatusFilter;
       });
 
@@ -692,7 +692,8 @@ function StartupAdvisorsPageInner() {
                       </tr>
                     )}
                     {filteredRequests.map(item => {
-                      const statusInfo = REQUEST_STATUS_MAP[item.status] ?? { label: item.status, color: "text-slate-500 bg-slate-50 border-slate-100" };
+                      const requestStatusKey = (item.status || item.mentorshipStatus) as string;
+                      const statusInfo = REQUEST_STATUS_MAP[requestStatusKey] ?? { label: requestStatusKey, color: "text-slate-500 bg-slate-50 border-slate-100" };
                       const meetingType = mapMeetingFormat(item.preferredFormat);
                       return (
                         <tr key={item.mentorshipID} className="hover:bg-slate-50/50 transition-colors">
@@ -867,9 +868,11 @@ function StartupAdvisorsPageInner() {
                       </tr>
                     )}
                     {filteredSessions.map(item => {
-                      const sessionStatusInfo = SESSION_STATUS_MAP[item.status] ?? { label: item.status, color: "text-slate-500 bg-slate-50 border-slate-100" };
-                      const meetingType = mapMeetingFormat(item.meetingFormat);
-                      const canJoin = (item.status === "Pending" || item.status === "Requested" || item.status === "Scheduled") && !!item.meetingLink;
+                      const sessionStatusKey = (item.status || item.sessionStatus) as string;
+                      const sessionStatusInfo = SESSION_STATUS_MAP[sessionStatusKey] ?? { label: sessionStatusKey, color: "text-slate-500 bg-slate-50 border-slate-100" };
+                      const meetingType = mapMeetingFormat(item.meetingFormat || item.sessionFormat);
+                      const meetingLink = item.meetingLink || item.meetingURL || item.eetingURL;
+                      const canJoin = (sessionStatusKey === "Pending" || sessionStatusKey === "Requested" || sessionStatusKey === "Scheduled") && !!meetingLink;
                       return (
                         <tr key={item.sessionID} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-6 py-4">
@@ -911,7 +914,7 @@ function StartupAdvisorsPageInner() {
                             <div className="flex items-center justify-center gap-2">
                               {canJoin && (
                                 <a
-                                  href={item.meetingLink!}
+                                  href={meetingLink!}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[11px] font-semibold hover:bg-indigo-600 hover:text-white transition-all"
@@ -926,7 +929,7 @@ function StartupAdvisorsPageInner() {
                               >
                                 <Eye className="w-4 h-4" />
                               </button>
-                              {item.status === "Completed" && (
+                              {sessionStatusKey === "Completed" && (
                                 <button
                                   onClick={() => router.push(`/startup/mentorship-requests/${item.mentorshipID}/report`)}
                                   title="Xem báo cáo tư vấn"

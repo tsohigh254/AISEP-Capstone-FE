@@ -53,6 +53,10 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
 
   return {
     id: item.mentorshipID?.toString() || (item as any).id,
+    mentorshipID: item.mentorshipID || Number((item as any).id) || undefined,
+    startupID: item.startupID,
+    startupName: item.startupName,
+    advisorID: item.advisorID,
     status: normalizedStatus,
     submittedAt: item.createdAt || (item as any).submittedAt || new Date().toISOString(),
     expiresAt: null,

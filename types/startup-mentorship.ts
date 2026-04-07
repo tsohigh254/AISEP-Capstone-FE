@@ -39,43 +39,59 @@ export interface IMentorshipAdvisor {
 
 export interface IMentorshipRequest {
   mentorshipID: number;
+  id?: number;
+  startupID: number;
+  startupName: string;
   advisorID: number;
-  advisor: IMentorshipAdvisor;
-  status: MentorshipRequestStatus;
-  objective: string;
+  advisorName: string;
+  advisor?: IMentorshipAdvisor;
+  status: MentorshipRequestStatus | string;
+  mentorshipStatus: string;
+  objective?: string;
   problemContext?: string;
-  scopeTags?: string[];
+  challengeDescription: string;
+  specificQuestions: string;
+  preferredFormat: string;
   durationMinutes?: number;
+  expectedDuration: string;
+  expectedScope: string;
+  scopeTags?: string[];
+  scope?: string;
   additionalNotes?: string;
-  preferredFormat?: MeetingFormat;
+  obligationSummary: string;
+  scheduledAt?: string;
+  requestedAt: string;
+  acceptedAt: string;
+  rejectedAt: string;
+  rejectedReason: string;
   rejectionReason?: string;
   cancelReason?: string;
   cancelledBy?: string;
-  createdAt: string;
-  updatedAt?: string;
-  acceptedAt?: string;
-  rejectedAt?: string;
   cancelledAt?: string;
-  scheduledAt?: string;
-  completedAt?: string;
+  completedAt: string;
+  completionConfirmedByStartup: boolean;
+  completionConfirmedByAdvisor: boolean;
+  createdAt: string;
+  updatedAt: string;
+  sessions: IMentorshipSession[];
+  reports: IMentorshipReport[];
+  feedbacks: IMentorshipFeedback[];
 }
 
 // ── Create mentorship request (POST /api/mentorships) ────────────────────────
 
 export interface ICreateMentorshipRequest {
-  advisorID: number;
-  objective: string;
-  problemContext?: string;
+  advisorId: number;
   challengeDescription?: string;
-  scopeTags?: string[];
-  durationMinutes?: number;
-  additionalNotes?: string;
+  specificQuestions?: string;
   preferredFormat?: MeetingFormat;
+  expectedDuration: string;
+  expectedScope?: string;
+  meetingUrl?: string;
   requestedSlots?: {
     startAt: string;
     endAt: string;
     timezone: string;
-    note?: string;
   }[];
 }
 
@@ -90,15 +106,46 @@ export interface ICancelMentorshipRequest {
 export interface IMentorshipSession {
   sessionID: number;
   mentorshipID: number;
-  advisor: IMentorshipAdvisor;
-  objective: string;
+  advisor?: IMentorshipAdvisor;
+  objective?: string;
+  status: MentorshipSessionStatus | string;
   scheduledStartAt: string;
-  scheduledEndAt: string;
-  timezone?: string;
-  status: MentorshipSessionStatus;
+  durationMinutes: number;
   meetingFormat?: MeetingFormat;
+  sessionFormat: string;
   meetingLink?: string;
-  completedAt?: string;
+  meetingURL?: string;
+  eetingURL: string;
+  sessionStatus: string;
+  topicsDiscussed: string;
+  keyInsights: string;
+  actionItems: string;
+  nextSteps: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IMentorshipReport {
+  reportID: number;
+  mentorshipID: number;
+  sessionID: number;
+  createdByAdvisorID: number;
+  reportSummary: string;
+  detailedFindings: string;
+  recommendations: string;
+  attachmentsURL: string;
+  submittedAt: string;
+  createdAt: string;
+}
+
+export interface IMentorshipFeedback {
+  feedbackID: number;
+  mentorshipID: number;
+  sessionID: number;
+  fromRole: string;
+  rating: number;
+  comment: string;
+  submittedAt: string;
 }
 
 // ── Feedback (POST /api/mentorships/{id}/feedbacks) ──────────────────────────
