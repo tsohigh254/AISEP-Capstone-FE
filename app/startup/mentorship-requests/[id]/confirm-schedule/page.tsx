@@ -11,9 +11,6 @@ import { cn } from "@/lib/utils";
 import { GetMentorshipById } from "@/services/startup/startup-mentorship.api";
 import type { IMentorshipRequest } from "@/types/startup-mentorship";
 import { toast } from "sonner";
-import Link from "next/link";
-
-const formatVND = (n: number) => n.toLocaleString('vi-VN') + '₫';
 
 function formatDateTime(iso?: string | null) {
   if (!iso) return "—";
@@ -33,6 +30,7 @@ export default function ConfirmSchedulePage({ params }: { params: Promise<{ id: 
   const [loading, setLoading] = useState(true);
   const [selectedSlotId, setSelectedSlotId] = useState<number | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [isPaid, setIsPaid] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -48,6 +46,12 @@ export default function ConfirmSchedulePage({ params }: { params: Promise<{ id: 
       }
     };
     load();
+  }, [id]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = `mentorship_paid_${id}`;
+    setIsPaid(localStorage.getItem(key) === "true");
   }, [id]);
 
 // Advisor-proposed slots come from BE as requestedSlots with proposedBy === "ADVISOR" or from sessions
@@ -143,7 +147,7 @@ export default function ConfirmSchedulePage({ params }: { params: Promise<{ id: 
                     </div>
                   </div>
 
-                  {meetingLink ? (
+                  {isPaid && meetingLink ? (
                     <div className="flex items-center gap-3 p-4 bg-emerald-50/60 rounded-xl border border-emerald-100">
                       <Link2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
