@@ -14,7 +14,7 @@ import {
     ChevronDown, ChevronLeft, ChevronRight, ArrowUpDown, ExternalLink,
     Info, AlertCircle,
 } from "lucide-react";
-import { DeleteDocument, GetDocument } from "@/services/document/document.api";
+import { AddMetaData, DeleteDocument, DocumentType, GetDocument } from "@/services/document/document.api";
 
 /* ─── Types ───────────────────────────────────────────────── */
 type BlockchainStatus = "not_submitted" | "pending" | "recorded" | "matched" | "mismatch" | "failed";
@@ -24,8 +24,9 @@ type SortKey = "updatedAt" | "name" | "type" | "blockchainStatus" | "version";
 interface Doc {
     id: string;
     fileUrl?: string;
-    name: string; // derived from `fileUrl`
-    type: DocType; // derived from `documentType`
+    name: string;
+    type: DocType;
+    rawType: string; // original BE documentType string for edit
     version: string;
     updatedAt: string;
     blockchainStatus: BlockchainStatus;
@@ -71,12 +72,12 @@ function mapBlockchainStatus(doc: IDocument): BlockchainStatus {
 }
 
 function mapBackendDocToUi(doc: IDocument): Doc {
-    const anyDoc = doc as any;
     return {
         id: String(doc.documentID),
         fileUrl: doc.fileUrl,
-        name: fileNameFromUrl(doc.fileUrl),
+        name: doc.title || fileNameFromUrl(doc.fileUrl),
         type: mapBackendTypeToUiType(doc.documentType),
+        rawType: doc.documentType,
         version: doc.version,
         updatedAt: formatUploadedAt(doc.uploadedAt),
         blockchainStatus: mapBlockchainStatus(doc),
@@ -153,6 +154,10 @@ export default function StartupDocumentsPage() {
     const [menuState, setMenuState]       = useState<{ docId: string; x: number; y: number } | null>(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [toast, setToast]               = useState<{ msg: string; type?: "info"|"success"|"error" } | null>(null);
+    const [editState, setEditState]       = useState<{ docId: string; currentName: string; currentType: string } | null>(null);
+    const [editName, setEditName]         = useState("");
+    const [editType, setEditType]         = useState<string>("Pitch_Deck");
+    const [saving, setSaving]             = useState(false);
 
     // Close dropdown on outside click
     useEffect(() => {
@@ -212,6 +217,37 @@ export default function StartupDocumentsPage() {
                 showToast(e?.message ?? "Xóa tài liệu thất bại", "error");
             }
         })();
+    };
+
+    const openEdit = (doc: Doc) => {
+        setMenuState(null);
+        setEditName(doc.name);
+        setEditType(doc.rawType);
+        setEditState({ docId: doc.id, currentName: doc.name, currentType: doc.rawType });
+    };
+
+    const handleEdit = async () => {
+        if (!editState || !editName.trim()) {
+            setEditState(null);
+            return;
+        }
+        setSaving(true);
+        try {
+            const payload: { title?: string; documentType?: DocumentType } = {};
+            if (editName.trim() !== editState.currentName) payload.title = editName.trim();
+            if (editType !== editState.currentType) {
+                payload.documentType = editType === "Pitch_Deck" ? DocumentType.Pitch_Deck : DocumentType.Bussiness_Plan;
+            }
+            if (Object.keys(payload).length === 0) { setEditState(null); return; }
+            await AddMetaData(Number(editState.docId), payload);
+            showToast("Đã cập nhật tài liệu", "success");
+            setEditState(null);
+            setReloadToken(v => v + 1);
+        } catch (e: any) {
+            showToast(e?.message ?? "Cập nhật thất bại", "error");
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
@@ -384,6 +420,12 @@ export default function StartupDocumentsPage() {
                                     </button>
                                 </Link>
                                 <button
+                                    onClick={() => menuDoc && openEdit(menuDoc)}
+                                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 transition-colors text-left"
+                                >
+                                    <Pencil className="w-3.5 h-3.5 text-slate-400" /> Chỉnh sửa
+                                </button>
+                                <button
                                     onClick={() => setDeleteConfirmId(menuState.docId)}
                                     className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-red-500 hover:bg-red-50 transition-colors text-left"
                                 >
@@ -394,6 +436,55 @@ export default function StartupDocumentsPage() {
                     </div>
                 );
             })()}
+
+            {/* Edit modal */}
+            {editState && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={() => setEditState(null)} />
+                    <div className="relative bg-white rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.12)] w-full max-w-sm mx-4 p-6 space-y-4">
+                        <h3 className="text-[15px] font-semibold text-[#0f172a]">Chỉnh sửa tài liệu</h3>
+                        <div className="space-y-1.5">
+                            <label className="block text-[12px] font-medium text-slate-500">Tên tài liệu</label>
+                            <input
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 outline-none transition-all"
+                                value={editName}
+                                onChange={e => setEditName(e.target.value)}
+                                onKeyDown={e => e.key === "Enter" && handleEdit()}
+                                autoFocus
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="block text-[12px] font-medium text-slate-500">Loại tài liệu</label>
+                            <div className="relative">
+                                <select
+                                    className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all pr-9 cursor-pointer"
+                                    value={editType}
+                                    onChange={e => setEditType(e.target.value)}
+                                >
+                                    <option value="Pitch_Deck">Pitch Deck</option>
+                                    <option value="Bussiness_Plan">Business Plan</option>
+                                </select>
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setEditState(null)} className="px-4 py-2 rounded-xl text-[13px] text-slate-500 hover:bg-slate-100 transition-colors">
+                                Hủy
+                            </button>
+                            <button
+                                onClick={handleEdit}
+                                disabled={saving || !editName.trim()}
+                                className={cn(
+                                    "px-5 py-2 rounded-xl text-[13px] font-medium transition-all shadow-sm",
+                                    editName.trim() ? "bg-[#0f172a] text-white hover:bg-slate-800" : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                                )}
+                            >
+                                {saving ? "Đang lưu..." : "Lưu"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
             <UploadDocumentModal

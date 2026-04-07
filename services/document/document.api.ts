@@ -13,8 +13,9 @@ interface IDocumentRequest{
 }
 
 interface IAddMetaDataRequest {
-    title : string
-    isArchived : boolean
+    title? : string
+    documentType? : DocumentType
+    isArchived? : boolean
 }
 
 export const UploadDocument = (data: IDocumentRequest) => {
@@ -41,7 +42,7 @@ export const GetDocumentById = (documentId: number) => {
 
 
 export const DeleteDocument = (documentId: string) => {
-    return axios.delete<IBackendRes<string>>(`/api/documents/${documentId}/metadata`);
+    return axios.delete<IBackendRes<string>>(`/api/documents/${documentId}`);
 }
 
 export const AddMetaData = (documentId : number, data: IAddMetaDataRequest                                                                                                                            ) => {

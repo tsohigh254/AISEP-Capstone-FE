@@ -106,7 +106,7 @@ function mapBackendDocToUi(doc: IDocument): DocData {
     const txHash = anyDoc.txHash ?? anyDoc.transactionHash ?? "—";
     return {
         id: String(doc.documentID),
-        name: fileNameFromUrl(doc.fileUrl),
+        name: (doc as any).title || fileNameFromUrl(doc.fileUrl),
         fileUrl: doc.fileUrl,
         type: mapBackendTypeToUiType(doc.documentType),
         visibility: "private",
@@ -265,6 +265,7 @@ function BlockchainPanel({ status, hash, proofStatus, txHash, recordedAt, ethers
     onSubmit: () => void | Promise<void>; onRetry: () => void | Promise<void>; onVerify: () => void | Promise<void>;
 }) {
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
+    const [showTechnical, setShowTechnical] = useState(false);
     const bc = BC[status];
     const isVerified     = status === "recorded" || status === "matched";
     const isMismatch     = status === "mismatch";
@@ -288,7 +289,7 @@ function BlockchainPanel({ status, hash, proofStatus, txHash, recordedAt, ethers
                         isVerified ? "bg-teal-50" : isMismatch ? "bg-red-50" : "bg-slate-100")}>
                         <ShieldCheck className={cn("w-3.5 h-3.5", isVerified ? "text-teal-600" : isMismatch ? "text-red-500" : "text-slate-400")} />
                     </div>
-                    <span className="text-[13px] font-semibold text-slate-700">Bảo vệ IP (Blockchain)</span>
+                    <span className="text-[13px] font-semibold text-slate-700">Bảo vệ IP</span>
                 </div>
                 <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border", bc.cls)}>
                     <bc.Icon className={cn("w-3 h-3", bc.spin && "animate-spin")} /> {bc.label}
@@ -298,7 +299,7 @@ function BlockchainPanel({ status, hash, proofStatus, txHash, recordedAt, ethers
             <div className="px-5 py-4 space-y-4">
                 {isNotSubmitted && (
                     <div className="space-y-3">
-                        <p className="text-[12px] text-slate-500 leading-relaxed">Tài liệu chưa được bảo vệ trên blockchain. Gửi ngay để đăng ký tài sản trí tuệ.</p>
+                        <p className="text-[12px] text-slate-500 leading-relaxed">Tài liệu chưa được bảo vệ. Gửi lên blockchain để đăng ký quyền sở hữu trí tuệ với bằng chứng thời gian.</p>
                         <button
                             onClick={onSubmit}
                             disabled={isSubmitDisabled}
@@ -307,75 +308,100 @@ function BlockchainPanel({ status, hash, proofStatus, txHash, recordedAt, ethers
                                 isSubmitDisabled && "opacity-60 cursor-not-allowed hover:bg-[#0f172a]"
                             )}
                         >
-                            <Shield className="w-3.5 h-3.5" /> Gửi lên Blockchain
+                            <Shield className="w-3.5 h-3.5" /> Bảo vệ tài liệu
                         </button>
                     </div>
                 )}
                 {isPending && (
                     <div className="flex items-center gap-3 py-2">
                         <RefreshCcw className="w-4 h-4 text-amber-500 animate-spin flex-shrink-0" />
-                        <p className="text-[12px] text-amber-700">Hash đang được tính toán và gửi lên mạng. Vui lòng chờ...</p>
+                        <p className="text-[12px] text-amber-700">Đang xử lý, vui lòng chờ trong giây lát...</p>
                     </div>
                 )}
                 {isMismatch && (
-                    <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
-                        <p className="text-[12px] text-red-700 leading-relaxed">
-                            <span className="font-semibold">Cảnh báo:</span> Hash hiện tại không khớp với hash đã ghi trên blockchain. Tài liệu có thể đã bị sửa đổi.
-                        </p>
+                    <div className="space-y-3">
+                        <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
+                            <p className="text-[12px] text-red-700 leading-relaxed">
+                                <span className="font-semibold">Cảnh báo:</span> Nội dung tài liệu không còn khớp với bản đã đăng ký trên blockchain. Tài liệu có thể đã bị chỉnh sửa sau khi đăng ký.
+                            </p>
+                        </div>
+                        <button onClick={onVerify} className="w-full flex items-center justify-center gap-2 py-2 border border-red-200 text-red-600 bg-red-50 rounded-xl text-[12px] font-medium hover:bg-red-100 transition-all">
+                            <AlertTriangle className="w-3.5 h-3.5" /> Kiểm tra lại
+                        </button>
                     </div>
                 )}
                 {isFailed && (
                     <div className="space-y-3">
-                        <p className="text-[12px] text-slate-500">Giao dịch thất bại. Vui lòng thử gửi lại.</p>
+                        <p className="text-[12px] text-slate-500">Đăng ký không thành công. Vui lòng thử lại.</p>
                         <button onClick={onRetry} className="w-full flex items-center justify-center gap-2 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-[13px] font-medium hover:bg-slate-50 transition-all">
-                            <RefreshCcw className="w-3.5 h-3.5" /> Gửi lại
+                            <RefreshCcw className="w-3.5 h-3.5" /> Thử lại
                         </button>
                     </div>
                 )}
 
                 {(isVerified || isMismatch) && (
                     <>
-                        <div className="space-y-1.5">
-                            <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">SHA-256 Hash</p>
-                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-                                <code className="text-[11px] text-slate-600 font-mono truncate flex-1">{hash}</code>
-                                <button onClick={() => copyText(hash, "hash")} className="flex-shrink-0 text-slate-400 hover:text-slate-600 transition-colors" title="Sao chép hash">
-                                    {copiedKey === "hash" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                                </button>
+                        {/* Simple info for non-tech users */}
+                        {isVerified && (
+                            <div className="p-3 bg-teal-50 border border-teal-100 rounded-xl">
+                                <p className="text-[12px] text-teal-700 leading-relaxed">
+                                    Tài liệu đã được đăng ký bảo vệ trên blockchain. Bạn có bằng chứng xác thực quyền sở hữu trí tuệ với thời gian cụ thể.
+                                </p>
                             </div>
-                        </div>
+                        )}
+
                         {recordedAt && (
-                            <div className="space-y-1.5">
-                                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Thời điểm ghi nhận</p>
-                                <p className="text-[12px] text-slate-600">{new Date(recordedAt).toLocaleString("vi-VN")}</p>
+                            <div className="flex items-center justify-between">
+                                <span className="text-[12px] text-slate-400">Thời điểm đăng ký</span>
+                                <span className="text-[12px] font-medium text-slate-600">{new Date(recordedAt).toLocaleString("vi-VN")}</span>
                             </div>
                         )}
-                        {txHash && txHash !== "—" && (
-                            <div className="space-y-1.5">
-                                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Transaction Hash</p>
-                                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-                                    <code className="text-[11px] text-slate-600 font-mono truncate flex-1">{txHash}</code>
-                                    <button onClick={() => copyText(txHash, "tx")} className="flex-shrink-0 text-slate-400 hover:text-slate-600 transition-colors" title="Sao chép TX hash">
-                                        {copiedKey === "tx" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+
                         {etherscanUrl && (
                             <a href={etherscanUrl} target="_blank" rel="noopener noreferrer"
                                className="w-full flex items-center justify-center gap-2 py-2 border border-indigo-200 text-indigo-600 bg-indigo-50 rounded-xl text-[12px] font-medium hover:bg-indigo-100 transition-all">
-                                <ExternalLink className="w-3.5 h-3.5" /> Xem trên Etherscan
+                                <ExternalLink className="w-3.5 h-3.5" /> Xem bằng chứng trên Etherscan
                             </a>
                         )}
-                        <div className="space-y-2 pt-1">
-                            {isMismatch ? (
-                                <button onClick={onVerify} className="w-full flex items-center justify-center gap-2 py-2 border border-red-200 text-red-600 bg-red-50 rounded-xl text-[12px] font-medium hover:bg-red-100 transition-all">
-                                    <AlertTriangle className="w-3.5 h-3.5" /> Kiểm tra on-chain
-                                </button>
-                            ) : (
-                                <button onClick={onVerify} className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-500 rounded-xl text-[12px] font-medium hover:bg-slate-50 transition-all">
-                                    <RotateCcw className="w-3.5 h-3.5" /> Xác minh lại
-                                </button>
+
+                        {isVerified && (
+                            <button onClick={onVerify} className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-500 rounded-xl text-[12px] font-medium hover:bg-slate-50 transition-all">
+                                <RotateCcw className="w-3.5 h-3.5" /> Kiểm tra lại
+                            </button>
+                        )}
+
+                        {/* Collapsible technical details */}
+                        <div className="border-t border-slate-100 pt-3">
+                            <button
+                                onClick={() => setShowTechnical(v => !v)}
+                                className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-600 transition-colors"
+                            >
+                                <ChevronDown className={cn("w-3 h-3 transition-transform", showTechnical && "rotate-180")} />
+                                Chi tiết kỹ thuật
+                            </button>
+                            {showTechnical && (
+                                <div className="mt-3 space-y-3">
+                                    <div className="space-y-1.5">
+                                        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">SHA-256 Hash</p>
+                                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                            <code className="text-[11px] text-slate-600 font-mono truncate flex-1">{hash}</code>
+                                            <button onClick={() => copyText(hash, "hash")} className="flex-shrink-0 text-slate-400 hover:text-slate-600 transition-colors" title="Sao chép hash">
+                                                {copiedKey === "hash" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {txHash && txHash !== "—" && (
+                                        <div className="space-y-1.5">
+                                            <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Transaction Hash</p>
+                                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                                <code className="text-[11px] text-slate-600 font-mono truncate flex-1">{txHash}</code>
+                                                <button onClick={() => copyText(txHash, "tx")} className="flex-shrink-0 text-slate-400 hover:text-slate-600 transition-colors" title="Sao chép TX hash">
+                                                    {copiedKey === "tx" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </>
@@ -766,8 +792,8 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                                 <table className="w-full">
                                     <thead>
                                         <tr className="border-b border-slate-100">
-                                            {["Phiên bản","Hash","Blockchain"].map((h, i) => (
-                                                <th key={i} className={cn("px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest", i === 2 ? "text-right" : "text-left")}>{h}</th>
+                                            {["Phiên bản","Blockchain"].map((h, i) => (
+                                                <th key={i} className={cn("px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest", i === 1 ? "text-right" : "text-left")}>{h}</th>
                                             ))}
                                         </tr>
                                     </thead>
@@ -782,8 +808,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                                                             {v.isCurrent && <span className="px-1.5 py-0.5 bg-teal-100 text-teal-700 text-[9px] font-semibold rounded border border-teal-200">Hiện tại</span>}
                                                         </div>
                                                     </td>
-                                                    <td className="px-4 py-3.5"><code className="text-[11px] text-slate-500 font-mono">{v.hashShort}</code></td>
-                                                    <td className="px-4 py-3.5">
+                                                    <td className="px-4 py-3.5 text-right">
                                                         <span className={cn("inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full border whitespace-nowrap", vbc.cls)}>
                                                             <vbc.Icon className={cn("w-2.5 h-2.5", vbc.spin && "animate-spin")} /> {vbc.label}
                                                         </span>

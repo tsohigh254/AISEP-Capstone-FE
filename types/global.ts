@@ -200,6 +200,7 @@ declare global {
         documentID: number
         startupID: number
         documentType: string
+        title: string
         version: string
         fileUrl: string
         isArchived: boolean
