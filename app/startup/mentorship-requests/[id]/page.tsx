@@ -1,14 +1,13 @@
 ﻿"use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { notFound, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
   Edit3, Video, Clock, MessageSquare,
   CheckCircle2, AlertCircle, Calendar, CalendarCheck,
-  FileText, Star, Ban, X, BadgeCheck, ExternalLink,
+  FileText, Star, Ban, X, 
   History as LucideHistory, Loader2, Info,
-  CreditCard, ShieldCheck, RotateCcw, DollarSign, Lock,
   ShieldAlert, ChevronRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,7 +15,6 @@ import { IssueReportModal } from "@/components/shared/issue-report-modal";
 import { GetMentorshipById, CancelMentorship } from "@/services/startup/startup-mentorship.api";
 import type { IMentorshipRequest, MentorshipRequestStatus, MeetingFormat } from "@/types/startup-mentorship";
 
-const formatVND = (n: number) => n.toLocaleString('vi-VN') + '₫';
 
 const formatDateTime = (iso?: string | null) => {
   if (!iso) return "";
@@ -33,7 +31,7 @@ const formatDateTime = (iso?: string | null) => {
   }
 };
 
-const mapMeetingFormat = (fmt?: MeetingFormat | null): string => {
+const mapMeetingFormat = (fmt?: MeetingFormat | string | null): string => {
   if (fmt === "GoogleMeet") return "Google Meet";
   if (fmt === "MicrosoftTeams") return "Microsoft Teams";
   return "—";
@@ -286,7 +284,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
       const res = await GetMentorshipById(numericId) as unknown as IBackendRes<IMentorshipRequest>;
       if ((res.success || res.isSuccess) && res.data) {
         setRequest(res.data);
-        setLocalStatus(res.data.status);
+        setLocalStatus(res.data.status as MentorshipRequestStatus);
         setFetchError(false);
       } else {
         setFetchError(true);
@@ -372,7 +370,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
   const cfg = STATUS_CONFIG[currentStatus] || STATUS_CONFIG["Requested"];
   const timeline = buildTimeline({ ...request, status: currentStatus }, isPaid);
   const requestNo = `REQ-${String(request.mentorshipID || (request as any).id || 0).padStart(4, "0")}`;
-  const advisor = request.advisor || { fullName: (request as any).advisorName, title: "Cố vấn viên", profilePhotoURL: "" };
+  const advisor = request.advisor || { advisorID: request.advisorID, fullName: (request as any).advisorName, title: "Cố vấn viên", profilePhotoURL: "", averageRating: null };
   const isCancelled = currentStatus === "Cancelled";
 
   const sessions = (request as any).sessions || [];
