@@ -110,7 +110,7 @@ function RequestCard({
         ? "border-amber-200 hover:border-amber-300 hover:shadow-[0_4px_12px_rgba(234,179,8,0.1)]"
         : "border-slate-200/80 hover:border-slate-300/80 hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)]"
     )}>
-      <Link href={`/advisor/requests/${req.id}`} className="block px-5 py-4">
+      <Link href={`/advisor/requests/${req.mentorshipID}`} className="block px-5 py-4">
         <div className="flex items-center gap-4">
           {/* Avatar */}
           <div className={cn(
@@ -196,7 +196,7 @@ function RequestCard({
         <div className="px-5 pb-4 flex items-center gap-2 border-t border-amber-100 pt-3 mt-0">
           
           <Link
-            href={`/advisor/requests/${req.id}`}
+            href={`/advisor/requests/${req.mentorshipID}`}
             className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-[12px] font-semibold hover:bg-slate-50 transition-colors"
           >
             Xem chi tiết
@@ -235,7 +235,7 @@ const [isLoading, setIsLoading] = useState(true);
            await Promise.all(mapped.map(async (item) => {
                if (item.status === "COMPLETED") {
                    try {
-                       const reportRes = await GetMentorshipReport(item.id as any);
+                       const reportRes = await GetMentorshipReport(item.mentorshipID as any);
                        if (reportRes.isSuccess && reportRes.data) {
                            item.status = "FINALIZED";
                        }
@@ -328,7 +328,7 @@ const [isLoading, setIsLoading] = useState(true);
             </div>
             <div className="space-y-2">
               {pending.map(req => (
-                <RequestCard key={req.id} req={req}  showUrgent />
+                <RequestCard key={req.mentorshipID} req={req}  showUrgent />
               ))}
             </div>
           </div>
@@ -384,7 +384,7 @@ const [isLoading, setIsLoading] = useState(true);
               </p>
               <div className="space-y-2">
                 {nonPendingFiltered.map(req => (
-                  <RequestCard key={req.id} req={req} />
+                  <RequestCard key={req.mentorshipID} req={req} />
                 ))}
               </div>
             </div>
@@ -395,7 +395,7 @@ const [isLoading, setIsLoading] = useState(true);
             <div className="space-y-2">
               {filtered.map(req => (
                 <RequestCard
-                  key={req.id}
+                  key={req.mentorshipID}
                   req={req}
                   
                   showUrgent={req.status === "PENDING"}

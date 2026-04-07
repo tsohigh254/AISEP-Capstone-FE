@@ -23,6 +23,7 @@ const routeLabels: Record<string, string> = {
   settings: "Cài đặt",
   availability: "Lịch rảnh",
   reports: "Báo cáo tư vấn",
+  wallet: "Ví",
 };
 
 function AdvisorBreadcrumb() {

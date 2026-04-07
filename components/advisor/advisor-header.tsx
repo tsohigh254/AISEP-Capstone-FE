@@ -17,6 +17,7 @@ import {
   Calendar,
   ShieldCheck,
   ShieldAlert,
+  Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -160,6 +161,7 @@ export function AdvisorHeader({
                       { icon: Calendar, label: "Lịch của tôi", href: "/advisor/schedule" },
                       { icon: FileText, label: "Báo cáo", href: "/advisor/reports" },
                       { icon: Star, label: "Đánh giá & Phản hồi", href: "/advisor/feedback" },
+                      { icon: Wallet, label: "Ví", href: "/advisor/wallet" },
                       { icon: Clock, label: "Cài lịch tư vấn", href: "/advisor/availability" },
                       { icon: ShieldCheck, label: "Xác thực Advisor", href: "/advisor/kyc" },
                     ].map((item) => (
