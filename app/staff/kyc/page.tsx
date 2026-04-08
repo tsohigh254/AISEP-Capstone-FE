@@ -47,6 +47,7 @@ interface KYCSubmission {
   submittedAt: string;
   status: KYCStatus;
   slaDays: number;
+  avatarUrl?: string | null;
 }
 
 const AVATAR_COLORS = [
@@ -202,6 +203,7 @@ export default function KYCPendingListPage() {
       ),
       status: normalizeStatus(item.workflowStatus ?? item.profileStatus),
       slaDays: getSlaDays(item.submittedAt ?? item.updatedAt),
+      avatarUrl: item.logoURL ?? null,
     }));
 
     const mappedAdvisors: KYCSubmission[] = (advisorData || []).map((item) => ({
@@ -215,6 +217,7 @@ export default function KYCPendingListPage() {
       ),
       status: normalizeStatus(item.workflowStatus ?? item.profileStatus),
       slaDays: getSlaDays(item.submittedAt ?? item.updatedAt),
+      avatarUrl: item.profilePhotoURL ?? null,
     }));
 
     const mappedInvestors: KYCSubmission[] = (investorData || []).map((item) => ({
@@ -230,6 +233,7 @@ export default function KYCPendingListPage() {
       ),
       status: normalizeStatus(item.workflowStatus ?? item.profileStatus),
       slaDays: getSlaDays(item.submittedAt ?? item.updatedAt),
+      avatarUrl: item.profilePhotoURL ?? null,
     }));
 
     return [...mappedStartups, ...mappedAdvisors, ...mappedInvestors];
@@ -462,11 +466,14 @@ export default function KYCPendingListPage() {
                       <div className="flex items-center gap-3">
                         <div
                           className={cn(
-                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-[15px] font-bold text-white shadow-sm",
-                            getAvatarGradient(item.applicantName),
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[15px] font-bold text-white shadow-sm overflow-hidden",
+                            !item.avatarUrl && `bg-gradient-to-br ${getAvatarGradient(item.applicantName)}`,
                           )}
                         >
-                          {item.applicantName.charAt(0).toUpperCase()}
+                          {item.avatarUrl
+                            ? <img src={item.avatarUrl} alt={item.applicantName} className="w-full h-full object-cover" />
+                            : item.applicantName.charAt(0).toUpperCase()
+                          }
                         </div>
                         <div className="flex flex-col">
                           <span className="text-[14px] font-semibold text-slate-900 transition-colors group-hover:text-slate-600">

@@ -30,7 +30,7 @@ export function OnboardingLayout({
         backgroundAttachment: "fixed",
       }}
     >
-      <div className="w-full flex-1 overflow-y-auto no-scrollbar flex flex-col items-center py-10">
+      <div data-onboard-scroll className="w-full flex-1 overflow-y-auto no-scrollbar flex flex-col items-center py-10">
         <div className="w-full max-w-[900px] px-6 my-auto">
         
         {/* Main Form Area (Centered) */}

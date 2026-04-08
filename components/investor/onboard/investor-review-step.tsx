@@ -8,6 +8,7 @@ import {
   LayoutGrid, Layers, Target, Brain, Star 
 } from "lucide-react";
 import { IInvestorOnboardData } from "@/types/investor-kyc";
+import { getInvestorPreferredStageLabel } from "@/lib/investor-preferred-stages";
 
 interface InvestorReviewStepProps {
   data: Partial<IInvestorOnboardData>;
@@ -44,7 +45,9 @@ export function InvestorReviewStep({ data, onBack, onSubmit, isSubmitting, files
         {Array.isArray(value) ? (
           <div className="flex flex-wrap gap-1.5 mt-1">
             {value.map(v => (
-              <span key={v} className="px-2 py-0.5 rounded-lg bg-slate-100 text-[10px] font-bold text-slate-600 border border-slate-200/50">{v}</span>
+              <span key={v} className="px-2 py-0.5 rounded-lg bg-slate-100 text-[10px] font-bold text-slate-600 border border-slate-200/50">
+                {label === "Giai đoạn ưu tiên" ? getInvestorPreferredStageLabel(v) : v}
+              </span>
             ))}
           </div>
         ) : (

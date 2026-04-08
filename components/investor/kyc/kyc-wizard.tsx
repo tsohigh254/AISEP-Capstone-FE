@@ -19,14 +19,23 @@ const SUBMITTER_ROLES = [
   { value: "AUTHORIZED_PERSON", label: "Người được ủy quyền" },
 ];
 
-const ACCEPTED_TYPES = ["application/pdf", "image/jpeg", "image/png"];
-const MAX_MB = 10;
+const ACCEPTED_TYPES = [
+  "application/pdf",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "image/jpeg",
+  "image/png",
+];
+const MAX_MB = 20;
 
 /* ─── Props ──────────────────────────────────────────────────── */
 
 interface KYCWizardProps {
   initialStatus: IInvestorKYCStatus;
   isResubmit?: boolean;
+  profileInvestorType?: "INSTITUTIONAL" | "INDIVIDUAL_ANGEL" | null;
   onCancel: () => void;
   onSubmit: (data: FormData) => Promise<void>;
   onSaveStep: (data: Partial<IInvestorKYCSubmission>) => Promise<void>;
@@ -34,13 +43,13 @@ interface KYCWizardProps {
 
 /* ─── Helper ─────────────────────────────────────────────────── */
 
-function buildInitialForm(status: IInvestorKYCStatus): Partial<IInvestorKYCSubmission> {
+function buildInitialForm(status: IInvestorKYCStatus, profileInvestorType?: "INSTITUTIONAL" | "INDIVIDUAL_ANGEL" | null): Partial<IInvestorKYCSubmission> {
   const s = status.submissionSummary;
   return {
     fullName: s?.fullName ?? "",
     contactEmail: s?.contactEmail ?? "",
     declarationAccepted: false,
-    investorCategory: (s?.investorCategory as any) ?? "INDIVIDUAL_ANGEL",
+    investorCategory: (s?.investorCategory as any) ?? profileInvestorType ?? "INDIVIDUAL_ANGEL",
     currentRoleTitle: s?.currentRoleTitle ?? "",
     organizationName: s?.organizationName ?? "",
     location: s?.location ?? "",
@@ -53,11 +62,11 @@ function buildInitialForm(status: IInvestorKYCStatus): Partial<IInvestorKYCSubmi
 
 /* ─── Component ──────────────────────────────────────────────── */
 
-export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmit, onSaveStep }: KYCWizardProps) {
+export function KYCWizard({ initialStatus, isResubmit = false, profileInvestorType, onCancel, onSubmit, onSaveStep }: KYCWizardProps) {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [autoSaveState, setAutoSaveState] = useState<"idle" | "saving" | "saved">("idle");
-  const [formData, setFormData] = useState<Partial<IInvestorKYCSubmission>>(() => buildInitialForm(initialStatus));
+  const [formData, setFormData] = useState<Partial<IInvestorKYCSubmission>>(() => buildInitialForm(initialStatus, profileInvestorType));
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Files
@@ -114,6 +123,7 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
   /* ── Validation ────────────────────────────────────────────── */
   const validateStep1 = () => {
     const e: Record<string, string> = {};
+    if (!formData.investorCategory) e.investorCategory = "Vui lòng chọn loại nhà đầu tư";
     if (!formData.fullName?.trim()) e.fullName = "Vui lòng nhập họ và tên đầy đủ";
     if (!formData.contactEmail?.trim()) e.contactEmail = "Vui lòng nhập email liên lạc";
     else if (!/\S+@\S+\.\S+/.test(formData.contactEmail)) e.contactEmail = "Email không đúng định dạng";
@@ -125,7 +135,10 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
   const validateStep2 = () => {
     const e: Record<string, string> = {};
     if (!formData.currentRoleTitle?.trim()) e.currentRoleTitle = "Vui lòng nhập chức vụ của bạn";
-    if (!formData.organizationName?.trim()) e.organizationName = "Vui lòng nhập tên tổ chức / quỹ";
+    if (isInstitutional && !formData.organizationName?.trim()) e.organizationName = "Vui lòng nhập tên tổ chức / quỹ";
+    if (!isInstitutional && formData.linkedInURL?.trim() && !/linkedin\.com\//i.test(formData.linkedInURL)) {
+      e.linkedInURL = "Vui lòng nhập đúng URL LinkedIn (linkedin.com/...)";
+    }
 
     if (!idFile) {
       if (requiresNewEvidence) {
@@ -170,6 +183,7 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
       fd.append("investorCategory", formData.investorCategory ?? "INDIVIDUAL_ANGEL");
       fd.append("fullName", formData.fullName ?? "");
       fd.append("contactEmail", formData.contactEmail ?? "");
+      fd.append("declarationAccepted", "true");
       if (formData.organizationName) fd.append("organizationName", formData.organizationName);
       if (formData.currentRoleTitle) fd.append("currentRoleTitle", formData.currentRoleTitle);
       if (formData.location) fd.append("location", formData.location);
@@ -296,6 +310,41 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
         {/* ── STEP 1 ──────────────────────────────────────────── */}
         {step === 1 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+
+            {/* Investor Category selector */}
+            <div>
+              <FieldLabel name="investorCategory" required>Loại nhà đầu tư</FieldLabel>
+              <div className="grid grid-cols-2 gap-3">
+                {([
+                  { value: "INDIVIDUAL_ANGEL", label: "Angel Investor", desc: "Nhà đầu tư cá nhân" },
+                  { value: "INSTITUTIONAL", label: "Tổ chức / Quỹ", desc: "VC, CVC, Fund..." },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    disabled={isResubmit}
+                    onClick={() => { set("investorCategory", opt.value); clearErr("investorCategory"); }}
+                    className={cn(
+                      "flex flex-col items-start px-4 py-3.5 rounded-xl border-2 text-left transition-all",
+                      formData.investorCategory === opt.value
+                        ? "border-[#171611] bg-[#171611]/5 ring-1 ring-[#171611]/10"
+                        : "border-slate-200 bg-white hover:border-slate-300",
+                      isResubmit && "cursor-not-allowed opacity-70"
+                    )}
+                  >
+                    <span className={cn("text-[13px] font-bold", formData.investorCategory === opt.value ? "text-slate-900" : "text-slate-600")}>
+                      {opt.label}
+                    </span>
+                    <span className="text-[11px] text-slate-400 mt-0.5">{opt.desc}</span>
+                  </button>
+                ))}
+              </div>
+              {isResubmit && (
+                <p className="text-[11px] text-slate-400 mt-1.5">Loại nhà đầu tư không thể thay đổi khi gửi lại hồ sơ.</p>
+              )}
+              <ErrNote name="investorCategory" />
+            </div>
+
             <div>
               <FieldLabel name="fullName" required>Họ và tên đầy đủ</FieldLabel>
               <input
@@ -388,46 +437,55 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
 
             {/* Org + Role */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div>
-                <FieldLabel name="organizationName" required>Tên tổ chức / Quỹ / Công ty</FieldLabel>
-                <input
-                  value={formData.organizationName ?? ""}
-                  onChange={e => { set("organizationName", e.target.value); clearErr("organizationName"); }}
-                  placeholder="VD: VinaCapital Ventures"
-                  className={inputClass("organizationName")}
-                />
-                <FlagNote name="organizationName" /><ErrNote name="organizationName" />
-              </div>
-              <div>
-                <FieldLabel name="currentRoleTitle" required>Chức vụ hiện tại</FieldLabel>
+              {isInstitutional && (
+                <div>
+                  <FieldLabel name="organizationName" required>Tên tổ chức / Quỹ / Công ty</FieldLabel>
+                  <input
+                    value={formData.organizationName ?? ""}
+                    onChange={e => { set("organizationName", e.target.value); clearErr("organizationName"); }}
+                    placeholder="VD: VinaCapital Ventures"
+                    className={inputClass("organizationName")}
+                  />
+                  <FlagNote name="organizationName" /><ErrNote name="organizationName" />
+                </div>
+              )}
+              <div className={!isInstitutional ? "md:col-span-2" : ""}>
+                <FieldLabel name="currentRoleTitle" required>
+                  {isInstitutional ? "Chức vụ hiện tại" : "Nghề nghiệp / Vị trí công việc"}
+                </FieldLabel>
                 <input
                   value={formData.currentRoleTitle ?? ""}
                   onChange={e => { set("currentRoleTitle", e.target.value); clearErr("currentRoleTitle"); }}
-                  placeholder="VD: Partner, Investment Manager..."
+                  placeholder={isInstitutional ? "VD: Partner, Investment Manager..." : "VD: Angel Investor, Founder, CTO..."}
                   className={inputClass("currentRoleTitle")}
                 />
                 <FlagNote name="currentRoleTitle" /><ErrNote name="currentRoleTitle" />
               </div>
             </div>
 
-            {/* LinkedIn + Website (tách riêng) */}
+            {/* LinkedIn + Website */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <FieldLabel name="linkedInURL">LinkedIn Profile</FieldLabel>
+                <FieldLabel name="linkedInURL" required={!isInstitutional}>
+                  {isInstitutional ? "LinkedIn tổ chức" : "LinkedIn cá nhân"}
+                </FieldLabel>
                 <input
                   value={formData.linkedInURL ?? ""}
                   onChange={e => { set("linkedInURL", e.target.value); clearErr("linkedInURL"); }}
                   placeholder="https://linkedin.com/in/yourname"
                   className={inputClass("linkedInURL")}
                 />
+                {!isInstitutional && <p className="text-[11px] text-slate-400 mt-1">Dùng để xác minh danh tính nhà đầu tư cá nhân.</p>}
                 <FlagNote name="linkedInURL" /><ErrNote name="linkedInURL" />
               </div>
               <div>
-                <FieldLabel name="website">{isInstitutional ? "Website tổ chức" : "Website cá nhân"}</FieldLabel>
+                <FieldLabel name="website" required={isInstitutional}>
+                  {isInstitutional ? "Website tổ chức" : "Website / Portfolio cá nhân"}
+                </FieldLabel>
                 <input
                   value={formData.website ?? ""}
                   onChange={e => { set("website", e.target.value); clearErr("website"); }}
-                  placeholder="https://..."
+                  placeholder={isInstitutional ? "https://vinacapital.com" : "Blog, AngelList, Crunchbase..."}
                   className={inputClass("website")}
                 />
                 <FlagNote name="website" /><ErrNote name="website" />
@@ -437,7 +495,7 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
             {/* Location + Tax ID */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <FieldLabel name="location">Địa điểm</FieldLabel>
+                <FieldLabel name="location">Tỉnh / Thành phố hoạt động</FieldLabel>
                 <input
                   value={formData.location ?? ""}
                   onChange={e => set("location", e.target.value)}
@@ -446,11 +504,13 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
                 />
               </div>
               <div>
-                <FieldLabel name="taxIdOrBusinessCode">Mã số thuế / Mã số doanh nghiệp</FieldLabel>
+                <FieldLabel name="taxIdOrBusinessCode">
+                  {isInstitutional ? "Mã số thuế / Mã số doanh nghiệp" : "Căn cước công dân / Mã số thuế cá nhân"}
+                </FieldLabel>
                 <input
                   value={formData.taxIdOrBusinessCode ?? ""}
                   onChange={e => set("taxIdOrBusinessCode", e.target.value)}
-                  placeholder="Nhập MST (nếu có)"
+                  placeholder={isInstitutional ? "Nhập MST doanh nghiệp" : "Nhập số CCCD hoặc MST cá nhân"}
                   className={inputClass("taxIdOrBusinessCode")}
                 />
               </div>
@@ -482,9 +542,11 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* ID / License */}
                 <div>
-                  <p className="text-[12px] font-semibold text-slate-500 mb-2">
-                    {isInstitutional ? "Giấy phép KD / Giấy tờ tổ chức" : "CCCD / Hộ chiếu"}
-                    <span className="text-[10px] font-normal text-slate-400 ml-1">(ID_PROOF)</span>
+                  <p className="text-[12px] font-semibold text-slate-500 mb-0.5">
+                    {isInstitutional ? "Giấy phép KD / Giấy tờ tổ chức" : "CCCD / Hộ chiếu / Giấy tờ tùy thân"}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mb-2">
+                    {isInstitutional ? "Giấy phép kinh doanh, điều lệ quỹ..." : "Giấy tờ xác minh danh tính cá nhân"}
                   </p>
                   <div
                     className={cn(
@@ -497,7 +559,7 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
                     onDrop={e => { e.preventDefault(); setDragOverId(false); if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0], "ID"); }}
                     onClick={() => document.getElementById("kyc-id-input")?.click()}
                   >
-                    <input id="kyc-id-input" type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png"
+                    <input id="kyc-id-input" type="file" className="hidden" accept=".pdf,.ppt,.pptx,.doc,.docx,.jpg,.jpeg,.png"
                       onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0], "ID"); e.target.value = ""; }} />
                     {idFile ? (
                       <div className="text-center">
@@ -515,7 +577,7 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
                           <Upload className="w-5 h-5 text-slate-300" />
                         </div>
                         <p className="text-[12px] font-bold text-slate-500">Tải lên tài liệu định danh</p>
-                        <p className="text-[10px] text-slate-400 mt-1">PDF, JPG, PNG (Max {MAX_MB}MB)</p>
+                        <p className="text-[10px] text-slate-400 mt-1">PDF, DOC, PPT, JPG, PNG (Max {MAX_MB}MB)</p>
                       </div>
                     )}
                   </div>
@@ -524,9 +586,12 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
 
                 {/* Investment Proof */}
                 <div>
-                  <p className="text-[12px] font-semibold text-slate-500 mb-2">
-                    Bằng chứng đầu tư
-                    <span className="text-[10px] font-normal text-slate-400 ml-1">(INVESTMENT_PROOF — tùy chọn)</span>
+                  <p className="text-[12px] font-semibold text-slate-500 mb-0.5">
+                    Bằng chứng năng lực đầu tư
+                    <span className="text-[10px] font-normal text-slate-400 ml-1">— tùy chọn</span>
+                  </p>
+                  <p className="text-[11px] text-slate-400 mb-2">
+                    {isInstitutional ? "Báo cáo tài chính, danh mục deal đã thực hiện..." : "Sao kê ngân hàng, chứng nhận cổ đông, hợp đồng đầu tư..."}
                   </p>
                   <div
                     className={cn(
@@ -538,7 +603,7 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
                     onDrop={e => { e.preventDefault(); setDragOverProof(false); if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0], "PROOF"); }}
                     onClick={() => document.getElementById("kyc-proof-input")?.click()}
                   >
-                    <input id="kyc-proof-input" type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png"
+                    <input id="kyc-proof-input" type="file" className="hidden" accept=".pdf,.ppt,.pptx,.doc,.docx,.jpg,.jpeg,.png"
                       onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0], "PROOF"); e.target.value = ""; }} />
                     {proofFile ? (
                       <div className="text-center">
@@ -556,7 +621,7 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
                           <Upload className="w-5 h-5 text-slate-300" />
                         </div>
                         <p className="text-[12px] font-bold text-slate-500">Chứng nhận cổ đông / Deals</p>
-                        <p className="text-[10px] text-slate-400 mt-1">PDF, JPG, PNG (Max {MAX_MB}MB)</p>
+                        <p className="text-[10px] text-slate-400 mt-1">PDF, DOC, PPT, JPG, PNG (Max {MAX_MB}MB)</p>
                       </div>
                     )}
                   </div>

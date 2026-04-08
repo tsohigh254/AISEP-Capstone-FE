@@ -54,6 +54,7 @@ export interface IPendingInvestorDto {
     firmName: string;
     title: string;
     location: string;
+    profilePhotoURL?: string | null;
     profileStatus: string;
     updatedAt: string;
     investorId?: number;

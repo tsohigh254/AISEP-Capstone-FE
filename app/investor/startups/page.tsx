@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Search,
@@ -69,6 +70,10 @@ function getAvatarColor(name: string): string {
     hash = name.charCodeAt(i) + ((hash << 5) - hash);
   }
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function hasImageSource(value: string) {
+  return /^https?:\/\//i.test(value) || value.startsWith("/");
 }
 
 const labelCls = "block text-[12px] font-semibold text-slate-500 mb-2";
@@ -436,11 +441,23 @@ export default function StartupDiscoveryPage() {
                 <div className="flex items-start gap-4 mb-4">
                   <div
                     className={cn(
-                      "w-14 h-14 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[20px] font-bold shrink-0 shadow-sm",
+                      "relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br text-white shadow-sm",
                       avatarGradient,
                     )}
                   >
-                    {startup.logo}
+                    {hasImageSource(startup.logo) ? (
+                      <Image
+                        src={startup.logo}
+                        alt={startup.name}
+                        fill
+                        sizes="56px"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-[20px] font-bold">
+                        {startup.logo}
+                      </div>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">

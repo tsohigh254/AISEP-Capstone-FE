@@ -2,6 +2,7 @@
 
 import { toast } from "sonner";
 import React, { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
@@ -17,6 +18,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { buildInvestorSearchPresentation, isInvestorKycVerified } from "@/lib/investor-profile-presenter";
+import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AcceptConnection, RejectConnection } from "@/services/connection/connection.api";
@@ -61,7 +64,11 @@ const STATUS_LABEL: Record<string, string> = {
 
 function InvestorAvatar({ name, url, size = "size-10" }: { name: string; url?: string; size?: string }) {
   if (url) {
-    return <img src={url} alt={name} className={cn(size, "rounded-full object-cover border border-slate-100 shadow-sm")} />;
+    return (
+      <div className={cn(size, "relative overflow-hidden rounded-full border border-slate-100 shadow-sm")}>
+        <Image src={url} alt={name} fill sizes="84px" className="object-cover" />
+      </div>
+    );
   }
   const initials = name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
   return (
@@ -258,11 +265,12 @@ export default function InvestorsPage() {
   };
 
   const handleOpenRequest = (investor: IInvestorSearchItem) => {
+    const presentation = buildInvestorSearchPresentation(investor);
     setSelectedInvestor({
       investorId: investor.investorID,
-      name: investor.fullName,
+      name: presentation.primaryName,
       logo: investor.profilePhotoURL ?? "",
-      type: investor.firmName || investor.investorType || "",
+      type: presentation.heroIdentityLine || presentation.categoryLabel || investor.investorType || "",
     });
     setIsRequestModalOpen(true);
   };
@@ -318,29 +326,31 @@ export default function InvestorsPage() {
       // ── Khám phá ────────────────────────────────────────────────────────
       case "Khám phá":
         return (
-          <div className="space-y-8 animate-in fade-in duration-500">
+          <div className="space-y-6 animate-in fade-in duration-500">
             {/* Search & Filters */}
-            <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col lg:flex-row items-center gap-4">
-              <div className="relative w-full lg:w-[400px]">
+            <div className="rounded-2xl border border-slate-200/80 bg-white px-6 py-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
+              <div className="relative w-full xl:flex-1">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-5" />
                 <Input
                   value={keyword}
                   onChange={e => setKeyword(e.target.value)}
                   placeholder="Tìm theo tên quỹ hoặc nhà đầu tư..."
-                  className="w-full pl-12 h-12 bg-[#f8fafc]/50 dark:bg-slate-800/50 border-none rounded-xl text-sm font-bold focus:ring-1 focus:ring-yellow-400/30 transition-all placeholder:text-slate-400"
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-12 text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:border-[#eec54e] focus:ring-2 focus:ring-[#eec54e]/20"
                 />
               </div>
-              <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+              <div className="flex flex-wrap items-center gap-3 xl:w-auto">
                 {["Giai đoạn", "Ngành nghề ưu tiên", "Quy mô đầu tư"].map((label) => (
-                  <div key={label} className="h-12 px-5 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl flex items-center gap-3 cursor-pointer group hover:bg-slate-50 transition-all">
-                    <span className="text-[12px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">{label}</span>
-                    <ChevronDown className="size-4 text-slate-400 group-hover:text-slate-900" />
+                  <div key={label} className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-white px-5 transition-colors hover:bg-slate-50">
+                    <span className="whitespace-nowrap text-[13px] font-medium text-slate-700">{label}</span>
+                    <ChevronDown className="size-4 text-slate-400" />
                   </div>
                 ))}
-                <Button variant="outline" className="h-12 px-5 border-none bg-slate-100/50 hover:bg-slate-100 text-slate-700 dark:text-white rounded-xl text-[12px] font-bold gap-2">
+                <Button variant="outline" className="h-12 rounded-xl border border-slate-200 bg-slate-50 px-5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100">
                   <SlidersHorizontal className="size-4" />
                   <span>Lọc nâng cao</span>
                 </Button>
+              </div>
               </div>
             </div>
 
@@ -374,68 +384,75 @@ export default function InvestorsPage() {
             )}
 
             {!isLoadingInvestors && !investorsError && investors.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {investors.map((investor) => {
                   const conn = connectionMap[investor.investorID];
+                  const presentation = buildInvestorSearchPresentation(investor);
+                  const isKycVerified = isInvestorKycVerified(investor);
                   return (
-                      <div key={investor.investorID} className="group bg-white dark:bg-slate-900 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-2xl hover:shadow-yellow-500/5 hover:-translate-y-1.5 transition-all duration-500 overflow-hidden flex flex-col h-full">
-                        <div className="p-8 text-center flex flex-col flex-1">
-<div className="relative mx-auto size-[84px] mb-5">
-                            <div className="absolute inset-0 bg-yellow-400/10 rounded-full blur-2xl group-hover:blur-3xl transition-all opacity-0 group-hover:opacity-100" />
+                      <div key={investor.investorID} className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+                        <div className="flex flex-1 flex-col p-6 text-center">
+<div className="relative mx-auto mb-5 size-[84px]">
+                            <div className="absolute inset-0 rounded-full bg-[#eec54e]/10 opacity-0 blur-2xl transition-all group-hover:opacity-100" />
                             <InvestorAvatar
-                              name={investor.fullName}
+                              name={presentation.primaryName}
                               url={investor.profilePhotoURL}
-                              size="size-[84px] rounded-full border-4 border-slate-50 dark:border-slate-800 shadow-md transition-transform duration-500 group-hover:scale-105 relative"
+                              size="relative size-[84px] rounded-full border border-slate-200 bg-white shadow-[0_4px_14px_rgba(15,23,42,0.08)] transition-transform duration-300 group-hover:scale-[1.03]"
                             />
                           </div>
                             <div className="mb-5">
-                              <h3 className="text-[18px] font-bold text-slate-900 dark:text-white group-hover:text-[#eec54e] transition-colors leading-tight">{investor.fullName}</h3>
-                            <p className="text-[12px] text-slate-400 font-semibold mt-1.5">{investor.title || investor.firmName}</p>
+                              <div className="flex items-center justify-center gap-2">
+                                <h3 className="text-[20px] font-bold leading-tight text-slate-900 transition-colors group-hover:text-[#0f172a]">{presentation.primaryName}</h3>
+                                {isKycVerified && <VerifiedRoleMark className="h-4 w-4 shrink-0" />}
+                              </div>
+                            <p className="mt-1.5 min-h-[36px] line-clamp-2 text-[12px] font-medium text-slate-400">
+                              {presentation.heroIdentityLine || presentation.categoryLabel || investor.title || investor.firmName || "Nhà đầu tư"}
+                            </p>
                           </div>
 
-<div className="grid grid-cols-3 gap-2 py-3 border-y border-slate-50 dark:border-slate-800 mb-4">
+<div className="mb-4 grid grid-cols-3 gap-2 rounded-xl border border-slate-100 bg-slate-50 px-2 py-3">
                             <div className="text-center">
                               <p className={cn(
-                                "text-[14px] leading-none",
-                                investor.portfolioCount != null ? "font-bold text-slate-900 dark:text-white" : "font-medium text-slate-300 dark:text-slate-600"
+                                "text-[15px] leading-none",
+                                investor.portfolioCount != null ? "font-semibold text-slate-900" : "font-medium text-slate-300"
                               )}>
                                 {investor.portfolioCount != null ? `${investor.portfolioCount}+` : "—"}
                               </p>
-                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Portfolio</p>
+                              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Portfolio</p>
                             </div>
-                            <div className="text-center border-x border-slate-50 dark:border-slate-800">
+                            <div className="border-x border-slate-200 text-center">
                               <p className={cn(
-                                "text-[14px] leading-none truncate",
-                                (investor.ticketSizeMin != null || investor.ticketSizeMax != null) ? "font-bold text-slate-900 dark:text-white" : "font-medium text-slate-300 dark:text-slate-600"
+                                "truncate text-[15px] leading-none",
+                                (investor.ticketSizeMin != null || investor.ticketSizeMax != null) ? "font-semibold text-slate-900" : "font-medium text-slate-300"
                               )}>
                                 {formatTicketSize(investor.ticketSizeMin, investor.ticketSizeMax)}
                               </p>
-                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Ticket Size</p>
+                              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Ticket Size</p>
                             </div>
                             <div className="text-center">
                               <p className={cn(
-                                "text-[14px] leading-none",
-                                investor.matchScore != null ? "font-bold text-green-500" : "font-medium text-slate-300 dark:text-slate-600"
+                                "text-[15px] leading-none",
+                                investor.matchScore != null ? "font-semibold text-emerald-600" : "font-medium text-slate-300"
                               )}>
                                 {investor.matchScore != null ? `${investor.matchScore}%` : "—"}
                               </p>
-                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Match</p>
+                              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Match</p>
                           </div>
                         </div>
 
                           {(investor.preferredIndustries ?? []).length > 0 && (
-                            <div className="flex flex-wrap justify-center gap-1.5 mb-4">
+                            <div className="mb-4 flex min-h-[58px] flex-wrap justify-center gap-1.5">
                               {(investor.preferredIndustries ?? []).slice(0, 3).map(tag => (
-                            <span key={tag} className="px-3 py-1.5 bg-[#f8fafc] dark:bg-slate-800 text-[10px] font-black text-slate-600 dark:text-slate-400 rounded-full border border-slate-50 dark:border-slate-700 tracking-tight">
+                            <span key={tag} className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
                               {tag}
                             </span>
                           ))}
                             </div>
                           )}
 
-                          <div className="flex gap-3 pt-2 mt-auto">
+                          <div className="mt-auto flex gap-3 pt-2">
                           <Link href={`/startup/investors/${investor.investorID}`} className="flex-1">
-                            <Button variant="outline" className="w-full h-[42px] rounded-xl border-slate-200 dark:border-slate-800 text-slate-700 dark:text-white font-bold text-[13px] hover:bg-slate-50 border transition-colors">
+                            <Button variant="outline" className="h-[44px] w-full rounded-xl border border-slate-200 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50">
                               Xem hồ sơ
                             </Button>
                           </Link>
@@ -443,20 +460,20 @@ export default function InvestorsPage() {
                             <Button
                               onClick={() => handleOpenRequest(investor)}
                               disabled={!investor.acceptingConnections}
-                              className="flex-1 h-[42px] rounded-xl bg-[#eec54e] hover:bg-[#e6b72e] disabled:bg-[#fbf1ce] disabled:text-[#e2b730] disabled:opacity-100 disabled:border-transparent text-slate-900 font-bold text-[13px] shadow-sm whitespace-nowrap transition-colors"
+                              className="h-[44px] flex-1 whitespace-nowrap rounded-xl bg-[#f7e7a8] text-[13px] font-semibold text-[#d8a905] shadow-sm transition-colors hover:bg-[#f3de8b] disabled:border-transparent disabled:bg-[#fbf1ce] disabled:text-[#e2b730] disabled:opacity-100"
                             >
                               {investor.acceptingConnections ? "Gửi lời mời" : "Đã đóng"}
                             </Button>
                           ) : conn.connectionStatus === "Accepted" ? (
                             <Button
                               onClick={() => router.push(`/startup/messaging?connectionId=${conn.connectionID}`)}
-                              className="flex-1 h-[42px] rounded-xl bg-[#00c853] hover:bg-[#00b249] text-white font-bold text-[13px] shadow-sm gap-1.5 transition-colors"
+                              className="h-[44px] flex-1 gap-1.5 rounded-xl bg-emerald-600 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
                             >
                               <MessageCircle className="size-4" />
                               Nhắn tin
                             </Button>
                           ) : (
-                            <Button variant="outline" disabled className="flex-1 h-[42px] rounded-[14px] font-bold text-[13px] opacity-100 bg-slate-50 border-slate-200 text-slate-500 transition-colors">
+                            <Button variant="outline" disabled className="h-[44px] flex-1 rounded-xl border border-slate-200 bg-slate-50 text-[13px] font-medium text-slate-500 opacity-100 transition-colors">
                               {STATUS_LABEL[conn.connectionStatus] ?? conn.connectionStatus}
                             </Button>
                           )}
@@ -470,8 +487,8 @@ export default function InvestorsPage() {
 
             {/* Pagination */}
             {!isLoadingInvestors && !investorsError && totalPages > 0 && (
-              <div className="pt-8 flex flex-col items-center gap-6">
-                <p className="text-[13px] font-bold text-slate-400">
+              <div className="flex flex-col items-center gap-5 pt-6">
+                <p className="text-[12px] font-medium text-slate-400">
                   Hiển thị {(currentPage - 1) * 12 + 1}–{Math.min(currentPage * 12, totalItems)} trong tổng số {totalItems} nhà đầu tư
                 </p>
                 <Pagination page={currentPage} total={totalPages} onChange={handlePageChange} />
@@ -665,39 +682,38 @@ export default function InvestorsPage() {
 
   return (
     <StartupShell>
-      <div className="max-w-[1440px] mx-auto space-y-8 pb-12 animate-in fade-in duration-500">
+      <div className="mx-auto max-w-[1000px] space-y-6 pb-12 animate-in fade-in duration-500">
 
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">
-            <h1 className="text-[32px] font-black text-slate-900 tracking-tighter leading-none">Kết nối Nhà đầu tư & Quỹ đầu tư</h1>
-            <p className="text-slate-500 text-[15px] font-medium leading-relaxed max-w-[600px]">
+            <h1 className="text-[20px] font-bold leading-tight text-slate-900">Kết nối Nhà đầu tư & Quỹ đầu tư</h1>
+            <p className="max-w-[560px] text-[13px] leading-relaxed text-slate-500">
               Khám phá và kết nối với các đối tác tài chính chiến lược tiềm năng để đưa startup của bạn lên tầm cao mới.
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="p-1 px-3 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 rounded-full flex items-center gap-2">
+            <div className="flex items-center gap-2 rounded-full border border-blue-200/80 bg-blue-50 px-3 py-1.5">
               <Sparkles className="size-3 text-blue-500" />
-              <span className="text-[11px] font-black text-blue-600 uppercase tracking-widest">Gợi ý AI</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-600">Gợi ý AI</span>
             </div>
           </div>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-slate-200 dark:border-slate-800 gap-10">
+        <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
           {["Khám phá", "Yêu cầu đã gửi", "Đã kết nối"].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "relative pb-4 text-[15px] font-bold tracking-tight transition-all",
-                activeTab === tab ? "text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-600"
+                "relative -mb-px whitespace-nowrap border-b-2 px-3.5 py-2 text-[13px] font-medium transition-colors",
+                activeTab === tab
+                  ? "border-[#0f172a] text-[#0f172a]"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
               )}
             >
               {tab}
-              {activeTab === tab && (
-                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#eec54e] rounded-full animate-in slide-in-from-left-2 duration-300" />
-              )}
             </button>
           ))}
         </div>
@@ -706,7 +722,7 @@ export default function InvestorsPage() {
         {renderTabContent()}
 
         {/* Footer */}
-        <div className="text-center pt-10 border-t border-slate-100 dark:border-slate-800">
+        <div className="border-t border-slate-100 pt-8 text-center">
           <p className="text-[11px] font-black text-slate-300 uppercase tracking-widest">© 2026 AISEP STARTUP WORKSPACE • HỆ THỐNG KẾT NỐI NHÀ ĐẦU TƯ & QUỸ ĐẦU TƯ</p>
           <div className="flex justify-center gap-6 mt-4">
             <Link href="#" className="text-[11px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest">Điều khoản</Link>

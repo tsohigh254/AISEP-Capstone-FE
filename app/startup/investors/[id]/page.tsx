@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, use } from "react";
+import Image from "next/image";
 import { useRouter, notFound } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
-    ChevronRight,
     Globe,
     Linkedin,
     MapPin,
@@ -19,24 +19,26 @@ import {
     Clock,
     Loader2,
     AlertCircle,
-    CheckCircle2,
     Handshake,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getInvestorPreferredStageLabel } from "@/lib/investor-preferred-stages";
+import { buildInvestorProfilePresentation, isInvestorKycVerified } from "@/lib/investor-profile-presenter";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { InvestorConnectionModal } from "@/components/startup/investor-connection-modal";
 import { GetConnectionByInvestorId } from "@/services/connection/connection.api";
-// import { GetInvestorById } from "@/services/startup/startup.api";
+import { GetInvestorById } from "@/services/startup/startup.api";
 import { CreateConversation } from "@/services/messaging/messaging.api";
+import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function deriveBadges(inv: IInvestorProfile): { label: string; color: "yellow" | "green" | "blue" }[] {
+function deriveBadges(inv: IInvestorProfile, isInstitutional?: boolean): { label: string; color: "yellow" | "green" | "blue" }[] {
     const badges: { label: string; color: "yellow" | "green" | "blue" }[] = [];
-    if (inv.investorType === "Institutional") badges.push({ label: "QUỸ CHÍNH QUY", color: "yellow" });
+    if (isInstitutional) badges.push({ label: "QUỸ CHÍNH QUY", color: "yellow" });
     else badges.push({ label: "ANGEL INVESTOR", color: "yellow" });
     if (inv.acceptingConnections) badges.push({ label: "ĐANG MỞ KẾT NỐI", color: "green" });
     if (inv.country) badges.push({ label: inv.country.toUpperCase(), color: "blue" });
@@ -44,7 +46,13 @@ function deriveBadges(inv: IInvestorProfile): { label: string; color: "yellow" |
 }
 
 function AvatarOrLogo({ name, url, className }: { name: string; url?: string; className?: string }) {
-    if (url) return <img src={url} alt={name} className={cn("object-cover", className)} />;
+    if (url) {
+        return (
+            <div className={cn("relative overflow-hidden", className)}>
+                <Image src={url} alt={name} fill sizes="128px" className="object-cover" />
+            </div>
+        );
+    }
     const initials = name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
     return (
         <div className={cn("bg-slate-100 flex items-center justify-center font-black text-slate-500 text-2xl", className)}>
@@ -76,14 +84,25 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
         const loadInvestor = async () => {
             setInvestorLoading(true);
             try {
-                // const res = await GetInvestorById(investorId) as any as IBackendRes<IInvestorProfile>;
-                const res = { success: false, data: null }; // Mock until implemented
-                if (res.success && res.data) {
-                    setInvestor(res.data as any);
+                const res = await GetInvestorById(investorId) as unknown as IBackendRes<IInvestorProfile>;
+                if (res.isSuccess && res.data) {
+                    setInvestor(res.data);
                 } else {
                     setIsNotFound(true);
                 }
-            } catch {
+            } catch (error) {
+                const status =
+                    typeof error === "object" &&
+                    error !== null &&
+                    "response" in error &&
+                    typeof (error as { response?: { status?: number } }).response?.status === "number"
+                        ? (error as { response?: { status?: number } }).response?.status
+                        : undefined;
+
+                if (status === 404) {
+                    setIsNotFound(true);
+                    return;
+                }
                 setInvestorError("Không thể tải thông tin nhà đầu tư.");
             } finally {
                 setInvestorLoading(false);
@@ -122,8 +141,8 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
         if (!connection) return;
         setChatLoading(true);
         try {
-            const res = await CreateConversation({ connectionId: connection.connectionID }) as any as IBackendRes<IConversation>;
-            if (res.success && res.data) {
+            const res = await CreateConversation({ connectionId: connection.connectionID });
+            if (res.isSuccess && res.data) {
                 router.push(`/startup/messaging?conversationId=${res.data.conversationId}`);
             } else {
                 router.push("/startup/messaging");
@@ -165,7 +184,9 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
         );
     }
 
-    const badges = deriveBadges(investor);
+    const presentation = buildInvestorProfilePresentation(investor);
+    const isKycVerified = isInvestorKycVerified(investor);
+    const badges = deriveBadges(investor, presentation.isInstitutional);
     const badgeColors = {
         yellow: "bg-yellow-50/50 border-yellow-200/50 text-yellow-600",
         green:  "bg-green-50/50 border-green-200/50 text-green-600",
@@ -182,13 +203,16 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                     <div className="flex flex-col lg:flex-row items-center justify-between gap-10">
                         <div className="flex flex-col lg:flex-row items-center gap-8">
                             <div className="size-32 rounded-[32px] bg-slate-50 dark:bg-slate-800 flex items-center justify-center p-1 border-2 border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/20 overflow-hidden">
-                                <AvatarOrLogo name={investor.fullName} url={investor.profilePhotoURL} className="size-full rounded-[24px]" />
+                                <AvatarOrLogo name={presentation.primaryName} url={investor.profilePhotoURL} className="size-full rounded-[24px]" />
                             </div>
                             <div className="text-center lg:text-left space-y-4">
                                 <div>
-                                    <h1 className="text-[32px] font-black text-slate-900 dark:text-white tracking-tighter leading-none">{investor.fullName}</h1>
-                                    {investor.firmName && <p className="text-[15px] text-slate-400 font-semibold mt-1">{investor.firmName}</p>}
-                                    {investor.title && <p className="text-[17px] text-slate-500 font-medium mt-1">{investor.title}</p>}
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <h1 className="text-[32px] font-black text-slate-900 dark:text-white tracking-tighter leading-none">{presentation.primaryName}</h1>
+                                        {isKycVerified && <VerifiedRoleMark className="h-5 w-5" />}
+                                    </div>
+                                    {presentation.heroIdentityLine && <p className="text-[15px] text-slate-400 font-semibold mt-1">{presentation.heroIdentityLine}</p>}
+                                    {!presentation.heroIdentityLine && investor.title && <p className="text-[17px] text-slate-500 font-medium mt-1">{investor.title}</p>}
                                 </div>
                                 <div className="flex flex-wrap justify-center lg:justify-start gap-2 pt-2">
                                     {badges.map((badge, i) => (
@@ -264,7 +288,7 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                                         <div className="size-10 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 flex items-center justify-center">
                                             <Info className="size-5 text-[#eec54e]" />
                                         </div>
-                                        <h2 className="text-[22px] font-black text-slate-900 dark:text-white tracking-tight">Về {investor.fullName}</h2>
+                                        <h2 className="text-[22px] font-black text-slate-900 dark:text-white tracking-tight">Về {presentation.primaryName}</h2>
                                     </div>
                                     <p className="text-[16px] text-slate-600 dark:text-slate-300 font-medium leading-[1.8]">
                                         {investor.bio || "Chưa có thông tin giới thiệu."}
@@ -323,7 +347,7 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                         {activeTab === "Tiêu chí đầu tư" && (
                             <div className="bg-white dark:bg-slate-900 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm p-10 space-y-10">
                                 {[
-                                    { label: "Giai đoạn ưu tiên", items: investor.preferredStages },
+                                    { label: "Giai đoạn ưu tiên", items: (investor.preferredStages ?? []).map(getInvestorPreferredStageLabel) },
                                     { label: "Lĩnh vực ưu tiên", items: investor.preferredIndustries },
                                     { label: "Địa lý", items: investor.preferredGeographies },
                                     { label: "Phạm vi thị trường", items: investor.preferredMarketScopes },
@@ -409,8 +433,8 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                             <div className="space-y-6">
                                 <div className="p-6 bg-[#f8fafc] dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
                                     <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Loại nhà đầu tư</p>
-                                    <p className="text-[18px] font-black text-slate-900 dark:text-white">{investor.investorType}</p>
-                                    {investor.organization && <p className="text-[12px] text-slate-400 font-medium mt-1">{investor.organization}</p>}
+                                    <p className="text-[18px] font-black text-slate-900 dark:text-white">{presentation.categoryLabel || investor.investorType}</p>
+                                    {presentation.organizationName && <p className="text-[12px] text-slate-400 font-medium mt-1">{presentation.organizationName}</p>}
                                 </div>
                                 {(investor.preferredStages?.length ?? 0) > 0 && (
                                     <div className="space-y-4">
@@ -418,7 +442,7 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                                         <div className="flex flex-wrap gap-2">
                                             {(investor.preferredStages ?? []).map(stage => (
                                                 <span key={stage} className="px-5 py-2.5 bg-white dark:bg-slate-800 border-2 border-slate-50 dark:border-slate-800 rounded-xl text-[12px] font-black text-slate-600 dark:text-slate-300 tracking-tight">
-                                                    {stage}
+                                                    {getInvestorPreferredStageLabel(stage)}
                                                 </span>
                                             ))}
                                         </div>
@@ -483,7 +507,7 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                 {/* Footer */}
                 <div className="text-center pt-20">
                     <div className="flex items-center justify-center gap-2 mb-6">
-                        <img src="/AISEP_Logo.png" alt="AISEP" className="size-10 rounded-full grayscale opacity-50" />
+                        <Image src="/AISEP_Logo.png" alt="AISEP" width={40} height={40} className="size-10 rounded-full grayscale opacity-50" />
                         <span className="text-[18px] font-black text-slate-300 uppercase tracking-widest">AISEP</span>
                     </div>
                     <p className="text-[11px] font-black text-slate-300 uppercase tracking-[0.3em]">© 2026 AISEP STARTUP WORKSPACE • HỆ THỐNG KẾT NỐI NHÀ ĐẦU TƯ & QUỸ ĐẦU TƯ</p>
@@ -499,9 +523,9 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                     isOpen={isRequestModalOpen}
                     onClose={() => setIsRequestModalOpen(false)}
                     investor={investor ? {
-                        name: investor.fullName,
+                        name: presentation.primaryName,
                         logo: investor.profilePhotoURL ?? "",
-                        type: investor.firmName || investor.investorType || "",
+                        type: presentation.heroIdentityLine || presentation.categoryLabel || investor.firmName || investor.investorType || "",
                         investorId: investorId,
                     } : null}
                     onSuccess={handleConnectionSuccess}

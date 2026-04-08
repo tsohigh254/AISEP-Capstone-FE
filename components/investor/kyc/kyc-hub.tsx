@@ -127,7 +127,17 @@ export function KYCHub({ status, onStart, onContinue, onResubmit, onViewStatus, 
             </div>
           </div>
 
-          <p className="text-[13px] text-slate-400 mb-5 leading-relaxed">{explanation}</p>
+          <p className="text-[13px] text-slate-400 mb-5 leading-relaxed">
+            {explanation === "KYC submission is under review."
+              ? "Hồ sơ của bạn đang được xem xét. Chúng tôi sẽ thông báo kết quả sớm nhất."
+              : explanation === "KYC submission requires more information."
+              ? "Ban thẩm định yêu cầu bổ sung thêm thông tin. Vui lòng kiểm tra ghi chú và gửi lại."
+              : explanation === "KYC submission has been verified."
+              ? "Hồ sơ của bạn đã được xác thực thành công."
+              : explanation === "KYC submission has been rejected."
+              ? "Hồ sơ của bạn không đạt yêu cầu. Vui lòng xem ghi chú và liên hệ hỗ trợ nếu cần."
+              : explanation}
+          </p>
 
           {/* Progress */}
           <div className="space-y-1.5 mb-5">
@@ -234,12 +244,16 @@ export function KYCHub({ status, onStart, onContinue, onResubmit, onViewStatus, 
             {[
               { label: "Họ và tên", value: submissionSummary!.fullName },
               { label: "Email liên hệ", value: submissionSummary!.contactEmail },
-              { label: "Loại nhà đầu tư", value: submissionSummary!.investorCategory },
-              { label: "Vị trí hiện tại", value: submissionSummary!.currentRoleTitle },
-              { label: "Tổ chức / Quỹ", value: submissionSummary!.organizationName },
-              { label: "Địa điểm", value: submissionSummary!.location },
-              { label: "Mã số thuế", value: submissionSummary!.taxIdOrBusinessCode },
-              { label: "Vai trò nộp hồ sơ", value: submissionSummary!.submitterRole },
+              { label: "Loại nhà đầu tư", value: submissionSummary!.investorCategory === "INDIVIDUAL_ANGEL" ? "Angel Investor (Cá nhân)" : submissionSummary!.investorCategory === "INSTITUTIONAL" ? "Tổ chức / Quỹ đầu tư" : submissionSummary!.investorCategory },
+              { label: submissionSummary!.investorCategory === "INSTITUTIONAL" ? "Vị trí hiện tại" : "Nghề nghiệp / Vị trí công việc", value: submissionSummary!.currentRoleTitle },
+              ...(submissionSummary!.investorCategory === "INSTITUTIONAL" ? [
+                { label: "Tổ chức / Quỹ", value: submissionSummary!.organizationName },
+                { label: "Mã số thuế / Mã số doanh nghiệp", value: submissionSummary!.taxIdOrBusinessCode },
+                { label: "Vai trò nộp hồ sơ", value: submissionSummary!.submitterRole },
+              ] : [
+                { label: "Căn cước công dân / Mã số thuế cá nhân", value: submissionSummary!.taxIdOrBusinessCode },
+              ]),
+              { label: "Tỉnh / Thành phố hoạt động", value: submissionSummary!.location },
             ].map((row, i) => row.value ? (
               <div key={i} className="flex items-center justify-between gap-4 border-b border-slate-50 py-3 last:border-0">
                 <span className="shrink-0 text-[12px] font-medium text-slate-400 uppercase tracking-tight">{row.label}</span>
@@ -248,7 +262,9 @@ export function KYCHub({ status, onStart, onContinue, onResubmit, onViewStatus, 
             ) : null)}
             {submissionSummary!.linkedInURL && (
               <div className="flex items-center justify-between gap-4 border-b border-slate-50 py-3">
-                <span className="shrink-0 text-[12px] font-medium text-slate-400 uppercase tracking-tight">LinkedIn</span>
+                <span className="shrink-0 text-[12px] font-medium text-slate-400 uppercase tracking-tight">
+                  {submissionSummary!.investorCategory === "INSTITUTIONAL" ? "LinkedIn tổ chức" : "LinkedIn cá nhân"}
+                </span>
                 <a href={submissionSummary!.linkedInURL} target="_blank" rel="noreferrer"
                   className="max-w-[200px] truncate text-right text-[12px] font-semibold text-blue-600 hover:underline">
                   {submissionSummary!.linkedInURL}
@@ -257,7 +273,9 @@ export function KYCHub({ status, onStart, onContinue, onResubmit, onViewStatus, 
             )}
             {submissionSummary!.website && (
               <div className="flex items-center justify-between gap-4 border-b border-slate-50 py-3">
-                <span className="shrink-0 text-[12px] font-medium text-slate-400 uppercase tracking-tight">Website</span>
+                <span className="shrink-0 text-[12px] font-medium text-slate-400 uppercase tracking-tight">
+                  {submissionSummary!.investorCategory === "INSTITUTIONAL" ? "Website tổ chức" : "Website / Portfolio cá nhân"}
+                </span>
                 <a href={submissionSummary!.website} target="_blank" rel="noreferrer"
                   className="max-w-[200px] truncate text-right text-[12px] font-semibold text-blue-600 hover:underline">
                   {submissionSummary!.website}
@@ -279,7 +297,10 @@ export function KYCHub({ status, onStart, onContinue, onResubmit, onViewStatus, 
                       </div>
                       <div className="min-w-0">
                         <p className="text-[12px] font-bold text-slate-700 truncate">{file.fileName || "Tài liệu"}</p>
-                        <p className="text-[10px] text-slate-400">{file.kind} · {new Date(file.uploadedAt).toLocaleDateString("vi-VN")}</p>
+                        <p className="text-[10px] text-slate-400">
+                          {file.kind === "ID_PROOF" ? "Giấy tờ định danh" : file.kind === "INVESTMENT_PROOF" ? "Bằng chứng đầu tư" : file.kind}
+                          {" · "}{new Date(file.uploadedAt).toLocaleDateString("vi-VN")}
+                        </p>
                       </div>
                     </div>
                     {file.url && (
@@ -310,11 +331,13 @@ export function KYCHub({ status, onStart, onContinue, onResubmit, onViewStatus, 
             {[
               { label: "Họ và tên", value: submissionSummary.fullName },
               { label: "Email liên hệ", value: submissionSummary.contactEmail },
-              { label: "Loại nhà đầu tư", value: submissionSummary.investorCategory },
-              { label: "Vị trí hiện tại", value: submissionSummary.currentRoleTitle },
-              { label: "Tên tổ chức", value: submissionSummary.organizationName },
-              { label: "LinkedIn", value: submissionSummary.linkedInURL },
-              { label: "Website", value: submissionSummary.website },
+              { label: "Loại nhà đầu tư", value: submissionSummary.investorCategory === "INDIVIDUAL_ANGEL" ? "Angel Investor (Cá nhân)" : submissionSummary.investorCategory === "INSTITUTIONAL" ? "Tổ chức / Quỹ đầu tư" : submissionSummary.investorCategory },
+              { label: submissionSummary.investorCategory === "INSTITUTIONAL" ? "Vị trí hiện tại" : "Nghề nghiệp / Vị trí công việc", value: submissionSummary.currentRoleTitle },
+              ...(submissionSummary.investorCategory === "INSTITUTIONAL" ? [
+                { label: "Tên tổ chức", value: submissionSummary.organizationName },
+              ] : []),
+              { label: submissionSummary.investorCategory === "INSTITUTIONAL" ? "LinkedIn tổ chức" : "LinkedIn cá nhân", value: submissionSummary.linkedInURL },
+              { label: submissionSummary.investorCategory === "INSTITUTIONAL" ? "Website tổ chức" : "Website / Portfolio cá nhân", value: submissionSummary.website },
             ].map((row, i) => row.value ? (
               <div key={i} className="flex items-start justify-between gap-4 py-2 border-b border-slate-50 last:border-0 md:[&:nth-last-child(-n+2)]:border-0">
                 <span className="text-[12px] text-slate-400 font-medium shrink-0">{row.label}</span>

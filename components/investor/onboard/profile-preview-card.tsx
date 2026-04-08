@@ -1,12 +1,14 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { 
   Building2, MapPin, Globe, ShieldCheck, 
   Layers, Briefcase, Zap, Star 
 } from "lucide-react";
 import { IInvestorOnboardData } from "@/types/investor-kyc";
+import { getInvestorPreferredStageLabel } from "@/lib/investor-preferred-stages";
 
 interface ProfilePreviewCardProps {
   data: Partial<IInvestorOnboardData>;
@@ -24,7 +26,7 @@ export function ProfilePreviewCard({ data }: ProfilePreviewCardProps) {
     preferredStages = [],
     investorCategory,
     avatar,
-  } = data as any;
+  } = data;
 
   const isInstitutional = investorCategory === "INSTITUTIONAL";
   const displayTitle = displayName || fullName || (isInstitutional ? "Tên Quỹ / Tổ chức" : "Họ và tên chuyên gia");
@@ -34,9 +36,9 @@ export function ProfilePreviewCard({ data }: ProfilePreviewCardProps) {
       
       {/* Header Info */}
       <div className="flex items-start gap-4">
-        <div className="w-14 h-14 rounded-xl bg-white/5 flex items-center justify-center shrink-0 shadow-lg shadow-black/20 border border-white/10 overflow-hidden">
+        <div className="relative w-14 h-14 rounded-xl bg-white/5 flex items-center justify-center shrink-0 shadow-lg shadow-black/20 border border-white/10 overflow-hidden">
           {avatar ? (
-            <img src={avatar} className="w-full h-full object-cover" alt="Avatar" />
+            <Image src={avatar} className="object-cover" alt="Avatar" fill sizes="56px" />
           ) : isInstitutional ? (
             <Building2 className="w-7 h-7 text-[#eec54e]" />
           ) : (
@@ -107,7 +109,7 @@ export function ProfilePreviewCard({ data }: ProfilePreviewCardProps) {
             {preferredStages.length > 0 ? (
               preferredStages.map((stg: string) => (
                 <span key={stg} className="px-2.5 py-1 bg-white/5 border border-white/10 rounded-lg text-[11px] font-semibold text-white/60 uppercase tracking-wide">
-                  {stg}
+                  {getInvestorPreferredStageLabel(stg)}
                 </span>
               ))
             ) : (

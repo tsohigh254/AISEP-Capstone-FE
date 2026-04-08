@@ -17,8 +17,9 @@ import {
   SubmitInvestorKYC, 
   SaveInvestorKYCDraft 
 } from "@/services/investor/investor-kyc";
-import { CreateInvestorProfile, UpdateInvestorPreferences } from "@/services/investor/investor.api";
+import { CreateInvestorProfile, UpdateInvestorPreferences, UploadInvestorPhoto } from "@/services/investor/investor.api";
 import { IInvestorKYCStatus, IInvestorOnboardData } from "@/types/investor-kyc";
+import { normalizeInvestorPreferredStages } from "@/lib/investor-preferred-stages";
 
 const TIMELINE_STEPS = [
   { n: 1, label: "Thông tin cơ bản" },
@@ -29,7 +30,6 @@ export default function InvestorOnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [formData, setFormData] = useState<IInvestorOnboardData>({
     preferredIndustries: [],
@@ -79,7 +79,36 @@ export default function InvestorOnboardingPage() {
   const validate = () => {
     const e: Record<string, string> = {};
     if (step === 3) {
-      if (!formData.displayName?.trim() && !formData.fullName?.trim()) e.displayName = "Vui lòng nhập tên hiển thị";
+      const isInstitutional = formData.investorCategory === "INSTITUTIONAL";
+
+      if (!formData.displayName?.trim())
+        e.displayName = "Vui lòng nhập tên hiển thị";
+
+      if (isInstitutional && !formData.fullName?.trim())
+        e.fullName = "Vui lòng nhập họ và tên người đại diện";
+
+      if (!formData.currentRoleTitle?.trim())
+        e.currentRoleTitle = "Vui lòng nhập chức vụ";
+
+      if (!formData.location?.trim())
+        e.location = "Vui lòng nhập địa điểm hoạt động";
+
+      if (!formData.shortThesisSummary?.trim())
+        e.shortThesisSummary = "Vui lòng nhập khẩu vị đầu tư";
+
+      if (!formData.preferredIndustries?.length)
+        e.preferredIndustries = "Vui lòng chọn ít nhất 1 lĩnh vực";
+
+      if (!formData.preferredStages?.length)
+        e.preferredStages = "Vui lòng chọn ít nhất 1 giai đoạn";
+
+      if (isInstitutional) {
+        if (!formData.website?.trim())
+          e.website = "Vui lòng nhập website";
+      } else {
+        if (!formData.linkedInURL?.trim())
+          e.linkedInURL = "Vui lòng nhập LinkedIn";
+      }
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -95,41 +124,21 @@ export default function InvestorOnboardingPage() {
       }
     } else {
       toast.error("Vui lòng hoàn thiện các thông tin bắt buộc");
+      // Scroll to top of inner scrollable container so user sees which fields are invalid
+      const scrollEl = document.querySelector("[data-onboard-scroll]");
+      if (scrollEl) scrollEl.scrollTop = 0;
     }
   };
 
   const handleBack = () => setStep(s => s - 1);
-
-  const handleSaveDraft = async () => {
-    setIsSaving(true);
-    try {
-      await SaveInvestorKYCDraft({
-        investorCategory: formData.investorCategory,
-        fullName: formData.fullName,
-        contactEmail: formData.contactEmail,
-        organizationName: formData.organizationName,
-        currentRoleTitle: formData.currentRoleTitle,
-        location: formData.location,
-        website: formData.website,
-        linkedInURL: formData.linkedInURL,
-        taxIdOrBusinessCode: formData.taxIdOrBusinessCode,
-        submitterRole: formData.submitterRole as any,
-      });
-      toast.success("Đã lưu bản nháp");
-    } catch {
-      toast.error("Lưu bản nháp thất bại");
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
       const isInstitutional = formData.investorCategory === "INSTITUTIONAL";
       const requestData: ICreateInvestor = {
-        fullName: formData.fullName || formData.displayName || "",
-        firmName: formData.organizationName,
+        fullName: isInstitutional ? (formData.fullName || "") : (formData.displayName || formData.fullName || ""),
+        firmName: isInstitutional ? formData.displayName : undefined,
         title: formData.currentRoleTitle,
         bio: formData.shortThesisSummary,
         investorType: formData.investorCategory,
@@ -145,10 +154,14 @@ export default function InvestorOnboardingPage() {
         return;
       }
 
+      if (formData.avatarFile) {
+        await UploadInvestorPhoto(formData.avatarFile).catch(() => {});
+      }
+
       if (formData.preferredIndustries?.length || formData.preferredStages?.length) {
         await UpdateInvestorPreferences({
           preferredIndustries: formData.preferredIndustries || [],
-          preferredStages: formData.preferredStages || [],
+          preferredStages: normalizeInvestorPreferredStages(formData.preferredStages),
         });
       }
 
@@ -164,13 +177,10 @@ export default function InvestorOnboardingPage() {
 
   if (isCompleted || step === 4) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 animate-in fade-in duration-700">
+      <div className="min-h-screen flex items-center justify-center p-6 animate-in fade-in duration-700" style={{ backgroundImage: "url('/backgroundforonboard.png')", backgroundSize: "cover", backgroundPosition: "center", backgroundAttachment: "fixed" }}>
         <div className="bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] border border-slate-200/80 p-10 max-w-[560px] w-full text-center space-y-8">
-          <div className="w-20 h-20 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto border border-emerald-100 shadow-sm relative">
+          <div className="w-20 h-20 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto border border-emerald-100 shadow-sm">
             <CheckCircle2 className="w-10 h-10 text-emerald-500" />
-            <div className="absolute -bottom-2 -right-2 bg-white rounded-full p-1 shadow-md border border-slate-100">
-               <div className="w-6 h-6 bg-[#0f172a] rounded-full flex items-center justify-center text-[10px] text-[#eec54e] font-bold italic">AI</div>
-            </div>
           </div>
           
           <div className="space-y-3">
@@ -232,8 +242,6 @@ export default function InvestorOnboardingPage() {
     <OnboardingLayout 
       step={step} 
       totalSteps={4} 
-      onSaveDraft={step > 1 ? handleSaveDraft : undefined}
-      isSaving={isSaving}
     >
       <div className="max-w-[720px] mx-auto w-full">
         {step > 1 && step < 4 && (

@@ -245,6 +245,7 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
         contactEmail: summary?.workEmail || summary?.contactEmail || rawData.contactEmail,
         website: summary?.publicLink || rawData.website,
         fileCertificateBusiness: primaryEvidence?.url || rawData.fileCertificateBusiness,
+        avatarUrl: rawData.logoURL || null,
       };
     }
 
@@ -274,11 +275,12 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
 
       return {
         ...rawData,
-        title: rawData.title || rawData.currentRoleTitle, // Dùng title từ BE
-        linkedin: rawData.linkedInURL || rawData.professionalProfileLink, // Dùng linkedInURL từ BE
+        title: rawData.title || rawData.currentRoleTitle,
+        linkedin: rawData.linkedInURL || rawData.professionalProfileLink,
         primaryExpertise: formatExpertise(expertiseArr[0]),
         secondaryExpertise: formatExpertise(expertiseArr.slice(1)),
         currentOrganization: rawData.currentOrganization || "—",
+        avatarUrl: rawData.profilePhotoURL || null,
       };
     }
 
@@ -287,10 +289,11 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
       const summary = rawData.submissionSummary;
       return {
         ...rawData,
+        profileFullName: rawData.fullName,
         fullName: summary?.fullName || rawData.fullName,
         contactEmail: summary?.contactEmail || rawData.email,
         title: summary?.currentRoleTitle || null,
-        currentOrganization: summary?.organizationName || null,
+        currentOrganization: summary?.organizationName || rawData.firmName || null,
         location: summary?.location || null,
         linkedin: summary?.linkedInURL || null,
         website: summary?.website || null,
@@ -298,6 +301,7 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
         taxIdOrBusinessCode: summary?.taxIdOrBusinessCode || null,
         investorEvidenceFiles: summary?.evidenceFiles ?? [],
         workflowStatus: rawData.workflowStatus,
+        avatarUrl: rawData.profilePhotoURL || null,
       };
     }
 
@@ -313,7 +317,11 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
       return realData.submissionSummary?.legalFullName || realData.submissionSummary?.projectName || realData.companyName || "N/A";
     }
     if (id.startsWith("ADVISOR-")) return realData.fullName || "N/A";
-    if (id.startsWith("INVESTOR-")) return realData.fullName || "N/A";
+    if (id.startsWith("INVESTOR-")) {
+      const isInstitutional = realData.submissionSummary?.investorCategory === "INSTITUTIONAL";
+      if (isInstitutional) return realData.currentOrganization || realData.profileFullName || realData.fullName || "N/A";
+      return realData.profileFullName || realData.fullName || "N/A";
+    }
     return "N/A";
   }, [realData, id]);
 
@@ -652,8 +660,12 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
 
   const isPreviewImage = useMemo(() => {
     if (!activePreviewDoc?.url) return false;
-    const source = `${activePreviewDoc.fileType || ""} ${activePreviewDoc.url}`.toLowerCase();
-    return /\.(png|jpe?g|webp|gif|bmp|svg)(\?|$)/.test(source) || source.includes("image/");
+    // Check MIME type first (reliable)
+    if (activePreviewDoc.fileType?.startsWith("image/")) return true;
+    // Check filename extension from name field
+    if (/\.(png|jpe?g|gif|bmp|svg|webp)$/i.test(activePreviewDoc.name || "")) return true;
+    // Check URL — may not have extension for Cloudinary raw URLs, so this is last resort
+    return /\.(png|jpe?g|gif|bmp|svg|webp)(\?|$)/i.test(activePreviewDoc.url);
   }, [activePreviewDoc]);
 
   if (loading) return (
@@ -717,8 +729,11 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
 
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
           <div className="flex items-start gap-4">
-            <div className={cn("w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[18px] font-bold shrink-0 shadow-sm", avatarGradient)}>
-              {entityName.charAt(0).toUpperCase()}
+            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center text-white text-[18px] font-bold shrink-0 shadow-sm overflow-hidden", !realData?.avatarUrl && `bg-gradient-to-br ${avatarGradient}`)}>
+              {realData?.avatarUrl
+                ? <img src={realData.avatarUrl} alt={entityName} className="w-full h-full object-cover" />
+                : entityName.charAt(0).toUpperCase()
+              }
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2.5 flex-wrap">
@@ -802,7 +817,15 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                         }
                         
                         else if (field.id === "submitterRole" || field.id === "repRole") {
-                          realValue = realData.submitterRole || realData.roleOfApplicant || "—";
+                          const roleMap: Record<string, string> = {
+                            PARTNER: "Đối tác (Partner)",
+                            INVESTMENT_MANAGER: "Quản lý đầu tư",
+                            ANALYST: "Chuyên viên phân tích",
+                            LEGAL_REPRESENTATIVE: "Đại diện pháp luật",
+                            AUTHORIZED_PERSON: "Người được ủy quyền",
+                          };
+                          const raw = realData.submitterRole || realData.roleOfApplicant || "";
+                          realValue = roleMap[raw] || raw || "—";
                         }
                         
                         else if (field.id === "officialLink" || field.id === "website" || field.id === "publicLink") {
@@ -1178,17 +1201,17 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                   {activePreviewDoc?.url ? (
                     isPreviewImage ? (
                       <img
-                      src={activePreviewDoc.url}
-                      alt={activePreviewDoc.name}
-                      className="w-full h-full object-contain bg-white"
-                    />
-                  ) : (
-                    <iframe
-                      title={activePreviewDoc.name}
-                      src={activePreviewDoc.url}
-                      className="w-full h-full bg-white"
-                    />
-                  )
+                        src={activePreviewDoc.url}
+                        alt={activePreviewDoc.name}
+                        className="w-full h-full object-contain bg-white"
+                      />
+                    ) : (
+                      <iframe
+                        title={activePreviewDoc.name}
+                        src={activePreviewDoc.url}
+                        className="w-full h-full bg-white"
+                      />
+                    )
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center group">
                     <FileText className="w-10 h-10 text-slate-200 mb-3 group-hover:scale-110 transition-transform" />
@@ -1396,7 +1419,7 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                    </div>
                    <div className="text-right">
                      <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Phân loại</p>
-                     <span className={cn("inline-block mt-1 px-3 py-1 rounded-lg text-[12px] font-bold uppercase tracking-tight", 
+                     <span className={cn("inline-block mt-1 px-3 py-1 rounded-lg text-[12px] font-bold tracking-tight",
                         result.suggestedDecision === "APPROVE" ? "bg-emerald-500" : "bg-amber-500"
                      )}>
                        {result.suggestedLabel}

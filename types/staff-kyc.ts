@@ -129,14 +129,13 @@ export const KYC_SUBTYPE_CONFIGS: Record<KYCSubtype, KYCConfig> = {
     icon: User,
     fields: [
       { id: "investorName", label: "Họ tên đầy đủ", value: "", type: "text", options: ["STRONG_LINK", "PLAUSIBLE_LINK", "CANNOT_VERIFY", "SUSPICIOUS"] },
-      { id: "title", label: "Chức danh", value: "", type: "text", options: ["CLEAR_AND_RELEVANT", "BASIC_BUT_WEAK", "UNCLEAR", "IRRELEVANT_OR_SUSPICIOUS"] },
-      { id: "org", label: "Tổ chức hiện tại", value: "", type: "text", options: ["ACTIVE_AND_MATCH", "PLAUSIBLE_LINK", "CANNOT_VERIFY", "NOT_RELATED"] },
-      { id: "location", label: "Địa điểm", value: "", type: "text", options: ["CLEAR_AND_RELEVANT", "BASIC_BUT_WEAK", "UNCLEAR", "IRRELEVANT_OR_SUSPICIOUS"] },
-      { id: "taxIdOrBusinessCode", label: "Mã số thuế / CMND", value: "", type: "text", options: ["VALID_MATCH", "FOUND_BUT_DIFFERS", "NOT_FOUND", "INVALID_FORMAT"] },
+      { id: "title", label: "Nghề nghiệp / Vị trí công việc", value: "", type: "text", options: ["CLEAR_AND_RELEVANT", "BASIC_BUT_WEAK", "UNCLEAR", "IRRELEVANT_OR_SUSPICIOUS"] },
+      { id: "location", label: "Tỉnh / Thành phố hoạt động", value: "", type: "text", options: ["CLEAR_AND_RELEVANT", "BASIC_BUT_WEAK", "UNCLEAR", "IRRELEVANT_OR_SUSPICIOUS"] },
+      { id: "taxIdOrBusinessCode", label: "Căn cước công dân / MST cá nhân", value: "", type: "text", options: ["VALID_MATCH", "FOUND_BUT_DIFFERS", "NOT_FOUND", "INVALID_FORMAT"] },
       { id: "email", label: "Email liên hệ", value: "", type: "text", options: ["ALIGNED", "PERSONAL_BUT_PLAUSIBLE", "UNRELATED", "INVALID"] },
-      { id: "linkedin", label: "LinkedIn profile", value: "", type: "link", options: ["ACTIVE_AND_MATCH", "ACTIVE_BUT_WEAK", "INACTIVE_OR_BROKEN", "NOT_RELATED"] },
-      { id: "website", label: "Website", value: "", type: "link", options: ["ACTIVE_AND_MATCH", "ACTIVE_BUT_WEAK", "INACTIVE_OR_BROKEN", "NOT_RELATED"] },
-      { id: "proofFile", label: "Chứng minh đầu tư", value: "", type: "file", options: ["CLEAR_AND_RELEVANT", "BASIC_BUT_WEAK", "UNCLEAR", "IRRELEVANT_OR_SUSPICIOUS"] },
+      { id: "linkedin", label: "LinkedIn cá nhân", value: "", type: "link", options: ["ACTIVE_AND_MATCH", "ACTIVE_BUT_WEAK", "INACTIVE_OR_BROKEN", "NOT_RELATED"] },
+      { id: "website", label: "Website / Portfolio cá nhân", value: "", type: "link", options: ["ACTIVE_AND_MATCH", "ACTIVE_BUT_WEAK", "INACTIVE_OR_BROKEN", "NOT_RELATED"] },
+      { id: "proofFile", label: "Bằng chứng năng lực đầu tư", value: "", type: "file", options: ["CLEAR_AND_RELEVANT", "BASIC_BUT_WEAK", "UNCLEAR", "IRRELEVANT_OR_SUSPICIOUS"] },
       { id: "declaration", label: "Cam kết trung thực", value: "Đã xác nhận", type: "text", options: ["ACCEPTED", "MISSING"] },
     ]
   },
@@ -162,7 +161,7 @@ export const APPROVAL_THRESHOLDS: Record<KYCSubtype, { verified: number; basic: 
   STARTUP_ENTITY:         { verified: 10, basic: 6 },
   STARTUP_NO_ENTITY:      { verified: 8,  basic: 5 },
   INSTITUTIONAL_INVESTOR: { verified: 10, basic: 6 },
-  INDIVIDUAL_INVESTOR:    { verified: 12, basic: 8 },
+  INDIVIDUAL_INVESTOR:    { verified: 10, basic: 6 },
   ADVISOR:                { verified: 11, basic: 7 },
 };
 
@@ -179,8 +178,10 @@ export const getSuggestedResult = (subtype: KYCSubtype, assessments: Record<stri
   let totalScore = 0;
   let hasHardFail = false;
 
-  // Calculate score and check hard fails
-  Object.values(assessments).forEach(val => {
+  // Only count fields that exist in current config — prevents stale fields from inflating score
+  const configFieldIds = new Set(KYC_SUBTYPE_CONFIGS[subtype].fields.map(f => f.id));
+  Object.entries(assessments).forEach(([fieldId, val]) => {
+    if (!configFieldIds.has(fieldId)) return;
     totalScore += SCORE_MAP[val] || 0;
     if (HARD_FAIL_VALUES.includes(val)) {
       hasHardFail = true;
@@ -200,61 +201,61 @@ export const getSuggestedResult = (subtype: KYCSubtype, assessments: Record<stri
   switch (subtype) {
     case "STARTUP_ENTITY":
       if (totalScore >= 10) {
-        suggestedLabel = "Verified Company";
+        suggestedLabel = "Startup Đã Xác Thực";
         suggestedDecision = "APPROVE";
       } else if (totalScore >= 6) {
-        suggestedLabel = "Basic Verified";
+        suggestedLabel = "Xác Thực Cơ Bản";
         suggestedDecision = "APPROVE";
       } else if (totalScore >= 2) {
-        suggestedLabel = "Pending More Info";
+        suggestedLabel = "Cần Bổ Sung Thông Tin";
         suggestedDecision = "PENDING_MORE_INFO";
       }
       break;
     case "STARTUP_NO_ENTITY":
       if (totalScore >= 8) {
-        suggestedLabel = "Verified Founding Team";
+        suggestedLabel = "Đội Nhóm Đã Xác Thực";
         suggestedDecision = "APPROVE";
       } else if (totalScore >= 5) {
-        suggestedLabel = "Basic Verified";
+        suggestedLabel = "Xác Thực Cơ Bản";
         suggestedDecision = "APPROVE";
       } else if (totalScore >= 2) {
-        suggestedLabel = "Pending More Info";
+        suggestedLabel = "Cần Bổ Sung Thông Tin";
         suggestedDecision = "PENDING_MORE_INFO";
       }
       break;
     case "INSTITUTIONAL_INVESTOR":
       if (totalScore >= 10) {
-        suggestedLabel = "Verified Investor Entity";
+        suggestedLabel = "Tổ Chức Đầu Tư Đã Xác Thực";
         suggestedDecision = "APPROVE";
       } else if (totalScore >= 6) {
-        suggestedLabel = "Basic Verified";
+        suggestedLabel = "Xác Thực Cơ Bản";
         suggestedDecision = "APPROVE";
       } else if (totalScore >= 2) {
-        suggestedLabel = "Pending More Info";
+        suggestedLabel = "Cần Bổ Sung Thông Tin";
         suggestedDecision = "PENDING_MORE_INFO";
       }
       break;
     case "INDIVIDUAL_INVESTOR":
-      if (totalScore >= 12) {
-        suggestedLabel = "Verified Angel Investor";
+      if (totalScore >= APPROVAL_THRESHOLDS.INDIVIDUAL_INVESTOR.verified) {
+        suggestedLabel = "Angel Investor Đã Xác Thực";
         suggestedDecision = "APPROVE";
-      } else if (totalScore >= 8) {
-        suggestedLabel = "Basic Verified";
+      } else if (totalScore >= APPROVAL_THRESHOLDS.INDIVIDUAL_INVESTOR.basic) {
+        suggestedLabel = "Xác Thực Cơ Bản";
         suggestedDecision = "APPROVE";
-      } else if (totalScore >= 4) {
-        suggestedLabel = "Pending More Info";
+      } else if (totalScore >= 2) {
+        suggestedLabel = "Cần Bổ Sung Thông Tin";
         suggestedDecision = "PENDING_MORE_INFO";
       }
       break;
     case "ADVISOR":
       if (totalScore >= 11) {
-        suggestedLabel = "Verified Advisor";
+        suggestedLabel = "Cố Vấn Đã Xác Thực";
         suggestedDecision = "APPROVE";
       } else if (totalScore >= 7) {
-        suggestedLabel = "Basic Verified";
+        suggestedLabel = "Xác Thực Cơ Bản";
         suggestedDecision = "APPROVE";
       } else if (totalScore >= 3) {
-        suggestedLabel = "Pending More Info";
+        suggestedLabel = "Cần Bổ Sung Thông Tin";
         suggestedDecision = "PENDING_MORE_INFO";
       }
       break;

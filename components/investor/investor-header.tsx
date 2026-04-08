@@ -1,15 +1,17 @@
 ﻿"use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { 
-  Bell, Search, LayoutGrid, User, LogOut, Settings, 
+  Bell, Search, LayoutGrid, LogOut, Settings, 
   ChevronRight, CheckCheck, Loader2, Trash2, 
-  MessageSquare, Building2, Bookmark, Brain, Handshake, Target, ShieldCheck, UserCircle,
+  MessageSquare, Building2, Bookmark, Brain, Handshake, ShieldCheck,
   ShieldAlert
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { buildInvestorProfilePresentation, isInvestorKycVerified } from "@/lib/investor-profile-presenter";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/context";
 import { GetInvestorProfile } from "@/services/investor/investor.api";
 import { GetInvestorKYCStatus } from "@/services/investor/investor-kyc";
@@ -27,17 +29,13 @@ import type { IInvestorKYCStatus } from "@/types/investor-kyc";
 
 export function InvestorHeader({ 
   userName = "VinaCapital Ventures",
-  title,
   className 
 }: { 
   userName?: string; 
-  title?: string;
   className?: string;
 }) {
   const router = useRouter();
-  const pathname = usePathname();
   const [isNotiOpen, setIsNotiOpen] = useState(false);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isGridOpen, setIsGridOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -47,16 +45,24 @@ export function InvestorHeader({
   
   const { user, setUser, setAccessToken, setIsAuthen } = useAuth();
 
-  const [profileName, setProfileName] = useState<string | null>(null);
+  const [profile, setProfile] = useState<IInvestorProfile | null>(null);
+  const [kycStatus, setKycStatus] = useState<IInvestorKYCStatus | null>(null);
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [isKycVerified, setIsKycVerified] = useState(false);
-  const displayUserName = profileName || user?.email || userName;
+  const presentation = useMemo(
+    () => (profile ? buildInvestorProfilePresentation(profile, kycStatus) : null),
+    [profile, kycStatus],
+  );
+  const displayUserName = presentation?.primaryName || user?.email || userName;
+  const displaySubtitle = presentation?.heroIdentityLine || "Nhà Đầu Tư";
 
   useEffect(() => {
     GetInvestorProfile()
       .then((response) => {
         const envelope = response as unknown as IBackendRes<IInvestorProfile>;
-        if ((envelope.success || envelope.isSuccess) && envelope.data?.fullName) {
-          setProfileName(envelope.data.fullName);
+        if ((envelope.success || envelope.isSuccess) && envelope.data) {
+          setProfile(envelope.data);
+          if (envelope.data.profilePhotoURL) setProfilePhoto(envelope.data.profilePhotoURL);
         }
       })
       .catch(() => {});
@@ -64,7 +70,10 @@ export function InvestorHeader({
     GetInvestorKYCStatus()
       .then((response) => {
         const envelope = response as unknown as IBackendRes<IInvestorKYCStatus>;
-        if (envelope?.data?.workflowStatus === "VERIFIED") {
+        if (envelope?.data) {
+          setKycStatus(envelope.data);
+        }
+        if (isInvestorKycVerified(undefined, envelope?.data)) {
           setIsKycVerified(true);
         }
       })
@@ -76,7 +85,6 @@ export function InvestorHeader({
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   const notiRef = useRef<HTMLDivElement>(null);
-  const profileRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -117,7 +125,6 @@ export function InvestorHeader({
       fetchNotis();
     }
     setIsNotiOpen(!isNotiOpen);
-    setIsProfileOpen(false);
     setIsGridOpen(false);
   };
 
@@ -357,10 +364,10 @@ export function InvestorHeader({
 
           {/* User Profile Card */}
           <div className="flex items-center gap-3.5 relative shrink-0" ref={dropdownRef}>
-            <div className="text-right hidden sm:flex flex-col items-end justify-center min-w-0 max-w-[112px]">
+            <div className="text-right hidden sm:flex flex-col items-end justify-center min-w-0 max-w-[190px]">
               <p className="text-[13px] font-bold text-[#171611] tracking-tight leading-none truncate w-full text-right">{displayUserName}</p>
-              <div className="mt-0.5 inline-flex items-center gap-1">
-                <p className="text-[10px] text-[#878164] font-medium">Nhà Đầu Tư</p>
+              <div className="mt-0.5 flex items-start justify-end gap-1 max-w-full">
+                <p className="text-[10px] leading-tight text-right text-[#878164] font-medium line-clamp-2">{displaySubtitle}</p>
                 {isKycVerified && <VerifiedRoleMark className="h-3.5 w-3.5" />}
               </div>
             </div>
@@ -368,10 +375,13 @@ export function InvestorHeader({
               className="relative flex items-center cursor-pointer group/avatar"
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             >
-              <div className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-[#e6cc4c]/40 group-hover/avatar:ring-[#e6cc4c]/70 transition-all shadow-sm">
-                <div className="w-full h-full bg-gradient-to-br from-[#e6cc4c]/30 to-[#F0A500]/20 flex items-center justify-center text-[#C8A000] font-black text-sm uppercase">
-                  {displayUserName?.[0] ?? "I"}
-                </div>
+              <div className="relative w-9 h-9 rounded-full overflow-hidden ring-2 ring-[#e6cc4c]/40 group-hover/avatar:ring-[#e6cc4c]/70 transition-all shadow-sm">
+                {profilePhoto
+                  ? <Image src={profilePhoto} alt={displayUserName} fill sizes="36px" className="object-cover" />
+                  : <div className="w-full h-full bg-gradient-to-br from-[#e6cc4c]/30 to-[#F0A500]/20 flex items-center justify-center text-[#C8A000] font-black text-sm uppercase">
+                      {displayUserName?.[0] ?? "I"}
+                    </div>
+                }
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white"></span>
             </button>
@@ -380,11 +390,15 @@ export function InvestorHeader({
               <div className="absolute right-0 top-full mt-3 w-72 bg-white rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.13),0_4px_16px_rgba(0,0,0,0.06)] border border-slate-100 overflow-hidden z-[60] animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="px-5 pt-5 pb-4 bg-white border-b border-slate-100">
                   <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-[#fef0d2] flex items-center justify-center text-[#d0a64b] font-black text-xl uppercase flex-shrink-0">
-                      {displayUserName?.[0] ?? "I"}
+                    <div className="relative w-12 h-12 rounded-2xl overflow-hidden bg-[#fef0d2] flex items-center justify-center text-[#d0a64b] font-black text-xl uppercase flex-shrink-0">
+                      {profilePhoto
+                        ? <Image src={profilePhoto} alt={displayUserName} fill sizes="48px" className="object-cover" />
+                        : <span>{displayUserName?.[0] ?? "I"}</span>
+                      }
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-[14px] font-bold text-[#171611] tracking-tight truncate">{displayUserName}</p>
+                      <p className="mt-1 text-[11px] leading-tight font-medium text-slate-400 line-clamp-2">{displaySubtitle}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="inline-flex items-center text-[10px] font-black text-[#d0a64b] bg-[#fef0d2]/70 border border-[#fef0d2] px-2 py-0.5 rounded-full uppercase tracking-wider">PRO</span>
                         <span className="inline-flex items-center gap-1 text-[12px] text-slate-500 font-medium">
@@ -475,4 +489,3 @@ export function InvestorHeader({
     </header>
   );
 }
-

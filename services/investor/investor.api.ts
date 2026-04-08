@@ -19,9 +19,13 @@ export const AddToWatchlist = (data: ICreateWatchlistItem) => {
 }
 
 export const SearchStartups = (query?: string, page: number = 1, pageSize: number = 20) => {
-    const params: any = { page, pageSize, _t: new Date().getTime() };
+    const params: Record<string, string | number> = {
+        page,
+        pageSize,
+        _t: new Date().getTime(),
+    };
     if (query) params.q = query;
-    return axios.get<IBackendRes<IPaginatedRes<any>>>(`/api/investors/search`, {
+    return axios.get<IBackendRes<IPaginatedRes<IStartupSearchItem>>>(`/api/investors/search`, {
         params
     });
 }
@@ -43,6 +47,10 @@ export const UpdateInvestorProfile = (data: IUpdateInvestorProfile) => {
     return axios.put<IBackendRes<IInvestorProfile>>(`/api/investors/me`, data);
 }
 
+export const GetInvestorPreferences = () => {
+    return axios.get<IBackendRes<IInvestorPreferences>>(`/api/investors/me/preferences`);
+}
+
 export const UploadInvestorPhoto = (file: File) => {
     const formData = new FormData();
     formData.append("photo", file);
@@ -52,7 +60,7 @@ export const UploadInvestorPhoto = (file: File) => {
 }
 
 export const UpdateInvestorPreferences = (data: IUpdateInvestorPreferences) => {
-    return axios.put<IBackendRes<null>>(`/api/investors/me/preferences`, data);
+    return axios.put<IBackendRes<IInvestorPreferences>>(`/api/investors/me/preferences`, data);
 }
 
 export const GetKYCStatus = () => {

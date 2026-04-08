@@ -12,6 +12,7 @@ export interface IInvestorOnboardData {
   website?: string;
   linkedInURL?: string;
   avatar?: string;
+  avatarFile?: File;
   taxIdOrBusinessCode?: string;
   submitterRole?: string;
   shortThesisSummary?: string;

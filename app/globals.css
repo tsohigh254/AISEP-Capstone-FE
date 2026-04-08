@@ -48,6 +48,11 @@
 }
 
 :root {
+  --font-geist-sans: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-geist-mono: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-manrope: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-plus-jakarta-sans: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-syne: "Arial Black", "Segoe UI", system-ui, sans-serif;
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);

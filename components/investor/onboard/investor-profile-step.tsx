@@ -4,15 +4,12 @@ import React, { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft, ArrowRight, Building2, MapPin,
-  Globe, Zap, Layers, Linkedin,
-  User, Camera, UserCircle, Tag, Briefcase, ChevronDown
+  Globe, Zap, Layers,
+  User, UserCircle, Tag, Briefcase, ChevronDown, Users
 } from "lucide-react";
 import { IInvestorOnboardData } from "@/types/investor-kyc";
 import { GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
-
-const STAGE_OPTIONS = [
-  "Idea", "Pre-Seed", "Seed", "Series A", "Series B", "Series C+", "IPO Ready"
-];
+import { INVESTOR_PREFERRED_STAGE_OPTIONS, normalizeInvestorPreferredStages } from "@/lib/investor-preferred-stages";
 
 interface InvestorProfileStepProps {
   data: Partial<IInvestorOnboardData>;
@@ -69,6 +66,7 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: 
   );
 
   const totalSelected = data.preferredIndustries?.length ?? 0;
+  const selectedStageValues = normalizeInvestorPreferredStages(data.preferredStages);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 pb-10">
@@ -84,42 +82,6 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: 
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Avatar / Logo */}
-        <div className="md:col-span-2 flex items-center gap-6 p-6 rounded-2xl bg-slate-50 border border-slate-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-          <div className="w-24 h-24 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-sm group cursor-pointer relative overflow-hidden transition-all hover:border-[#eec54e]/50">
-            <input
-              type="file"
-              accept="image/png,image/jpeg"
-              className="absolute inset-0 opacity-0 cursor-pointer z-10"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) set("avatar", URL.createObjectURL(file));
-              }}
-            />
-            {data.avatar ? (
-              <img src={data.avatar} className="w-full h-full object-cover" alt="Avatar" />
-            ) : (
-              <div className="flex flex-col items-center gap-1.5 text-slate-300 group-hover:text-[#eec54e] transition-colors">
-                <Camera className="w-7 h-7" />
-                <span className="text-[10px] font-bold uppercase tracking-tighter">Upload</span>
-              </div>
-            )}
-            <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[10px] font-bold py-1.5 text-center opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-wider backdrop-blur-sm">
-              Thay đổi
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <h4 className="text-[14px] font-bold text-slate-900 leading-none">
-              {isInstitutional ? "Logo tổ chức" : "Ảnh đại diện"}
-            </h4>
-            <p className="text-[13px] text-slate-500 leading-relaxed max-w-[340px] font-normal">
-              {isInstitutional
-                ? "Tải lên Logo chính thức của tổ chức để tăng nhận diện thương hiệu."
-                : "Ảnh chân dung chuyên nghiệp giúp tăng 40% khả năng kết nối thành công."}
-            </p>
-          </div>
-        </div>
-
         {isInstitutional ? (
           <>
             <div className="space-y-1">
@@ -134,33 +96,47 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: 
             </div>
 
             <div className="space-y-1">
-              <Label icon={Globe}>Website chính thức</Label>
+              <Label required icon={Globe}>Website chính thức</Label>
               <input
                 value={data.website || ""}
                 onChange={e => set("website", e.target.value)}
                 placeholder="https://..."
                 className={inputClass("website")}
               />
+              {errors.website && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.website}</p>}
             </div>
 
             <div className="space-y-1">
-              <Label icon={UserCircle}>Người đại diện / Chức vụ</Label>
+              <Label required icon={UserCircle}>Họ và tên người đại diện</Label>
+              <input
+                value={data.fullName || ""}
+                onChange={e => set("fullName", e.target.value)}
+                placeholder="Ví dụ: Nguyễn Văn A"
+                className={inputClass("fullName")}
+              />
+              {errors.fullName && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.fullName}</p>}
+            </div>
+
+            <div className="space-y-1">
+              <Label required icon={Briefcase}>Chức vụ</Label>
               <input
                 value={data.currentRoleTitle || ""}
                 onChange={e => set("currentRoleTitle", e.target.value)}
                 placeholder="Ví dụ: Managing Partner, Investment Manager..."
                 className={inputClass("currentRoleTitle")}
               />
+              {errors.currentRoleTitle && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.currentRoleTitle}</p>}
             </div>
 
             <div className="space-y-1">
-              <Label icon={MapPin}>Địa điểm hoạt động</Label>
+              <Label required icon={MapPin}>Địa điểm hoạt động</Label>
               <input
                 value={data.location || ""}
                 onChange={e => set("location", e.target.value)}
                 placeholder="Ví dụ: Hà Nội, TP. Hồ Chí Minh..."
                 className={inputClass("location")}
               />
+              {errors.location && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.location}</p>}
             </div>
           </>
         ) : (
@@ -177,40 +153,47 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: 
             </div>
 
             <div className="space-y-1">
-              <Label icon={Briefcase}>Chức vụ hiện tại</Label>
+              <Label required icon={Briefcase}>Chức vụ hiện tại</Label>
               <input
                 value={data.currentRoleTitle || ""}
                 onChange={e => set("currentRoleTitle", e.target.value)}
                 placeholder="Ví dụ: Angel Investor, Partner..."
                 className={inputClass("currentRoleTitle")}
               />
+              {errors.currentRoleTitle && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.currentRoleTitle}</p>}
             </div>
 
             <div className="space-y-1">
-              <Label icon={Linkedin}>LinkedIn / Profile link</Label>
+              <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 mb-2 ml-0.5 uppercase tracking-wider">
+                <img src="/linkedin.svg" alt="LinkedIn" className="w-3.5 h-3.5" />
+                LinkedIn / Profile link
+                <span className="text-red-500 ml-0.5">*</span>
+              </label>
               <input
-                value={data.website || ""}
-                onChange={e => set("website", e.target.value)}
+                value={data.linkedInURL || ""}
+                onChange={e => set("linkedInURL", e.target.value)}
                 placeholder="https://linkedin.com/in/..."
-                className={inputClass("website")}
+                className={inputClass("linkedInURL")}
               />
+              {errors.linkedInURL && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.linkedInURL}</p>}
             </div>
 
             <div className="space-y-1">
-              <Label icon={MapPin}>Địa điểm hoạt động</Label>
+              <Label required icon={MapPin}>Địa điểm hoạt động</Label>
               <input
                 value={data.location || ""}
                 onChange={e => set("location", e.target.value)}
                 placeholder="Ví dụ: Hà Nội, TP. Hồ Chí Minh..."
                 className={inputClass("location")}
               />
+              {errors.location && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.location}</p>}
             </div>
           </>
         )}
 
         {/* Khẩu vị đầu tư */}
         <div className="md:col-span-2 space-y-1">
-          <Label icon={Zap}>Khẩu vị đầu tư (Thesis)</Label>
+          <Label required icon={Zap}>Khẩu vị đầu tư (Thesis)</Label>
           <textarea
             value={data.shortThesisSummary || ""}
             onChange={e => set("shortThesisSummary", e.target.value)}
@@ -218,12 +201,13 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: 
             placeholder="Chia sẻ ngắn gọn về lĩnh vực, giai đoạn và giá trị bạn mang lại cho Startup..."
             className={cn(inputClass("shortThesisSummary"), "h-auto py-3 resize-none")}
           />
+          {errors.shortThesisSummary && <p className="text-red-500 text-[11px] font-medium mt-1.5 ml-1">{errors.shortThesisSummary}</p>}
         </div>
 
         {/* Lĩnh vực quan tâm — grouped accordion */}
         <div className="md:col-span-2 space-y-3">
           <div className="flex items-center justify-between">
-            <Label icon={Tag}>Lĩnh vực quan tâm</Label>
+            <Label required icon={Tag}>Lĩnh vực quan tâm</Label>
             {totalSelected > 0 && (
               <span className="text-[12px] text-slate-500 mb-2">
                 Đã chọn <span className="font-bold text-slate-700">{totalSelected}</span> lĩnh vực
@@ -311,19 +295,27 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: 
               })}
             </div>
           )}
+          {errors.preferredIndustries && <p className="text-red-500 text-[11px] font-medium mt-1 ml-1">{errors.preferredIndustries}</p>}
         </div>
 
         {/* Giai đoạn ưu tiên */}
         <div className="md:col-span-2 space-y-3">
-          <Label icon={Layers}>Giai đoạn ưu tiên</Label>
+          <Label required icon={Layers}>Giai đoạn ưu tiên</Label>
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-            {STAGE_OPTIONS.map(opt => {
-              const isSelected = (data.preferredStages || []).includes(opt);
+            {INVESTOR_PREFERRED_STAGE_OPTIONS.map(opt => {
+              const isSelected = selectedStageValues.includes(opt.value);
               return (
                 <button
-                  key={opt}
+                  key={opt.value}
                   type="button"
-                  onClick={() => toggleList("preferredStages", opt)}
+                  onClick={() =>
+                    set(
+                      "preferredStages",
+                      isSelected
+                        ? selectedStageValues.filter(v => v !== opt.value)
+                        : [...selectedStageValues, opt.value]
+                    )
+                  }
                   className={cn(
                     "py-2.5 rounded-xl text-[12px] font-bold border transition-all active:scale-95 text-center",
                     isSelected
@@ -331,11 +323,12 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: 
                       : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
                   )}
                 >
-                  {opt}
+                  {opt.label}
                 </button>
               );
             })}
           </div>
+          {errors.preferredStages && <p className="text-red-500 text-[11px] font-medium mt-2 ml-1">{errors.preferredStages}</p>}
         </div>
       </div>
 
@@ -349,8 +342,9 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: 
         </button>
 
         <button
+          type="button"
           onClick={onNext}
-          className="h-11 px-8 bg-[#0f172a] text-white rounded-xl text-[13px] font-bold flex items-center gap-2 hover:bg-[#1e293b] transition-all shadow-sm active:scale-[0.98] group"
+          className="h-11 px-8 bg-[#0f172a] text-white rounded-xl text-[13px] font-bold flex items-center gap-2 hover:bg-[#1e293b] transition-all shadow-sm group"
         >
           Xác nhận hồ sơ
           <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
