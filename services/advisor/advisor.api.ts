@@ -131,10 +131,38 @@ export const SaveAdvisorKYCDraft = (data: any) => {
   return axios.patch("/api/advisors/me/kyc/draft", data);
 };
 
-export const UpdateAdvisorAvailability = (isAcceptingNewMentees: boolean) => {
-  return axios.put(`/api/advisors/me/availability`, {
-    isAcceptingNewMentees
-  });
+export interface IUpdateAvailabilityPayload {
+  sessionFormats?: string;
+  typicalSessionDuration?: number;
+  weeklyAvailableHours?: number;
+  maxConcurrentMentees?: number;
+  responseTimeCommitment?: string;
+  isAcceptingNewMentees?: boolean;
+}
+
+export const UpdateAdvisorAvailability = (payload: IUpdateAvailabilityPayload) => {
+  return axios.put(`/api/advisors/me/availability`, payload);
+};
+
+export interface ITimeSlot {
+  timeSlotID: number;
+  dayOfWeek: number; // 0=Mon … 6=Sun
+  startTime: string; // "HH:mm"
+  endTime: string;   // "HH:mm"
+}
+
+export interface ITimeSlotInput {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+}
+
+export const GetAdvisorTimeSlots = () => {
+  return axios.get<IBackendRes<ITimeSlot[]>>(`/api/advisors/me/timeslots`);
+};
+
+export const UpsertAdvisorTimeSlots = (slots: ITimeSlotInput[]) => {
+  return axios.put<IBackendRes<ITimeSlot[]>>(`/api/advisors/me/timeslots`, { slots });
 };
 
 export const SearchAdvisors = (query: string) => {

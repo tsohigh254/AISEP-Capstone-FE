@@ -1,183 +1,281 @@
-"use client";
+﻿"use client";
 
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
-import { 
-  Calendar, 
-  Clock, 
-  Plus, 
-  Trash2, 
-  Save, 
-  AlertCircle,
-  ChevronLeft,
-  ChevronRight,
-  MoreVertical,
-  Check
-} from "lucide-react";
-import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { Save, RefreshCw } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
+import {
+  GetAdvisorTimeSlots,
+  UpsertAdvisorTimeSlots,
+  type ITimeSlot,
+} from "@/services/advisor/advisor.api";
 
-interface TimeSlot {
-  id: string;
-  dayOfWeek: number; // 0-6, starting Sunday
-  startTime: string;
-  endTime: string;
-  isActive: boolean;
+// ─── Constants ────────────────────────────────────────────────
+
+const DAY_LABELS = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
+
+const TIMES: string[] = [];
+for (let h = 7; h < 22; h++) {
+  TIMES.push(`${String(h).padStart(2, "0")}:00`);
+  TIMES.push(`${String(h).padStart(2, "0")}:30`);
 }
 
-const DAYS = [
-  "Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"
-];
+// ─── Helpers ──────────────────────────────────────────────────
+
+function cellKey(day: number, time: string) {
+  return `${day}-${time}`;
+}
+
+function addMinutes(time: string, minutes: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const total = h * 60 + m + minutes;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function slotsToSelected(slots: ITimeSlot[]): Set<string> {
+  const selected = new Set<string>();
+  slots.forEach(({ dayOfWeek, startTime, endTime }) => {
+    let current = startTime;
+    while (current < endTime) {
+      selected.add(cellKey(dayOfWeek, current));
+      current = addMinutes(current, 30);
+    }
+  });
+  return selected;
+}
+
+function selectedToSlots(selected: Set<string>) {
+  const byDay: Record<number, string[]> = {};
+  selected.forEach((key) => {
+    const dash = key.indexOf("-");
+    const day = Number(key.slice(0, dash));
+    const time = key.slice(dash + 1);
+    if (!byDay[day]) byDay[day] = [];
+    byDay[day].push(time);
+  });
+
+  const result: { dayOfWeek: number; startTime: string; endTime: string }[] = [];
+  Object.entries(byDay).forEach(([dayStr, times]) => {
+    const day = Number(dayStr);
+    const sorted = [...times].sort();
+    let start = sorted[0];
+    let prev = sorted[0];
+    for (let i = 1; i < sorted.length; i++) {
+      const curr = sorted[i];
+      if (curr === addMinutes(prev, 30)) {
+        prev = curr;
+      } else {
+        result.push({ dayOfWeek: day, startTime: start, endTime: addMinutes(prev, 30) });
+        start = curr;
+        prev = curr;
+      }
+    }
+    result.push({ dayOfWeek: day, startTime: start, endTime: addMinutes(prev, 30) });
+  });
+  return result;
+}
+
+// ─── Page ─────────────────────────────────────────────────────
 
 export default function AdvisorAvailabilityPage() {
-  const [slots, setSlots] = useState<TimeSlot[]>([
-    { id: "1", dayOfWeek: 1, startTime: "09:00", endTime: "11:00", isActive: true },
-    { id: "2", dayOfWeek: 1, startTime: "14:00", endTime: "17:00", isActive: true },
-    { id: "3", dayOfWeek: 3, startTime: "09:00", endTime: "12:00", isActive: true },
-    { id: "4", dayOfWeek: 5, startTime: "13:30", endTime: "16:30", isActive: true },
-  ]);
-
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const handleAddSlot = (dayIdx: number) => {
-    const newSlot: TimeSlot = {
-      id: Math.random().toString(36).substr(2, 9),
-      dayOfWeek: dayIdx,
-      startTime: "09:00",
-      endTime: "10:00",
-      isActive: true,
-    };
-    setSlots([...slots, newSlot]);
-  };
+  const dragging = useRef(false);
+  const dragValue = useRef(true);
 
-  const handleRemoveSlot = (id: string) => {
-    setSlots(slots.filter(s => s.id !== id));
-  };
+  useEffect(() => {
+    setLoading(true);
+    GetAdvisorTimeSlots()
+      .then((res: any) => {
+        const data: ITimeSlot[] = res?.data?.data ?? res?.data ?? [];
+        setSelected(slotsToSelected(Array.isArray(data) ? data : []));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
-  const handleUpdateSlot = (id: string, updates: Partial<TimeSlot>) => {
-    setSlots(slots.map(s => s.id === id ? { ...s, ...updates } : s));
-  };
+  const handleMouseDown = useCallback((day: number, time: string) => {
+    const key = cellKey(day, time);
+    dragging.current = true;
+    setSelected((prev) => {
+      dragValue.current = !prev.has(key);
+      const next = new Set(prev);
+      if (dragValue.current) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
 
-  const handleSave = () => {
+  const handleMouseEnter = useCallback((day: number, time: string) => {
+    if (!dragging.current) return;
+    const key = cellKey(day, time);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (dragValue.current) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const stop = () => { dragging.current = false; };
+    window.addEventListener("mouseup", stop);
+    return () => window.removeEventListener("mouseup", stop);
+  }, []);
+
+  const handleSave = async () => {
     setSaving(true);
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      await UpsertAdvisorTimeSlots(selectedToSlots(selected));
+      toast.success("Đã lưu lịch trống");
+    } catch {
+      toast.error("Lưu thất bại, vui lòng thử lại");
+    } finally {
       setSaving(false);
-      toast.success("Cập nhật lịch rảnh thành công");
-    }, 1000);
+    }
   };
+
+  const totalHours = (selected.size * 30) / 60;
 
   return (
     <AdvisorShell>
-      <div className="max-w-5xl mx-auto space-y-7 animate-in fade-in duration-500">
-        
-        {/* Header Section */}
+      <div className="space-y-4 select-none">
+
+        {/* Header */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-6 py-5">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-[#0f172a] flex items-center justify-center text-white shadow-sm">
-                <Calendar className="w-6 h-6" />
-              </div>
-              <div>
-                <h1 className="text-[20px] font-bold text-slate-900 tracking-tight">Thiết lập Lịch rảnh</h1>
-                <p className="text-[13px] text-slate-500 mt-1 max-w-md">
-                  Quản lý các khoảng thời gian bạn sẵn sàng để tư vấn. Startup sẽ dựa vào đây để đề xuất lịch họp.
-                </p>
-              </div>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-[20px] font-bold text-slate-900 tracking-tight">Lịch trống hằng tuần</h1>
+              <p className="text-[13px] text-slate-500 mt-1">
+                Click hoặc kéo để chọn khung giờ bạn sẵn sàng tư vấn.
+                {!loading && selected.size > 0 && (
+                  <span className="ml-2 text-indigo-600 font-semibold">
+                    {totalHours % 1 === 0 ? totalHours : totalHours.toFixed(1)} giờ / tuần
+                  </span>
+                )}
+              </p>
             </div>
-            <button 
-              onClick={handleSave}
-              disabled={saving}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0f172a] text-white text-[13px] font-medium hover:bg-[#1e293b] transition-colors shadow-sm disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Lưu thay đổi
-            </button>
-          </div>
-
-          <div className="mt-8 p-4 rounded-2xl bg-amber-50 border border-amber-100/60 flex items-start gap-3">
-            <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-            <p className="text-[12px] text-amber-700 leading-relaxed">
-              Các khung giờ này sẽ được lặp lại hàng tuần. Bạn có thể tạm thời vô hiệu hóa hoặc xóa các khung giờ không còn phù hợp. Múi giờ mặc định của bạn là <span className="font-bold">Asia/Ho_Chi_Minh (GMT+7)</span>.
-            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelected(new Set())}
+                disabled={loading || selected.size === 0}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-40"
+              >
+                Xóa tất cả
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving || loading}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0f172a] text-white text-[13px] font-medium hover:bg-[#1e293b] transition-colors shadow-sm disabled:opacity-50"
+              >
+                {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Lưu lịch
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Weekly Schedule Grid */}
-        <div className="grid grid-cols-1 gap-4">
-          {DAYS.map((dayName, idx) => {
-            const daySlots = slots.filter(s => s.dayOfWeek === idx).sort((a,b) => a.startTime.localeCompare(b.startTime));
-            return (
-              <div key={idx} className="group bg-white rounded-2xl border border-slate-200/80 hover:border-[#eec54e]/30 hover:shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all overflow-hidden">
-                <div className="flex flex-col md:flex-row md:items-center gap-4 p-5 md:p-6">
-                  {/* Day Indicator */}
-                  <div className="w-full md:w-40 shrink-0">
-                    <h3 className={cn(
-                      "text-[15px] font-bold tracking-tight",
-                      idx === 0 || idx === 6 ? "text-slate-400" : "text-slate-800"
-                    )}>
-                      {dayName}
-                    </h3>
-                    <p className="text-[11px] text-slate-400 mt-0.5 uppercase tracking-wider font-bold">
-                      {daySlots.length} khoảng giờ
-                    </p>
-                  </div>
+        {/* Calendar grid */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          {loading ? (
+            <div className="p-16 flex items-center justify-center">
+              <RefreshCw className="w-5 h-5 text-slate-400 animate-spin" />
+            </div>
+          ) : (
+            <div className="overflow-auto" style={{ maxHeight: "68vh" }}>
+              <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: "56px" }} />
+                  {DAY_LABELS.map((_, i) => (
+                    <col key={i} />
+                  ))}
+                </colgroup>
 
-                  {/* Slots Area */}
-                  <div className="flex-1 flex flex-wrap gap-3">
-                    {daySlots.map(slot => (
-                      <div key={slot.id} className="inline-flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 group/slot hover:bg-white hover:border-slate-200 transition-all focus-within:ring-2 focus-within:ring-[#eec54e]/20">
-                        <div className="flex items-center gap-1.5">
-                          <input 
-                            type="time" 
-                            value={slot.startTime}
-                            onChange={(e) => handleUpdateSlot(slot.id, { startTime: e.target.value })}
-                            className="bg-transparent text-[13px] font-semibold text-slate-700 focus:outline-none focus:text-[#0f172a]"
-                          />
-                          <span className="text-slate-300 text-[12px]">—</span>
-                          <input 
-                            type="time" 
-                            value={slot.endTime}
-                            onChange={(e) => handleUpdateSlot(slot.id, { endTime: e.target.value })}
-                            className="bg-transparent text-[13px] font-semibold text-slate-700 focus:outline-none focus:text-[#0f172a]"
-                          />
-                        </div>
-                        <div className="w-px h-4 bg-slate-200 mx-1" />
-                        <button 
-                          onClick={() => handleRemoveSlot(slot.id)}
-                          className="p-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover/slot:opacity-100"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                {/* Sticky day header */}
+                <thead className="sticky top-0 z-20 bg-white">
+                  <tr>
+                    <th className="border-b border-r border-slate-100 bg-white" />
+                    {DAY_LABELS.map((label, i) => (
+                      <th
+                        key={i}
+                        className="border-b border-r border-slate-100 bg-white py-3 text-[12px] font-semibold text-slate-600 text-center"
+                      >
+                        {label}
+                      </th>
                     ))}
+                  </tr>
+                </thead>
 
-                    <button 
-                      onClick={() => handleAddSlot(idx)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-dashed border-slate-300 text-slate-500 hover:border-[#eec54e] hover:text-[#0f172a] hover:bg-[#eec54e]/5 text-[12px] font-medium transition-all active:scale-95"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Thêm khung giờ
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                <tbody>
+                  {TIMES.map((time) => {
+                    const isHour = time.endsWith(":00");
+                    return (
+                      <tr key={time}>
+                        {/* Time label */}
+                        <td
+                          className="border-r border-slate-100 text-right align-top pr-2"
+                          style={{ height: "22px" }}
+                        >
+                          {isHour && (
+                            <span className="text-[10px] text-slate-400 font-medium relative -top-2 leading-none">
+                              {time}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Day cells */}
+                        {Array.from({ length: 7 }, (_, day) => {
+                          const key = cellKey(day, time);
+                          const isSel = selected.has(key);
+                          return (
+                            <td
+                              key={day}
+                              onMouseDown={(e) => { e.preventDefault(); handleMouseDown(day, time); }}
+                              onMouseEnter={() => handleMouseEnter(day, time)}
+                              className={[
+                                "border-r border-slate-100 cursor-pointer transition-colors duration-75",
+                                isHour ? "border-t border-slate-200" : "border-t border-slate-100",
+                                isSel
+                                  ? "bg-indigo-500 hover:bg-indigo-600"
+                                  : "hover:bg-indigo-50",
+                              ].join(" ")}
+                              style={{ height: "22px" }}
+                            />
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                  {/* Bottom border row */}
+                  <tr>
+                    <td className="border-r border-t border-slate-200 text-right align-top pr-2 h-3">
+                      <span className="text-[10px] text-slate-400 font-medium relative -top-2 leading-none">22:00</span>
+                    </td>
+                    {Array.from({ length: 7 }, (_, i) => (
+                      <td key={i} className="border-r border-t border-slate-200 h-3" />
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
-        {/* Footer info */}
-        <div className="pb-10 pt-4 flex items-center justify-center gap-3">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <p className="text-[12px] text-slate-400 italic">Hệ thống sẽ đồng bộ lịch rảnh của bạn với ứng dụng ngay lập tức sau khi lưu.</p>
+        {/* Legend */}
+        <div className="flex items-center gap-5 text-[12px] text-slate-500 px-1 pb-2">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-indigo-500" />
+            Có thể tư vấn
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm border border-slate-200 bg-white" />
+            Không sẵn sàng
+          </div>
+          <span className="text-slate-400">· Kéo chuột để chọn nhiều ô liên tiếp</span>
         </div>
       </div>
     </AdvisorShell>
   );
 }
-
-const Loader2 = ({ className }: { className?: string }) => (
-  <svg className={cn("animate-spin", className)} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-  </svg>
-);

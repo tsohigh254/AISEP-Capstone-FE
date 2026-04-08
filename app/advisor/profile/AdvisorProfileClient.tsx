@@ -275,7 +275,7 @@ function AdvisorProfileClientInner() {
     setIsTogglingAvail(true);
     
     try {
-      const res: any = await UpdateAdvisorAvailability(!prev);
+      const res: any = await UpdateAdvisorAvailability({ isAcceptingNewMentees: !prev });
       if (res && res.isSuccess === false) {
         setForm(p => ({ ...p, isBookable: prev }));
         const errorMsg = res.message || res.data?.[0]?.messages?.[0] || "Không thể bật nhận tư vấn";

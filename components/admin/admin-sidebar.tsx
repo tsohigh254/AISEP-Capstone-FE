@@ -5,9 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
-    LogOut, Loader2, Users, Lock, Activity, Settings,
-    LayoutDashboard, ShieldCheck, Cpu, Link2, FileText,
-    AlertTriangle, Flag,
+    LogOut, Loader2, Users,
+    LayoutDashboard, ShieldCheck, FileText,
+    AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "@/context/context";
 import { Logout } from "@/services/auth/auth.api";
@@ -27,27 +27,6 @@ const NAV_GROUPS: {
         items: [
             { icon: Users,       label: "Người dùng",          href: "/admin/users"       },
             { icon: ShieldCheck, label: "Vai trò & Quyền",     href: "/admin/roles-permissions" },
-        ],
-    },
-    {
-        label: "Cấu hình hệ thống",
-        items: [
-            { icon: Settings,    label: "Cài đặt",             href: "/admin/settings"    },
-            { icon: Cpu,         label: "AI Config",           href: "/admin/ai-config"   },
-            { icon: Link2,       label: "Blockchain Config",   href: "/admin/blockchain"  },
-            { icon: ShieldCheck, label: "Bảo mật",             href: "/admin/security"    },
-        ],
-    },
-    {
-        label: "Giám sát",
-        items: [
-            { icon: Activity,    label: "System Health",       href: "/admin/monitoring"  },
-        ],
-    },
-    {
-        label: "Governance",
-        items: [
-            { icon: Flag,        label: "Escalated Reports",   href: "/admin/escalated"   },
         ],
     },
     {

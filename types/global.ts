@@ -120,14 +120,17 @@ declare global {
     averageRating: number;
     createdAt: string;
     updatedAt: string;
-    avalability: IAvailability;
-    industry: IAdvisorIndustryFocus[];
+    availability: IAvailability;
+    industryFocus: IAdvisorIndustryFocusDto[];
   }
 
-  interface IAdvisorIndustryFocus {
+  interface IAdvisorIndustryFocusDto {
     industryId: number;
     industry: string;
   }
+
+  // Keep alias for backward compat
+  type IAdvisorIndustryFocus = IAdvisorIndustryFocusDto;
 
   interface IAvailability {
     sessionFormats: string;

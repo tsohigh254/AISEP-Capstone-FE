@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import Link from "next/link";
 import { useCountUp } from "@/lib/useCountUp";
@@ -28,75 +28,189 @@ import {
   Settings,
   Target,
 } from "lucide-react";
+import {
+  GetAdvisorProfile,
+  GetAdvisorMentorships,
+  GetAdvisorSessions,
+} from "@/services/advisor/advisor.api";
 
-// --- Dummy Data ---
+// --- Helpers ---
 
-const upcomingSchedule = [
-  {
-    startup: "FinNext",
-    topic: "Fundraising readiness review",
-    date: "Mar 20, 2026",
-    time: "10:00 AM",
-    duration: "60 phút",
-    type: "Online",
-    typeIcon: Video,
-    status: "Scheduled",
-    statusColor: "text-blue-600",
-    note: "Seed round preparation",
-  },
-  {
-    startup: "MedScan AI",
-    topic: "Go-to-market mentoring",
-    date: "Mar 20, 2026",
-    time: "2:00 PM",
-    duration: "90 phút",
-    type: "Call",
-    typeIcon: Phone,
-    status: "Requested",
-    statusColor: "text-amber-600",
-    note: "Rural clinic expansion strategy",
-  },
-  {
-    startup: "EduPlatform",
-    topic: "Pitch deck refinement",
-    date: "Mar 21, 2026",
-    time: "9:30 AM",
-    duration: "60 phút",
-    type: "Online",
-    typeIcon: Video,
-    status: "Accepted",
-    statusColor: "text-green-600",
-    note: "Investor demo preparation",
-  },
-];
+function isSameWeek(d: Date, ref: Date) {
+  const s = new Date(ref);
+  const day = s.getDay();
+  const diff = day === 0 ? 6 : day - 1;
+  s.setDate(s.getDate() - diff);
+  s.setHours(0, 0, 0, 0);
+  const e = new Date(s);
+  e.setDate(e.getDate() + 7);
+  return d >= s && d < e;
+}
 
-const pendingReports = [
-  { startup: "FinTech Innovator", date: "Mar 15, 2026", topic: "AI Architecture Consulting", deadline: "Quá hạn", deadlineColor: "text-red-600", deadlineBg: "bg-red-50" },
-  { startup: "HealthTech Connect", date: "Mar 17, 2026", topic: "Product-market fit assessment", deadline: "Hôm nay hết hạn", deadlineColor: "text-amber-600", deadlineBg: "bg-amber-50" },
-];
+function formatSessionDate(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
 
-const recentRatings = [
-  { startup: "AgriLink", rating: 5, review: "Extremely actionable advice on investor prep. Our pitch improved significantly.", topic: "Investor prep session", date: "Mar 16, 2026" },
-  { startup: "FinNext", rating: 5, review: "Deep understanding of fintech landscape. Roadmap feedback was on point.", topic: "Fundraising readiness", date: "Mar 12, 2026" },
-];
+function formatSessionTime(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
+function mapSessionStatus(raw: string): "Scheduled" | "Requested" | "Accepted" {
+  const s = (raw || "").toLowerCase();
+  if (s === "requested" || s === "pending") return "Requested";
+  if (s === "accepted" || s === "inprogress" || s === "in_progress") return "Accepted";
+  return "Scheduled";
+}
+
+function deadlineLabel(completedAt: string): { text: string; color: string; bg: string } {
+  const diffDays = Math.floor((Date.now() - new Date(completedAt).getTime()) / 86400000);
+  if (diffDays >= 7) return { text: "Quá hạn", color: "text-red-600", bg: "bg-red-50" };
+  if (diffDays >= 6) return { text: "Hôm nay hết hạn", color: "text-amber-600", bg: "bg-amber-50" };
+  return { text: `Còn ${7 - diffDays} ngày`, color: "text-blue-600", bg: "bg-blue-50" };
+}
 
 // --- Component ---
 
 export default function AdvisorDashboardPage() {
   const [activeTab, setActiveTab] = useState<"today" | "week" | "pending">("today");
   const [hideCompleteness, setHideCompleteness] = useState(false);
+  const [profile, setProfile] = useState<IAdvisorProfile | null>(null);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [mentorships, setMentorships] = useState<any[]>([]);
 
   useEffect(() => {
     const skipped = localStorage.getItem("aisep_advisor_onboarding_skipped") === "true";
     const completed = localStorage.getItem("aisep_advisor_onboarding_completed") === "true";
-    if (skipped || completed) {
-      setHideCompleteness(true);
-    }
+    if (skipped || completed) setHideCompleteness(true);
   }, []);
 
-  const totalConsult = useCountUp(124, 1200, 0);
-  const newRequests = useCountUp(5, 800, 150);
-  const activeConns = useCountUp(8, 600, 450);
+  useEffect(() => {
+    Promise.all([
+      GetAdvisorProfile().catch(() => null),
+      GetAdvisorSessions({ pageSize: 100 }).catch(() => null),
+      GetAdvisorMentorships({ pageSize: 200 }).catch(() => null),
+    ]).then(([profileRes, sessionsRes, mentorshipsRes]) => {
+      if (profileRes) {
+        const d = (profileRes as any)?.data?.data ?? (profileRes as any)?.data;
+        if (d) setProfile(d);
+      }
+      if (sessionsRes) {
+        const d = (sessionsRes as any)?.data?.items ?? (sessionsRes as any)?.data?.data?.items ?? (sessionsRes as any)?.data?.data ?? [];
+        setSessions(Array.isArray(d) ? d : []);
+      }
+      if (mentorshipsRes) {
+        const d = (mentorshipsRes as any)?.data?.items ?? (mentorshipsRes as any)?.data?.data?.items ?? (mentorshipsRes as any)?.data?.data ?? [];
+        setMentorships(Array.isArray(d) ? d : []);
+      }
+    });
+  }, []);
+
+  const now = new Date();
+
+  const upcomingSchedule = useMemo(() => {
+    const active = sessions.filter(s => {
+      const st = (s.status || "").toLowerCase();
+      return st === "scheduled" || st === "requested" || st === "pending" || st === "accepted";
+    });
+    active.sort((a, b) => new Date(a.scheduledStartAt).getTime() - new Date(b.scheduledStartAt).getTime());
+    return active.slice(0, 5).map(s => ({
+      startup: s.startupName || s.startup?.displayName || s.startup?.name || "Startup",
+      topic: s.objective || s.topicsDiscussed || "Tư vấn",
+      date: formatSessionDate(s.scheduledStartAt),
+      time: formatSessionTime(s.scheduledStartAt),
+      duration: `${s.durationMinutes || 60} phút`,
+      type: (s.sessionFormat || "").toLowerCase().includes("teams") ? "Call" : "Online",
+      typeIcon: (s.sessionFormat || "").toLowerCase().includes("teams") ? Phone : Video,
+      status: mapSessionStatus(s.status),
+      sessionID: s.sessionID,
+      mentorshipID: s.mentorshipID,
+    }));
+  }, [sessions]);
+
+  const pendingReports = useMemo(() => {
+    return mentorships
+      .filter(m => {
+        const st = (m.status || m.mentorshipStatus || "").toLowerCase();
+        return st === "completed" && (!m.reports || m.reports.length === 0);
+      })
+      .slice(0, 5)
+      .map(m => {
+        const completedAt = m.completedAt || m.updatedAt || m.createdAt || new Date().toISOString();
+        const dl = deadlineLabel(completedAt);
+        return {
+          startup: m.startupName || "Startup",
+          date: formatSessionDate(completedAt),
+          topic: m.objective || m.obligationSummary || m.challengeDescription || "Tư vấn",
+          deadline: dl.text,
+          deadlineColor: dl.color,
+          deadlineBg: dl.bg,
+          mentorshipID: m.mentorshipID || m.id,
+        };
+      });
+  }, [mentorships]);
+
+  const recentRatings = useMemo(() => {
+    const ratings: any[] = [];
+    for (const m of mentorships) {
+      if (!m.feedbacks) continue;
+      for (const fb of m.feedbacks) {
+        const role = (fb.fromRole || "").toLowerCase();
+        if (role === "startup" || role === "startupuser") {
+          ratings.push({
+            startup: m.startupName || "Startup",
+            rating: fb.rating || 5,
+            review: fb.comment || "",
+            topic: m.objective || m.obligationSummary || "Tư vấn",
+            date: formatSessionDate(fb.submittedAt || m.updatedAt || new Date().toISOString()),
+          });
+        }
+      }
+    }
+    return ratings.slice(-4).reverse();
+  }, [mentorships]);
+
+  const totalConsultCount = useMemo(() => {
+    const completedSessions = sessions.filter(s => (s.status || "").toLowerCase() === "completed").length;
+    const completedMentorships = mentorships.filter(m => {
+      const st = (m.status || m.mentorshipStatus || "").toLowerCase();
+      return st === "completed" || st === "finalized";
+    }).length;
+    return completedSessions || completedMentorships || profile?.totalMentees || 0;
+  }, [sessions, mentorships, profile]);
+
+  const newRequestsCount = useMemo(() =>
+    mentorships.filter(m => {
+      const st = (m.status || m.mentorshipStatus || "").toLowerCase();
+      return st === "requested" || st === "pending";
+    }).length,
+  [mentorships]);
+
+  const thisWeekCount = useMemo(() => {
+    // Ưu tiên từ endpoint sessions riêng
+    const fromSessions = sessions.filter(s => {
+      const st = (s.status || "").toLowerCase();
+      return (st === "scheduled" || st === "accepted") && s.scheduledStartAt && isSameWeek(new Date(s.scheduledStartAt), now);
+    }).length;
+    if (fromSessions > 0) return fromSessions;
+    // Fallback: đếm sessions lồng trong mentorships
+    let count = 0;
+    for (const m of mentorships) {
+      const nested: any[] = (m as any).sessions || [];
+      for (const s of nested) {
+        const st = (s.status || s.sessionStatus || "").toLowerCase();
+        if ((st === "scheduled" || st === "accepted") && s.scheduledStartAt && isSameWeek(new Date(s.scheduledStartAt), now)) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }, [sessions, mentorships]);
+
+  const totalConsult = useCountUp(totalConsultCount, 1200, 0);
+  const newRequests = useCountUp(newRequestsCount, 800, 150);
+  const activeConns = useCountUp(thisWeekCount, 600, 450);
 
   return (
     <AdvisorShell>
@@ -124,7 +238,7 @@ export default function AdvisorDashboardPage() {
                   </span>
                 </div>
                 <p className="text-neutral-muted text-sm mb-6 leading-relaxed">
-                  Quản lý yêu cầu tư vấn, lịch sắp tới, báo cáo và hiệu suất. Bạn có <strong>5 yêu cầu mới</strong> và <strong>2 báo cáo chờ nộp</strong> tuần này.
+                  Quản lý yêu cầu tư vấn, lịch sắp tới, báo cáo và hiệu suất. Bạn có <strong>{newRequestsCount} yêu cầu mới</strong> và <strong>{pendingReports.length} báo cáo chờ nộp</strong> tuần này.
                 </p>
                 {!hideCompleteness && (
                   <div className="space-y-2 mb-6">
@@ -139,8 +253,8 @@ export default function AdvisorDashboardPage() {
                 )}
               </div>
               <div className="flex flex-wrap gap-3">
-                <Link href="/advisor/requests" className="bg-[#e6cc4c] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all flex items-center gap-2 group">
-                  <ClipboardList className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                <Link href="/advisor/requests" className="bg-[#e6cc4c] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:shadow-lg transition-all flex items-center gap-2">
+                  <ClipboardList className="w-5 h-5" />
                   Xem yêu cầu
                 </Link>
                 <Link href="/advisor/availability" className="bg-[#f4f4f0] text-[#171611] font-bold px-6 py-2.5 rounded-xl hover:bg-neutral-200 transition-all flex items-center gap-2">
@@ -251,6 +365,9 @@ export default function AdvisorDashboardPage() {
               </div>
             </div>
             <div className="divide-y divide-neutral-surface">
+              {upcomingSchedule.length === 0 && (
+                <div className="p-8 text-center text-neutral-muted text-sm">Không có lịch sắp tới</div>
+              )}
               {upcomingSchedule.map((item, idx) => (
                 <div key={idx} className="p-4 flex items-center justify-between hover:bg-[#f8f8f6] transition-colors group">
                   <div className="flex items-center gap-4">
@@ -308,20 +425,23 @@ export default function AdvisorDashboardPage() {
                   <TrendingUp className="w-4 h-4" /> Chuyên môn & Dịch vụ
                 </p>
                 <ul className="text-xs text-green-700 space-y-1.5 list-disc ml-4 font-medium">
-                  <li>FinTech, SaaS, Go-to-Market Strategy</li>
-                  <li>Rate: $150/hr — 30, 60, 90 min sessions</li>
-                  <li>Avg Rating: 4.9/5.0 (112 reviews)</li>
+                  {profile?.industryFocus && profile.industryFocus.length > 0
+                    ? <li>{profile.industryFocus.map(i => i.industry).join(", ")}</li>
+                    : <li className="text-green-500 italic">Chưa cập nhật ngành</li>
+                  }
+                  {profile?.title && <li>{profile.title}</li>}
+                  <li>Avg Rating: {profile?.averageRating ? `${profile.averageRating.toFixed(1)}/5.0` : "Chưa có đánh giá"}</li>
                 </ul>
               </div>
-              {/* Availability & Earnings */}
+              {/* Availability */}
               <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
                 <p className="text-xs font-bold text-amber-800 mb-2 flex items-center gap-1 uppercase tracking-tight">
-                  <Clock className="w-4 h-4" /> Lịch rảnh & Thu nhập
+                  <Clock className="w-4 h-4" /> Trạng thái & Mentees
                 </p>
                 <ul className="text-xs text-amber-700 space-y-1.5 list-disc ml-4 font-medium">
-                  <li>Next slot: Mar 22, 10:00 AM</li>
-                  <li>12 open hours this week</li>
-                  <li>This month earnings: $1,200</li>
+                  <li>Đang nhận mentee: {profile?.availability?.isAcceptingNewMentees ? "Có" : "Không"}</li>
+                  <li>Tổng mentees: {profile?.totalMentees ?? "—"}</li>
+                  <li>Tổng giờ tư vấn: {profile?.totalSessionHours ?? "—"} giờ</li>
                 </ul>
               </div>
             </div>
@@ -353,11 +473,14 @@ export default function AdvisorDashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-surface">
+                  {pendingReports.length === 0 && (
+                    <tr><td colSpan={5} className="px-6 py-8 text-center text-neutral-muted text-sm">Không có báo cáo chờ nộp</td></tr>
+                  )}
                   {pendingReports.map((report, idx) => (
                     <tr key={idx} className="hover:bg-[#f8f8f6]/50 transition-colors group">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <AlertTriangle className={cn("w-5 h-5", report.deadline === "Overdue" ? "text-red-500" : "text-amber-500")} />
+                          <AlertTriangle className={cn("w-5 h-5", report.deadlineColor === "text-red-600" ? "text-red-500" : "text-amber-500")} />
                           <span className="text-sm font-bold text-[#171611]">{report.startup}</span>
                         </div>
                       </td>
@@ -369,9 +492,9 @@ export default function AdvisorDashboardPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right pr-6">
-                        <button className="bg-[#e6cc4c] px-4 py-1.5 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Link href={`/advisor/reports`} className="bg-[#e6cc4c] px-4 py-1.5 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">
                           Nộp báo cáo
-                        </button>
+                        </Link>
                       </td>
                     </tr>
                   ))}
@@ -388,6 +511,9 @@ export default function AdvisorDashboardPage() {
           <div className="col-span-12 bg-white rounded-2xl shadow-sm border border-neutral-surface p-6">
             <h3 className="font-bold text-lg text-[#171611] mb-6 tracking-tight">Đánh giá gần đây</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {recentRatings.length === 0 && (
+                <p className="col-span-2 text-center text-neutral-muted text-sm py-6">Chưa có đánh giá nào</p>
+              )}
               {recentRatings.map((item, idx) => (
                 <div key={idx} className="flex items-center justify-between p-4 bg-[#f8f8f6] rounded-xl hover:shadow-md transition-shadow group cursor-pointer border border-transparent hover:border-[#e6cc4c]/20">
                   <div className="flex items-center gap-4">
@@ -396,7 +522,7 @@ export default function AdvisorDashboardPage() {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-[#171611]">{item.startup}</p>
-                      <p className="text-xs text-neutral-muted font-medium italic">"{item.review.slice(0, 60)}..."</p>
+                      <p className="text-xs text-neutral-muted font-medium italic">{item.review ? `"${item.review.slice(0, 60)}..."` : item.topic}</p>
                     </div>
                   </div>
                   <div className="text-right">

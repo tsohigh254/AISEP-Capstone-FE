@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, RefreshCw, ChevronDown, Settings, LogOut } from "lucide-react";
+import { Bell, RefreshCw, ChevronDown, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/context";
 import { Logout } from "@/services/auth/auth.api";
@@ -113,14 +113,6 @@ export function AdminTopbar({ collapsed }: AdminTopbarProps) {
                             />
                             {/* Dropdown */}
                             <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl border border-slate-200/80 shadow-[0_8px_24px_rgba(0,0,0,0.08)] z-50 overflow-hidden py-1.5">
-                                <button
-                                    onClick={() => { setDropdownOpen(false); router.push("/admin/settings"); }}
-                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-slate-700 hover:bg-slate-50 transition-colors"
-                                >
-                                    <Settings className="w-4 h-4 text-slate-400" />
-                                    Settings
-                                </button>
-                                <div className="mx-3 my-1 border-t border-slate-100" />
                                 <button
                                     onClick={handleLogout}
                                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-red-500 hover:bg-red-50 transition-colors"
