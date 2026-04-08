@@ -208,7 +208,11 @@ export default function StartupDocumentsPage() {
     const handleDelete = (docId: string) => {
         (async () => {
             try {
-                await DeleteDocument(docId);
+                const res = await DeleteDocument(docId) as any;
+                if (res?.success === false) {
+                    showToast(res?.message ?? "Xóa tài liệu thất bại", "error");
+                    return;
+                }
                 showToast("Đã xóa tài liệu", "success");
                 setMenuState(null);
                 setDeleteConfirmId(null);

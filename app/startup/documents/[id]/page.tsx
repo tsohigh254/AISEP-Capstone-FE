@@ -606,7 +606,11 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
             try {
                 const backendDocId = Number(id);
                 if (!Number.isFinite(backendDocId)) throw new Error("Invalid document id");
-                await DeleteDocument(String(backendDocId));
+                const res = await DeleteDocument(String(backendDocId)) as any;
+                if (res?.success === false) {
+                    showToast(res?.message ?? "Xóa tài liệu thất bại", "error");
+                    return;
+                }
                 showToast("Đã xóa tài liệu", "success");
                 setTimeout(() => router.push("/startup/documents"), 800);
             } catch (e: any) {

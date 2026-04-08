@@ -32,8 +32,8 @@ export const UploadDocument = (data: IDocumentRequest) => {
     });
 }
 
-export const GetDocument = () => {
-    return axios.get<IBackendRes<IDocument[]>>("/api/documents");
+export const GetDocument = (isArchived: boolean = false) => {
+    return axios.get<IBackendRes<IDocument[]>>(`/api/documents?isArchived=${isArchived}`);
 }
  
 export const GetDocumentById = (documentId: number) => {
