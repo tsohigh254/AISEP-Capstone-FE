@@ -433,7 +433,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     // Close more menu on outside click
     useEffect(() => {
         if (!showMoreMenu) return;
-        const close = () => { setShowMoreMenu(false); setDeleteConfirm(false); };
+        const close = () => { setShowMoreMenu(false); };
         document.addEventListener("click", close);
         return () => document.removeEventListener("click", close);
     }, [showMoreMenu]);
@@ -602,6 +602,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     };
 
     const handleDelete = () => {
+        setDeleteConfirm(false);
         (async () => {
             try {
                 const backendDocId = Number(id);
@@ -678,23 +679,12 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                                     className="absolute right-0 top-10 bg-white border border-slate-200 rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.08)] py-1 w-[176px] z-20"
                                     onClick={e => e.stopPropagation()}
                                 >
-                                    {deleteConfirm ? (
-                                        <div className="px-3.5 py-3 space-y-2.5">
-                                            <p className="text-[12px] text-slate-600 font-medium">Xóa tài liệu này?</p>
-                                            <p className="text-[11px] text-slate-400">Thao tác không thể hoàn tác.</p>
-                                            <div className="flex gap-2">
-                                                <button onClick={() => setDeleteConfirm(false)} className="flex-1 py-1.5 rounded-lg border border-slate-200 text-[12px] text-slate-500 hover:bg-slate-50 transition-colors">Hủy</button>
-                                                <button onClick={handleDelete} className="flex-1 py-1.5 rounded-lg bg-red-500 text-white text-[12px] font-medium hover:bg-red-600 transition-colors">Xóa ngay</button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <button
-                                            onClick={() => { setShowMoreMenu(false); setDeleteConfirm(true); }}
-                                            className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-red-500 hover:bg-red-50 text-left"
-                                        >
-                                            <X className="w-3.5 h-3.5" /> Xóa tài liệu
-                                        </button>
-                                    )}
+                                    <button
+                                        onClick={() => { setShowMoreMenu(false); setDeleteConfirm(true); }}
+                                        className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-red-500 hover:bg-red-50 text-left"
+                                    >
+                                        <X className="w-3.5 h-3.5" /> Xóa tài liệu
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -830,6 +820,34 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
 
             {false && <EditMetadataModal doc={doc} onClose={() => {}} onSave={() => {}} />}
             {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+
+            {/* Delete confirmation dialog (independent of dropdown) */}
+            {deleteConfirm && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={() => setDeleteConfirm(false)} />
+                    <div className="relative bg-white rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.12)] w-full max-w-sm mx-4 p-6 space-y-4">
+                        <div className="flex items-center gap-3">
+                            <div className="size-10 rounded-xl bg-red-50 flex items-center justify-center">
+                                <X className="w-5 h-5 text-red-500" />
+                            </div>
+                            <div>
+                                <h3 className="text-[15px] font-semibold text-slate-900">Xóa tài liệu</h3>
+                                <p className="text-[12px] text-slate-400 mt-0.5">Thao tác này không thể hoàn tác.</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setDeleteConfirm(false)}
+                                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                            >Hủy</button>
+                            <button
+                                onClick={handleDelete}
+                                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-[13px] font-semibold hover:bg-red-600 transition-colors"
+                            >Xóa ngay</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </StartupShell>
     );
 }

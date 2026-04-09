@@ -181,9 +181,12 @@ export default function AdminUsersPage() {
     const fetchUsers = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await GetUsers({ page: 1, pageSize: 500 }) as unknown as IBackendRes<IUser[]>;
+            const res = await GetUsers({ page: 1, pageSize: 500 }) as unknown as IBackendRes<any>;
             if ((res?.isSuccess || res?.success) && res?.data) {
-                setUsers(Array.isArray(res.data) ? res.data : []);
+                // Backend returns paged: { page, pageSize, total, data: [...users] }
+                const raw = res.data;
+                const list = Array.isArray(raw) ? raw : Array.isArray(raw.data) ? raw.data : [];
+                setUsers(list);
             }
         } catch { /* silent */ }
         finally { setLoading(false); }

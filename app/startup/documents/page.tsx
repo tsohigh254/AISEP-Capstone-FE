@@ -162,7 +162,7 @@ export default function StartupDocumentsPage() {
     // Close dropdown on outside click
     useEffect(() => {
         if (!menuState) return;
-        const close = () => { setMenuState(null); setDeleteConfirmId(null); };
+        const close = () => { setMenuState(null); };
         document.addEventListener("click", close);
         return () => document.removeEventListener("click", close);
     }, [menuState]);
@@ -206,6 +206,7 @@ export default function StartupDocumentsPage() {
     };
 
     const handleDelete = (docId: string) => {
+        setDeleteConfirmId(null);
         (async () => {
             try {
                 const res = await DeleteDocument(docId) as any;
@@ -214,8 +215,6 @@ export default function StartupDocumentsPage() {
                     return;
                 }
                 showToast("Đã xóa tài liệu", "success");
-                setMenuState(null);
-                setDeleteConfirmId(null);
                 setReloadToken(v => v + 1);
             } catch (e: any) {
                 showToast(e?.message ?? "Xóa tài liệu thất bại", "error");
@@ -393,7 +392,6 @@ export default function StartupDocumentsPage() {
             {menuState && (() => {
                 const menuDoc = localDocs.find(d => d.id === menuState.docId);
                 if (!menuDoc) return null;
-                const isConfirmingDelete = deleteConfirmId === menuState.docId;
 
                 return (
                     <div
@@ -401,45 +399,54 @@ export default function StartupDocumentsPage() {
                         style={{ left: menuState.x, top: menuState.y }}
                         onClick={e => e.stopPropagation()}
                     >
-                        {isConfirmingDelete ? (
-                            <div className="px-3.5 py-3 space-y-2.5">
-                                <p className="text-[12px] text-slate-600 font-medium">Xóa tài liệu này?</p>
-                                <p className="text-[11px] text-slate-400 leading-relaxed">Thao tác này không thể hoàn tác.</p>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setDeleteConfirmId(null)}
-                                        className="flex-1 py-1.5 rounded-lg border border-slate-200 text-[12px] text-slate-500 hover:bg-slate-50 transition-colors"
-                                    >Hủy</button>
-                                    <button
-                                        onClick={() => handleDelete(menuState.docId)}
-                                        className="flex-1 py-1.5 rounded-lg bg-red-500 text-white text-[12px] font-medium hover:bg-red-600 transition-colors"
-                                    >Xóa ngay</button>
-                                </div>
-                            </div>
-                        ) : (
-                            <>
-                                <Link href={`/startup/documents/${menuState.docId}`}>
-                                    <button className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 transition-colors text-left">
-                                        <Eye className="w-3.5 h-3.5 text-slate-400" /> Xem chi tiết
-                                    </button>
-                                </Link>
-                                <button
-                                    onClick={() => menuDoc && openEdit(menuDoc)}
-                                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 transition-colors text-left"
-                                >
-                                    <Pencil className="w-3.5 h-3.5 text-slate-400" /> Chỉnh sửa
-                                </button>
-                                <button
-                                    onClick={() => setDeleteConfirmId(menuState.docId)}
-                                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-red-500 hover:bg-red-50 transition-colors text-left"
-                                >
-                                    <Trash2 className="w-3.5 h-3.5" /> Xóa tài liệu
-                                </button>
-                            </>
-                        )}
+                        <Link href={`/startup/documents/${menuState.docId}`}>
+                            <button className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 transition-colors text-left">
+                                <Eye className="w-3.5 h-3.5 text-slate-400" /> Xem chi tiết
+                            </button>
+                        </Link>
+                        <button
+                            onClick={() => menuDoc && openEdit(menuDoc)}
+                            className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 transition-colors text-left"
+                        >
+                            <Pencil className="w-3.5 h-3.5 text-slate-400" /> Chỉnh sửa
+                        </button>
+                        <button
+                            onClick={() => { setDeleteConfirmId(menuState.docId); setMenuState(null); }}
+                            className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-red-500 hover:bg-red-50 transition-colors text-left"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" /> Xóa tài liệu
+                        </button>
                     </div>
                 );
             })()}
+
+            {/* Delete confirmation dialog (independent of dropdown) */}
+            {deleteConfirmId && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={() => setDeleteConfirmId(null)} />
+                    <div className="relative bg-white rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.12)] w-full max-w-sm mx-4 p-6 space-y-4">
+                        <div className="flex items-center gap-3">
+                            <div className="size-10 rounded-xl bg-red-50 flex items-center justify-center">
+                                <Trash2 className="w-5 h-5 text-red-500" />
+                            </div>
+                            <div>
+                                <h3 className="text-[15px] font-semibold text-slate-900">Xóa tài liệu</h3>
+                                <p className="text-[12px] text-slate-400 mt-0.5">Thao tác này không thể hoàn tác.</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setDeleteConfirmId(null)}
+                                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                            >Hủy</button>
+                            <button
+                                onClick={() => handleDelete(deleteConfirmId)}
+                                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-[13px] font-semibold hover:bg-red-600 transition-colors"
+                            >Xóa ngay</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Edit modal */}
             {editState && (
