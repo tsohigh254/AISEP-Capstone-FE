@@ -47,9 +47,10 @@ export default function AdminUserDetailPage() {
     const fetchAudit = useCallback(async () => {
         setAuditLoading(true);
         try {
-            const res = await GetAuditLogs({ userId, page: 1, pageSize: 10 }) as unknown as IBackendRes<IPagingData<IAuditLog>>;
+            const res = await GetAuditLogs({ userId, page: 1, pageSize: 10 }) as unknown as IBackendRes<any>;
             if ((res?.isSuccess || res?.success) && res?.data) {
-                setAuditLogs(res.data.items || []);
+                // Backend returns { page, pageSize, total, data: [...] }
+                setAuditLogs(res.data.items ?? res.data.data ?? []);
             }
         } catch { /* silent */ }
         finally { setAuditLoading(false); }

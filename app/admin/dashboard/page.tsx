@@ -104,10 +104,12 @@ export default function AdminDashboardPage() {
     const fetchAudit = useCallback(async () => {
         setAuditState("loading");
         try {
-            const res = await GetAuditLogs({ page: 1, pageSize: 5 }) as unknown as IBackendRes<IPagingData<IAuditLog>>;
+            const res = await GetAuditLogs({ page: 1, pageSize: 5 }) as unknown as IBackendRes<any>;
             if ((res?.isSuccess || res?.success) && res?.data) {
-                setAuditLogs(res.data.items || []);
-                setAuditState(res.data.items?.length ? "ready" : "empty");
+                // Backend returns { page, pageSize, total, data: [...] }
+                const items = res.data.items ?? res.data.data ?? [];
+                setAuditLogs(items);
+                setAuditState(items.length ? "ready" : "empty");
             } else {
                 setAuditState("error");
             }
