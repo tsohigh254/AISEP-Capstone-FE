@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, useRef, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AddUserModal } from "@/components/admin/add-user-modal";
 import { EditUserModal } from "@/components/admin/edit-user-modal";
@@ -23,7 +23,7 @@ const PAGE_SIZE = 10;
 
 const PRESET_TABS = [
     { key: "all",      label: "Tất cả" },
-    { key: "active",   label: "Đang hoạt động" },
+    { key: "active",   label: "Kích hoạt" },
     { key: "locked",   label: "Bị khoá" },
 ];
 
@@ -151,7 +151,16 @@ function ConfirmLockModal({ user, onConfirm, onCancel, loading: submitting }: {
 
 /* ─── Page ────────────────────────────────────────────────── */
 export default function AdminUsersPage() {
+    return (
+        <Suspense>
+            <AdminUsersContent />
+        </Suspense>
+    );
+}
+
+function AdminUsersContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [nowMs] = useState(() => Date.now());
 
     // Modal state
@@ -166,11 +175,11 @@ export default function AdminUsersPage() {
     const [users, setUsers] = useState<IUser[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Filter state
+    // Filter state — initialise from URL search params
     const [searchRaw, setSearchRaw] = useState("");
     const [search, setSearch] = useState("");
-    const [activeTab, setActiveTab] = useState("all");
-    const [roleFilter, setRoleFilter] = useState("");
+    const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "all");
+    const [roleFilter, setRoleFilter] = useState(searchParams.get("role") || "");
     const [sortBy, setSortBy] = useState<SortKey>("newest");
     const [page, setPage] = useState(1);
 

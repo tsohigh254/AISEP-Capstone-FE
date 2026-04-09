@@ -289,9 +289,29 @@ export default function RolesPermissionsPage() {
                             </div>
                         )}
                     </div>
+                ) : permissions.length === 0 ? (
+                    /* ═══ MATRIX EMPTY STATE ═══ */
+                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-12 flex flex-col items-center justify-center text-center">
+                        <div className="size-12 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
+                            <ShieldCheck className="w-6 h-6 text-slate-300" />
+                        </div>
+                        <p className="text-[14px] font-semibold text-slate-700 mb-1">Chưa có permission nào</p>
+                        <p className="text-[12px] text-slate-400 max-w-sm">
+                            Hệ thống chưa có dữ liệu permissions. Hãy kiểm tra lại database hoặc chạy lại seed data để tạo permissions mặc định.
+                        </p>
+                    </div>
                 ) : (
                     /* ═══ MATRIX TAB ═══ */
                     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+                        {/* Matrix hint */}
+                        {roles.every(r => !r.permissions || r.permissions.length === 0) && (
+                            <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                                <Square className="w-4 h-4 text-amber-500 shrink-0" />
+                                <p className="text-[12px] text-amber-700">
+                                    Chưa có permission nào được gán cho role. Nhấn vào role ở tab <strong>Role Management</strong> để gán permissions.
+                                </p>
+                            </div>
+                        )}
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead>

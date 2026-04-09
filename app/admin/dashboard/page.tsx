@@ -7,34 +7,24 @@ import { cn } from "@/lib/utils";
 import {
     Users, AlertTriangle, Flame, RefreshCw, ArrowRight,
     FileText, Activity, ChevronRight, ShieldCheck,
-    LayoutDashboard, X, CheckCircle2, Database,
-    Briefcase, UserCheck, Clock, Flag,
+    LayoutDashboard, CheckCircle2,
+    Briefcase, UserCheck, Lock,
 } from "lucide-react";
-import { GetSystemHealth, GetAuditLogs, type SystemHealthRes } from "@/services/admin/admin.api";
+import { GetUsers, GetAuditLogs } from "@/services/admin/admin.api";
 
-/* ─── Types ──────────────────────────────────────────────── */
-type Status = "healthy" | "warning" | "critical" | "unknown";
+/* --- Types --------------------------------------------------- */
 type SectionState = "ready" | "loading" | "empty" | "error";
 
-/* ─── Helpers ─────────────────────────────────────────────── */
-const STATUS_CFG: Record<Status, { dot: string; badge: string; label: string }> = {
-    healthy:  { dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80", label: "Healthy"  },
-    warning:  { dot: "bg-amber-400",   badge: "bg-amber-50 text-amber-700 border-amber-200/80",       label: "Warning"  },
-    critical: { dot: "bg-red-400",     badge: "bg-red-50 text-red-600 border-red-200/80",             label: "Critical" },
-    unknown:  { dot: "bg-slate-300",   badge: "bg-slate-50 text-slate-500 border-slate-200/80",       label: "Unknown"  },
-};
-
-function StatusBadge({ status }: { status: Status }) {
-    const cfg = STATUS_CFG[status];
-    return (
-        <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-semibold border", cfg.badge)}>
-            <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", cfg.dot)} />
-            {cfg.label}
-        </span>
-    );
+interface UserStats {
+    total: number;
+    startups: number;
+    investors: number;
+    advisors: number;
+    staff: number;
+    locked: number;
 }
 
-/* ─── SectionWrapper ──────────────────────────────────────── */
+/* --- SectionWrapper ------------------------------------------ */
 function SectionWrapper({ state, onRetry, emptyMsg, children }: {
     state: SectionState; onRetry?: () => void; emptyMsg?: string; children: React.ReactNode;
 }) {
@@ -69,7 +59,7 @@ function SectionWrapper({ state, onRetry, emptyMsg, children }: {
     return <>{children}</>;
 }
 
-/* ─── Quick Access (only existing pages) ─────────────────── */
+/* --- Quick Access -------------------------------------------- */
 const QUICK_ACCESS = [
     { label: "Người dùng",          icon: Users,        href: "/admin/users",              desc: "Quản lý tài khoản"    },
     { label: "Vai trò & Quyền",     icon: ShieldCheck,  href: "/admin/roles-permissions",  desc: "Phân quyền hệ thống"  },
@@ -77,27 +67,35 @@ const QUICK_ACCESS = [
     { label: "Incident Center",     icon: Flame,        href: "/admin/incident",           desc: "Xử lý sự cố"          },
 ];
 
-/* ─── Page ────────────────────────────────────────────────── */
+/* --- Page ---------------------------------------------------- */
 export default function AdminDashboardPage() {
     const router = useRouter();
-    const [bannerVisible, setBannerVisible] = useState(true);
-    const [health, setHealth] = useState<SystemHealthRes | null>(null);
+    const [stats, setStats] = useState<UserStats | null>(null);
     const [auditLogs, setAuditLogs] = useState<IAuditLog[]>([]);
-    const [healthState, setHealthState] = useState<SectionState>("loading");
+    const [statsState, setStatsState] = useState<SectionState>("loading");
     const [auditState, setAuditState] = useState<SectionState>("loading");
 
-    const fetchHealth = useCallback(async () => {
-        setHealthState("loading");
+    const fetchStats = useCallback(async () => {
+        setStatsState("loading");
         try {
-            const res = await GetSystemHealth() as unknown as IBackendRes<SystemHealthRes>;
+            const res = await GetUsers({ page: 1, pageSize: 9999 }) as unknown as IBackendRes<any>;
             if ((res?.isSuccess || res?.success) && res?.data) {
-                setHealth(res.data);
-                setHealthState("ready");
+                const raw = res.data;
+                const list: IUser[] = Array.isArray(raw) ? raw : Array.isArray(raw.data) ? raw.data : [];
+                setStats({
+                    total: list.length,
+                    startups: list.filter(u => u.userType === "Startup").length,
+                    investors: list.filter(u => u.userType === "Investor").length,
+                    advisors: list.filter(u => u.userType === "Advisor").length,
+                    staff: list.filter(u => u.userType === "Staff").length,
+                    locked: list.filter(u => !u.isActive).length,
+                });
+                setStatsState("ready");
             } else {
-                setHealthState("error");
+                setStatsState("error");
             }
         } catch {
-            setHealthState("error");
+            setStatsState("error");
         }
     }, []);
 
@@ -106,7 +104,6 @@ export default function AdminDashboardPage() {
         try {
             const res = await GetAuditLogs({ page: 1, pageSize: 5 }) as unknown as IBackendRes<any>;
             if ((res?.isSuccess || res?.success) && res?.data) {
-                // Backend returns { page, pageSize, total, data: [...] }
                 const items = res.data.items ?? res.data.data ?? [];
                 setAuditLogs(items);
                 setAuditState(items.length ? "ready" : "empty");
@@ -119,58 +116,39 @@ export default function AdminDashboardPage() {
     }, []);
 
     useEffect(() => {
-        fetchHealth();
+        fetchStats();
         fetchAudit();
-    }, [fetchHealth, fetchAudit]);
+    }, [fetchStats, fetchAudit]);
 
-    /* Build health cards from real data */
-    const healthCards = health ? [
-        { id: "users",      icon: Users,         label: "Tổng người dùng",     value: String(health.totalUsers),      sub: `${health.totalStartups} startup, ${health.totalInvestors} investor`, status: "healthy"  as Status, href: "/admin/users" },
-        { id: "startups",   icon: Briefcase,     label: "Startups",            value: String(health.totalStartups),   sub: "đã đăng ký",            status: "healthy"  as Status, href: "/admin/users" },
-        { id: "investors",  icon: UserCheck,      label: "Investors",           value: String(health.totalInvestors),  sub: "đã đăng ký",            status: "healthy"  as Status, href: "/admin/users" },
-        { id: "advisors",   icon: ShieldCheck,   label: "Advisors",            value: String(health.totalAdvisors),   sub: "đã đăng ký",            status: "healthy"  as Status, href: "/admin/users" },
-        { id: "pending",    icon: Clock,         label: "Chờ duyệt",          value: String(health.pendingApprovals),sub: "cần xem xét",            status: health.pendingApprovals > 0 ? "warning" as Status : "healthy" as Status, href: "/admin/users" },
-        { id: "incidents",  icon: Flame,         label: "Sự cố đang mở",      value: String(health.openIncidents),   sub: "cần xử lý",             status: health.openIncidents > 0 ? "critical" as Status : "healthy" as Status, href: "/admin/incident" },
-        { id: "flags",      icon: Flag,          label: "Vi phạm chưa xử lý", value: String(health.unresolvedFlags), sub: "báo cáo",                status: health.unresolvedFlags > 0 ? "warning" as Status : "healthy" as Status, href: "/admin/incident" },
-        { id: "database",   icon: Database,      label: "Database",            value: health.databaseConnected ? "Connected" : "Disconnected", sub: new Date(health.checkedAt).toLocaleTimeString("vi-VN"), status: health.databaseConnected ? "healthy" as Status : "critical" as Status, href: "/admin/dashboard" },
+    const statCards = stats ? [
+        { id: "users",     icon: Users,      label: "Tổng người dùng", value: stats.total,     sub: `${stats.startups} startup, ${stats.investors} investor`, href: "/admin/users" },
+        { id: "startups",  icon: Briefcase,   label: "Startups",        value: stats.startups,  sub: "tài khoản startup",  href: "/admin/users?role=Startup" },
+        { id: "investors", icon: UserCheck,    label: "Investors",       value: stats.investors, sub: "tài khoản investor", href: "/admin/users?role=Investor" },
+        { id: "advisors",  icon: ShieldCheck, label: "Advisors",        value: stats.advisors,  sub: "tài khoản advisor",  href: "/admin/users?role=Advisor" },
+        { id: "staff",     icon: Users,       label: "Staff",           value: stats.staff,     sub: "tài khoản staff",    href: "/admin/users?role=Staff" },
+        { id: "locked",    icon: Lock,        label: "Bị khoá",        value: stats.locked,    sub: "tài khoản bị khoá",  href: "/admin/users?tab=locked" },
     ] : [];
 
     return (
         <AdminShell>
             <div className="px-8 py-7 space-y-6 pb-16 animate-in fade-in duration-400">
 
-                {/* ── System Banner (dismissible) ── */}
-                {bannerVisible && health && !health.databaseConnected && (
-                    <div className="rounded-2xl border-2 border-red-200 bg-red-50/60 px-5 py-3.5 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
-                            <div>
-                                <p className="text-[13px] font-semibold text-red-700">Database không kết nối được</p>
-                                <p className="text-[11px] text-red-600 mt-0.5">Kiểm tra lại kết nối PostgreSQL.</p>
-                            </div>
-                        </div>
-                        <button onClick={() => setBannerVisible(false)} className="text-red-400 hover:text-red-600 transition-colors shrink-0 ml-4">
-                            <X className="w-4 h-4" />
-                        </button>
-                    </div>
-                )}
-
-                {/* ── System Health Overview ── */}
+                {/* -- Overview Stats -- */}
                 <div>
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-[15px] font-semibold text-slate-900 flex items-center gap-2">
                             <Activity className="w-4 h-4 text-slate-400" />
-                            System Health
+                            Tổng quan
                         </h2>
-                        <button onClick={() => { fetchHealth(); fetchAudit(); }} className="inline-flex items-center gap-1 text-[12px] font-medium text-slate-400 hover:text-slate-700 transition-colors">
+                        <button onClick={() => { fetchStats(); fetchAudit(); }} className="inline-flex items-center gap-1 text-[12px] font-medium text-slate-400 hover:text-slate-700 transition-colors">
                             <RefreshCw className="w-3.5 h-3.5" /> Refresh
                         </button>
                     </div>
-                    <SectionWrapper state={healthState} onRetry={fetchHealth}>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {healthCards.map(card => {
+                    <SectionWrapper state={statsState} onRetry={fetchStats}>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                            {statCards.map(card => {
                                 const Icon = card.icon;
-                                const cfg = STATUS_CFG[card.status];
+                                const isWarn = card.id === "locked" && card.value > 0;
                                 return (
                                     <button
                                         key={card.id}
@@ -181,11 +159,7 @@ export default function AdminDashboardPage() {
                                             <div className="size-8 rounded-xl bg-slate-50 flex items-center justify-center group-hover:bg-slate-100 transition-colors">
                                                 <Icon className="w-4 h-4 text-slate-400" />
                                             </div>
-                                            <span className={cn(
-                                                "w-2 h-2 rounded-full mt-1 shrink-0",
-                                                cfg.dot,
-                                                card.status !== "healthy" && "animate-pulse"
-                                            )} />
+                                            {isWarn && <span className="w-2 h-2 rounded-full mt-1 shrink-0 bg-red-400 animate-pulse" />}
                                         </div>
                                         <p className="text-[20px] font-bold text-slate-900 leading-none mb-1">{card.value}</p>
                                         <p className="text-[12px] font-medium text-slate-500">{card.label}</p>
@@ -197,7 +171,7 @@ export default function AdminDashboardPage() {
                     </SectionWrapper>
                 </div>
 
-                {/* ── Recent Audit + Quick Access (2 col) ── */}
+                {/* -- Recent Audit + Quick Access (2 col) -- */}
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
 
                     {/* Recent Audit Activity */}
@@ -224,7 +198,6 @@ export default function AdminDashboardPage() {
                                                 {log.userEmail || "system"} → {log.entityType}{log.entityId ? `#${log.entityId}` : ""}
                                             </p>
                                         </div>
-                                        <StatusBadge status="healthy" />
                                     </div>
                                 ))}
                             </div>
