@@ -122,7 +122,7 @@ function mapBackendDocToUi(doc: IDocument): DocData {
         hash: hash,
         proofStatus: doc.proofStatus,
         txHash: txHash,
-        recordedAt: anyDoc.recordedAt ?? formatUploadedAt(doc.uploadedAt),
+        recordedAt: anyDoc.anchoredAt ?? "",
         network: anyDoc.network ?? "Ethereum Sepolia",
     };
 }
@@ -353,15 +353,17 @@ function BlockchainPanel({ status, hash, proofStatus, txHash, recordedAt, ethers
                         {recordedAt && (
                             <div className="flex items-center justify-between">
                                 <span className="text-[12px] text-slate-400">Thời điểm đăng ký</span>
-                                <span className="text-[12px] font-medium text-slate-600">{new Date(recordedAt).toLocaleString("vi-VN")}</span>
+                                <span className="text-[12px] font-medium text-slate-600">{(() => {
+                                    const d = new Date(recordedAt);
+                                    if (Number.isNaN(d.getTime())) return recordedAt;
+                                    const dd = String(d.getDate()).padStart(2, "0");
+                                    const mm = String(d.getMonth() + 1).padStart(2, "0");
+                                    const yyyy = d.getFullYear();
+                                    const hh = String(d.getHours()).padStart(2, "0");
+                                    const mi = String(d.getMinutes()).padStart(2, "0");
+                                    return `${dd}/${mm}/${yyyy} · ${hh}:${mi}`;
+                                })()}</span>
                             </div>
-                        )}
-
-                        {etherscanUrl && (
-                            <a href={etherscanUrl} target="_blank" rel="noopener noreferrer"
-                               className="w-full flex items-center justify-center gap-2 py-2 border border-indigo-200 text-indigo-600 bg-indigo-50 rounded-xl text-[12px] font-medium hover:bg-indigo-100 transition-all">
-                                <ExternalLink className="w-3.5 h-3.5" /> Xem bằng chứng trên Etherscan
-                            </a>
                         )}
 
                         {isVerified && (
@@ -400,6 +402,12 @@ function BlockchainPanel({ status, hash, proofStatus, txHash, recordedAt, ethers
                                                 </button>
                                             </div>
                                         </div>
+                                    )}
+                                    {txHash && txHash !== "—" && (
+                                        <a href={etherscanUrl || `https://sepolia.etherscan.io/tx/${txHash}`} target="_blank" rel="noopener noreferrer"
+                                           className="w-full flex items-center justify-center gap-2 py-2 border border-indigo-200 text-indigo-600 bg-indigo-50 rounded-xl text-[12px] font-medium hover:bg-indigo-100 transition-all">
+                                            <ExternalLink className="w-3.5 h-3.5" /> Xem bằng chứng trên Etherscan
+                                        </a>
                                     )}
                                 </div>
                             )}

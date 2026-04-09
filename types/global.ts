@@ -237,6 +237,7 @@ declare global {
     proofStatus: string;
     fileHash: string;
     transactionHash: string;
+    anchoredAt: string | null;
   }
 
   interface IBlockchainChecking {
