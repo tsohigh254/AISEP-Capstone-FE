@@ -1,25 +1,21 @@
 import axios from "../interceptor";
 
 export interface IWalletInfo {
-  walletId: number;
-  advisorId: number;
-  balance: number;
-  totalEarned: number;
-  totalWithdrawn: number;
-  createdAt: string;
+  walletId: number
+  advisorId: number
+  balance: number
+  totalEarned: number
+  totalWithdrawn: number
+  createdAt: string
 }
 
 export interface ITransactionInfo {
-  transactionId: number;
+  transactionID: number;
   walletId: number;
   amount: number;
-  balanceAfterTransaction?: number;
-  transactionType: ETransactionType | number | string;
-  transactionStatus: ETransactionStatus | number | string;
-  description?: string | null;
-  referenceCode?: string | null;
+  type: ETransactionType | number | string;
+  status: ETransactionStatus | number | string;
   createdAt: string;
-  updatedAt?: string | null;
 }
 
 export interface ITransactionsParams {
@@ -48,8 +44,15 @@ export const GetWalletTransactions = (
   walletId: number,
   params: ITransactionsParams = {},
 ) => {
+  const serializedParams = new URLSearchParams(
+    Object.entries(params).reduce<Record<string, string>>((acc, [key, value]) => {
+      if (value === undefined || value === null) return acc;
+      acc[key] = String(value);
+      return acc;
+    }, {}),
+  ).toString();
+
   return axios.get<IBackendRes<IPagingData<ITransactionInfo>>>(
-    `/api/wallets/${walletId}/transactions`,
-    { params },
+    `/api/wallets/${walletId}/transactions?${serializedParams}`,
   );
 };
