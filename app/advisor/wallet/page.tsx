@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
@@ -15,7 +15,21 @@ import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, RefreshCcw, Wallet, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Loader2,
+  RefreshCcw,
+  Wallet,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+} from "lucide-react";
 
 const PAGE_SIZE = 10;
 
@@ -25,8 +39,8 @@ const transactionTypeLabel: Record<number, string> = {
 };
 
 const transactionStatusLabel: Record<number, string> = {
-  [ETransactionStatus.Pending]: "Đang xử lý",
-  [ETransactionStatus.Completed]: "Thành công",
+  [ETransactionStatus.Pending]: "Đang chờ",
+  [ETransactionStatus.Completed]: "Hoàn thành",
   [ETransactionStatus.Failed]: "Thất bại",
 };
 
@@ -55,7 +69,7 @@ function formatDate(dateInput: string | null | undefined) {
   }).format(date);
 }
 
-function normalizeTypeLabel(typeValue: ITransactionInfo["transactionType"]) {
+function normalizeTypeLabel(typeValue: ITransactionInfo["type"]) {
   const asNumber = typeof typeValue === "number" ? typeValue : Number(typeValue);
   if (!Number.isNaN(asNumber) && transactionTypeLabel[asNumber]) {
     return transactionTypeLabel[asNumber];
@@ -63,7 +77,7 @@ function normalizeTypeLabel(typeValue: ITransactionInfo["transactionType"]) {
   return String(typeValue ?? "Unknown");
 }
 
-function normalizeStatusLabel(statusValue: ITransactionInfo["transactionStatus"]) {
+function normalizeStatusLabel(statusValue: ITransactionInfo["status"]) {
   const asNumber = typeof statusValue === "number" ? statusValue : Number(statusValue);
   if (!Number.isNaN(asNumber) && transactionStatusLabel[asNumber]) {
     return transactionStatusLabel[asNumber];
@@ -71,7 +85,7 @@ function normalizeStatusLabel(statusValue: ITransactionInfo["transactionStatus"]
   return String(statusValue ?? "Unknown");
 }
 
-function statusBadgeClass(statusValue: ITransactionInfo["transactionStatus"]) {
+function statusBadgeClass(statusValue: ITransactionInfo["status"]) {
   const asNumber = typeof statusValue === "number" ? statusValue : Number(statusValue);
   if (asNumber === ETransactionStatus.Completed) {
     return "bg-emerald-100 text-emerald-700 border-emerald-200";
@@ -112,12 +126,15 @@ export default function AdvisorWalletPage() {
           transactionStatus: statusValue === null ? undefined : (statusValue as ETransactionStatus),
         });
 
-        const envelope = res as IBackendRes<IPagingData<ITransactionInfo>>;
-        const itemList = envelope.data?.items ?? [];
-        const paging = envelope.data?.paging;
+        const envelope = res as unknown as IBackendRes<IPagingData<ITransactionInfo>>;
+        const payload = envelope.data;
+        const itemList = payload?.data ?? [];
+        const paging = payload?.paging;
 
         setTransactions(itemList);
-        setTotalPages(paging?.totalPages ?? Math.max(1, Math.ceil((paging?.totalItems ?? itemList.length) / PAGE_SIZE)));
+        setTotalPages(
+          paging?.totalPages ?? Math.max(1, Math.ceil((paging?.totalItems ?? itemList.length) / PAGE_SIZE)),
+        );
       } catch (fetchError) {
         console.error(fetchError);
         setTransactions([]);
@@ -332,36 +349,30 @@ export default function AdvisorWalletPage() {
                 Không có giao dịch phù hợp với bộ lọc hiện tại.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200 text-sm">
-                  <thead>
-                    <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-                      <th className="py-3 pr-4 font-semibold">ID</th>
-                      <th className="py-3 pr-4 font-semibold">Loại</th>
-                      <th className="py-3 pr-4 font-semibold">Trạng thái</th>
-                      <th className="py-3 pr-4 font-semibold">Số tiền</th>
-                      <th className="py-3 pr-4 font-semibold">Số dư sau GD</th>
-                      <th className="py-3 pr-4 font-semibold">Thời gian</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {transactions.map((transaction) => (
-                      <tr key={`${transaction.transactionId}-${transaction.createdAt}`} className="hover:bg-slate-50/60">
-                        <td className="py-3 pr-4 font-medium text-slate-800">#{transaction.transactionId}</td>
-                        <td className="py-3 pr-4 text-slate-700">{normalizeTypeLabel(transaction.transactionType)}</td>
-                        <td className="py-3 pr-4">
-                          <Badge variant="outline" className={statusBadgeClass(transaction.transactionStatus)}>
-                            {normalizeStatusLabel(transaction.transactionStatus)}
-                          </Badge>
-                        </td>
-                        <td className="py-3 pr-4 font-semibold text-slate-900">{formatCurrency(transaction.amount)}</td>
-                        <td className="py-3 pr-4 text-slate-700">{formatCurrency(transaction.balanceAfterTransaction)}</td>
-                        <td className="py-3 pr-4 text-slate-600">{formatDate(transaction.createdAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Loại</TableHead>
+                    <TableHead>Trạng thái</TableHead>
+                    <TableHead className="text-right">Số tiền</TableHead>
+                    <TableHead>Thời gian</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {transactions.map((tx) => (
+                    <TableRow key={tx.transactionID}>
+                      <TableCell className="font-medium">{tx.transactionID}</TableCell>
+                      <TableCell>{normalizeTypeLabel(tx.type)}</TableCell>
+                      <TableCell>
+                        <Badge className={statusBadgeClass(tx.status)}>{normalizeStatusLabel(tx.status)}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">{formatCurrency(tx.amount)}</TableCell>
+                      <TableCell>{formatDate(tx.createdAt)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
 
             <Separator />
