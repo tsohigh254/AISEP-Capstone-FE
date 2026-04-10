@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { 
   User, Shield, Bell, LogOut, 
   CheckCircle2, AlertCircle, Loader2, 
-  Eye, EyeOff, ShieldCheck, Mail,
-  ChevronRight, Lock, AlertTriangle, Users, Brain, Newspaper
+  Eye, EyeOff, ShieldCheck, Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { SupportModal } from "@/components/investor/support-modal";
+import { GetInvestorProfile, UpdateInvestorAcceptingConnections } from "@/services/investor/investor.api";
 
 /* ─── Sub-components ─────────────────────────────────────────── */
 
@@ -78,6 +78,30 @@ const DEFAULT_PREFS: Prefs = {
     email: true,
 };
 
+const APPROVED_PROFILE_STATUS = "Approved";
+
+const PROFILE_STATUS_LABELS: Record<string, string> = {
+    Draft: "Draft",
+    Pending: "Pending",
+    Approved: "Approved",
+    Rejected: "Rejected",
+    PendingKYC: "Pending KYC",
+};
+
+const isSuccessResponse = <T,>(res?: IBackendRes<T> | null): res is IBackendRes<T> => {
+    return Boolean(res && (res.success || res.isSuccess));
+};
+
+const getBackendErrorCode = (res?: IBackendRes<unknown> | null) => {
+    return res?.error?.code ?? null;
+};
+
+const getHttpStatusCode = (error: unknown): number | null => {
+    if (!error || typeof error !== "object") return null;
+    const maybeError = error as { response?: { status?: unknown } };
+    return typeof maybeError.response?.status === "number" ? maybeError.response.status : null;
+};
+
 /* ─── Main Page ─────────────────────────────────────────────── */
 export default function InvestorSettingsPage() {
     const [showSupportModal, setShowSupportModal] = useState(false);
@@ -92,8 +116,78 @@ export default function InvestorSettingsPage() {
     const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
     const originalPrefs = useRef<Prefs>(DEFAULT_PREFS);
     const [saving, setSaving] = useState(false);
+    const [profileStatus, setProfileStatus] = useState<string | null>(null);
+    const [acceptingConnections, setAcceptingConnections] = useState(false);
+    const [isLoadingConnectionSetting, setIsLoadingConnectionSetting] = useState(true);
+    const [isTogglingConnections, setIsTogglingConnections] = useState(false);
+    const [connectionSettingError, setConnectionSettingError] = useState<string | null>(null);
+    const [blockedByApprovalError, setBlockedByApprovalError] = useState(false);
 
     const isDirty = JSON.stringify(prefs) !== JSON.stringify(originalPrefs.current);
+    const isApprovedProfile = profileStatus === APPROVED_PROFILE_STATUS && !blockedByApprovalError;
+    const profileStatusLabel = profileStatus
+        ? (PROFILE_STATUS_LABELS[profileStatus] ?? profileStatus)
+        : "Unknown";
+
+    useEffect(() => {
+        let isDisposed = false;
+
+        const loadConnectionSetting = async () => {
+            setIsLoadingConnectionSetting(true);
+            setConnectionSettingError(null);
+            setBlockedByApprovalError(false);
+
+            try {
+                const profileRes = await GetInvestorProfile();
+
+                if (!isSuccessResponse(profileRes) || !profileRes.data) {
+                    const errorCode = getBackendErrorCode(profileRes);
+
+                    if (!isDisposed) {
+                        if (errorCode === "INVESTOR_PROFILE_NOT_FOUND") {
+                            setConnectionSettingError("Kh\u00f4ng t\u00ecm th\u1ea5y h\u1ed3 s\u01a1 investor.");
+                        } else if (errorCode === "INVESTOR_NOT_APPROVED") {
+                            setBlockedByApprovalError(true);
+                            setConnectionSettingError("H\u1ed3 s\u01a1/KYC ch\u01b0a \u0111\u01b0\u1ee3c duy\u1ec7t. Ch\u1ec9 h\u1ed3 s\u01a1 Approved m\u1edbi \u0111\u01b0\u1ee3c b\u1eadt/t\u1eaft c\u00e0i \u0111\u1eb7t n\u00e0y.");
+                        } else {
+                            setConnectionSettingError(profileRes?.message || "Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c c\u00e0i \u0111\u1eb7t nh\u1eadn k\u1ebft n\u1ed1i.");
+                        }
+                    }
+                    return;
+                }
+
+                if (isDisposed) return;
+                setProfileStatus(profileRes.data.profileStatus ?? null);
+                setAcceptingConnections(Boolean(profileRes.data.acceptingConnections));
+            } catch (error) {
+                const status = getHttpStatusCode(error);
+                if (isDisposed) return;
+
+                if (status === 400) {
+                    setConnectionSettingError("Y\u00eau c\u1ea7u kh\u00f4ng h\u1ee3p l\u1ec7 khi t\u1ea3i c\u00e0i \u0111\u1eb7t.");
+                } else if (status === 401) {
+                    setConnectionSettingError("Phi\u00ean \u0111\u0103ng nh\u1eadp \u0111\u00e3 h\u1ebft h\u1ea1n. Vui l\u00f2ng \u0111\u0103ng nh\u1eadp l\u1ea1i.");
+                } else if (status === 403) {
+                    setBlockedByApprovalError(true);
+                    setConnectionSettingError("B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n c\u1eadp nh\u1eadt c\u00e0i \u0111\u1eb7t n\u00e0y.");
+                } else if (status === 404) {
+                    setConnectionSettingError("Kh\u00f4ng t\u00ecm th\u1ea5y h\u1ed3 s\u01a1 investor.");
+                } else {
+                    setConnectionSettingError("Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c c\u00e0i \u0111\u1eb7t nh\u1eadn k\u1ebft n\u1ed1i. Vui l\u00f2ng th\u1eed l\u1ea1i.");
+                }
+            } finally {
+                if (!isDisposed) {
+                    setIsLoadingConnectionSetting(false);
+                }
+            }
+        };
+
+        void loadConnectionSetting();
+
+        return () => {
+            isDisposed = true;
+        };
+    }, []);
 
     const handleSavePrefs = () => {
         setSaving(true);
@@ -123,6 +217,76 @@ export default function InvestorSettingsPage() {
             setPwForm({ current: "", next: "", confirm: "" });
             setIsChangingPw(false);
         }, 1200);
+    };
+
+    const handleToggleAcceptingConnections = async (nextValue: boolean) => {
+        if (!isApprovedProfile || isTogglingConnections || isLoadingConnectionSetting) {
+            return;
+        }
+
+        const previousValue = acceptingConnections;
+        setAcceptingConnections(nextValue);
+        setIsTogglingConnections(true);
+        setConnectionSettingError(null);
+
+        try {
+            const updateRes = await UpdateInvestorAcceptingConnections(nextValue);
+
+            if (!isSuccessResponse(updateRes) || !updateRes.data) {
+                const errorCode = getBackendErrorCode(updateRes);
+
+                setAcceptingConnections(previousValue);
+
+                if (errorCode === "INVESTOR_NOT_APPROVED") {
+                    setBlockedByApprovalError(true);
+                    const message = "H\u1ed3 s\u01a1/KYC ch\u01b0a \u0111\u01b0\u1ee3c duy\u1ec7t n\u00ean kh\u00f4ng th\u1ec3 c\u1eadp nh\u1eadt c\u00e0i \u0111\u1eb7t n\u00e0y.";
+                    setConnectionSettingError(message);
+                    toast.error(message);
+                    return;
+                }
+
+                if (errorCode === "INVESTOR_PROFILE_NOT_FOUND") {
+                    const message = "Kh\u00f4ng t\u00ecm th\u1ea5y h\u1ed3 s\u01a1 investor.";
+                    setConnectionSettingError(message);
+                    toast.error(message);
+                    return;
+                }
+
+                const fallbackMessage = updateRes?.message || "Kh\u00f4ng c\u1eadp nh\u1eadt \u0111\u01b0\u1ee3c c\u00e0i \u0111\u1eb7t nh\u1eadn k\u1ebft n\u1ed1i.";
+                setConnectionSettingError(fallbackMessage);
+                toast.error(fallbackMessage);
+                return;
+            }
+
+            const serverValue = Boolean(updateRes.data.acceptingConnections);
+            setAcceptingConnections(serverValue);
+            toast.success(
+                serverValue
+                    ? "\u0110\u00e3 b\u1eadt nh\u1eadn y\u00eau c\u1ea7u k\u1ebft n\u1ed1i m\u1edbi."
+                    : "\u0110\u00e3 t\u1eaft nh\u1eadn y\u00eau c\u1ea7u k\u1ebft n\u1ed1i m\u1edbi.",
+            );
+        } catch (error) {
+            setAcceptingConnections(previousValue);
+
+            const status = getHttpStatusCode(error);
+            let message = "Kh\u00f4ng c\u1eadp nh\u1eadt \u0111\u01b0\u1ee3c c\u00e0i \u0111\u1eb7t nh\u1eadn k\u1ebft n\u1ed1i. Vui l\u00f2ng th\u1eed l\u1ea1i.";
+
+            if (status === 400) {
+                message = "Y\u00eau c\u1ea7u kh\u00f4ng h\u1ee3p l\u1ec7. Vui l\u00f2ng th\u1eed l\u1ea1i.";
+            } else if (status === 401) {
+                message = "Phi\u00ean \u0111\u0103ng nh\u1eadp \u0111\u00e3 h\u1ebft h\u1ea1n. Vui l\u00f2ng \u0111\u0103ng nh\u1eadp l\u1ea1i.";
+            } else if (status === 403) {
+                message = "B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n c\u1eadp nh\u1eadt c\u00e0i \u0111\u1eb7t n\u00e0y.";
+                setBlockedByApprovalError(true);
+            } else if (status === 404) {
+                message = "Kh\u00f4ng t\u00ecm th\u1ea5y h\u1ed3 s\u01a1 investor.";
+            }
+
+            setConnectionSettingError(message);
+            toast.error(message);
+        } finally {
+            setIsTogglingConnections(false);
+        }
     };
 
     return (
@@ -165,6 +329,65 @@ export default function InvestorSettingsPage() {
                         </span>
                     </div>
                 </div>
+            </SectionCard>
+
+            <SectionCard
+                title={"Nh\u1eadn y\u00eau c\u1ea7u k\u1ebft n\u1ed1i"}
+                icon={Users}
+                description={"B\u1eadt ho\u1eb7c t\u1eaft nh\u1eadn y\u00eau c\u1ea7u k\u1ebft n\u1ed1i m\u1edbi t\u1eeb startup."}
+            >
+                {isLoadingConnectionSetting ? (
+                    <div className="flex items-center gap-2 text-[13px] text-slate-500">
+                        <Loader2 className="h-4 w-4 animate-spin text-[#eec54e]" />
+                        {"\u0110ang t\u1ea3i c\u00e0i \u0111\u1eb7t nh\u1eadn k\u1ebft n\u1ed1i..."}
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                            <div>
+                                <p className="text-[13px] font-semibold text-slate-800">
+                                    {"Cho ph\u00e9p startup g\u1eedi y\u00eau c\u1ea7u k\u1ebft n\u1ed1i m\u1edbi"}
+                                </p>
+                                <p className="mt-1 text-[12px] text-slate-500">
+                                    {acceptingConnections
+                                        ? "Hi\u1ec7n \u0111ang nh\u1eadn y\u00eau c\u1ea7u m\u1edbi."
+                                        : "Hi\u1ec7n \u0111ang t\u1ea1m d\u1eebng nh\u1eadn y\u00eau c\u1ea7u m\u1edbi."}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2 pt-0.5">
+                                {isTogglingConnections && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+                                <Toggle
+                                    checked={acceptingConnections}
+                                    onChange={handleToggleAcceptingConnections}
+                                    disabled={!isApprovedProfile || isTogglingConnections}
+                                />
+                            </div>
+                        </div>
+
+                        {!isApprovedProfile && (
+                            <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-[12px] text-amber-700">
+                                {"C\u00e0i \u0111\u1eb7t n\u00e0y ch\u1ec9 kh\u1ea3 d\u1ee5ng khi "}
+                                <span className="font-semibold">profileStatus = &quot;Approved&quot;</span>.
+                                {" Tr\u1ea1ng th\u00e1i hi\u1ec7n t\u1ea1i: "}
+                                <span className="font-semibold">{profileStatusLabel}</span>.
+                            </div>
+                        )}
+
+                        {connectionSettingError && (
+                            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[12px] text-red-600">
+                                {connectionSettingError}
+                            </div>
+                        )}
+
+                        <div className="rounded-xl border border-slate-200 px-4 py-3 text-[12px] text-slate-500">
+                            {"Khi t\u1eaft, c\u00e1c k\u1ebft n\u1ed1i "}
+                            <span className="font-semibold">Requested</span>
+                            {" ho\u1eb7c "}
+                            <span className="font-semibold">Accepted</span>
+                            {" kh\u00f4ng b\u1ecb h\u1ee7y. Ch\u1ec9 c\u00e1c y\u00eau c\u1ea7u m\u1edbi b\u1ecb ch\u1eb7n."}
+                        </div>
+                    </div>
+                )}
             </SectionCard>
 
             {/* Section B: Bảo mật & Đổi mật khẩu */}

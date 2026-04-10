@@ -4,6 +4,13 @@ export const GetInvestorProfile = () => {
     return axios.get<IBackendRes<IInvestorProfile>>(`/api/investors/me`);
 }
 
+export const UpdateInvestorAcceptingConnections = (acceptingConnections: boolean) => {
+    return axios.patch<IBackendRes<{ acceptingConnections: boolean }>>(
+        `/api/investors/me/accepting-connections`,
+        { acceptingConnections },
+    );
+}
+
 export const CreateInvestorProfile = (data: ICreateInvestor) => {
     return axios.post<IBackendRes<IInvestorProfile>>(`/api/investors`, data);
 }

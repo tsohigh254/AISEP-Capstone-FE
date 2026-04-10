@@ -31,8 +31,8 @@ const EMPTY_METRIC_VALUE = "N/A";
 
 const formatTicketSize = (min?: number | null, max?: number | null): string => {
   if (!min && !max) return EMPTY_METRIC_VALUE;
-  const fmt = (n: number) => n >= 1_000_000 ? `$${n / 1_000_000}M` : `$${n / 1_000}k`;
-  if (min && max) return `${fmt(min)} - ${fmt(max)}`;
+  const fmt = (n: number) => n >= 1_000_000 ? `$${n / 1_000_000}M` : `$${n / 1_000}K`;
+  if (min && max) return `${fmt(min)}-${fmt(max)}`;
   if (min) return `${fmt(min)}+`;
   return `${fmt(max!)}`;
 };
@@ -140,7 +140,7 @@ export default function InvestorsPage() {
   const [sentTotalPages, setSentTotalPages] = useState(1);
   const [sentKeyword, setSentKeyword] = useState("");
 
-  // â”€â”€ Tab: Nháº­n tá»« Investor â”€â”€
+  // Tab: Nhận từ Investor
   const [receivedConnections, setReceivedConnections] = useState<IConnectionItem[]>([]);
   const [isLoadingReceived, setIsLoadingReceived] = useState(false);
   const [receivedPage, setReceivedPage] = useState(1);
@@ -316,7 +316,7 @@ export default function InvestorsPage() {
         if (ev?.data?.type === "refresh") {
           fetchConnectionMap();
           if (activeTab === "Yêu cầu đã gửi") fetchSent(sentPage);
-          if (activeTab === "Nháº­n tá»« Investor") fetchReceived(receivedPage);
+          if (activeTab === "Nhận từ Investor") fetchReceived(receivedPage);
           if (activeTab === "Đã kết nối") fetchConnected(connectedPage);
         }
       } catch { /* ignore */ }
@@ -326,7 +326,7 @@ export default function InvestorsPage() {
       if (ev.key === "connections-refresh") {
         fetchConnectionMap();
         if (activeTab === "Yêu cầu đã gửi") fetchSent(sentPage);
-        if (activeTab === "Nháº­n tá»« Investor") fetchReceived(receivedPage);
+        if (activeTab === "Nhận từ Investor") fetchReceived(receivedPage);
         if (activeTab === "Đã kết nối") fetchConnected(connectedPage);
       }
     };
@@ -353,7 +353,7 @@ export default function InvestorsPage() {
   // Reload when tab changes
   useEffect(() => {
     if (activeTab === "Yêu cầu đã gửi") fetchSent(1);
-    if (activeTab === "Nháº­n tá»« Investor") fetchReceived(1);
+    if (activeTab === "Nhận từ Investor") fetchReceived(1);
     if (activeTab === "Đã kết nối") fetchConnected(1);
   }, [activeTab, fetchSent, fetchReceived, fetchConnected]);
 
@@ -372,7 +372,9 @@ export default function InvestorsPage() {
   };
 
   const handleOpenRequest = (investor: IInvestorSearchItem) => {
-    const presentation = buildInvestorSearchPresentation(investor);
+    const presentation = buildInvestorSearchPresentation(investor, {
+      institutionalIdentityLineMode: "organization",
+    });
     setSelectedInvestor({
       investorId: investor.investorID,
       name: presentation.primaryName,
@@ -391,14 +393,14 @@ export default function InvestorsPage() {
     page, total, onChange,
   }: { page: number; total: number; onChange: (p: number) => void }) => {
     if (total <= 1) return null;
-    const pages: (number | "â€¦")[] = [];
+    const pages: (number | "...")[] = [];
     if (total <= 5) {
       for (let i = 1; i <= total; i++) pages.push(i);
     } else {
       pages.push(1);
-      if (page > 3) pages.push("â€¦");
+      if (page > 3) pages.push("...");
       for (let i = Math.max(2, page - 1); i <= Math.min(total - 1, page + 1); i++) pages.push(i);
-      if (page < total - 2) pages.push("â€¦");
+      if (page < total - 2) pages.push("...");
       pages.push(total);
     }
     return (
@@ -410,7 +412,7 @@ export default function InvestorsPage() {
           <button
             key={i}
             onClick={() => typeof p === "number" && onChange(p)}
-            disabled={p === "â€¦"}
+            disabled={p === "..."}
             className={cn(
               "size-8 rounded-lg text-[12px] font-bold",
               p === page ? "bg-[#eec54e] text-white shadow-lg shadow-yellow-500/20" : "border border-slate-200 text-slate-500 hover:bg-slate-50"
@@ -493,7 +495,9 @@ export default function InvestorsPage() {
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {investors.map((investor) => {
                   const conn = connectionMap[investor.investorID];
-                  const presentation = buildInvestorSearchPresentation(investor);
+                  const presentation = buildInvestorSearchPresentation(investor, {
+                    institutionalIdentityLineMode: "organization",
+                  });
                   const isKycVerified = isInvestorKycVerified(investor);
                   const normalizedConnectionStatus = normalizeConnectionStatus(conn?.connectionStatus);
                   const hasPendingIncomingInvite =
@@ -534,37 +538,28 @@ export default function InvestorsPage() {
                                 {isKycVerified && <VerifiedRoleMark className="h-4 w-4 shrink-0" />}
                               </div>
                             <p className="mt-1.5 min-h-[36px] line-clamp-2 text-[12px] font-medium text-slate-400">
-                              {presentation.heroIdentityLine || presentation.categoryLabel || investor.title || investor.firmName || "Nhà đầu tư"}
+                              {presentation.heroIdentityLine || presentation.categoryLabel || "Nhà đầu tư"}
                             </p>
                           </div>
 
-                          <div className="mb-4 grid grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-slate-100/70 px-2 py-3">
+                          <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-100/70 px-2 py-3">
                             <div className="text-center">
                               <p className={cn(
                                 "text-[15px] leading-none",
-                                investor.portfolioCount != null ? "font-semibold text-slate-900" : "font-semibold text-slate-500"
+                                investor.acceptedConnectionCount != null ? "font-semibold text-slate-900" : "font-semibold text-slate-500"
                               )}>
-                                {investor.portfolioCount != null ? `${investor.portfolioCount}+` : EMPTY_METRIC_VALUE}
+                                {investor.acceptedConnectionCount != null ? investor.acceptedConnectionCount : EMPTY_METRIC_VALUE}
                               </p>
-                              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Portfolio</p>
+                              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Đã kết nối</p>
                             </div>
-                            <div className="border-x border-slate-300/70 text-center">
+                            <div className="border-l border-slate-300/70 text-center">
                               <p className={cn(
-                                "truncate text-[15px] leading-none",
+                                "px-1 text-[13px] leading-tight",
                                 hasTicketSize ? "font-semibold text-slate-900" : "font-semibold text-slate-500"
                               )}>
                                 {formatTicketSize(investor.ticketSizeMin, investor.ticketSizeMax)}
                               </p>
-                              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Ticket Size</p>
-                            </div>
-                            <div className="text-center">
-                              <p className={cn(
-                                "text-[15px] leading-none",
-                                investor.matchScore != null ? "font-semibold text-emerald-600" : "font-semibold text-slate-500"
-                              )}>
-                                {investor.matchScore != null ? `${investor.matchScore}%` : EMPTY_METRIC_VALUE}
-                              </p>
-                              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Match</p>
+                              <p className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">Quy mô đầu tư</p>
                             </div>
                           </div>
 
@@ -596,7 +591,7 @@ export default function InvestorsPage() {
                             <Button
                               onClick={() => handleOpenRequest(investor)}
                               disabled={!canRequestConnection}
-                              className="h-[44px] flex-1 whitespace-nowrap rounded-xl bg-[#f7e7a8] text-[13px] font-semibold text-[#d8a905] shadow-sm transition-colors hover:bg-[#f3de8b] disabled:border-transparent disabled:bg-[#fbf1ce] disabled:text-[#e2b730] disabled:opacity-100"
+                              className="h-[44px] flex-1 whitespace-nowrap rounded-xl bg-blue-600 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:border-transparent disabled:bg-blue-100 disabled:text-blue-500 disabled:opacity-100"
                             >
                               {canRequestConnection ? "Gửi lời mời" : "Đã đóng"}
                             </Button>
@@ -652,7 +647,7 @@ export default function InvestorsPage() {
               <div className="flex items-center gap-3">
                 <span className="text-[12px] font-black text-slate-400 uppercase tracking-widest">Trạng thái:</span>
                 <div className="h-11 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center gap-10 cursor-pointer min-w-[140px] justify-between">
-                  <span className="text-sm font-bold text-slate-900 dark:text-white">Táº¥t cáº£</span>
+                  <span className="text-sm font-bold text-slate-900 dark:text-white">Tất cả</span>
                   <ChevronDown className="size-4 text-slate-400" />
                 </div>
               </div>
@@ -685,14 +680,14 @@ export default function InvestorsPage() {
                           </div>
                         </td>
                         <td className="px-8 py-6 max-w-[300px]">
-                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium truncate">{item.personalizedMessage || "â€”"}</p>
+                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium truncate">{item.personalizedMessage || "\u2014"}</p>
                         </td>
                         <td className="px-8 py-6 text-center text-[13px] font-black text-slate-500 uppercase tracking-tight opacity-70">
                           {formatDate(item.requestedAt)}
                         </td>
                         <td className="px-8 py-6 text-center">
                           <span className={cn("px-3 py-1 rounded-full text-[10px] font-black border tracking-widest", STATUS_STYLES[normalizeConnectionStatus(item.connectionStatus)] ?? "bg-slate-50 text-slate-500 border-slate-100")}>
-                            â€¢ {STATUS_LABEL[normalizeConnectionStatus(item.connectionStatus)] ?? normalizeConnectionStatus(item.connectionStatus)}
+                            {"\u2022"} {STATUS_LABEL[normalizeConnectionStatus(item.connectionStatus)] ?? normalizeConnectionStatus(item.connectionStatus)}
                           </span>
                         </td>
                         <td className="px-8 py-6 text-right">
@@ -701,7 +696,7 @@ export default function InvestorsPage() {
                                 onClick={() => handleWithdrawConnection(item.connectionID)}
                                 className="h-10 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all font-bold text-[13px] flex items-center gap-2"
                               >
-                                Thu há»“i
+                                Thu hồi
                               </button>
                             ) : isAcceptedConnection(item.connectionStatus) ? (
                               <Button
@@ -709,7 +704,7 @@ export default function InvestorsPage() {
                                 className="h-10 px-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 text-slate-900 dark:text-white border-none text-[12px] font-black gap-2 hover:bg-[#eec54e] hover:text-white transition-all group/btn"
                               >
                                 <MessageCircle className="size-4 group-hover/btn:scale-110 transition-transform" />
-                                <span>Nháº¯n tin</span>
+                                <span>Nhắn tin</span>
                               </Button>
                             ) : (
                               <span className="text-[13px] font-bold text-slate-500">
@@ -732,8 +727,8 @@ export default function InvestorsPage() {
             </div>
           </div>
         );
-      // â”€â”€ Nháº­n tá»« Investor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-      case "Nháº­n tá»« Investor":
+      // Tab: Nhận từ Investor
+      case "Nhận từ Investor":
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
             {isLoadingReceived ? (
@@ -744,7 +739,7 @@ export default function InvestorsPage() {
                   <thead>
                     <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
                       <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Nhà đầu tư</th>
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Lá»i nháº¯n</th>
+                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Lời nhắn</th>
                       <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Ngày gửi</th>
                       <th className="px-8 py-5 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thao tác</th>
                     </tr>
@@ -762,7 +757,7 @@ export default function InvestorsPage() {
                           </div>
                         </td>
                         <td className="px-8 py-6 max-w-[300px]">
-                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium truncate">{item.personalizedMessage || "â€”"}</p>
+                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium truncate">{item.personalizedMessage || "\u2014"}</p>
                         </td>
                         <td className="px-8 py-6 text-center text-[13px] font-black text-slate-500 uppercase tracking-tight opacity-70">
                           {formatDate(item.requestedAt)}
@@ -774,13 +769,13 @@ export default function InvestorsPage() {
                                 onClick={() => handleAcceptConnection(item.connectionID)}
                                 className="h-10 px-4 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-all font-bold text-[13px]"
                               >
-                                Cháº¥p nháº­n
+                                Chấp nhận
                               </button>
                               <button
                                 onClick={() => handleRejectConnection(item.connectionID)}
                                 className="h-10 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all font-bold text-[13px]"
                               >
-                                Tá»« chá»‘i
+                                Từ chối
                               </button>
                             </div>
                           ) : isAcceptedConnection(item.connectionStatus) ? (
@@ -789,7 +784,7 @@ export default function InvestorsPage() {
                               className="h-10 px-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 text-slate-900 dark:text-white border-none text-[12px] font-black gap-2 hover:bg-[#eec54e] hover:text-white transition-all group/btn"
                             >
                               <MessageCircle className="size-4" />
-                              <span>Nháº¯n tin</span>
+                              <span>Nhắn tin</span>
                             </Button>
                           ) : (
                             <span className="text-[13px] font-bold text-slate-500">Đã xử lý</span>
@@ -847,7 +842,7 @@ export default function InvestorsPage() {
                         </td>
                         <td className="px-8 py-6 max-w-[350px]">
                           <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium italic border-l-2 border-slate-100 dark:border-slate-800 pl-4 truncate">
-                            {item.personalizedMessage || "â€”"}
+                            {item.personalizedMessage || "\u2014"}
                           </p>
                         </td>
                         <td className="px-8 py-6 text-center text-[13px] font-black text-slate-500 uppercase tracking-tight opacity-70">
@@ -860,7 +855,7 @@ export default function InvestorsPage() {
                               className="h-10 px-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 text-slate-900 dark:text-white border-none text-[12px] font-black gap-2 hover:bg-[#eec54e] hover:text-white transition-all group/btn"
                             >
                               <MessageCircle className="size-4 group-hover/btn:scale-110 transition-transform" />
-                              <span>Nháº¯n tin</span>
+                              <span>Nhắn tin</span>
                             </Button>
                             <Link href={`/startup/investors/${item.investorID}`}>
                               <button className="px-3 py-2 text-[12px] font-black text-slate-400 hover:text-slate-900 border border-slate-100 rounded-xl transition-all">
@@ -939,7 +934,7 @@ export default function InvestorsPage() {
           <p className="text-[11px] font-black text-slate-300 uppercase tracking-widest">© 2026 AISEP STARTUP WORKSPACE • HỆ THỐNG KẾT NỐI NHÀ ĐẦU TƯ & QUỸ ĐẦU TƯ</p>
           <div className="flex justify-center gap-6 mt-4">
             <Link href="#" className="text-[11px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest">Điều khoản</Link>
-            <Link href="#" className="text-[11px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest">Báº£o máº­t</Link>
+            <Link href="#" className="text-[11px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest">Bảo mật</Link>
             <Link href="#" className="text-[11px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest">Liên hệ</Link>
           </div>
         </div>

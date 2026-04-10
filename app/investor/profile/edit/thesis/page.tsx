@@ -5,8 +5,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Loader2, ChevronDown } from "lucide-react";
 import { GetInvestorPreferences, GetInvestorProfile, UpdateInvestorProfile, UpdateInvestorPreferences } from "@/services/investor/investor.api";
-import { GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
-import { INVESTOR_PREFERRED_STAGE_OPTIONS, normalizeInvestorPreferredStages } from "@/lib/investor-preferred-stages";
+import { GetIndustriesFlat, GetStages, IIndustryFlat, IStageMasterItem } from "@/services/master/master.api";
 import { useInvestorEdit } from "@/context/investor-edit-context";
 
 const inputCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 outline-none transition-all";
@@ -17,6 +16,22 @@ const normalizeTextList = (value: string) =>
 
 const sameStringArray = (a: string[] = [], b: string[] = []) =>
     a.length === b.length && a.every((item, index) => item === b[index]);
+
+const formatGroupedNumberInput = (value: string) => {
+    const digitsOnly = value.replace(/[^\d]/g, "");
+    if (!digitsOnly) return "";
+    return Number(digitsOnly).toLocaleString("vi-VN");
+};
+
+const parseOptionalNumber = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const normalized = trimmed.replace(/[^\d]/g, "");
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : Number.NaN;
+};
+
+const DEFAULT_STAGE_OPTIONS = ["Idea", "PreSeed", "Seed", "SeriesA", "SeriesB", "SeriesC", "Growth"];
 
 const getStatusCode = (error: unknown) => {
     if (typeof error === "object" && error !== null && "response" in error) {
@@ -46,8 +61,11 @@ export default function ThesisEditPage() {
     const [preferredStages, setPreferredStages] = useState<string[]>([]);
     const [preferredMarketScopes, setPreferredMarketScopes] = useState("");
     const [supportOffered, setSupportOffered] = useState("");
+    const [ticketMin, setTicketMin] = useState("");
+    const [ticketMax, setTicketMax] = useState("");
 
     const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
+    const [stageOptions, setStageOptions] = useState<IStageMasterItem[]>([]);
     const [expandedSections, setExpandedSections] = useState<number[]>([]);
 
     useEffect(() => {
@@ -55,7 +73,8 @@ export default function ThesisEditPage() {
             GetInvestorProfile(),
             GetInvestorPreferences(),
             GetIndustriesFlat(),
-        ]).then(([profileResult, prefsResult, industriesResult]) => {
+            GetStages(),
+        ]).then(([profileResult, prefsResult, industriesResult, stagesResult]) => {
             if (profileResult.status === "fulfilled") {
                 const profileData = profileResult.value as unknown as IBackendRes<IInvestorProfile>;
                 if (profileData.isSuccess && profileData.data) {
@@ -69,9 +88,11 @@ export default function ThesisEditPage() {
                 if (prefsData.isSuccess && prefsData.data) {
                     const prefs = prefsData.data;
                     setPreferredIndustries(prefs.preferredIndustries || []);
-                    setPreferredStages(normalizeInvestorPreferredStages(prefs.preferredStages));
+                    setPreferredStages(prefs.preferredStages || []);
                     setPreferredMarketScopes((prefs.preferredMarketScopes || []).join(", "));
                     setSupportOffered((prefs.supportOffered || []).join(", "));
+                    setTicketMin(prefs.ticketMin != null ? formatGroupedNumberInput(String(prefs.ticketMin)) : "");
+                    setTicketMax(prefs.ticketMax != null ? formatGroupedNumberInput(String(prefs.ticketMax)) : "");
                 }
             } else if (getStatusCode(prefsResult.reason) !== 405) {
                 toast.error("Không tải được tiêu chí đầu tư");
@@ -81,6 +102,11 @@ export default function ThesisEditPage() {
                 setIndustries(industriesResult.value);
             } else {
                 toast.error("Không tải được danh mục ngành");
+            }
+            if (stagesResult.status === "fulfilled" && stagesResult.value.length > 0) {
+                setStageOptions(stagesResult.value);
+            } else {
+                setStageOptions(DEFAULT_STAGE_OPTIONS.map((stageName, index) => ({ stageID: index, stageName })));
             }
         }).finally(() => setIsLoading(false));
     }, []);
@@ -115,9 +141,21 @@ export default function ThesisEditPage() {
     const handleSave = useCallback(async () => {
         setIsSaving(true);
         try {
-            const normalizedStages = normalizeInvestorPreferredStages(preferredStages);
+            const normalizedStages = preferredStages;
             const marketScopesList = normalizeTextList(preferredMarketScopes);
             const supportOfferedList = normalizeTextList(supportOffered);
+            const parsedTicketMin = parseOptionalNumber(ticketMin);
+            const parsedTicketMax = parseOptionalNumber(ticketMax);
+
+            if (Number.isNaN(parsedTicketMin) || Number.isNaN(parsedTicketMax)) {
+                toast.error("Ticket Size phải là số hợp lệ lớn hơn hoặc bằng 0");
+                return;
+            }
+
+            if (parsedTicketMin != null && parsedTicketMax != null && parsedTicketMin > parsedTicketMax) {
+                toast.error("Ticket Size tối thiểu không được lớn hơn tối đa");
+                return;
+            }
 
             const [profileRes, prefsRes] = await Promise.all([
                 UpdateInvestorProfile({
@@ -126,9 +164,11 @@ export default function ThesisEditPage() {
                 }),
                 UpdateInvestorPreferences({
                     preferredIndustries,
-                    preferredStages: normalizedStages,
+                    preferredStages,
                     preferredMarketScopes: marketScopesList,
                     supportOffered: supportOfferedList,
+                    ticketMin: parsedTicketMin,
+                    ticketMax: parsedTicketMax,
                 }),
             ]);
 
@@ -146,17 +186,23 @@ export default function ThesisEditPage() {
                 const savedStages = savedPreferences.preferredStages || [];
                 const savedMarketScopes = savedPreferences.preferredMarketScopes || [];
                 const savedSupportOffered = savedPreferences.supportOffered || [];
+                const savedTicketMin = savedPreferences.ticketMin ?? null;
+                const savedTicketMax = savedPreferences.ticketMax ?? null;
 
                 setPreferredIndustries(savedIndustries);
                 setPreferredStages(savedStages);
                 setPreferredMarketScopes(savedMarketScopes.join(", "));
                 setSupportOffered(savedSupportOffered.join(", "));
+                setTicketMin(savedTicketMin != null ? formatGroupedNumberInput(String(savedTicketMin)) : "");
+                setTicketMax(savedTicketMax != null ? formatGroupedNumberInput(String(savedTicketMax)) : "");
 
                 const notPersisted: string[] = [];
 
                 if (!sameStringArray(savedIndustries, preferredIndustries)) notPersisted.push("ngành nghề quan tâm");
                 if (!sameStringArray(savedStages, normalizedStages)) notPersisted.push("giai đoạn ưu tiên");
                 if (!sameStringArray(savedMarketScopes, marketScopesList)) notPersisted.push("market scopes");
+                if (savedTicketMin !== parsedTicketMin) notPersisted.push("ticket size tối thiểu");
+                if (savedTicketMax !== parsedTicketMax) notPersisted.push("ticket size tối đa");
                 if (!sameStringArray(savedSupportOffered, supportOfferedList)) notPersisted.push("giá trị gia tăng cung cấp");
 
                 if (notPersisted.length > 0) {
@@ -171,7 +217,7 @@ export default function ThesisEditPage() {
         } finally {
             setIsSaving(false);
         }
-    }, [investmentThesis, preferredIndustries, preferredStages, preferredMarketScopes, supportOffered, setIsSaving]);
+    }, [investmentThesis, preferredIndustries, preferredStages, preferredMarketScopes, supportOffered, ticketMin, ticketMax, setIsSaving]);
 
     useEffect(() => {
         setSaveHandler(handleSave);
@@ -210,6 +256,10 @@ export default function ThesisEditPage() {
                                 </span>
                             )}
                         </div>
+
+                        <p className="mb-3 text-[11px] text-slate-400">
+                            Chọn từ danh mục hệ thống để matching dùng đúng tên ngành chuẩn với startup.
+                        </p>
 
                         {industries.length === 0 ? (
                             <div className="space-y-2">
@@ -295,22 +345,25 @@ export default function ThesisEditPage() {
                     <div>
                         <label className={labelCls}>Giai đoạn ưu tiên</label>
                         <div className="flex flex-wrap gap-2 mt-1">
-                            {INVESTOR_PREFERRED_STAGE_OPTIONS.map(stage => (
+                            {stageOptions.map(stage => (
                                 <button
-                                    key={stage.value}
+                                    key={stage.stageID ?? stage.stageName}
                                     type="button"
-                                    onClick={() => toggleStage(stage.value)}
+                                    onClick={() => toggleStage(stage.stageName)}
                                     className={cn(
                                         "px-3.5 py-2 rounded-xl text-[12px] font-bold border transition-all active:scale-95",
-                                        preferredStages.includes(stage.value)
+                                        preferredStages.includes(stage.stageName)
                                             ? "bg-[#0f172a] border-[#0f172a] text-white"
                                             : "bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300"
                                     )}
                                 >
-                                    {stage.label}
+                                    {stage.stageName}
                                 </button>
                             ))}
                         </div>
+                        <p className="mt-2 text-[11px] text-slate-400">
+                            Danh sách giai đoạn được lấy từ master data để đồng bộ với logic matching.
+                        </p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -337,6 +390,33 @@ export default function ThesisEditPage() {
                             <p className="text-[11px] text-slate-400 mt-1.5">Phân tách bằng dấu phẩy.</p>
                         </div>
                     </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className={labelCls}>Quy mô đầu tư tối thiểu (USD)</label>
+                            <input
+                                type="text"
+                                inputMode="numeric"
+                                value={ticketMin}
+                                onChange={e => setTicketMin(formatGroupedNumberInput(e.target.value))}
+                                className={inputCls}
+                                placeholder="Ví dụ: 50000"
+                            />
+                        </div>
+                        <div>
+                            <label className={labelCls}>Quy mô đầu tư tối đa (USD)</label>
+                            <input
+                                type="text"
+                                inputMode="numeric"
+                                value={ticketMax}
+                                onChange={e => setTicketMax(formatGroupedNumberInput(e.target.value))}
+                                className={inputCls}
+                                placeholder="Ví dụ: 500000"
+                            />
+                        </div>
+                    </div>
+                    <p className="text-[11px] text-slate-400 -mt-1">
+                        Dữ liệu này được dùng cho chỉ số "Quy mô đầu tư" và hỗ trợ tính điểm độ phù hợp với startup.
+                    </p>
                 </div>
             </FormSection>
         </div>

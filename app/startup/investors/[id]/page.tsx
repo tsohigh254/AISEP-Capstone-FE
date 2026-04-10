@@ -9,7 +9,6 @@ import {
     ArrowLeft,
     ArrowUpRight,
     Globe,
-    Linkedin,
     MapPin,
     Info,
     TrendingUp,
@@ -259,7 +258,9 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
         );
     }
 
-    const presentation = buildInvestorProfilePresentation(investor);
+    const presentation = buildInvestorProfilePresentation(investor, undefined, {
+        institutionalIdentityLineMode: "organization",
+    });
     const isKycVerified = isInvestorKycVerified(investor);
     const profileAvailabilityReason = investor.profileAvailabilityReason ?? "OPEN";
     const isReadOnlyProfile = profileAvailabilityReason === "INVESTOR_PAUSED_DISCOVERY";
@@ -504,25 +505,15 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                                         </Button>
                                     )}
 
-                                    <div className="grid gap-3 border-t border-slate-200 pt-4">
-                                        <div className="rounded-xl border border-slate-200 bg-white p-4">
-                                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Phạm vi hiện diện</p>
-                                            <p className="mt-2 text-[13px] font-semibold leading-relaxed text-slate-900">{locationLabel || investor.country || "Chưa cập nhật"}</p>
-                                        </div>
-                                        <div className="rounded-xl border border-slate-200 bg-white p-4">
-                                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Hồ sơ đầu tư</p>
-                                            <p className="mt-2 text-[13px] font-semibold leading-relaxed text-slate-900">{presentation.organizationName || investor.title || presentation.categoryLabel || "Đang cập nhật"}</p>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
                     {/* Main Content */}
-                    <div className="space-y-6 lg:col-span-2">
+                    <div className="space-y-6">
                         {/* Tong quan */}
                             <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)] sm:p-8 space-y-10">
                                 {/* Bio */}
@@ -666,7 +657,7 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                                         className="group flex items-center justify-between gap-4 rounded-[24px] border border-slate-200/70 bg-slate-50/80 p-5 transition-colors hover:border-blue-200 hover:bg-blue-50/70">
                                         <div className="flex items-center gap-4">
                                             <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-white shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-                                                <Linkedin className="size-5 text-blue-500" />
+                                                <Image src="/linkedin.svg" alt="LinkedIn" width={20} height={20} />
                                             </div>
                                             <div>
                                                 <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">LinkedIn</p>
@@ -691,72 +682,7 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                     </div>
 
                     {/* Sidebar */}
-                    <div className="space-y-6 lg:col-span-1 lg:sticky lg:top-8 lg:self-start">
-                        {/* Investment Criteria Summary */}
-                        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)] space-y-6">
-                            <div className="flex items-center gap-3">
-                                <Target className="size-5 text-[#C8A000]" />
-                                <h3 className="text-[13px] font-semibold text-slate-900">Tiêu chí đầu tư</h3>
-                            </div>
-                            <div className="space-y-6">
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Loại nhà đầu tư</p>
-                                    <p className="text-[15px] font-semibold leading-relaxed text-slate-900">{presentation.categoryLabel || investor.investorType}</p>
-                                    {presentation.organizationName && <p className="mt-1 text-[12px] text-slate-500">{presentation.organizationName}</p>}
-                                </div>
-                                {preferredStages.length > 0 && (
-                                    <div className="space-y-4">
-                                        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Giai đoạn ưu tiên</p>
-                                        <div className="flex flex-wrap gap-2">
-                                            {preferredStages.map(stage => (
-                                                <span key={stage} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] font-medium text-slate-700">
-                                                    {stage}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                                {(investor.preferredIndustries?.length ?? 0) > 0 && (
-                                    <div className="space-y-4">
-                                        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Lĩnh vực quan tâm</p>
-                                        <div className="flex flex-wrap gap-2">
-                                            {(investor.preferredIndustries ?? []).slice(0, 6).map(sector => (
-                                                <span key={sector} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-600">
-                                                    {sector}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Contact quick-view */}
-                        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)] space-y-6">
-                            <div className="flex items-center gap-3">
-                                <HelpCircle className="size-5 text-blue-500" />
-                                <h3 className="text-[13px] font-semibold text-slate-900">Thông tin liên hệ</h3>
-                            </div>
-                            {investor.website && (
-                                <div className="flex items-center gap-3 rounded-2xl bg-slate-50/80 p-4">
-                                    <Globe className="size-4 text-slate-400 shrink-0" />
-                                    <p className="text-[13px] font-medium text-slate-600 truncate">{investor.website}</p>
-                                </div>
-                            )}
-                            {investor.linkedInURL && (
-                                <div className="flex items-center gap-3 rounded-2xl bg-slate-50/80 p-4">
-                                    <Linkedin className="size-4 text-slate-400 shrink-0" />
-                                    <p className="text-[13px] font-medium text-slate-600 truncate">{investor.linkedInURL}</p>
-                                </div>
-                            )}
-                            {locationLabel && (
-                                <div className="flex items-center gap-3 rounded-2xl bg-slate-50/80 p-4">
-                                    <MapPin className="size-4 text-slate-400 shrink-0" />
-                                    <p className="text-[13px] font-medium text-slate-600">{locationLabel}</p>
-                                </div>
-                            )}
-                        </div>
-
+                    <div className="space-y-6 lg:sticky lg:top-8 lg:self-start">
                         {/* Note */}
                         <div className="overflow-hidden rounded-2xl border border-amber-100/80 bg-gradient-to-b from-amber-50/90 to-orange-50/80 p-6 shadow-[0_1px_3px_rgba(251,191,36,0.12)] space-y-4">
                             <div className="flex items-center gap-3">

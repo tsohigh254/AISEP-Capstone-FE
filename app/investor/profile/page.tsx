@@ -265,7 +265,7 @@ export default function InvestorProfileViewPage() {
             {profile.preferredIndustries?.[0] && (
               <Tag>
                 <FileText className="h-3 w-3 text-slate-400" />
-                {profile.preferredIndustries[0]}
+                Lĩnh vực chính: {profile.preferredIndustries[0]}
               </Tag>
             )}
             {profile.preferredMarketScopes?.[0] && <Tag variant="blue">{profile.preferredMarketScopes[0]}</Tag>}

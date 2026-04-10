@@ -20,7 +20,10 @@ import {
 import { NotificationDetailModal } from "./notification-detail-modal";
 import { IssueReportModal } from "@/components/shared/issue-report-modal";
 import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
-import { getInvestorKycUiState } from "@/lib/investor-profile-presenter";
+import {
+  buildInvestorProfilePresentation,
+  getInvestorKycUiState,
+} from "@/lib/investor-profile-presenter";
 import type { IInvestorKYCStatus } from "@/types/investor-kyc";
 
 export function InvestorHeader({ 
@@ -43,8 +46,16 @@ export function InvestorHeader({
 
   const [profile, setProfile] = useState<IInvestorProfile | null>(null);
   const [kycStatus, setKycStatus] = useState<IInvestorKYCStatus | null>(null);
-  const displayUserName = profile?.fullName || user?.email || userName;
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
+  const profilePresentation = profile ? buildInvestorProfilePresentation(profile, kycStatus) : null;
+  const displayUserName = profilePresentation?.primaryName || profile?.fullName || user?.email || userName;
+  const avatarUrl = profile?.profilePhotoURL?.trim() || "";
+  const canShowAvatar = Boolean(avatarUrl) && !avatarLoadFailed;
   const isKycVerified = getInvestorKycUiState(profile, kycStatus).isVerified;
+
+  useEffect(() => {
+    setAvatarLoadFailed(false);
+  }, [avatarUrl]);
 
   useEffect(() => {
     GetInvestorProfile()
@@ -362,9 +373,18 @@ export function InvestorHeader({
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             >
               <div className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-[#e6cc4c]/40 group-hover/avatar:ring-[#e6cc4c]/70 transition-all shadow-sm">
-                <div className="w-full h-full bg-gradient-to-br from-[#e6cc4c]/30 to-[#F0A500]/20 flex items-center justify-center text-[#C8A000] font-black text-sm uppercase">
-                  {displayUserName?.[0] ?? "I"}
-                </div>
+                {canShowAvatar ? (
+                  <img
+                    src={avatarUrl}
+                    alt={displayUserName}
+                    className="w-full h-full object-cover"
+                    onError={() => setAvatarLoadFailed(true)}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-[#e6cc4c]/30 to-[#F0A500]/20 flex items-center justify-center text-[#C8A000] font-black text-sm uppercase">
+                    {displayUserName?.[0] ?? "I"}
+                  </div>
+                )}
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white"></span>
             </button>
@@ -373,8 +393,17 @@ export function InvestorHeader({
               <div className="absolute right-0 top-full mt-3 w-72 bg-white rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.13),0_4px_16px_rgba(0,0,0,0.06)] border border-slate-100 overflow-hidden z-[60] animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="px-5 pt-5 pb-4 bg-white border-b border-slate-100">
                   <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-[#fef0d2] flex items-center justify-center text-[#d0a64b] font-black text-xl uppercase flex-shrink-0">
-                      {displayUserName?.[0] ?? "I"}
+                    <div className="w-12 h-12 rounded-2xl bg-[#fef0d2] flex items-center justify-center text-[#d0a64b] font-black text-xl uppercase flex-shrink-0 overflow-hidden">
+                      {canShowAvatar ? (
+                        <img
+                          src={avatarUrl}
+                          alt={displayUserName}
+                          className="w-full h-full object-cover"
+                          onError={() => setAvatarLoadFailed(true)}
+                        />
+                      ) : (
+                        <span>{displayUserName?.[0] ?? "I"}</span>
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-[14px] font-bold text-[#171611] tracking-tight truncate">{displayUserName}</p>

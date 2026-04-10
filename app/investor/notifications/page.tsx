@@ -52,9 +52,13 @@ export default function InvestorNotificationsPage() {
         pageSize
       });
       if (res.data) {
-        setNotifications(res.data.items || []);
-        setTotalItems(res.data.paging?.totalItems || 0);
-        setTotalPages(res.data.paging?.totalPages || 0);
+        const paged = res.data as IPaginatedRes<INotificationItem> & {
+          items?: INotificationItem[];
+        };
+        const list = paged.items ?? paged.data ?? [];
+        setNotifications(list);
+        setTotalItems(paged.paging?.totalItems || 0);
+        setTotalPages(paged.paging?.totalPages || 0);
       }
     } catch (error) {
       console.error("Failed to fetch notifications:", error);

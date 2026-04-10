@@ -26,6 +26,7 @@ declare global {
 
   interface IPagingData<T> {
     data: T[];
+    items?: T[];
     paging: IPaging;
   }
 
@@ -299,10 +300,10 @@ declare global {
     averageRating?: number;
     totalConnections?: number;
     portfolioCount?: number;
+    acceptedConnectionCount?: number;
     ticketSize?: number;
-    ticketSizeMin?: number;
-    ticketSizeMax?: number;
-    matchScore?: number;
+    ticketSizeMin?: number | null;
+    ticketSizeMax?: number | null;
     profileStatus?: string;
     workflowStatus?: string;
     verificationLabel?: string;
@@ -473,6 +474,8 @@ declare global {
     preferredStages?: string[];
     preferredMarketScopes?: string[];
     supportOffered?: string[];
+    ticketMin?: number | null;
+    ticketMax?: number | null;
   }
 
   interface IUpdateInvestorProfile {
