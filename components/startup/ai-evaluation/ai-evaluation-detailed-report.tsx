@@ -1,36 +1,32 @@
 "use client";
 
-import { CheckCircle2, Zap, AlertTriangle, AlertCircle } from "lucide-react";
-import { AIEvaluationReport } from "@/app/startup/ai-evaluation/types";
+import { CheckCircle2, AlertTriangle } from "lucide-react";
+import type { ImprovementRecommendationDto } from "@/app/startup/ai-evaluation/types";
 import { cn } from "@/lib/utils";
 
 interface AIEvaluationDetailedReportProps {
-  report: AIEvaluationReport;
+  recommendations: ImprovementRecommendationDto[];
 }
 
-export function AIEvaluationDetailedReport({ report }: AIEvaluationDetailedReportProps) {
+export function AIEvaluationDetailedReport({ recommendations }: AIEvaluationDetailedReportProps) {
+  // Group recommendations by priority
+  const highPriority = recommendations.filter(r => r.priority === "High" || r.priority === "HIGH");
+  const mediumPriority = recommendations.filter(r => r.priority === "Medium" || r.priority === "MEDIUM");
+  const lowPriority = recommendations.filter(r => r.priority === "Low" || r.priority === "LOW");
+
   const sections = [
     {
-      title: "Ưu điểm nổi bật (Strengths)",
-      items: report.strengths,
-      icon: CheckCircle2,
-      color: "text-emerald-500",
-      bg: "bg-emerald-50/50",
-      border: "border-emerald-100",
-      indicator: "bg-emerald-500"
+      title: "Ưu tiên cao (High Priority)",
+      items: highPriority.map(r => r.recommendationText ?? ""),
+      icon: AlertTriangle,
+      color: "text-red-500",
+      bg: "bg-red-50/50",
+      border: "border-red-100",
+      indicator: "bg-red-500"
     },
     {
-      title: "Cơ hội thị trường (Opportunities)",
-      items: report.opportunities,
-      icon: Zap,
-      color: "text-blue-500",
-      bg: "bg-blue-50/50",
-      border: "border-blue-100",
-      indicator: "bg-blue-500"
-    },
-    {
-      title: "Rủi ro cần lưu ý (Risks)",
-      items: report.risks,
+      title: "Ưu tiên trung bình (Medium Priority)",
+      items: mediumPriority.map(r => r.recommendationText ?? ""),
       icon: AlertTriangle,
       color: "text-amber-500",
       bg: "bg-amber-50/50",
@@ -38,20 +34,20 @@ export function AIEvaluationDetailedReport({ report }: AIEvaluationDetailedRepor
       indicator: "bg-amber-500"
     },
     {
-      title: "Quan ngại từ AI (Concerns)",
-      items: report.concerns,
-      icon: AlertCircle,
-      color: "text-red-500",
-      bg: "bg-red-50/50",
-      border: "border-red-100",
-      indicator: "bg-red-500"
-    }
+      title: "Ưu tiên thấp (Low Priority)",
+      items: lowPriority.map(r => r.recommendationText ?? ""),
+      icon: CheckCircle2,
+      color: "text-blue-500",
+      bg: "bg-blue-50/50",
+      border: "border-blue-100",
+      indicator: "bg-blue-500"
+    },
   ];
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-      {sections.map((s) => (
-        <div 
+      {sections.filter(s => s.items.length > 0).map((s) => (
+        <div
           key={s.title}
           className={cn(
             "rounded-[32px] border p-8 space-y-6 flex flex-col",
@@ -73,9 +69,6 @@ export function AIEvaluationDetailedReport({ report }: AIEvaluationDetailedRepor
                 <p className="text-[13px] text-slate-700 font-medium leading-relaxed">{item}</p>
               </li>
             ))}
-            {s.items.length === 0 && (
-              <p className="text-xs text-slate-400 italic">Chưa có thông tin phân tích.</p>
-            )}
           </ul>
         </div>
       ))}

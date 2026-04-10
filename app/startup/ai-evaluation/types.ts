@@ -1,101 +1,124 @@
-export type AIEvaluationStatus =
-  | "NOT_REQUESTED"
-  | "VALIDATING"
-  | "QUEUED"
-  | "ANALYZING"
-  | "SCORING"
-  | "GENERATING_REPORT"
-  | "COMPLETED"
-  | "INSUFFICIENT_DATA"
-  | "FAILED"
-  | "ACCESS_RESTRICTED";
+// ═══════════════════════════════════════════════════════════════
+//  Types matching BE DTOs (AIDTOs.cs + IAIService responses)
+//  BE is source of truth — all shapes mirror ApiEnvelope<T>.data
+// ═══════════════════════════════════════════════════════════════
 
-export interface SubMetric {
-  name: string;
-  score: number;
-  maxScore: number;
-  comment: string;
+/* ─── Evaluation trigger ─────────────────────────────────────── */
+
+export interface EvaluationSubmitResponse {
+  evaluationRunId: number;
+  status: string;
+  message: string;
 }
 
-export interface Recommendation {
-  category: string;
-  priority: "HIGH" | "MEDIUM" | "LOW";
-  text: string;
-  impact: string;
+/* ─── Evaluation status (polling) ────────────────────────────── */
+
+export interface EvaluationDocumentStatus {
+  id: number;
+  documentType: string;
+  status: string;
+  extractionStatus?: string;
+  summary?: string;
 }
 
-export interface AIEvaluationReport {
-  evaluationId: string;
+export interface EvaluationStatusResponse {
+  id: number;
   startupId: string;
-  status: AIEvaluationStatus;
+  status: string;
+  failureReason?: string;
+  overallScore?: number;
+  overallConfidence?: number;
+  submittedAt?: string;
+  documents: EvaluationDocumentStatus[];
+}
+
+/* ─── Evaluation report ──────────────────────────────────────── */
+
+export interface EvaluationReportResponse {
+  id: number;
+  startupId: string;
   overallScore: number;
-  pitchDeckScore: number;
-  businessPlanScore: number;
+  overallConfidence?: number;
+  dimensionScores?: Record<string, any>;
+  strengths?: string[];
+  weaknesses?: string[];
+  recommendations?: string[];
+  completedAt?: string;
+}
+
+/* ─── AI Score (from local DB) ───────────────────────────────── */
+
+export interface SubMetricDto {
+  category: string;
+  metricName: string;
+  metricValue?: string;
+  metricScore: number;
+  explanation?: string;
+}
+
+export interface ImprovementRecommendationDto {
+  category: string;
+  priority: string;
+  recommendationText?: string;
+  expectedImpact?: string;
+}
+
+export interface AIScoreLatestResponse {
+  scoreId: number;
+  startupId: number;
+  overallScore: number;
   teamScore: number;
   marketScore: number;
   productScore: number;
   tractionScore: number;
   financialScore: number;
   calculatedAt: string;
-  generatedAt: string;
-  isCurrent: boolean;
-  configVersion: string;
-  modelVersion: string;
-  promptVersion: string;
-  snapshotLabel: string;
-  warningMessages: string[];
-  executiveSummary: string;
-  strengths: string[];
-  opportunities: string[];
-  risks: string[];
-  concerns: string[];
-  gaps: string[];
-  recommendations: Recommendation[];
-  subMetrics: {
-    team: SubMetric[];
-    market: SubMetric[];
-    product: SubMetric[];
-    traction: SubMetric[];
-    financial: SubMetric[];
-  };
+  subMetrics: SubMetricDto[];
+  recommendations: ImprovementRecommendationDto[];
 }
+
+export interface AIScoreHistoryResponse {
+  scores: AIScoreLatestResponse[];
+}
+
+/* ─── Recommendations (investor) ─────────────────────────────── */
+
+export interface RecommendationMatchDto {
+  startupId: string;
+  startupName?: string;
+  score: number;
+  explanation?: string;
+}
+
+export interface RecommendationListResponse {
+  investorId: string;
+  items: RecommendationMatchDto[];
+  generatedAt: string;
+}
+
+/* ─── Scoring model config (admin) ───────────────────────────── */
+
+export interface ScoringModelConfigDto {
+  configId: number;
+  version: string;
+  teamWeight: number;
+  marketWeight: number;
+  productWeight: number;
+  tractionWeight: number;
+  financialWeight: number;
+  applicableStage?: string;
+  changeNotes?: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+/* ─── UI-only helpers ────────────────────────────────────────── */
+
+export type AIEvaluationStatus =
+  | "NOT_REQUESTED"
+  | "QUEUED"
+  | "ANALYZING"
+  | "COMPLETED"
+  | "FAILED";
 
 export type UserRole = "STARTUP_OWNER" | "INVESTOR_FULL" | "INVESTOR_LIMITED" | "INVESTOR_UNAUTHORIZED";
-
-/* ─── Readiness ────────────────────────────────────────────── */
-
-export interface ReadinessItem {
-  label: string;
-  ready: boolean;
-  detail?: string;
-}
-
-export interface EligibleDocument {
-  id: string;
-  name: string;
-  type: "PITCH_DECK" | "BUSINESS_PLAN" | "OTHER";
-  updatedAt: string;
-  recommended: boolean;
-}
-
-export interface ReadinessSummary {
-  profile: {
-    ready: boolean;
-    completionPercent: number;
-    items: ReadinessItem[];
-  };
-  documents: {
-    ready: boolean;
-    eligibleDocs: EligibleDocument[];
-    items: ReadinessItem[];
-  };
-}
-
-export interface ProfileSnapshot {
-  name: string;
-  stage: string;
-  industry: string;
-  foundedYear: number;
-  teamSize: number;
-  lastUpdated: string;
-}

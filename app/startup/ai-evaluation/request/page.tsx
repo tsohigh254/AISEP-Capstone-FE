@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
@@ -9,7 +9,9 @@ import {
   AlertTriangle, Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockReadiness, mockProfile } from "../mock-data";
+import { GetStartupProfile } from "@/services/startup/startup.api";
+import { GetDocument } from "@/services/document/document.api";
+import { TriggerEvaluation } from "@/services/ai/ai.api";
 
 /* ─── Submission states ────────────────────────────────────── */
 
@@ -27,40 +29,83 @@ const SUBMIT_LABELS: Record<SubmitState, string> = {
 
 export default function RequestAIEvaluationPage() {
   const router = useRouter();
-  const { profile, documents } = mockReadiness;
-  const allReady = profile.ready && documents.ready;
 
-  // Only show Pitch Deck and Business Plan from Documents & IP
-  const aiEligibleDocs = documents.eligibleDocs.filter(d => d.type === "PITCH_DECK" || d.type === "BUSINESS_PLAN");
+  // Real data from API
+  const [profile, setProfile] = useState<IStartupProfile | null>(null);
+  const [documents, setDocuments] = useState<IDocument[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(
-    new Set(aiEligibleDocs.filter(d => d.recommended).map(d => d.id))
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [profileRes, docsRes] = await Promise.all([
+          GetStartupProfile(),
+          GetDocument(false),
+        ]);
+        const pData = (profileRes as any)?.data ?? null;
+        if (pData) setProfile(pData);
+        const dData = (docsRes as any)?.data ?? [];
+        if (Array.isArray(dData)) setDocuments(dData);
+      } catch {
+        // silently handle
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  // Filter eligible documents (Pitch Deck / Business Plan — BE may send as int or string)
+  const aiEligibleDocs = documents.filter(
+    (d) => String(d.documentType) === "0" || String(d.documentType) === "1"
+      || d.documentType === "Pitch_Deck" || d.documentType === "Bussiness_Plan"
   );
+
+  const profileReady = !!profile?.companyName && !!profile?.stage;
+  const hasEligibleDocs = aiEligibleDocs.length > 0;
+  const allReady = profileReady && hasEligibleDocs;
+
+  const [selectedDocId, setSelectedDocId] = useState<number | null>(null);
   const [submitState, setSubmitState] = useState<SubmitState>("idle");
   const [confirmed, setConfirmed] = useState(false);
 
-  const selectedPitchDeck = aiEligibleDocs.find(d => selectedDocs.has(d.id) && d.type === "PITCH_DECK");
-  const selectedBPlan = aiEligibleDocs.find(d => selectedDocs.has(d.id) && d.type === "BUSINESS_PLAN");
-  const canSubmit = allReady && confirmed && selectedPitchDeck && submitState === "idle";
+  // Auto-select first eligible doc
+  useEffect(() => {
+    if (aiEligibleDocs.length > 0 && selectedDocId === null) {
+      setSelectedDocId(aiEligibleDocs[0].documentID);
+    }
+  }, [aiEligibleDocs, selectedDocId]);
 
-  const toggleDoc = (id: string) => {
-    setSelectedDocs(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
+  const canSubmit = allReady && confirmed && selectedDocId !== null && submitState === "idle";
 
   const handleSubmit = async () => {
-    if (!canSubmit) return;
+    if (!canSubmit || selectedDocId === null) return;
     setSubmitState("validating");
-    await new Promise(r => setTimeout(r, 1200));
-    setSubmitState("submitting");
-    await new Promise(r => setTimeout(r, 1500));
-    setSubmitState("queued");
-    // After 2s, redirect to home
-    setTimeout(() => router.push("/startup/ai-evaluation"), 2000);
+
+    try {
+      setSubmitState("submitting");
+      const res = await TriggerEvaluation(selectedDocId);
+      const data = (res as any);
+      if (data?.isSuccess || data?.success) {
+        setSubmitState("queued");
+        setTimeout(() => router.push("/startup/ai-evaluation"), 2000);
+      } else {
+        setSubmitState("failed");
+      }
+    } catch {
+      setSubmitState("failed");
+    }
   };
+
+  if (loading) {
+    return (
+      <StartupShell>
+        <div className="max-w-[1100px] mx-auto pb-20 pt-10 flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+        </div>
+      </StartupShell>
+    );
+  }
 
   return (
     <StartupShell>
@@ -101,29 +146,31 @@ export default function RequestAIEvaluationPage() {
               <div className="space-y-3">
                 {/* Profile */}
                 <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-xl">
-                  {profile.ready
+                  {profileReady
                     ? <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
                     : <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />}
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-semibold text-slate-700">Hồ sơ Startup</p>
-                    <p className="text-[11px] text-slate-400">{profile.completionPercent}% hoàn thành — {profile.items.filter(i => i.ready).length}/{profile.items.length} mục đạt yêu cầu</p>
+                    <p className="text-[11px] text-slate-400">
+                      {profileReady ? "Hồ sơ đã đầy đủ thông tin cơ bản" : "Cần hoàn thiện thông tin hồ sơ"}
+                    </p>
                   </div>
-                  <span className={cn("px-2.5 py-1 rounded-full text-[11px] font-bold", profile.ready ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500")}>
-                    {profile.ready ? "Đạt" : "Chưa đạt"}
+                  <span className={cn("px-2.5 py-1 rounded-full text-[11px] font-bold", profileReady ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500")}>
+                    {profileReady ? "Đạt" : "Chưa đạt"}
                   </span>
                 </div>
 
                 {/* Documents */}
                 <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-xl">
-                  {documents.ready
+                  {hasEligibleDocs
                     ? <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
                     : <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />}
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-semibold text-slate-700">Tài liệu kinh doanh</p>
                     <p className="text-[11px] text-slate-400">{aiEligibleDocs.length} tài liệu Pitch Deck / Business Plan</p>
                   </div>
-                  <span className={cn("px-2.5 py-1 rounded-full text-[11px] font-bold", documents.ready ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500")}>
-                    {documents.ready ? "Đạt" : "Chưa đạt"}
+                  <span className={cn("px-2.5 py-1 rounded-full text-[11px] font-bold", hasEligibleDocs ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500")}>
+                    {hasEligibleDocs ? "Đạt" : "Chưa đạt"}
                   </span>
                 </div>
 
@@ -142,36 +189,41 @@ export default function RequestAIEvaluationPage() {
             {/* Eligible Documents — selectable */}
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
               <p className="text-[14px] font-bold text-slate-800 mb-1">Tài liệu đầu vào cho AI</p>
-              <p className="text-[12px] text-slate-400 mb-4">Chọn tài liệu từ mục Tài liệu & IP. Chỉ hỗ trợ Pitch Deck và Business Plan.</p>
+              <p className="text-[12px] text-slate-400 mb-4">Chọn tài liệu để gửi đánh giá. Chỉ hỗ trợ Pitch Deck và Business Plan.</p>
 
-              <div className="space-y-2.5">
-                {aiEligibleDocs.map(doc => {
-                  const selected = selectedDocs.has(doc.id);
-                  return (
-                    <button
-                      key={doc.id}
-                      onClick={() => toggleDoc(doc.id)}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left",
-                        selected ? "border-[#eec54e] bg-[#fdf8e6]" : "border-slate-200 bg-white hover:border-slate-300"
-                      )}
-                    >
-                      <div className={cn("w-5 h-5 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all",
-                        selected ? "border-[#eec54e] bg-[#eec54e]" : "border-slate-300")}>
-                        {selected && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
-                      </div>
-                      {doc.type === "PITCH_DECK" ? <Layout className="w-4 h-4 text-blue-400 flex-shrink-0" /> : <BookOpen className="w-4 h-4 text-violet-400 flex-shrink-0" />}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-slate-700 truncate">{doc.name}</p>
-                        <p className="text-[11px] text-slate-400">Cập nhật: {doc.updatedAt}</p>
-                      </div>
-                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-bold flex-shrink-0">
-                        {doc.type === "PITCH_DECK" ? "Pitch Deck" : "Business Plan"}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+              {aiEligibleDocs.length === 0 ? (
+                <p className="text-[13px] text-slate-400 italic py-4 text-center">Chưa có tài liệu phù hợp. Vui lòng tải lên Pitch Deck hoặc Business Plan.</p>
+              ) : (
+                <div className="space-y-2.5">
+                  {aiEligibleDocs.map(doc => {
+                    const selected = selectedDocId === doc.documentID;
+                    const isPitchDeck = String(doc.documentType) === "0" || doc.documentType === "Pitch_Deck";
+                    return (
+                      <button
+                        key={doc.documentID}
+                        onClick={() => setSelectedDocId(doc.documentID)}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left",
+                          selected ? "border-[#eec54e] bg-[#fdf8e6]" : "border-slate-200 bg-white hover:border-slate-300"
+                        )}
+                      >
+                        <div className={cn("w-5 h-5 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all",
+                          selected ? "border-[#eec54e] bg-[#eec54e]" : "border-slate-300")}>
+                          {selected && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                        </div>
+                        {isPitchDeck ? <Layout className="w-4 h-4 text-blue-400 flex-shrink-0" /> : <BookOpen className="w-4 h-4 text-violet-400 flex-shrink-0" />}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-semibold text-slate-700 truncate">{doc.title || doc.fileUrl}</p>
+                          <p className="text-[11px] text-slate-400">Version: {doc.version}</p>
+                        </div>
+                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-bold flex-shrink-0">
+                          {isPitchDeck ? "Pitch Deck" : "Business Plan"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Evaluation Scope */}
@@ -200,24 +252,24 @@ export default function RequestAIEvaluationPage() {
           <div className="space-y-5">
 
             {/* Profile Snapshot */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
-              <p className="text-[13px] font-bold text-slate-800 mb-3">Snapshot hồ sơ</p>
-              <div className="space-y-2.5">
-                {[
-                  { label: "Tên startup", value: mockProfile.name },
-                  { label: "Giai đoạn", value: mockProfile.stage },
-                  { label: "Ngành", value: mockProfile.industry },
-                  { label: "Năm thành lập", value: String(mockProfile.foundedYear) },
-                  { label: "Quy mô đội ngũ", value: `${mockProfile.teamSize} thành viên` },
-                  { label: "Cập nhật gần nhất", value: mockProfile.lastUpdated },
-                ].map((row, i) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <span className="text-[12px] text-slate-400">{row.label}</span>
-                    <span className="text-[12px] font-semibold text-slate-700">{row.value}</span>
-                  </div>
-                ))}
+            {profile && (
+              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
+                <p className="text-[13px] font-bold text-slate-800 mb-3">Snapshot hồ sơ</p>
+                <div className="space-y-2.5">
+                  {[
+                    { label: "Tên startup", value: profile.companyName },
+                    { label: "Giai đoạn", value: profile.stage },
+                    { label: "Ngành", value: profile.industryName ?? "—" },
+                    { label: "Quy mô đội ngũ", value: profile.teamSize ?? "—" },
+                  ].map((row, i) => (
+                    <div key={i} className="flex items-center justify-between">
+                      <span className="text-[12px] text-slate-400">{row.label}</span>
+                      <span className="text-[12px] font-semibold text-slate-700">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Submit Card */}
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5 sticky top-24">

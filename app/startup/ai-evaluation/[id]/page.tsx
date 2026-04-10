@@ -1,18 +1,17 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { notFound } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
   Sparkles, ArrowLeft, FileText, History, RefreshCw, BarChart3,
-  ShieldCheck, CheckCircle2, AlertTriangle, XCircle, TrendingUp,
-  ChevronDown, ChevronUp, Zap, Info, Users, Globe, Layout, Banknote,
-  Clock, Tag, Cpu, BookOpen, Download,
+  ShieldCheck, CheckCircle2, AlertTriangle, TrendingUp,
+  Zap, Users, Globe, Layout, Banknote,
+  Clock, Download, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockReports } from "../mock-data";
-import { SubMetric, Recommendation } from "../types";
+import { GetLatestScore } from "@/services/ai/ai.api";
+import type { AIScoreLatestResponse, SubMetricDto, ImprovementRecommendationDto } from "../types";
 
 /* ─── Score Bar ────────────────────────────────────────────── */
 
@@ -35,6 +34,30 @@ function ScoreBar({ label, score, icon }: { label: string; score: number; icon: 
   );
 }
 
+/* ─── Sub-metrics List ────────────────────────────────────── */
+
+function SubMetricsList({ metrics }: { metrics: SubMetricDto[] }) {
+  if (metrics.length === 0) return <p className="text-[12px] text-slate-400 italic">Không có dữ liệu chi tiết.</p>;
+  return (
+    <div className="space-y-3">
+      {metrics.map((m, i) => (
+        <div key={i} className="flex items-start gap-3">
+          <div className="flex items-center gap-1.5 flex-shrink-0 w-20">
+            <span className={cn("text-[14px] font-black",
+              m.metricScore >= 7.5 ? "text-emerald-600" : m.metricScore >= 5 ? "text-amber-600" : "text-red-500"
+            )}>{m.metricScore}</span>
+            <span className="text-[11px] text-slate-400">/10</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] font-semibold text-slate-700">{m.metricName}</p>
+            {m.explanation && <p className="text-[11px] text-slate-400 mt-0.5">{m.explanation}</p>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ─── Expandable Section ───────────────────────────────────── */
 
 function ExpandableSection({ title, icon, iconColor, children, defaultOpen = false }: {
@@ -51,42 +74,20 @@ function ExpandableSection({ title, icon, iconColor, children, defaultOpen = fal
           <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", iconColor)}>{icon}</div>
           <span className="text-[14px] font-bold text-slate-800">{title}</span>
         </div>
-        {open ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
       </button>
       {open && <div className="px-5 pb-5 pt-0">{children}</div>}
     </div>
   );
 }
 
-/* ─── Sub-metrics Table ────────────────────────────────────── */
-
-function SubMetricsList({ metrics }: { metrics: SubMetric[] }) {
-  if (metrics.length === 0) return <p className="text-[12px] text-slate-400 italic">Không có dữ liệu chi tiết.</p>;
-  return (
-    <div className="space-y-3">
-      {metrics.map((m, i) => (
-        <div key={i} className="flex items-start gap-3">
-          <div className="flex items-center gap-1.5 flex-shrink-0 w-20">
-            <span className={cn("text-[14px] font-black",
-              m.score / m.maxScore >= 0.75 ? "text-emerald-600" : m.score / m.maxScore >= 0.5 ? "text-amber-600" : "text-red-500"
-            )}>{m.score}</span>
-            <span className="text-[11px] text-slate-400">/{m.maxScore}</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-semibold text-slate-700">{m.name}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">{m.comment}</p>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /* ─── Priority badge ───────────────────────────────────────── */
 
-const PRIORITY_CFG = {
+const PRIORITY_CFG: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  High:   { label: "Cao",      color: "text-red-600",    bg: "bg-red-50",    border: "border-red-100" },
   HIGH:   { label: "Cao",      color: "text-red-600",    bg: "bg-red-50",    border: "border-red-100" },
+  Medium: { label: "Trung bình", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100" },
   MEDIUM: { label: "Trung bình", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100" },
+  Low:    { label: "Thấp",     color: "text-blue-600",   bg: "bg-blue-50",   border: "border-blue-100" },
   LOW:    { label: "Thấp",     color: "text-blue-600",   bg: "bg-blue-50",   border: "border-blue-100" },
 };
 
@@ -95,11 +96,65 @@ const PRIORITY_CFG = {
 export default function AIDetailedReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const report = mockReports.find(r => r.evaluationId === id);
+  const [score, setScore] = useState<AIScoreLatestResponse | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  if (!report || report.status !== "COMPLETED") {
-    notFound();
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        // For now, we load the latest score data.
+        // The [id] in the URL is the scoreId — we can extend later to load specific score by ID.
+        const res = await GetLatestScore();
+        const data = (res as any)?.data ?? null;
+        if (data) setScore(data);
+      } catch {
+        // silently handle
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <StartupShell>
+        <div className="max-w-[1100px] mx-auto pb-20 pt-10 flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+        </div>
+      </StartupShell>
+    );
   }
+
+  if (!score) {
+    return (
+      <StartupShell>
+        <div className="max-w-[1100px] mx-auto pb-20 pt-10 text-center">
+          <p className="text-[16px] font-bold text-slate-700 mb-1">Không tìm thấy báo cáo</p>
+          <p className="text-[13px] text-slate-400 mb-5">Báo cáo đánh giá AI chưa có hoặc không tồn tại.</p>
+          <button onClick={() => router.push("/startup/ai-evaluation")} className="text-[13px] text-amber-600 font-semibold">
+            Quay lại
+          </button>
+        </div>
+      </StartupShell>
+    );
+  }
+
+  // Group sub-metrics by category
+  const groupedMetrics: Record<string, SubMetricDto[]> = {};
+  for (const m of score.subMetrics) {
+    const cat = m.category.toLowerCase();
+    if (!groupedMetrics[cat]) groupedMetrics[cat] = [];
+    groupedMetrics[cat].push(m);
+  }
+
+  const categoryConfig = [
+    { key: "team", label: "Đội ngũ — Chi tiết", icon: <Users className="w-4 h-4 text-blue-500" />, iconColor: "bg-blue-50", score: score.teamScore },
+    { key: "market", label: "Thị trường — Chi tiết", icon: <Globe className="w-4 h-4 text-emerald-500" />, iconColor: "bg-emerald-50", score: score.marketScore },
+    { key: "product", label: "Sản phẩm — Chi tiết", icon: <Layout className="w-4 h-4 text-violet-500" />, iconColor: "bg-violet-50", score: score.productScore },
+    { key: "traction", label: "Traction — Chi tiết", icon: <Zap className="w-4 h-4 text-amber-500" />, iconColor: "bg-amber-50", score: score.tractionScore },
+    { key: "financial", label: "Tài chính — Chi tiết", icon: <Banknote className="w-4 h-4 text-slate-500" />, iconColor: "bg-slate-100", score: score.financialScore },
+  ];
 
   return (
     <StartupShell>
@@ -119,18 +174,15 @@ export default function AIDetailedReportPage({ params }: { params: Promise<{ id:
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-[11px] font-mono font-semibold text-slate-400">{report.evaluationId.toUpperCase()}</span>
+                <span className="text-[11px] font-mono font-semibold text-slate-400">#{score.scoreId}</span>
                 <span className="flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-full text-[10px] font-bold">
                   <CheckCircle2 className="w-2.5 h-2.5" />
                   Hoàn thành
                 </span>
-                {report.isCurrent && (
-                  <span className="px-2 py-0.5 bg-[#eec54e]/20 text-[#b8940a] rounded-full text-[10px] font-bold">Mới nhất</span>
-                )}
               </div>
-              <h1 className="text-[20px] font-bold text-slate-900 mb-1">{report.snapshotLabel}</h1>
+              <h1 className="text-[20px] font-bold text-slate-900 mb-1">Báo cáo đánh giá AI chi tiết</h1>
               <p className="text-[12px] text-slate-400">
-                Đánh giá ngày {report.calculatedAt} · Tạo báo cáo {report.generatedAt}
+                Đánh giá ngày {new Date(score.calculatedAt).toLocaleDateString("vi-VN")} {new Date(score.calculatedAt).toLocaleTimeString("vi-VN")}
               </p>
             </div>
 
@@ -138,17 +190,16 @@ export default function AIDetailedReportPage({ params }: { params: Promise<{ id:
             <div className="flex items-center gap-4 flex-shrink-0">
               <div className={cn(
                 "w-20 h-20 rounded-2xl flex flex-col items-center justify-center",
-                report.overallScore >= 75 ? "bg-emerald-50" : report.overallScore >= 50 ? "bg-amber-50" : "bg-red-50"
+                score.overallScore >= 75 ? "bg-emerald-50" : score.overallScore >= 50 ? "bg-amber-50" : "bg-red-50"
               )}>
                 <span className={cn("text-[28px] font-black leading-none",
-                  report.overallScore >= 75 ? "text-emerald-600" : report.overallScore >= 50 ? "text-amber-600" : "text-red-500"
-                )}>{report.overallScore}</span>
+                  score.overallScore >= 75 ? "text-emerald-600" : score.overallScore >= 50 ? "text-amber-600" : "text-red-500"
+                )}>{score.overallScore}</span>
                 <span className="text-[10px] text-slate-400 font-semibold">/100</span>
               </div>
             </div>
           </div>
 
-          {/* Disclaimer chip */}
           <div className="mt-4 flex items-start gap-2 px-3 py-2 bg-blue-50/50 rounded-xl">
             <ShieldCheck className="w-3.5 h-3.5 text-blue-400 mt-0.5 flex-shrink-0" />
             <p className="text-[11px] text-blue-600 leading-relaxed">
@@ -163,15 +214,6 @@ export default function AIDetailedReportPage({ params }: { params: Promise<{ id:
           {/* ── Main (2/3) ─────────────────────────────── */}
           <div className="lg:col-span-2 space-y-5">
 
-            {/* Executive Summary */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
-              <div className="flex items-center gap-2 mb-3">
-                <FileText className="w-4 h-4 text-[#eec54e]" />
-                <p className="text-[14px] font-bold text-slate-800">Tổng quan đánh giá</p>
-              </div>
-              <p className="text-[13px] text-slate-600 leading-relaxed">{report.executiveSummary}</p>
-            </div>
-
             {/* Score Breakdown */}
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
               <div className="flex items-center gap-2 mb-5">
@@ -179,167 +221,30 @@ export default function AIDetailedReportPage({ params }: { params: Promise<{ id:
                 <p className="text-[14px] font-bold text-slate-800">Điểm tổng quan</p>
               </div>
 
-              {/* Document scores */}
-              <div className="grid grid-cols-2 gap-3 mb-5">
-                <div className="px-4 py-3 bg-blue-50/50 rounded-xl border border-blue-100">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Layout className="w-3.5 h-3.5 text-blue-400" />
-                    <span className="text-[11px] text-blue-500 font-semibold">Pitch Deck</span>
-                  </div>
-                  <span className="text-[22px] font-black text-blue-700">{report.pitchDeckScore}</span>
-                </div>
-                <div className="px-4 py-3 bg-violet-50/50 rounded-xl border border-violet-100">
-                  <div className="flex items-center gap-2 mb-1">
-                    <BookOpen className="w-3.5 h-3.5 text-violet-400" />
-                    <span className="text-[11px] text-violet-500 font-semibold">Business Plan</span>
-                  </div>
-                  <span className="text-[22px] font-black text-violet-700">{report.businessPlanScore}</span>
-                </div>
-              </div>
-
-              {/* Category bars */}
               <div className="space-y-4">
-                <ScoreBar icon={<Users className="w-4 h-4 text-blue-400" />} label="Đội ngũ" score={report.teamScore} />
-                <ScoreBar icon={<Globe className="w-4 h-4 text-emerald-400" />} label="Thị trường" score={report.marketScore} />
-                <ScoreBar icon={<Layout className="w-4 h-4 text-violet-400" />} label="Sản phẩm" score={report.productScore} />
-                <ScoreBar icon={<Zap className="w-4 h-4 text-amber-400" />} label="Traction" score={report.tractionScore} />
-                <ScoreBar icon={<Banknote className="w-4 h-4 text-slate-400" />} label="Tài chính" score={report.financialScore} />
+                <ScoreBar icon={<Users className="w-4 h-4 text-blue-400" />} label="Đội ngũ" score={score.teamScore} />
+                <ScoreBar icon={<Globe className="w-4 h-4 text-emerald-400" />} label="Thị trường" score={score.marketScore} />
+                <ScoreBar icon={<Layout className="w-4 h-4 text-violet-400" />} label="Sản phẩm" score={score.productScore} />
+                <ScoreBar icon={<Zap className="w-4 h-4 text-amber-400" />} label="Traction" score={score.tractionScore} />
+                <ScoreBar icon={<Banknote className="w-4 h-4 text-slate-400" />} label="Tài chính" score={score.financialScore} />
               </div>
             </div>
 
-            {/* Warnings */}
-            {report.warningMessages.length > 0 && (
-              <div className="px-5 py-4 bg-amber-50 rounded-2xl border border-amber-100">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-[12px] font-bold text-amber-800 mb-1">Cảnh báo</p>
-                    <ul className="space-y-1">
-                      {report.warningMessages.map((msg, i) => (
-                        <li key={i} className="text-[12px] text-amber-700">• {msg}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Detailed Breakdown Sections */}
-            <ExpandableSection
-              title="Đội ngũ — Chi tiết"
-              icon={<Users className="w-4 h-4 text-blue-500" />}
-              iconColor="bg-blue-50"
-              defaultOpen
-            >
-              <SubMetricsList metrics={report.subMetrics.team} />
-            </ExpandableSection>
-
-            <ExpandableSection
-              title="Thị trường — Chi tiết"
-              icon={<Globe className="w-4 h-4 text-emerald-500" />}
-              iconColor="bg-emerald-50"
-            >
-              <SubMetricsList metrics={report.subMetrics.market} />
-            </ExpandableSection>
-
-            <ExpandableSection
-              title="Sản phẩm — Chi tiết"
-              icon={<Layout className="w-4 h-4 text-violet-500" />}
-              iconColor="bg-violet-50"
-            >
-              <SubMetricsList metrics={report.subMetrics.product} />
-            </ExpandableSection>
-
-            <ExpandableSection
-              title="Traction — Chi tiết"
-              icon={<Zap className="w-4 h-4 text-amber-500" />}
-              iconColor="bg-amber-50"
-            >
-              <SubMetricsList metrics={report.subMetrics.traction} />
-            </ExpandableSection>
-
-            <ExpandableSection
-              title="Tài chính — Chi tiết"
-              icon={<Banknote className="w-4 h-4 text-slate-500" />}
-              iconColor="bg-slate-100"
-            >
-              <SubMetricsList metrics={report.subMetrics.financial} />
-            </ExpandableSection>
-
-            {/* Key Strengths */}
-            <ExpandableSection
-              title="Điểm mạnh"
-              icon={<TrendingUp className="w-4 h-4 text-emerald-500" />}
-              iconColor="bg-emerald-50"
-              defaultOpen
-            >
-              <div className="space-y-2.5">
-                {report.strengths.map((s, i) => (
-                  <div key={i} className="flex items-start gap-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
-                    <p className="text-[12px] text-slate-600 leading-relaxed">{s}</p>
-                  </div>
-                ))}
-              </div>
-            </ExpandableSection>
-
-            {/* Risks / Concerns */}
-            <ExpandableSection
-              title="Rủi ro & Mối quan ngại"
-              icon={<AlertTriangle className="w-4 h-4 text-amber-500" />}
-              iconColor="bg-amber-50"
-              defaultOpen
-            >
-              <div className="space-y-4">
-                {report.risks.length > 0 && (
-                  <div>
-                    <p className="text-[11px] font-bold text-red-500 uppercase tracking-wide mb-2">Rủi ro</p>
-                    <div className="space-y-2">
-                      {report.risks.map((r, i) => (
-                        <div key={i} className="flex items-start gap-2">
-                          <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />
-                          <p className="text-[12px] text-slate-600 leading-relaxed">{r}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {report.concerns.length > 0 && (
-                  <div>
-                    <p className="text-[11px] font-bold text-amber-500 uppercase tracking-wide mb-2">Mối quan ngại</p>
-                    <div className="space-y-2">
-                      {report.concerns.map((c, i) => (
-                        <div key={i} className="flex items-start gap-2">
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
-                          <p className="text-[12px] text-slate-600 leading-relaxed">{c}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </ExpandableSection>
-
-            {/* Gaps / Missing Info */}
-            {report.gaps.length > 0 && (
+            {categoryConfig.map(cat => (
               <ExpandableSection
-                title="Thiếu hụt & Thông tin cần bổ sung"
-                icon={<Info className="w-4 h-4 text-blue-500" />}
-                iconColor="bg-blue-50"
+                key={cat.key}
+                title={cat.label}
+                icon={cat.icon}
+                iconColor={cat.iconColor}
+                defaultOpen={cat.key === "team"}
               >
-                <div className="space-y-2">
-                  {report.gaps.map((g, i) => (
-                    <div key={i} className="flex items-start gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
-                      <p className="text-[12px] text-slate-600 leading-relaxed">{g}</p>
-                    </div>
-                  ))}
-                </div>
+                <SubMetricsList metrics={groupedMetrics[cat.key] ?? []} />
               </ExpandableSection>
-            )}
+            ))}
 
             {/* Recommendations */}
-            {report.recommendations.length > 0 && (
+            {score.recommendations.length > 0 && (
               <ExpandableSection
                 title="Khuyến nghị cải thiện"
                 icon={<Sparkles className="w-4 h-4 text-[#eec54e]" />}
@@ -348,8 +253,8 @@ export default function AIDetailedReportPage({ params }: { params: Promise<{ id:
               >
                 <p className="text-[11px] text-slate-400 mb-4 italic">Các khuyến nghị dưới đây được tạo bởi AI và mang tính hỗ trợ.</p>
                 <div className="space-y-3">
-                  {report.recommendations.map((rec, i) => {
-                    const pcfg = PRIORITY_CFG[rec.priority];
+                  {score.recommendations.map((rec, i) => {
+                    const pcfg = PRIORITY_CFG[rec.priority] ?? PRIORITY_CFG.Medium;
                     return (
                       <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                         <div className="flex items-center gap-2 mb-2">
@@ -358,11 +263,13 @@ export default function AIDetailedReportPage({ params }: { params: Promise<{ id:
                           </span>
                           <span className="text-[11px] text-slate-400 font-semibold">{rec.category}</span>
                         </div>
-                        <p className="text-[13px] font-semibold text-slate-700 mb-2">{rec.text}</p>
-                        <div className="flex items-start gap-1.5">
-                          <Zap className="w-3 h-3 text-amber-400 mt-0.5 flex-shrink-0" />
-                          <p className="text-[11px] text-slate-500">{rec.impact}</p>
-                        </div>
+                        <p className="text-[13px] font-semibold text-slate-700 mb-2">{rec.recommendationText}</p>
+                        {rec.expectedImpact && (
+                          <div className="flex items-start gap-1.5">
+                            <Zap className="w-3 h-3 text-amber-400 mt-0.5 flex-shrink-0" />
+                            <p className="text-[11px] text-slate-500">{rec.expectedImpact}</p>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -379,12 +286,9 @@ export default function AIDetailedReportPage({ params }: { params: Promise<{ id:
               <p className="text-[13px] font-bold text-slate-800 mb-4">Thông tin báo cáo</p>
               <div className="space-y-3">
                 {[
-                  { icon: <Clock className="w-3.5 h-3.5 text-slate-400" />, label: "Ngày đánh giá", value: report.calculatedAt },
-                  { icon: <FileText className="w-3.5 h-3.5 text-slate-400" />, label: "Ngày tạo báo cáo", value: report.generatedAt },
-                  { icon: <Cpu className="w-3.5 h-3.5 text-slate-400" />, label: "Model version", value: report.modelVersion },
-                  { icon: <Tag className="w-3.5 h-3.5 text-slate-400" />, label: "Prompt version", value: report.promptVersion },
-                  { icon: <Info className="w-3.5 h-3.5 text-slate-400" />, label: "Config version", value: report.configVersion },
-                  { icon: <BookOpen className="w-3.5 h-3.5 text-slate-400" />, label: "Report ID", value: report.evaluationId },
+                  { icon: <Clock className="w-3.5 h-3.5 text-slate-400" />, label: "Ngày đánh giá", value: new Date(score.calculatedAt).toLocaleDateString("vi-VN") },
+                  { icon: <FileText className="w-3.5 h-3.5 text-slate-400" />, label: "Score ID", value: `#${score.scoreId}` },
+                  { icon: <BarChart3 className="w-3.5 h-3.5 text-slate-400" />, label: "Startup ID", value: `#${score.startupId}` },
                 ].map((row, i) => (
                   <div key={i} className="flex items-start gap-2.5">
                     <div className="mt-0.5">{row.icon}</div>

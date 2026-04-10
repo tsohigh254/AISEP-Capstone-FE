@@ -1,14 +1,16 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
   Sparkles, BarChart3, FileText, History, RefreshCw, ArrowLeft,
-  TrendingUp, AlertTriangle, CheckCircle2, ChevronRight, ShieldCheck,
-  Users, Globe, Layout, Zap, Banknote, Download,
+  TrendingUp, AlertTriangle, CheckCircle2, ShieldCheck,
+  Users, Globe, Layout, Zap, Banknote, Download, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockReports } from "../mock-data";
+import { GetLatestScore } from "@/services/ai/ai.api";
+import type { AIScoreLatestResponse } from "../types";
 
 /* ─── Score Ring ────────────────────────────────────────────── */
 
@@ -63,9 +65,35 @@ function CategoryBar({ icon, label, score }: { icon: React.ReactNode; label: str
 
 export default function StartupPotentialScorePage() {
   const router = useRouter();
-  const report = mockReports.find(r => r.status === "COMPLETED" && r.isCurrent);
+  const [score, setScore] = useState<AIScoreLatestResponse | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  if (!report) {
+  useEffect(() => {
+    async function fetchScore() {
+      try {
+        const res = await GetLatestScore();
+        const data = (res as any)?.data ?? null;
+        if (data) setScore(data);
+      } catch {
+        // silently handle
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchScore();
+  }, []);
+
+  if (loading) {
+    return (
+      <StartupShell>
+        <div className="max-w-[900px] mx-auto pb-20 pt-10 flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+        </div>
+      </StartupShell>
+    );
+  }
+
+  if (!score) {
     return (
       <StartupShell>
         <div className="max-w-[800px] mx-auto pb-20 pt-10 text-center animate-in fade-in duration-500">
@@ -86,9 +114,9 @@ export default function StartupPotentialScorePage() {
     );
   }
 
-  // Top 3 strengths, top 2 concerns for summary
-  const topStrengths = report.strengths.slice(0, 3);
-  const topConcerns = [...report.risks, ...report.concerns].slice(0, 3);
+  // Group sub-metrics by category for strengths/concerns summary
+  const topRecommendations = score.recommendations.slice(0, 3);
+  const highPriorityRecs = score.recommendations.filter(r => r.priority === "High" || r.priority === "HIGH");
 
   return (
     <StartupShell>
@@ -107,84 +135,47 @@ export default function StartupPotentialScorePage() {
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-8 mb-6 text-center">
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-6">Startup Potential Score</p>
 
-          <ScoreRing score={report.overallScore} size={160} />
+          <ScoreRing score={score.overallScore} size={160} />
 
           <p className="text-[13px] text-slate-400 mt-4">
-            Đánh giá ngày <span className="font-semibold text-slate-500">{report.calculatedAt.split(" ")[0]}</span>
-            {" · "}
-            <span className="text-slate-400">{report.snapshotLabel}</span>
+            Đánh giá ngày <span className="font-semibold text-slate-500">{new Date(score.calculatedAt).toLocaleDateString("vi-VN")}</span>
           </p>
-
-          {/* Document scores */}
-          <div className="flex items-center justify-center gap-4 mt-5">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-xl">
-              <Layout className="w-3.5 h-3.5 text-blue-400" />
-              <span className="text-[12px] text-blue-600 font-semibold">Pitch Deck: {report.pitchDeckScore}</span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-violet-50 rounded-xl">
-              <Banknote className="w-3.5 h-3.5 text-violet-400" />
-              <span className="text-[12px] text-violet-600 font-semibold">Business Plan: {report.businessPlanScore}</span>
-            </div>
-          </div>
         </div>
 
         {/* ── Category Breakdown ─────────────────────────── */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 mb-6">
           <p className="text-[14px] font-bold text-slate-800 mb-5">Điểm theo lĩnh vực</p>
           <div className="space-y-4">
-            <CategoryBar icon={<Users className="w-4 h-4 text-blue-400" />} label="Đội ngũ" score={report.teamScore} />
-            <CategoryBar icon={<Globe className="w-4 h-4 text-emerald-400" />} label="Thị trường" score={report.marketScore} />
-            <CategoryBar icon={<Layout className="w-4 h-4 text-violet-400" />} label="Sản phẩm" score={report.productScore} />
-            <CategoryBar icon={<Zap className="w-4 h-4 text-amber-400" />} label="Traction" score={report.tractionScore} />
-            <CategoryBar icon={<Banknote className="w-4 h-4 text-slate-400" />} label="Tài chính" score={report.financialScore} />
+            <CategoryBar icon={<Users className="w-4 h-4 text-blue-400" />} label="Đội ngũ" score={score.teamScore} />
+            <CategoryBar icon={<Globe className="w-4 h-4 text-emerald-400" />} label="Thị trường" score={score.marketScore} />
+            <CategoryBar icon={<Layout className="w-4 h-4 text-violet-400" />} label="Sản phẩm" score={score.productScore} />
+            <CategoryBar icon={<Zap className="w-4 h-4 text-amber-400" />} label="Traction" score={score.tractionScore} />
+            <CategoryBar icon={<Banknote className="w-4 h-4 text-slate-400" />} label="Tài chính" score={score.financialScore} />
           </div>
         </div>
 
-        {/* ── Summary Insight ────────────────────────────── */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 mb-6">
-          <p className="text-[14px] font-bold text-slate-800 mb-3">Tổng quan</p>
-          <p className="text-[13px] text-slate-600 leading-relaxed mb-5">{report.executiveSummary}</p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Strengths */}
-            <div className="space-y-2.5">
-              <p className="text-[12px] font-bold text-emerald-600 flex items-center gap-1.5">
-                <TrendingUp className="w-3.5 h-3.5" />
-                Điểm mạnh nổi bật
-              </p>
-              {topStrengths.map((s, i) => (
+        {/* ── Recommendations Summary ────────────────────── */}
+        {topRecommendations.length > 0 && (
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 mb-6">
+            <p className="text-[14px] font-bold text-slate-800 mb-3">Khuyến nghị cải thiện hàng đầu</p>
+            <div className="space-y-3">
+              {topRecommendations.map((rec, i) => (
                 <div key={i} className="flex items-start gap-2">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-400 mt-1 flex-shrink-0" />
-                  <p className="text-[12px] text-slate-600 leading-relaxed">{s}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Concerns */}
-            <div className="space-y-2.5">
-              <p className="text-[12px] font-bold text-amber-600 flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                Điểm cần lưu ý
-              </p>
-              {topConcerns.map((c, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <AlertTriangle className="w-3 h-3 text-amber-400 mt-1 flex-shrink-0" />
-                  <p className="text-[12px] text-slate-600 leading-relaxed">{c}</p>
+                  <TrendingUp className="w-3.5 h-3.5 text-[#eec54e] mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-[12px] text-slate-600 leading-relaxed">{rec.recommendationText}</p>
+                    {rec.expectedImpact && (
+                      <p className="text-[11px] text-slate-400 mt-0.5">{rec.expectedImpact}</p>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           </div>
-        </div>
+        )}
 
         {/* ── Action Row ─────────────────────────────────── */}
         <div className="no-print flex flex-wrap items-center gap-3">
-          <button
-            onClick={() => router.push(`/startup/ai-evaluation/${report.evaluationId}`)}
-            className="flex items-center gap-2 h-10 px-5 rounded-xl bg-[#0f172a] text-white text-[13px] font-semibold hover:bg-slate-700 transition-all"
-          >
-            <FileText className="w-4 h-4" />
-            Xem báo cáo chi tiết
-          </button>
           <button
             onClick={() => window.print()}
             className="flex items-center gap-2 h-10 px-5 rounded-xl bg-slate-100 text-slate-700 text-[13px] font-semibold hover:bg-slate-200 transition-all"
