@@ -128,7 +128,7 @@ export default function AdvisorWalletPage() {
 
         const envelope = res as unknown as IBackendRes<IPagingData<ITransactionInfo>>;
         const payload = envelope.data;
-        const itemList = payload?.data ?? [];
+        const itemList = payload?.items ?? [];
         const paging = payload?.paging;
 
         setTransactions(itemList);

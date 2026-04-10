@@ -25,7 +25,7 @@ declare global {
   }
 
   interface IPagingData<T> {
-    data: T[];
+    data?: T[];
     items?: T[];
     paging: IPaging;
   }
