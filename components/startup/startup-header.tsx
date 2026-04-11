@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bell, ChevronDown, ChevronRight, User, LogOut, Trash2, Loader2, MessageSquare, LayoutGrid, CheckCheck, Settings, FileText, Brain, Users, Handshake, FileUp, CreditCard, ShieldCheck, ShieldAlert, ArrowRight, Inbox } from "lucide-react";
+import { Bell, ChevronDown, ChevronRight, User, LogOut, Trash2, Loader2, MessageSquare, LayoutGrid, CheckCheck, Settings, FileText, Brain, Users, Handshake, FileUp, CreditCard, ShieldCheck, ShieldAlert, ArrowRight, Inbox, Sparkles } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -352,6 +352,7 @@ export function StartupHeader({
                       { icon: ShieldCheck, label: "Xác thực Startup", href: "/startup/verification" },
                       { icon: Users, label: "Tìm cố vấn", href: "/startup/experts" },
                       { icon: Handshake, label: "Kết nối nhà ĐT", href: "/startup/investors" },
+                      { icon: Sparkles, label: "Nâng cấp tài khoản", href: "/startup/subscription" },
                       { icon: CreditCard, label: "Thanh toán", href: "/startup/payments" },
                     ].map((item) => (
                       <Link
@@ -495,4 +496,3 @@ export function StartupHeader({
     </header>
   );
 }
-
