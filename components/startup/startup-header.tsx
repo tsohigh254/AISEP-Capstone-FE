@@ -347,9 +347,9 @@ export function StartupHeader({
                 <div className="absolute right-0 top-full pt-2 z-[60] animate-in fade-in slide-in-from-top-1 duration-150">
                   <div className="w-52 bg-white rounded-xl shadow-lg shadow-black/8 border border-neutral-surface/60 py-1.5">
                     {[
-                      { icon: FileUp, label: "Tài liệu & IP", href: "/startup/documents" },
-                      { icon: Brain, label: "Đánh giá AI", href: "/startup/ai-evaluation" },
-                      { icon: ShieldCheck, label: "Xác thực Startup", href: "/startup/verification" },
+                      { icon: FileText, label: "Tài liệu & SHTT", href: "/startup/documents" },
+                      { icon: BrainCircuit, label: "Đánh giá tiềm năng", href: "/startup/ai-evaluation" },
+                      { icon: BadgeCheck, label: "Xác minh startup", href: "/startup/verification" },
                       { icon: Users, label: "Tìm cố vấn", href: "/startup/experts" },
                       { icon: Handshake, label: "Kết nối nhà ĐT", href: "/startup/investors" },
                       { icon: Sparkles, label: "Nâng cấp tài khoản", href: "/startup/subscription" },

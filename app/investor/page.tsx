@@ -7,12 +7,13 @@ import {
   AlertTriangle,
   Bookmark,
   Brain,
+  Bot,
+  Compass,
   FileEdit,
   FolderOpen,
   Handshake,
   Loader2,
   MoreVertical,
-  Search,
   ShieldCheck as ShieldCheckIcon,
   Sparkles,
   TrendingUp,
@@ -20,7 +21,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useCountUp } from "@/lib/useCountUp";
-import { buildInvestorProfilePresentation } from "@/lib/investor-profile-presenter";
+import { buildInvestorProfilePresentation, getInvestorKycUiState } from "@/lib/investor-profile-presenter";
 import { GetSentConnections } from "@/services/connection/connection.api";
 import { GetDocument } from "@/services/document/document.api";
 import { GetInvestorProfile, GetInvestorWatchlist } from "@/services/investor/investor.api";
@@ -236,6 +237,7 @@ export default function InvestorDashboardPage() {
   const docCount = useCountUp(docTotal, 800, 0);
   const connectionCount = useCountUp(connectionTotal, 600, 0);
   const presentation = profile ? buildInvestorProfilePresentation(profile, kycStatus) : null;
+  const kycUi = getInvestorKycUiState(profile, kycStatus);
 
   if (isLoading) {
     return (
@@ -248,13 +250,14 @@ export default function InvestorDashboardPage() {
     );
   }
 
-  const isVerified = kycStatus?.workflowStatus === "VERIFIED";
-  const isPending = kycStatus?.workflowStatus === "PENDING_REVIEW";
-  const isFailed = kycStatus?.workflowStatus === "VERIFICATION_FAILED";
+  const isVerified = kycUi.isVerified;
+  const isPending = kycUi.isPendingReview;
+  const isFailed = kycUi.isFailed;
+  const needsResubmission = kycUi.needsResubmission;
 
   return (
     <div className="animate-in space-y-6 fade-in duration-500">
-      {!isVerified && !isPending && (
+      {kycUi.shouldShowVerificationPrompt && (
         <div className="flex flex-col items-center justify-between gap-4 rounded-2xl border-2 border-dashed border-[#e6cc4c]/40 bg-[#e6cc4c]/10 p-4 md:flex-row">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e6cc4c]/20 text-[#e6cc4c]">
@@ -285,6 +288,23 @@ export default function InvestorDashboardPage() {
           <p className="text-[13px] font-medium text-blue-700">
             Hồ sơ định danh của bạn đang được duyệt. Quá trình này có thể mất 1-2 ngày làm việc.
           </p>
+        </div>
+      )}
+
+      {needsResubmission && (
+        <div className="flex flex-col items-center justify-between gap-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 md:flex-row">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-500" />
+            <p className="text-[13px] font-medium text-amber-700">
+              Hệ thống cần bạn bổ sung thêm thông tin KYC. Vui lòng mở lại hồ sơ và cập nhật theo yêu cầu mới nhất.
+            </p>
+          </div>
+          <Link
+            href="/investor/kyc"
+            className="rounded-xl bg-amber-500 px-5 py-2 text-[12px] font-bold text-white transition-all hover:bg-amber-600"
+          >
+            Bổ sung hồ sơ
+          </Link>
         </div>
       )}
 
@@ -376,10 +396,10 @@ export default function InvestorDashboardPage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { icon: Search, label: "Khám phá", href: "/investor/startups", color: "text-blue-500", bg: "bg-blue-50" },
-              { icon: Brain, label: "AI Chatbot", href: "/investor/ai-chatbot", color: "text-purple-500", bg: "bg-purple-50" },
+              { icon: Compass, label: "Khám phá Startup", href: "/investor/startups", color: "text-blue-500", bg: "bg-blue-50" },
+              { icon: Bot, label: "Trợ lý đầu tư AI", href: "/investor/ai-chatbot", color: "text-purple-500", bg: "bg-purple-50" },
               { icon: Bookmark, label: "Danh sách theo dõi", href: "/investor/watchlist", color: "text-orange-500", bg: "bg-orange-50" },
-              { icon: Handshake, label: "Kết nối", href: "/investor/connections", color: "text-emerald-500", bg: "bg-emerald-50" },
+              { icon: Handshake, label: "Kết nối đầu tư", href: "/investor/connections", color: "text-emerald-500", bg: "bg-emerald-50" },
             ].map((item) => (
               <Link
                 key={item.href}

@@ -9,10 +9,8 @@ import {
   Search,
   ChevronDown,
   SlidersHorizontal,
-  FileText,
   ChevronLeft,
   ChevronRight,
-  MoreVertical,
   Sparkles,
   MessageCircle,
   Loader2,
@@ -21,31 +19,33 @@ import { cn } from "@/lib/utils";
 import { buildInvestorSearchPresentation, isInvestorKycVerified } from "@/lib/investor-profile-presenter";
 import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AcceptConnection, RejectConnection, GetSentConnections, GetReceivedConnections, WithdrawConnection } from "@/services/connection/connection.api";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { InvestorConnectionModal } from "@/components/startup/investor-connection-modal";
 import { SearchInvestors } from "@/services/startup/startup.api";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+const EMPTY_METRIC_VALUE = "N/A";
 
 const formatTicketSize = (min?: number | null, max?: number | null): string => {
-  if (!min && !max) return "—";
-  const fmt = (n: number) => n >= 1_000_000 ? `$${n / 1_000_000}M` : `$${n / 1_000}k`;
-  if (min && max) return `${fmt(min)}–${fmt(max)}`;
+  if (!min && !max) return EMPTY_METRIC_VALUE;
+  const fmt = (n: number) => n >= 1_000_000 ? `$${n / 1_000_000}M` : `$${n / 1_000}K`;
+  if (min && max) return `${fmt(min)}-${fmt(max)}`;
   if (min) return `${fmt(min)}+`;
   return `${fmt(max!)}`;
 };
 
 const formatDate = (iso: string): string => {
-  if (!iso) return "—";
+  if (!iso) return EMPTY_METRIC_VALUE;
   try {
     return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
-  } catch { return "—"; }
+  } catch { return EMPTY_METRIC_VALUE; }
 };
 
 const STATUS_STYLES: Record<string, string> = {
+  Requested: "bg-blue-50 text-blue-600 border-blue-100",
   Pending:   "bg-blue-50 text-blue-600 border-blue-100",
   Accepted:  "bg-green-50 text-green-600 border-green-100",
   Rejected:  "bg-red-50 text-red-600 border-red-100",
@@ -54,12 +54,53 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
+  Requested: "REQUESTED",
   Pending:   "SENT",
   Accepted:  "ACCEPTED",
   Rejected:  "REJECTED",
   Withdrawn: "WITHDRAWN",
   Closed:    "CLOSED",
 };
+
+type PaginatedListData<T> = IPaginatedRes<T> & {
+  data?: T[];
+  items?: T[];
+  total?: number;
+};
+
+const getListItems = <T,>(data?: PaginatedListData<T> | null): T[] => {
+  if (!data) return [];
+  return data.items ?? data.data ?? [];
+};
+
+const getTotalPages = <T,>(data?: PaginatedListData<T> | null, pageSize: number = 10): number => {
+  if (!data) return 1;
+  const total = data.total ?? data.paging?.totalItems ?? 0;
+  return data.paging?.totalPages ?? Math.max(1, Math.ceil(total / pageSize));
+};
+
+const isSuccessResponse = <T,>(response: IBackendRes<T> | null | undefined): response is IBackendRes<T> => {
+  return Boolean(response?.success || response?.isSuccess);
+};
+
+const getErrorStatus = (error: unknown): number | undefined => {
+  if (typeof error !== "object" || error === null || !("response" in error)) return undefined;
+  const response = (error as { response?: { status?: number } }).response;
+  return typeof response?.status === "number" ? response.status : undefined;
+};
+
+const normalizeConnectionStatus = (status?: string): "Requested" | "Accepted" | "Rejected" | "Withdrawn" | "Closed" | string => {
+  const normalized = (status ?? "").toLowerCase();
+  if (normalized === "pending" || normalized === "requested") return "Requested";
+  if (normalized === "accepted") return "Accepted";
+  if (normalized === "rejected") return "Rejected";
+  if (normalized === "withdrawn") return "Withdrawn";
+  if (normalized === "closed") return "Closed";
+  return status ?? "";
+};
+
+const isPendingConnection = (status?: string) => normalizeConnectionStatus(status) === "Requested";
+const isAcceptedConnection = (status?: string) => normalizeConnectionStatus(status) === "Accepted";
 
 function InvestorAvatar({ name, url, size = "size-10" }: { name: string; url?: string; size?: string }) {
   if (url) {
@@ -77,7 +118,7 @@ function InvestorAvatar({ name, url, size = "size-10" }: { name: string; url?: s
   );
 }
 
-// ── Page ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function InvestorsPage() {
   const router = useRouter();
@@ -99,7 +140,7 @@ export default function InvestorsPage() {
   const [sentTotalPages, setSentTotalPages] = useState(1);
   const [sentKeyword, setSentKeyword] = useState("");
 
-  // ── Tab: Nhận từ Investor ──
+  // Tab: Nhận từ Investor
   const [receivedConnections, setReceivedConnections] = useState<IConnectionItem[]>([]);
   const [isLoadingReceived, setIsLoadingReceived] = useState(false);
   const [receivedPage, setReceivedPage] = useState(1);
@@ -113,52 +154,52 @@ export default function InvestorsPage() {
   const [connectedKeyword, setConnectedKeyword] = useState("");
   const handleAcceptConnection = async (id: number) => {
     try {
-      const res = await AcceptConnection(id) as any;
-      if (res.success || res.isSuccess) { toast.success("Đã chấp nhận kết nối"); fetchReceived(receivedPage); fetchConnected(connectedPage); fetchConnectionMap(); }
+      const res = await AcceptConnection(id);
+      if (isSuccessResponse(res)) { toast.success("Đã chấp nhận kết nối"); fetchReceived(receivedPage); fetchConnected(connectedPage); fetchConnectionMap(); }
       else { toast.error("Có lỗi xảy ra"); }
     } catch { toast.error("Có lỗi xảy ra"); }
   };
 
   const handleRejectConnection = async (id: number) => {
     try {
-      const res = await RejectConnection(id, { reason: "Không phù hợp" }) as any;
-      if (res.success || res.isSuccess) { toast.success("Đã từ chối kết nối"); fetchReceived(receivedPage); }
+      const res = await RejectConnection(id, { reason: "Không phù hợp" });
+      if (isSuccessResponse(res)) { toast.success("Đã từ chối kết nối"); fetchReceived(receivedPage); }
       else { toast.error("Có lỗi xảy ra"); }
     } catch { toast.error("Có lỗi xảy ra"); }
   };
 
   const handleWithdrawConnection = async (id: number) => {
     try {
-      const res = await WithdrawConnection(id) as any;
-      if (res.success || res.isSuccess) { toast.success("Đã thu hồi yêu cầu"); fetchSent(sentPage); fetchConnectionMap(); }
+      const res = await WithdrawConnection(id);
+      if (isSuccessResponse(res)) { toast.success("Đã thu hồi yêu cầu"); fetchSent(sentPage); fetchConnectionMap(); }
       else { toast.error("Có lỗi xảy ra"); }
     } catch { toast.error("Có lỗi xảy ra"); }
   };
 
 
-  // ── Modal ──
+  // â”€â”€ Modal â”€â”€
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [selectedInvestor, setSelectedInvestor] = useState<{ name: string; logo: string; type: string; investorId: number } | null>(null);
 
-  // ── Connection status map (investorID → IConnectionItem) ──
+  // â”€â”€ Connection status map (investorID â†’ IConnectionItem) â”€â”€
   // Used on the Khám phá tab to show button states
   const [connectionMap, setConnectionMap] = useState<Record<number, IConnectionItem>>({});
 
-  // ── Fetch: investors ──
+  // â”€â”€ Fetch: investors â”€â”€
   const fetchInvestors = useCallback(async (page: number, kw: string) => {
     setIsLoadingInvestors(true);
     setInvestorsError(null);
     try {
-      const res = await SearchInvestors({ page, pageSize: 12, keyword: kw || undefined }) as any as IBackendRes<IPaginatedRes<IInvestorSearchItem>>;
+      const res = await SearchInvestors({ page, pageSize: 12, keyword: kw || undefined }) as IBackendRes<PaginatedListData<IInvestorSearchItem>>;
       if (res.success && res.data) {
-        setInvestors((res.data as any).data || (res.data as any).items || (Array.isArray(res.data) ? res.data : []));
-        setTotalPages(((res.data as any).paging?.totalPages ?? Math.ceil(((res.data as any).total ?? 0) / 12)) || 1);
-        setTotalItems((res.data as any).paging?.totalItems ?? (res.data as any).total ?? 0);
+        setInvestors(getListItems(res.data));
+        setTotalPages(getTotalPages(res.data, 12));
+        setTotalItems(res.data.paging?.totalItems ?? res.data.total ?? 0);
       } else {
         setInvestors([]);
       }
-    } catch (err: any) {
-      const status = err?.response?.status;
+    } catch (err: unknown) {
+      const status = getErrorStatus(err);
       if (status === 404) {
         setInvestorsError("404");
       } else {
@@ -170,64 +211,89 @@ export default function InvestorsPage() {
     }
   }, []);
 
-  // ── Fetch: sent connections (all, for status map) ──
+  // â”€â”€ Fetch: sent connections (all, for status map) â”€â”€
   const fetchConnectionMap = useCallback(async () => {
     try {
       const [resSent, resReceived] = await Promise.all([
-        GetSentConnections(1, 100) as any,
-        GetReceivedConnections(1, 100) as any,
+        GetSentConnections(1, 100),
+        GetReceivedConnections(1, 100),
       ]);
       const map: Record<number, IConnectionItem> = {};
-      [
-        ...((resSent?.data?.data || resSent?.data?.items || []) as any[]),
-        ...((resReceived?.data?.data || resReceived?.data?.items || []) as any[]),
-      ].forEach((c: any) => { if (c?.investorID) map[c.investorID] = c; });
+      getListItems(resSent.data).forEach((connection) => {
+        if (!connection?.investorID) return;
+        map[connection.investorID] = {
+          ...connection,
+          initiatedByRole: connection.initiatedByRole ?? "STARTUP",
+        };
+      });
+      getListItems(resReceived.data).forEach((connection) => {
+        if (!connection?.investorID) return;
+        map[connection.investorID] = {
+          ...connection,
+          initiatedByRole: connection.initiatedByRole ?? "INVESTOR",
+        };
+      });
       setConnectionMap(map);
     } catch { /* silent */ }
   }, []);
 
   // alias for BroadcastChannel compatibility
-  const fetchAllSent = fetchConnectionMap;
-
-  // ── Fetch: sent tab ──
+  
+  // â”€â”€ Fetch: sent tab â”€â”€
   const fetchSent = useCallback(async (page: number) => {
     setIsLoadingSent(true);
     try {
-      const res = await GetSentConnections(page, 10) as any;
-      if (res.success || res.isSuccess) {
-        setSentConnections((res.data as any)?.data || (res.data as any)?.items || []);
-        setSentTotalPages(Math.ceil(((res.data as any)?.total ?? (res.data as any)?.paging?.totalItems ?? 0) / 10) || 1);
+      const res = await GetSentConnections(page, 10);
+      if (isSuccessResponse(res)) {
+        setSentConnections(
+          getListItems(res.data).map((item) => ({
+            ...item,
+            initiatedByRole: item.initiatedByRole ?? "STARTUP",
+          }))
+        );
+        setSentTotalPages(getTotalPages(res.data, 10));
       }
     } catch { /* silent */ } finally {
       setIsLoadingSent(false);
     }
   }, []);
 
-  // ── Fetch: received tab (investor → startup) ──
+  // â”€â”€ Fetch: received tab (investor â†’ startup) â”€â”€
   const fetchReceived = useCallback(async (page: number) => {
     setIsLoadingReceived(true);
     try {
-      const res = await GetReceivedConnections(page, 10) as any;
-      if (res.success || res.isSuccess) {
-        setReceivedConnections((res.data as any)?.data || (res.data as any)?.items || []);
-        setReceivedTotalPages(Math.ceil(((res.data as any)?.total ?? (res.data as any)?.paging?.totalItems ?? 0) / 10) || 1);
+      const res = await GetReceivedConnections(page, 10);
+      if (isSuccessResponse(res)) {
+        setReceivedConnections(
+          getListItems(res.data).map((item) => ({
+            ...item,
+            initiatedByRole: item.initiatedByRole ?? "INVESTOR",
+          }))
+        );
+        setReceivedTotalPages(getTotalPages(res.data, 10));
       }
     } catch { /* silent */ } finally {
       setIsLoadingReceived(false);
     }
   }, []);
 
-  // ── Fetch: connected tab ──
-  const fetchConnected = useCallback(async (page: number) => {
+  // â”€â”€ Fetch: connected tab â”€â”€
+  const fetchConnected = useCallback(async (_page?: number) => {
     setIsLoadingConnected(true);
     try {
       const [resSent, resReceived] = await Promise.all([
-        GetSentConnections(1, 100, "Accepted") as any,
-        GetReceivedConnections(1, 100, "Accepted") as any,
+        GetSentConnections(1, 100, "Accepted"),
+        GetReceivedConnections(1, 100, "Accepted"),
       ]);
       const all: IConnectionItem[] = [
-        ...((resSent?.data?.data || resSent?.data?.items || []) as IConnectionItem[]),
-        ...((resReceived?.data?.data || resReceived?.data?.items || []) as IConnectionItem[]),
+        ...getListItems(resSent.data).map((item) => ({
+          ...item,
+          initiatedByRole: item.initiatedByRole ?? "STARTUP",
+        })),
+        ...getListItems(resReceived.data).map((item) => ({
+          ...item,
+          initiatedByRole: item.initiatedByRole ?? "INVESTOR",
+        })),
       ];
       setConnected(all);
       setConnectedTotalPages(1);
@@ -253,7 +319,7 @@ export default function InvestorsPage() {
           if (activeTab === "Nhận từ Investor") fetchReceived(receivedPage);
           if (activeTab === "Đã kết nối") fetchConnected(connectedPage);
         }
-      } catch (e) { /* ignore */ }
+      } catch { /* ignore */ }
     };
 
     const onStorage = (ev: StorageEvent) => {
@@ -267,20 +333,20 @@ export default function InvestorsPage() {
 
     if (typeof window !== "undefined") {
       try {
-        if ((window as any).BroadcastChannel) {
+        if (typeof BroadcastChannel !== "undefined") {
           bc = new BroadcastChannel("connections-updates");
           bc.addEventListener("message", onMessage);
         } else {
           window.addEventListener("storage", onStorage);
         }
-      } catch (e) { /* ignore */ }
+      } catch { /* ignore */ }
     }
 
     return () => {
       try {
         if (bc) bc.close();
-        else window.removeEventListener("storage", onStorage as any);
-      } catch (e) {}
+        else window.removeEventListener("storage", onStorage);
+      } catch {}
     };
   }, [fetchConnectionMap, fetchSent, fetchReceived, fetchConnected, activeTab, sentPage, receivedPage, connectedPage]);
 
@@ -306,33 +372,35 @@ export default function InvestorsPage() {
   };
 
   const handleOpenRequest = (investor: IInvestorSearchItem) => {
-    const presentation = buildInvestorSearchPresentation(investor);
+    const presentation = buildInvestorSearchPresentation(investor, {
+      institutionalIdentityLineMode: "organization",
+    });
     setSelectedInvestor({
       investorId: investor.investorID,
       name: presentation.primaryName,
       logo: investor.profilePhotoURL ?? "",
-      type: presentation.heroIdentityLine || presentation.categoryLabel || investor.investorType || "",
+      type: presentation.categoryLabel || investor.investorType || "Nhà đầu tư",
     });
     setIsRequestModalOpen(true);
   };
 
-  const handleConnectionSuccess = (connectionId: number) => {
+  const handleConnectionSuccess = () => {
     fetchConnectionMap();
   };
 
-  // ── Pagination component ──
+  // â”€â”€ Pagination component â”€â”€
   const Pagination = ({
     page, total, onChange,
   }: { page: number; total: number; onChange: (p: number) => void }) => {
     if (total <= 1) return null;
-    const pages: (number | "…")[] = [];
+    const pages: (number | "...")[] = [];
     if (total <= 5) {
       for (let i = 1; i <= total; i++) pages.push(i);
     } else {
       pages.push(1);
-      if (page > 3) pages.push("…");
+      if (page > 3) pages.push("...");
       for (let i = Math.max(2, page - 1); i <= Math.min(total - 1, page + 1); i++) pages.push(i);
-      if (page < total - 2) pages.push("…");
+      if (page < total - 2) pages.push("...");
       pages.push(total);
     }
     return (
@@ -344,7 +412,7 @@ export default function InvestorsPage() {
           <button
             key={i}
             onClick={() => typeof p === "number" && onChange(p)}
-            disabled={p === "…"}
+            disabled={p === "..."}
             className={cn(
               "size-8 rounded-lg text-[12px] font-bold",
               p === page ? "bg-[#eec54e] text-white shadow-lg shadow-yellow-500/20" : "border border-slate-200 text-slate-500 hover:bg-slate-50"
@@ -358,7 +426,7 @@ export default function InvestorsPage() {
     );
   };
 
-  // ── Tab content ──────────────────────────────────────────────────────────
+  // â”€â”€ Tab content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -368,25 +436,25 @@ export default function InvestorsPage() {
         return (
           <div className="space-y-6 animate-in fade-in duration-500">
             {/* Search & Filters */}
-            <div className="rounded-2xl border border-slate-200/80 bg-white px-6 py-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
-              <div className="relative w-full xl:flex-1">
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+              <div className="flex flex-wrap items-center gap-3">
+              <div className="relative min-w-[260px] flex-1">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-5" />
                 <Input
                   value={keyword}
                   onChange={e => setKeyword(e.target.value)}
                   placeholder="Tìm theo tên quỹ hoặc nhà đầu tư..."
-                  className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-12 text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:border-[#eec54e] focus:ring-2 focus:ring-[#eec54e]/20"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-12 text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:ring-0"
                 />
               </div>
-              <div className="flex flex-wrap items-center gap-3 xl:w-auto">
+              <div className="flex flex-wrap items-center gap-3">
                 {["Giai đoạn", "Ngành nghề ưu tiên", "Quy mô đầu tư"].map((label) => (
-                  <div key={label} className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-white px-5 transition-colors hover:bg-slate-50">
+                  <div key={label} className="flex h-11 items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 transition-colors hover:bg-slate-50">
                     <span className="whitespace-nowrap text-[13px] font-medium text-slate-700">{label}</span>
                     <ChevronDown className="size-4 text-slate-400" />
                   </div>
                 ))}
-                <Button variant="outline" className="h-12 rounded-xl border border-slate-200 bg-slate-50 px-5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100">
+                <Button variant="outline" className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100">
                   <SlidersHorizontal className="size-4" />
                   <span>Lọc nâng cao</span>
                 </Button>
@@ -427,12 +495,22 @@ export default function InvestorsPage() {
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {investors.map((investor) => {
                   const conn = connectionMap[investor.investorID];
-                  const presentation = buildInvestorSearchPresentation(investor);
+                  const presentation = buildInvestorSearchPresentation(investor, {
+                    institutionalIdentityLineMode: "organization",
+                  });
                   const isKycVerified = isInvestorKycVerified(investor);
+                  const normalizedConnectionStatus = normalizeConnectionStatus(conn?.connectionStatus);
+                  const hasPendingIncomingInvite =
+                    Boolean(conn) && isPendingConnection(conn?.connectionStatus) && conn?.initiatedByRole === "INVESTOR";
+                  const canRequestConnection =
+                    investor.canRequestConnection ??
+                    ((investor.profileAvailabilityReason ?? "OPEN") === "OPEN" && investor.acceptingConnections !== false);
+                  const hasTicketSize = investor.ticketSizeMin != null || investor.ticketSizeMax != null;
+                  const industries = (investor.preferredIndustries ?? []).slice(0, 3);
                   return (
-                      <div key={investor.investorID} className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
-                        <div className="flex flex-1 flex-col p-6 text-center">
-<div className="relative mx-auto mb-5 size-[84px]">
+                    <div key={investor.investorID} className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+                      <div className="flex flex-1 flex-col p-6 text-center">
+                          <div className="relative mx-auto mb-5 size-[84px]">
                             <div className="absolute inset-0 rounded-full bg-[#eec54e]/10 opacity-0 blur-2xl transition-all group-hover:opacity-100" />
                             <InvestorAvatar
                               name={presentation.primaryName}
@@ -441,54 +519,67 @@ export default function InvestorsPage() {
                             />
                           </div>
                             <div className="mb-5">
+                              {presentation.categoryLabel && (
+                                <div className="mb-2 flex justify-center">
+                                  <span
+                                    className={cn(
+                                      "inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide",
+                                      presentation.isInstitutional
+                                        ? "border-blue-200/80 bg-blue-50 text-blue-700"
+                                        : "border-emerald-200/80 bg-emerald-50 text-emerald-700"
+                                    )}
+                                  >
+                                    {presentation.isInstitutional ? "Quỹ / Tổ chức" : "Cá nhân"}
+                                  </span>
+                                </div>
+                              )}
                               <div className="flex items-center justify-center gap-2">
                                 <h3 className="text-[20px] font-bold leading-tight text-slate-900 transition-colors group-hover:text-[#0f172a]">{presentation.primaryName}</h3>
                                 {isKycVerified && <VerifiedRoleMark className="h-4 w-4 shrink-0" />}
                               </div>
                             <p className="mt-1.5 min-h-[36px] line-clamp-2 text-[12px] font-medium text-slate-400">
-                              {presentation.heroIdentityLine || presentation.categoryLabel || investor.title || investor.firmName || "Nhà đầu tư"}
+                              {presentation.heroIdentityLine || presentation.categoryLabel || "Nhà đầu tư"}
                             </p>
                           </div>
 
-<div className="mb-4 grid grid-cols-3 gap-2 rounded-xl border border-slate-100 bg-slate-50 px-2 py-3">
+                          <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-100/70 px-2 py-3">
                             <div className="text-center">
                               <p className={cn(
                                 "text-[15px] leading-none",
-                                investor.portfolioCount != null ? "font-semibold text-slate-900" : "font-medium text-slate-300"
+                                investor.acceptedConnectionCount != null ? "font-semibold text-slate-900" : "font-semibold text-slate-500"
                               )}>
-                                {investor.portfolioCount != null ? `${investor.portfolioCount}+` : "—"}
+                                {investor.acceptedConnectionCount != null ? investor.acceptedConnectionCount : EMPTY_METRIC_VALUE}
                               </p>
-                              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Portfolio</p>
+                              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Đã kết nối</p>
                             </div>
-                            <div className="border-x border-slate-200 text-center">
+                            <div className="border-l border-slate-300/70 text-center">
                               <p className={cn(
-                                "truncate text-[15px] leading-none",
-                                (investor.ticketSizeMin != null || investor.ticketSizeMax != null) ? "font-semibold text-slate-900" : "font-medium text-slate-300"
+                                "px-1 text-[13px] leading-tight",
+                                hasTicketSize ? "font-semibold text-slate-900" : "font-semibold text-slate-500"
                               )}>
                                 {formatTicketSize(investor.ticketSizeMin, investor.ticketSizeMax)}
                               </p>
-                              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Ticket Size</p>
+                              <p className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">Quy mô đầu tư</p>
                             </div>
-                            <div className="text-center">
-                              <p className={cn(
-                                "text-[15px] leading-none",
-                                investor.matchScore != null ? "font-semibold text-emerald-600" : "font-medium text-slate-300"
-                              )}>
-                                {investor.matchScore != null ? `${investor.matchScore}%` : "—"}
-                              </p>
-                              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Match</p>
                           </div>
-                        </div>
 
-                          {(investor.preferredIndustries ?? []).length > 0 && (
-                            <div className="mb-4 flex min-h-[58px] flex-wrap justify-center gap-1.5">
-                              {(investor.preferredIndustries ?? []).slice(0, 3).map(tag => (
-                            <span key={tag} className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                              {tag}
-                            </span>
-                          ))}
-                            </div>
-                          )}
+                          <div className="mb-4 flex min-h-[58px] flex-wrap justify-center content-start gap-1.5">
+                            {industries.length > 0 ? (
+                              industries.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="line-clamp-1 rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700"
+                                  title={tag}
+                                >
+                                  {tag}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="inline-flex items-center rounded-lg bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                                Chưa cập nhật lĩnh vực
+                              </span>
+                            )}
+                          </div>
 
                           <div className="mt-auto flex gap-3 pt-2">
                           <Link href={`/startup/investors/${investor.investorID}`} className="flex-1">
@@ -499,12 +590,12 @@ export default function InvestorsPage() {
                           {!conn ? (
                             <Button
                               onClick={() => handleOpenRequest(investor)}
-                              disabled={!investor.acceptingConnections}
-                              className="h-[44px] flex-1 whitespace-nowrap rounded-xl bg-[#f7e7a8] text-[13px] font-semibold text-[#d8a905] shadow-sm transition-colors hover:bg-[#f3de8b] disabled:border-transparent disabled:bg-[#fbf1ce] disabled:text-[#e2b730] disabled:opacity-100"
+                              disabled={!canRequestConnection}
+                              className="h-[44px] flex-1 whitespace-nowrap rounded-xl bg-blue-600 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:border-transparent disabled:bg-blue-100 disabled:text-blue-500 disabled:opacity-100"
                             >
-                              {investor.acceptingConnections ? "Gửi lời mời" : "Đã đóng"}
+                              {canRequestConnection ? "Gửi lời mời" : "Đã đóng"}
                             </Button>
-                          ) : conn.connectionStatus === "Accepted" ? (
+                          ) : isAcceptedConnection(conn.connectionStatus) ? (
                             <Button
                               onClick={() => router.push(`/startup/messaging?connectionId=${conn.connectionID}`)}
                               className="h-[44px] flex-1 gap-1.5 rounded-xl bg-emerald-600 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
@@ -512,9 +603,16 @@ export default function InvestorsPage() {
                               <MessageCircle className="size-4" />
                               Nhắn tin
                             </Button>
+                          ) : hasPendingIncomingInvite ? (
+                            <Button
+                              onClick={() => router.push(`/startup/investors/${investor.investorID}`)}
+                              className="h-[44px] flex-1 gap-1.5 rounded-xl bg-sky-50 text-[13px] font-semibold text-sky-700 shadow-sm transition-colors hover:bg-sky-100"
+                            >
+                              Xử lý lời mời
+                            </Button>
                           ) : (
                             <Button variant="outline" disabled className="h-[44px] flex-1 rounded-xl border border-slate-200 bg-slate-50 text-[13px] font-medium text-slate-500 opacity-100 transition-colors">
-                              {STATUS_LABEL[conn.connectionStatus] ?? conn.connectionStatus}
+                              {STATUS_LABEL[normalizedConnectionStatus] ?? normalizedConnectionStatus}
                             </Button>
                           )}
                         </div>
@@ -582,25 +680,25 @@ export default function InvestorsPage() {
                           </div>
                         </td>
                         <td className="px-8 py-6 max-w-[300px]">
-                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium truncate">{item.personalizedMessage || "—"}</p>
+                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium truncate">{item.personalizedMessage || "\u2014"}</p>
                         </td>
                         <td className="px-8 py-6 text-center text-[13px] font-black text-slate-500 uppercase tracking-tight opacity-70">
                           {formatDate(item.requestedAt)}
                         </td>
                         <td className="px-8 py-6 text-center">
-                          <span className={cn("px-3 py-1 rounded-full text-[10px] font-black border tracking-widest", STATUS_STYLES[item.connectionStatus] ?? "bg-slate-50 text-slate-500 border-slate-100")}>
-                            • {STATUS_LABEL[item.connectionStatus] ?? item.connectionStatus}
+                          <span className={cn("px-3 py-1 rounded-full text-[10px] font-black border tracking-widest", STATUS_STYLES[normalizeConnectionStatus(item.connectionStatus)] ?? "bg-slate-50 text-slate-500 border-slate-100")}>
+                            {"\u2022"} {STATUS_LABEL[normalizeConnectionStatus(item.connectionStatus)] ?? normalizeConnectionStatus(item.connectionStatus)}
                           </span>
                         </td>
                         <td className="px-8 py-6 text-right">
-                            {item.connectionStatus === "Requested" ? (
+                            {isPendingConnection(item.connectionStatus) ? (
                               <button
                                 onClick={() => handleWithdrawConnection(item.connectionID)}
                                 className="h-10 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all font-bold text-[13px] flex items-center gap-2"
                               >
                                 Thu hồi
                               </button>
-                            ) : item.connectionStatus === "Accepted" ? (
+                            ) : isAcceptedConnection(item.connectionStatus) ? (
                               <Button
                                 onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
                                 className="h-10 px-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 text-slate-900 dark:text-white border-none text-[12px] font-black gap-2 hover:bg-[#eec54e] hover:text-white transition-all group/btn"
@@ -629,7 +727,7 @@ export default function InvestorsPage() {
             </div>
           </div>
         );
-      // ── Nhận từ Investor ──────────────────────────────────────────────────
+      // Tab: Nhận từ Investor
       case "Nhận từ Investor":
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -659,13 +757,13 @@ export default function InvestorsPage() {
                           </div>
                         </td>
                         <td className="px-8 py-6 max-w-[300px]">
-                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium truncate">{item.personalizedMessage || "—"}</p>
+                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium truncate">{item.personalizedMessage || "\u2014"}</p>
                         </td>
                         <td className="px-8 py-6 text-center text-[13px] font-black text-slate-500 uppercase tracking-tight opacity-70">
                           {formatDate(item.requestedAt)}
                         </td>
                         <td className="px-8 py-6 text-right">
-                          {item.connectionStatus === "Requested" ? (
+                          {isPendingConnection(item.connectionStatus) ? (
                             <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={() => handleAcceptConnection(item.connectionID)}
@@ -680,7 +778,7 @@ export default function InvestorsPage() {
                                 Từ chối
                               </button>
                             </div>
-                          ) : item.connectionStatus === "Accepted" ? (
+                          ) : isAcceptedConnection(item.connectionStatus) ? (
                             <Button
                               onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
                               className="h-10 px-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 text-slate-900 dark:text-white border-none text-[12px] font-black gap-2 hover:bg-[#eec54e] hover:text-white transition-all group/btn"
@@ -744,7 +842,7 @@ export default function InvestorsPage() {
                         </td>
                         <td className="px-8 py-6 max-w-[350px]">
                           <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium italic border-l-2 border-slate-100 dark:border-slate-800 pl-4 truncate">
-                            {item.personalizedMessage || "—"}
+                            {item.personalizedMessage || "\u2014"}
                           </p>
                         </td>
                         <td className="px-8 py-6 text-center text-[13px] font-black text-slate-500 uppercase tracking-tight opacity-70">
@@ -789,38 +887,41 @@ export default function InvestorsPage() {
 
   return (
     <StartupShell>
-      <div className="mx-auto max-w-[1000px] space-y-6 pb-12 animate-in fade-in duration-500">
+      <div className="mx-auto max-w-[1100px] space-y-6 pb-20 animate-in fade-in duration-500">
 
         {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="flex items-end justify-between">
           <div className="space-y-2">
-            <h1 className="text-[20px] font-bold leading-tight text-slate-900">Kết nối Nhà đầu tư & Quỹ đầu tư</h1>
-            <p className="max-w-[560px] text-[13px] leading-relaxed text-slate-500">
+            <h1 className="text-[28px] font-black tracking-tight text-slate-900">Kết nối Nhà đầu tư & Quỹ đầu tư</h1>
+            <p className="max-w-[620px] text-[14px] font-medium leading-relaxed text-slate-500">
               Khám phá và kết nối với các đối tác tài chính chiến lược tiềm năng để đưa startup của bạn lên tầm cao mới.
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-full border border-blue-200/80 bg-blue-50 px-3 py-1.5">
-              <Sparkles className="size-3 text-blue-500" />
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-600">Gợi ý AI</span>
+            <div className="flex items-center gap-2 rounded-xl border border-[#eec54e]/30 bg-[#fdf8e6] px-4 py-2.5">
+              <Sparkles className="size-3 text-[#d4ae3d]" />
+              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#a58419]">Gợi ý AI</span>
             </div>
           </div>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
+        <div className="flex gap-8 overflow-x-auto border-b border-slate-200">
           {["Khám phá", "Yêu cầu đã gửi", "Nhận từ Investor", "Đã kết nối"].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "relative -mb-px whitespace-nowrap border-b-2 px-3.5 py-2 text-[13px] font-medium transition-colors",
+                "relative whitespace-nowrap pb-4 text-[14px] font-bold tracking-tight transition-all",
                 activeTab === tab
-                  ? "border-[#0f172a] text-[#0f172a]"
-                  : "border-transparent text-slate-500 hover:text-slate-700"
+                  ? "text-slate-900"
+                  : "text-slate-400 hover:text-slate-600"
               )}
             >
               {tab}
+              {activeTab === tab && (
+                <div className="absolute bottom-0 left-0 right-0 h-[3px] rounded-full bg-[#eec54e]" />
+              )}
             </button>
           ))}
         </div>
@@ -829,7 +930,7 @@ export default function InvestorsPage() {
         {renderTabContent()}
 
         {/* Footer */}
-        <div className="border-t border-slate-100 pt-8 text-center">
+        <div className="hidden border-t border-slate-100 pt-8 text-center">
           <p className="text-[11px] font-black text-slate-300 uppercase tracking-widest">© 2026 AISEP STARTUP WORKSPACE • HỆ THỐNG KẾT NỐI NHÀ ĐẦU TƯ & QUỸ ĐẦU TƯ</p>
           <div className="flex justify-center gap-6 mt-4">
             <Link href="#" className="text-[11px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest">Điều khoản</Link>

@@ -1,6 +1,11 @@
 import type { IInvestorKYCStatus } from "@/types/investor-kyc";
 
 export type InvestorCategory = "INDIVIDUAL_ANGEL" | "INSTITUTIONAL";
+export type InstitutionalIdentityLineMode = "representative" | "organization";
+
+type InvestorPresentationOptions = {
+  institutionalIdentityLineMode?: InstitutionalIdentityLineMode;
+};
 
 const SUBMITTER_ROLE_LABELS: Record<string, string> = {
   PARTNER: "Đối tác (Partner)",
@@ -27,6 +32,17 @@ type InvestorKycLike = Partial<
     Pick<IInvestorSearchItem, "profileStatus" | "workflowStatus" | "verificationLabel" | "kycVerified">
 >;
 
+export type InvestorKycUiState = {
+  workflowStatus: string | null;
+  verificationLabel: string | null;
+  hasKnownStatus: boolean;
+  isVerified: boolean;
+  isPendingReview: boolean;
+  needsResubmission: boolean;
+  isFailed: boolean;
+  shouldShowVerificationPrompt: boolean;
+};
+
 export function isInvestorKycVerified(
   source?: InvestorKycLike | null,
   kycStatus?: Pick<IInvestorKYCStatus, "workflowStatus" | "verificationLabel"> | null,
@@ -47,6 +63,35 @@ export function isInvestorKycVerified(
 
   const profileStatus = source?.profileStatus?.toUpperCase();
   return Boolean(profileStatus && profileStatus.includes("VERIFIED"));
+}
+
+export function getInvestorKycUiState(
+  source?: InvestorKycLike | null,
+  kycStatus?: Pick<IInvestorKYCStatus, "workflowStatus" | "verificationLabel"> | null,
+): InvestorKycUiState {
+  const workflowStatus = kycStatus?.workflowStatus ?? source?.workflowStatus ?? null;
+  const verificationLabel = kycStatus?.verificationLabel ?? source?.verificationLabel ?? null;
+  const profileStatus = source?.profileStatus?.toUpperCase() ?? null;
+  const hasVerifiedProfileSignal = Boolean(profileStatus && profileStatus.includes("VERIFIED"));
+  const hasKnownStatus = Boolean(source?.kycVerified || workflowStatus || verificationLabel || hasVerifiedProfileSignal);
+  const isVerified = isInvestorKycVerified(source, kycStatus);
+  const isPendingReview = workflowStatus === "PENDING_REVIEW";
+  const needsResubmission =
+    workflowStatus === "PENDING_MORE_INFO" || verificationLabel === "PENDING_MORE_INFO";
+  const isFailed =
+    workflowStatus === "VERIFICATION_FAILED" || verificationLabel === "VERIFICATION_FAILED";
+
+  return {
+    workflowStatus,
+    verificationLabel,
+    hasKnownStatus,
+    isVerified,
+    isPendingReview,
+    needsResubmission,
+    isFailed,
+    shouldShowVerificationPrompt:
+      hasKnownStatus && !isVerified && !isPendingReview && !needsResubmission && !isFailed,
+  };
 }
 
 export function resolveInvestorCategory(
@@ -71,10 +116,27 @@ export function getSubmitterRoleLabel(role?: string | null) {
   return SUBMITTER_ROLE_LABELS[role] || role;
 }
 
+function buildInstitutionalIdentityLine(
+  category: InvestorCategory,
+  representativeName: string | null,
+  representativeRole: string | null,
+  mode: InstitutionalIdentityLineMode,
+) {
+  if (mode === "organization") {
+    return getInvestorCategoryLabel(category);
+  }
+
+  return [representativeName ? `Người đại diện: ${representativeName}` : null, representativeRole]
+    .filter(Boolean)
+    .join(" · ") || null;
+}
+
 export function buildInvestorProfilePresentation(
   profile: IInvestorProfile,
   kycStatus?: IInvestorKYCStatus | null,
+  options?: InvestorPresentationOptions,
 ) {
+  const institutionalIdentityLineMode = options?.institutionalIdentityLineMode ?? "representative";
   const category = resolveInvestorCategory(profile, kycStatus);
   const isInstitutional = category === "INSTITUTIONAL";
   const organizationName =
@@ -92,6 +154,12 @@ export function buildInvestorProfilePresentation(
   const primaryName = isInstitutional
     ? organizationName || profile.fullName || "Hồ sơ Investor"
     : profile.fullName || organizationName || "Hồ sơ Investor";
+  const institutionalIdentityLine = buildInstitutionalIdentityLine(
+    category,
+    representativeName,
+    representativeRole,
+    institutionalIdentityLineMode,
+  );
 
   return {
     category,
@@ -103,9 +171,7 @@ export function buildInvestorProfilePresentation(
     representativeName,
     representativeRole,
     heroIdentityLine: isInstitutional
-      ? [representativeName ? `Người đại diện: ${representativeName}` : null, representativeRole]
-          .filter(Boolean)
-          .join(" · ") || null
+      ? institutionalIdentityLine
       : buildAngelIdentityLine(roleName, organizationName),
     shortSummary: profile.bio || profile.investmentThesis || null,
     contactEmail: kycStatus?.submissionSummary?.contactEmail || null,
@@ -155,7 +221,11 @@ export function buildInvestorProfilePresentation(
   };
 }
 
-export function buildInvestorSearchPresentation(investor: IInvestorSearchItem) {
+export function buildInvestorSearchPresentation(
+  investor: IInvestorSearchItem,
+  options?: InvestorPresentationOptions,
+) {
+  const institutionalIdentityLineMode = options?.institutionalIdentityLineMode ?? "representative";
   const category = normalizeCategory(investor.investorType) || "INDIVIDUAL_ANGEL";
   const isInstitutional = category === "INSTITUTIONAL";
   const organizationName = investor.firmName || null;
@@ -174,14 +244,16 @@ export function buildInvestorSearchPresentation(investor: IInvestorSearchItem) {
     roleName,
     representativeName,
     heroIdentityLine: isInstitutional
-      ? [
-          representativeName && representativeName !== primaryName
-            ? `Người đại diện: ${representativeName}`
-            : null,
-          roleName,
-        ]
-          .filter(Boolean)
-          .join(" · ") || null
+      ? institutionalIdentityLineMode === "representative"
+        ? [
+            representativeName && representativeName !== primaryName
+              ? `Người đại diện: ${representativeName}`
+              : null,
+            roleName,
+          ]
+            .filter(Boolean)
+            .join(" · ") || null
+        : getInvestorCategoryLabel(category)
       : buildAngelIdentityLine(roleName, organizationName),
   };
 }

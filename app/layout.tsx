@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
+import { ScrollToTopOnReload } from "@/components/layout/ScrollToTopOnReload";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
@@ -21,6 +22,7 @@ export default function RootLayout({
           src="https://cdn.payos.vn/payos-checkout/v1/stable/payos-initialize.js"
           strategy="beforeInteractive"
         />
+        <ScrollToTopOnReload />
         <Providers>{children}</Providers>
       </body>
     </html>

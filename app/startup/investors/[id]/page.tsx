@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, use } from "react";
+import React, { useState, useEffect, use, useCallback } from "react";
 import Image from "next/image";
 import { useRouter, notFound } from "next/navigation";
+import { toast } from "sonner";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
+    ArrowLeft,
+    ArrowUpRight,
     Globe,
-    Linkedin,
     MapPin,
     Info,
     TrendingUp,
@@ -27,20 +29,29 @@ import { buildInvestorProfilePresentation, isInvestorKycVerified } from "@/lib/i
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { InvestorConnectionModal } from "@/components/startup/investor-connection-modal";
-import { GetConnectionByInvestorId } from "@/services/connection/connection.api";
+import {
+    AcceptConnection,
+    GetConnectionByInvestorId,
+    GetPendingConnectionInviteByInvestorId,
+    RejectConnection,
+} from "@/services/connection/connection.api";
 import { GetInvestorById } from "@/services/startup/startup.api";
 import { CreateConversation } from "@/services/messaging/messaging.api";
 import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+// -- Types ----------------------------------------------------------------------
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// -- Helpers ------------------------------------------------------------------
 
-function deriveBadges(inv: IInvestorProfile, isInstitutional?: boolean): { label: string; color: "yellow" | "green" | "blue" }[] {
+function deriveBadges(
+    inv: IInvestorProfile,
+    isInstitutional?: boolean,
+    canRequestConnection = false,
+): { label: string; color: "yellow" | "green" | "blue" }[] {
     const badges: { label: string; color: "yellow" | "green" | "blue" }[] = [];
     if (isInstitutional) badges.push({ label: "QUỸ CHÍNH QUY", color: "yellow" });
     else badges.push({ label: "ANGEL INVESTOR", color: "yellow" });
-    if (inv.acceptingConnections) badges.push({ label: "ĐANG MỞ KẾT NỐI", color: "green" });
+    if (canRequestConnection) badges.push({ label: "ĐANG MỞ KẾT NỐI", color: "green" });
     if (inv.country) badges.push({ label: inv.country.toUpperCase(), color: "blue" });
     return badges;
 }
@@ -61,14 +72,20 @@ function AvatarOrLogo({ name, url, className }: { name: string; url?: string; cl
     );
 }
 
-// ── Page ─────────────────────────────────────────────────────────────────────
+const isPendingStatus = (status?: string) => {
+    const normalized = (status ?? "").toLowerCase();
+    return normalized === "pending" || normalized === "requested";
+};
+
+const isAcceptedStatus = (status?: string) => (status ?? "").toLowerCase() === "accepted";
+
+// -- Page ---------------------------------------------------------------------
 
 export default function InvestorDetailsPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const investorId = Number(id);
     const router = useRouter();
 
-    const [activeTab, setActiveTab] = useState("Tổng quan");
     const [investor, setInvestor] = useState<IInvestorProfile | null>(null);
     const [investorLoading, setInvestorLoading] = useState(true);
     const [investorError, setInvestorError] = useState<string | null>(null);
@@ -78,6 +95,29 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
     const [connection, setConnection] = useState<IConnectionItem | null>(null);
     const [connectionLoading, setConnectionLoading] = useState(true);
     const [chatLoading, setChatLoading] = useState(false);
+    const [respondingAction, setRespondingAction] = useState<"accept" | "reject" | null>(null);
+    const [hasPendingIncomingInvite, setHasPendingIncomingInvite] = useState(false);
+
+    const loadConnection = useCallback(async () => {
+        setConnectionLoading(true);
+        try {
+            const pendingIncoming = await GetPendingConnectionInviteByInvestorId(investorId);
+            if (pendingIncoming) {
+                setConnection(pendingIncoming);
+                setHasPendingIncomingInvite(true);
+                return;
+            }
+
+            const latestConnection = await GetConnectionByInvestorId(investorId);
+            setConnection(latestConnection);
+            setHasPendingIncomingInvite(false);
+        } catch {
+            setHasPendingIncomingInvite(false);
+            setConnection(null);
+        } finally {
+            setConnectionLoading(false);
+        }
+    }, [investorId]);
 
     // Fetch investor profile + connection status in parallel
     useEffect(() => {
@@ -109,32 +149,66 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
             }
         };
 
-        const loadConnection = async () => {
-            try {
-                const conn = await GetConnectionByInvestorId(investorId);
-                setConnection(conn);
-            } catch { /* silent */ } finally {
-                setConnectionLoading(false);
-            }
-        };
-
         loadInvestor();
         loadConnection();
-    }, [investorId]);
+    }, [investorId, loadConnection]);
 
     const handleConnectionSuccess = (connectionId: number) => {
-        setConnection({
-            connectionID: connectionId,
-            startupID: 0,
-            startupName: "",
+        setHasPendingIncomingInvite(false);
+        setConnection((prev) => ({
+            connectionID: connectionId || prev?.connectionID || 0,
+            startupID: prev?.startupID ?? 0,
+            startupName: prev?.startupName ?? "",
             investorID: investorId,
-            investorName: investor?.fullName ?? "",
-            connectionStatus: "Pending",
-            personalizedMessage: "",
-            matchScore: 0,
+            investorName: investor?.fullName ?? prev?.investorName ?? "",
+            connectionStatus: "Requested",
+            personalizedMessage: prev?.personalizedMessage ?? "",
+            matchScore: prev?.matchScore ?? 0,
             requestedAt: new Date().toISOString(),
             respondedAt: "",
-        });
+            initiatedByRole: "STARTUP",
+        }));
+        void loadConnection();
+    };
+
+    const handleAcceptInvite = async () => {
+        if (!connection || respondingAction) return;
+        setRespondingAction("accept");
+        try {
+            const res = await AcceptConnection(connection.connectionID);
+            if (res?.success || res?.isSuccess) {
+                toast.success("Da chap nhan ket noi.");
+                await loadConnection();
+            } else {
+                toast.error(res?.message || "Khong the chap nhan ket noi.");
+            }
+        } catch {
+            toast.error("Co loi khi chap nhan ket noi.");
+        } finally {
+            setRespondingAction(null);
+        }
+    };
+
+    const handleRejectInvite = async () => {
+        if (!connection || respondingAction) return;
+        setRespondingAction("reject");
+        try {
+            const res = await RejectConnection(connection.connectionID, {
+                reason: "Khong phu hop o thoi diem hien tai",
+            });
+            if (res?.success || res?.isSuccess) {
+                toast.success("Da tu choi loi moi ket noi.");
+                setConnection(null);
+                setHasPendingIncomingInvite(false);
+                await loadConnection();
+            } else {
+                toast.error(res?.message || "Khong the tu choi ket noi.");
+            }
+        } catch {
+            toast.error("Co loi khi tu choi ket noi.");
+        } finally {
+            setRespondingAction(null);
+        }
     };
 
     const handleStartChat = async () => {
@@ -154,7 +228,7 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
         }
     };
 
-    // ── Loading / Error states ──
+    // -- Loading / Error states --
     if (investorLoading) {
         return (
             <StartupShell>
@@ -184,142 +258,307 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
         );
     }
 
-    const presentation = buildInvestorProfilePresentation(investor);
+    const presentation = buildInvestorProfilePresentation(investor, undefined, {
+        institutionalIdentityLineMode: "organization",
+    });
     const isKycVerified = isInvestorKycVerified(investor);
-    const badges = deriveBadges(investor, presentation.isInstitutional);
+    const profileAvailabilityReason = investor.profileAvailabilityReason ?? "OPEN";
+    const isReadOnlyProfile = profileAvailabilityReason === "INVESTOR_PAUSED_DISCOVERY";
+    const canRequestConnection = investor.canRequestConnection ?? (!isReadOnlyProfile && investor.acceptingConnections);
+    const isConnectionAccepted = isAcceptedStatus(connection?.connectionStatus);
+    const isConnectionPending = isPendingStatus(connection?.connectionStatus);
+    const isIncomingPendingInvite =
+        hasPendingIncomingInvite || (isConnectionPending && connection?.initiatedByRole === "INVESTOR");
+    const badges = deriveBadges(investor, presentation.isInstitutional, canRequestConnection);
     const badgeColors = {
         yellow: "bg-yellow-50/50 border-yellow-200/50 text-yellow-600",
         green:  "bg-green-50/50 border-green-200/50 text-green-600",
         blue:   "bg-blue-50/50 border-blue-200/50 text-blue-600",
     };
     const dotColors = { yellow: "bg-yellow-400", green: "bg-green-400", blue: "bg-blue-400" };
+    const locationLabel = [investor.location, investor.country].filter(Boolean).join(", ");
+    const preferredStages = (investor.preferredStages ?? []).map(getInvestorPreferredStageLabel);
+    const aiScoreRangeLabel = typeof investor.preferredAIScoreRange === "string"
+        ? investor.preferredAIScoreRange
+        : investor.preferredAIScoreRange
+            ? `${(investor.preferredAIScoreRange as { min?: number; max?: number }).min} - ${(investor.preferredAIScoreRange as { min?: number; max?: number }).max}`
+            : "";
+    const highlightItems = [
+        { label: "Loại nhà đầu tư", value: presentation.categoryLabel || investor.investorType || "Nhà đầu tư" },
+        { label: "Giai đoạn quan tâm", value: preferredStages.slice(0, 2).join(" | ") || "Chưa cập nhật" },
+        { label: "Lĩnh vực ưu tiên", value: (investor.preferredIndustries ?? []).slice(0, 2).join(" | ") || "Chưa cập nhật" },
+    ];
+    const connectionBadgeLabel = connectionLoading
+        ? "Đang tải trạng thái"
+        : isConnectionAccepted
+            ? "Đã kết nối"
+            : isIncomingPendingInvite
+                ? "Có lời mời kết nối chờ xử lý"
+                : isConnectionPending
+                    ? "Đang chờ phản hồi"
+                    : isReadOnlyProfile
+                        ? "Hồ sơ chỉ xem"
+                        : canRequestConnection
+                            ? "Sẵn sàng kết nối"
+                            : "Không nhận kết nối";
+    const connectionHeading = connectionLoading
+        ? "Đang kiểm tra"
+        : isConnectionAccepted
+            ? "Có thể trò chuyện ngay"
+            : isIncomingPendingInvite
+                ? "Có lời mời kết nối từ investor"
+                : isConnectionPending
+                    ? "Lời mời đang mở"
+                    : isReadOnlyProfile
+                        ? "Hồ sơ không mở kết nối mới"
+                        : canRequestConnection
+                            ? "Có thể gửi lời mời"
+                            : "Tạm đóng tiếp nhận";
+    const connectionDescription = connectionLoading
+        ? "AISEP đang đối chiếu trạng thái kết nối gần nhất với nhà đầu tư này."
+        : isConnectionAccepted
+            ? "Kết nối đã được chấp nhận. Bạn có thể bắt đầu trao đổi trực tiếp để đi sâu vào cơ hội hợp tác."
+            : isIncomingPendingInvite
+                ? "Investor đã chủ động gửi lời mời cho startup của bạn. Bạn có thể chấp nhận hoặc từ chối ngay tại màn hình này."
+                : isConnectionPending
+                    ? "Nhà đầu tư đã nhận được lời mời của bạn. Hãy giữ hồ sơ startup đầy đủ để tăng khả năng phản hồi."
+                    : isReadOnlyProfile
+                        ? "Nhà đầu tư này đang tạm ẩn khỏi danh sách khám phá. Bạn vẫn có thể xem hồ sơ ở chế độ chỉ đọc."
+                        : canRequestConnection
+                            ? "Hồ sơ này hiện đang mở kết nối. Bạn có thể gửi lời mời kèm thông điệp cá nhân ngay từ màn hình này."
+                            : "Nhà đầu tư hiện chưa tiếp nhận lời mời mới. Bạn vẫn có thể xem tiêu chí để chuẩn bị cho lần tiếp cận sau.";
 
     return (
         <StartupShell>
-            <div className="max-w-[1440px] mx-auto space-y-6 pb-20 animate-in fade-in duration-500">
+            <div className="mx-auto max-w-[1100px] space-y-6 pb-20 animate-in fade-in duration-500">
+                <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                    <div className="absolute inset-x-0 top-0 h-44 bg-gradient-to-br from-amber-50 via-white to-sky-50" />
+                    <div className="absolute -right-8 top-0 h-36 w-36 rounded-full bg-[#eec54e]/20 blur-3xl" />
+                    <div className="absolute left-8 top-6 h-20 w-20 rounded-full bg-sky-200/30 blur-3xl" />
 
-                {/* Header Card */}
-                <div className="bg-white dark:bg-slate-900 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm p-10">
-                    <div className="flex flex-col lg:flex-row items-center justify-between gap-10">
-                        <div className="flex flex-col lg:flex-row items-center gap-8">
-                            <div className="size-32 rounded-[32px] bg-slate-50 dark:bg-slate-800 flex items-center justify-center p-1 border-2 border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/20 overflow-hidden">
-                                <AvatarOrLogo name={presentation.primaryName} url={investor.profilePhotoURL} className="size-full rounded-[24px]" />
+                    <div className="relative p-6 sm:p-8">
+                        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+                            <Link
+                                href="/startup/investors"
+                                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-[12px] font-semibold text-slate-600 shadow-[0_10px_24px_rgba(15,23,42,0.05)] transition-colors hover:text-slate-900"
+                            >
+                                <ArrowLeft className="size-4" />
+                                Quay lại danh sách
+                            </Link>
+
+                            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-600 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+                                <span
+                                    className={cn(
+                                        "size-2 rounded-full",
+                                        connectionLoading
+                                            ? "bg-slate-300"
+                                            : isConnectionAccepted
+                                                ? "bg-emerald-400"
+                                                : isIncomingPendingInvite
+                                                    ? "bg-sky-400"
+                                                    : isConnectionPending
+                                                        ? "bg-amber-400"
+                                                        : isReadOnlyProfile
+                                                            ? "bg-slate-300"
+                                                            : canRequestConnection
+                                                                ? "bg-sky-400"
+                                                                : "bg-slate-300",
+                                    )}
+                                />
+                                {connectionBadgeLabel}
                             </div>
-                            <div className="text-center lg:text-left space-y-4">
-                                <div>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <h1 className="text-[32px] font-black text-slate-900 dark:text-white tracking-tighter leading-none">{presentation.primaryName}</h1>
-                                        {isKycVerified && <VerifiedRoleMark className="h-5 w-5" />}
+                        </div>
+
+                        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
+                            <div className="space-y-6">
+                                <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+                                    <div className="relative size-28 shrink-0 rounded-2xl border-4 border-white bg-white shadow-xl shadow-amber-500/10 sm:size-32">
+                                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/80 to-slate-50/20" />
+                                        <AvatarOrLogo name={presentation.primaryName} url={investor.profilePhotoURL} className="relative size-full rounded-xl border border-slate-100 bg-slate-50" />
                                     </div>
-                                    {presentation.heroIdentityLine && <p className="text-[15px] text-slate-400 font-semibold mt-1">{presentation.heroIdentityLine}</p>}
-                                    {!presentation.heroIdentityLine && investor.title && <p className="text-[17px] text-slate-500 font-medium mt-1">{investor.title}</p>}
+
+                                    <div className="min-w-0 space-y-4 text-center sm:text-left">
+                                        <div className="space-y-3">
+                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-600">Hồ sơ nhà đầu tư</p>
+                                            <div className="flex flex-wrap items-center justify-center gap-2.5 sm:justify-start">
+                                                <h1 className="text-[26px] font-black tracking-tight text-slate-900">{presentation.primaryName}</h1>
+                                                {isKycVerified && <VerifiedRoleMark className="h-5 w-5" />}
+                                            </div>
+                                            {presentation.heroIdentityLine && <p className="max-w-[640px] text-[15px] font-semibold text-slate-500">{presentation.heroIdentityLine}</p>}
+                                            {!presentation.heroIdentityLine && investor.title && <p className="max-w-[640px] text-[15px] font-semibold text-slate-500">{investor.title}</p>}
+                                        </div>
+
+                                        <div className="flex flex-wrap justify-center gap-2.5 sm:justify-start">
+                                            {badges.map((badge, i) => (
+                                                <div key={i} className={cn("inline-flex items-center gap-2 rounded-xl border px-3 py-1.5", badgeColors[badge.color])}>
+                                                    <div className={cn("size-2.5 rounded-full", dotColors[badge.color])} />
+                                                    <span className="text-[11px] font-medium">{badge.label}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {locationLabel && (
+                                            <div className="flex flex-wrap justify-center gap-3 sm:justify-start">
+                                                <span className="inline-flex items-center gap-1.5 rounded-xl bg-slate-50 px-3 py-2 text-[12px] font-medium text-slate-500">
+                                                    <MapPin className="size-3.5 text-slate-400" />
+                                                    {locationLabel}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="flex flex-wrap justify-center lg:justify-start gap-2 pt-2">
-                                    {badges.map((badge, i) => (
-                                        <div key={i} className={cn("px-4 py-2 rounded-xl flex items-center gap-2 border transition-all", badgeColors[badge.color])}>
-                                            <div className={cn("size-2.5 rounded-full shadow-[0_0_8px_currentColor]", dotColors[badge.color])} />
-                                            <span className="text-[10px] font-black uppercase tracking-[0.1em]">{badge.label}</span>
+
+                                <div className="flex flex-wrap items-center justify-center gap-6 md:justify-start">
+                                    {highlightItems.map((item, index) => (
+                                        <div
+                                            key={item.label}
+                                            className={cn(
+                                                "flex items-center gap-2",
+                                                index === 1 ? "md:px-6 md:border-x md:border-slate-100" : "",
+                                            )}
+                                        >
+                                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50">
+                                                {index === 0 ? (
+                                                    <Target className="h-4 w-4 text-amber-500" />
+                                                ) : index === 1 ? (
+                                                    <TrendingUp className="h-4 w-4 text-blue-500" />
+                                                ) : (
+                                                    <Handshake className="h-4 w-4 text-emerald-500" />
+                                                )}
+                                            </div>
+                                            <div>
+                                                <p className="text-[15px] font-bold leading-none text-slate-900">
+                                                    {item.value}
+                                                </p>
+                                                <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                                                    {item.label}
+                                                </p>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Action Button */}
-                        {connectionLoading ? (
-                            <Button disabled className="h-16 px-10 rounded-[20px] bg-slate-100 text-slate-400 font-black text-[15px] uppercase tracking-widest shrink-0 gap-3">
-                                <Loader2 className="size-5 animate-spin" />
-                                <span>Đang tải...</span>
-                            </Button>
-                        ) : connection?.connectionStatus === "Accepted" ? (
-                            <Button onClick={handleStartChat} disabled={chatLoading} className="h-16 px-10 rounded-[20px] bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[15px] uppercase tracking-widest shadow-xl shadow-emerald-500/20 transition-all gap-4 shrink-0 group">
-                                {chatLoading ? <Loader2 className="size-5 animate-spin" /> : <MessageCircle className="size-6 transition-transform group-hover:scale-110" />}
-                                <span>Bắt đầu chat</span>
-                            </Button>
-                        ) : connection?.connectionStatus === "Pending" ? (
-                            <Button disabled className="h-16 px-10 rounded-[20px] bg-slate-100 text-slate-500 font-black text-[15px] uppercase tracking-widest shrink-0 gap-4 cursor-not-allowed">
-                                <Clock className="size-6" />
-                                <span>Đang chờ phản hồi</span>
-                            </Button>
-                        ) : investor.acceptingConnections ? (
-                            <Button onClick={() => setIsRequestModalOpen(true)} className="h-16 px-10 rounded-[20px] bg-[#eec54e] hover:bg-[#d4ae3d] text-white font-black text-[15px] uppercase tracking-widest shadow-xl shadow-yellow-500/20 transition-all gap-4 shrink-0 group">
-                                <UserPlus className="size-6 transition-transform group-hover:scale-110" />
-                                <span>Gửi lời mời kết nối</span>
-                            </Button>
-                        ) : (
-                            <Button disabled className="h-16 px-10 rounded-[20px] bg-slate-100 text-slate-400 font-black text-[15px] uppercase tracking-widest shrink-0 gap-4 cursor-not-allowed">
-                                <Clock className="size-6" />
-                                <span>Không nhận kết nối</span>
-                            </Button>
-                        )}
+                            <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-50/80 p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(238,197,78,0.12),transparent_38%)]" />
+                                <div className="relative space-y-6">
+                                    <div>
+                                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Trạng thái kết nối</p>
+                                        <h2 className="mt-3 text-[20px] font-black tracking-tight text-slate-900">
+                                            {connectionHeading}
+                                        </h2>
+                                        <p className="mt-3 text-[13px] leading-relaxed text-slate-500">
+                                            {connectionDescription}
+                                        </p>
+                                    </div>
+
+                                    {connectionLoading ? (
+                                        <Button disabled className="h-11 w-full rounded-xl border border-slate-200 bg-white text-[13px] font-semibold text-slate-500 gap-2.5">
+                                            <Loader2 className="size-4 animate-spin" />
+                                            <span>Đang tải</span>
+                                        </Button>
+                                    ) : isConnectionAccepted ? (
+                                        <Button onClick={handleStartChat} disabled={chatLoading} className="h-11 w-full rounded-xl bg-[#0f172a] hover:bg-slate-800 text-white font-semibold text-[13px] shadow-sm gap-2.5">
+                                            {chatLoading ? <Loader2 className="size-4 animate-spin" /> : <MessageCircle className="size-5" />}
+                                            <span>Bắt đầu chat</span>
+                                        </Button>
+                                    ) : isIncomingPendingInvite ? (
+                                        <div className="space-y-3">
+                                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-medium text-amber-800">
+                                                Lời mời kết nối đang chờ startup xử lý.
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <Button
+                                                    onClick={handleAcceptInvite}
+                                                    disabled={respondingAction !== null}
+                                                    className="h-11 rounded-xl bg-emerald-600 text-[13px] font-semibold text-white hover:bg-emerald-700"
+                                                >
+                                                    {respondingAction === "accept" ? <Loader2 className="size-4 animate-spin" /> : "Chấp nhận"}
+                                                </Button>
+                                                <Button
+                                                    onClick={handleRejectInvite}
+                                                    disabled={respondingAction !== null}
+                                                    className="h-11 rounded-xl border border-slate-200 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+                                                >
+                                                    {respondingAction === "reject" ? <Loader2 className="size-4 animate-spin" /> : "Từ chối"}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ) : isConnectionPending ? (
+                                        <Button disabled className="h-11 w-full rounded-xl border border-slate-200 bg-white text-[13px] font-semibold text-slate-400 gap-2.5 cursor-not-allowed">
+                                            <Clock className="size-5" />
+                                            <span>Đang chờ phản hồi</span>
+                                        </Button>
+                                    ) : isReadOnlyProfile ? (
+                                        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-[13px] font-medium text-slate-500">
+                                            Hồ sơ này đang ở chế độ chỉ xem.
+                                        </div>
+                                    ) : canRequestConnection ? (
+                                        <Button onClick={() => setIsRequestModalOpen(true)} className="h-11 w-full rounded-xl bg-[#fdf8e6] text-slate-900 border border-amber-200 hover:bg-[#faefbe] transition-all font-semibold text-[13px] shadow-sm gap-2.5">
+                                            <UserPlus className="size-5" />
+                                            <span>Gửi lời mời kết nối</span>
+                                        </Button>
+                                    ) : (
+                                        <Button disabled className="h-11 w-full rounded-xl border border-slate-200 bg-white text-[13px] font-semibold text-slate-400 gap-2.5 cursor-not-allowed">
+                                            <Clock className="size-5" />
+                                            <span>Không nhận kết nối</span>
+                                        </Button>
+                                    )}
+
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
                     {/* Main Content */}
-                    <div className="lg:col-span-8 space-y-8">
-                        {/* Tab Navigation */}
-                        <div className="bg-white dark:bg-slate-900 rounded-[24px] border border-slate-100 dark:border-slate-800 shadow-sm px-8 overflow-x-auto">
-                            <div className="flex gap-10 whitespace-nowrap">
-                                {["Tổng quan", "Tiêu chí đầu tư", "Thông tin liên hệ"].map((tab) => (
-                                    <button
-                                        key={tab}
-                                        onClick={() => setActiveTab(tab)}
-                                        className={cn(
-                                            "relative py-6 text-[15px] font-bold tracking-tight transition-all",
-                                            activeTab === tab ? "text-slate-900 dark:text-white" : "text-slate-400 hover:text-slate-600"
-                                        )}
-                                    >
-                                        {tab}
-                                        {activeTab === tab && (
-                                            <div className="absolute bottom-0 left-0 right-0 h-[4px] bg-[#eec54e] rounded-full animate-in slide-in-from-left-2 duration-300" />
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Tab: Tổng quan */}
-                        {activeTab === "Tổng quan" && (
-                            <div className="bg-white dark:bg-slate-900 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm p-10 space-y-12">
+                    <div className="space-y-6">
+                        {/* Tong quan */}
+                            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)] sm:p-8 space-y-10">
                                 {/* Bio */}
                                 <section className="space-y-6">
                                     <div className="flex items-center gap-4">
-                                        <div className="size-10 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 flex items-center justify-center">
-                                            <Info className="size-5 text-[#eec54e]" />
+                                        <div className="flex size-11 items-center justify-center rounded-2xl bg-amber-50">
+                                            <Info className="size-5 text-[#C8A000]" />
                                         </div>
-                                        <h2 className="text-[22px] font-black text-slate-900 dark:text-white tracking-tight">Về {presentation.primaryName}</h2>
+                                        <div>
+                                        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Tổng quan hồ sơ</p>
+                                        <h2 className="mt-1 text-[20px] font-bold text-slate-900">Về {presentation.primaryName}</h2>
+                                        </div>
                                     </div>
-                                    <p className="text-[16px] text-slate-600 dark:text-slate-300 font-medium leading-[1.8]">
-                                        {investor.bio || "Chưa có thông tin giới thiệu."}
-                                    </p>
+                                    <div className="rounded-[28px] border border-slate-200/60 bg-gradient-to-b from-white to-slate-50 p-6 sm:p-7">
+                                        <p className="text-[14px] leading-relaxed text-slate-600">
+                                            {investor.bio || "Chưa có thông tin giới thiệu."}
+                                        </p>
+                                    </div>
                                 </section>
 
                                 {/* Support Offered + Investment Thesis */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                                     {(investor.supportOffered?.length ?? 0) > 0 && (
-                                        <div className="bg-[#f8fafc] dark:bg-slate-800/50 rounded-3xl p-8 border border-slate-50 dark:border-slate-800 space-y-6">
+                                        <div className="rounded-[28px] border border-emerald-100/80 bg-emerald-50/60 p-6 space-y-5">
                                             <div className="flex items-center gap-3">
-                                                <Handshake className="size-5 text-yellow-500" />
-                                                <h3 className="text-[17px] font-black text-slate-900 dark:text-white tracking-tight">Hỗ trợ cung cấp</h3>
+                                                <Handshake className="size-5 text-emerald-600" />
+                                                <h3 className="text-[15px] font-semibold text-slate-900">Hỗ trợ cung cấp</h3>
                                             </div>
                                             <ul className="space-y-4">
                                                 {(investor.supportOffered ?? []).map((item, i) => (
                                                     <li key={i} className="flex gap-3">
-                                                        <div className="size-1.5 rounded-full bg-yellow-400 shrink-0 mt-2" />
-                                                        <p className="text-[14px] font-semibold text-slate-600 dark:text-slate-400 leading-relaxed">{item}</p>
+                                                        <div className="mt-2 size-1.5 shrink-0 rounded-full bg-emerald-500" />
+                                                        <p className="text-[13px] leading-relaxed text-slate-600">{item}</p>
                                                     </li>
                                                 ))}
                                             </ul>
                                         </div>
                                     )}
                                     {investor.investmentThesis && (
-                                        <div className="bg-[#f8fafc] dark:bg-slate-800/50 rounded-3xl p-8 border border-slate-50 dark:border-slate-800 space-y-6">
+                                        <div className="rounded-[28px] border border-amber-100/80 bg-amber-50/50 p-6 space-y-5">
                                             <div className="flex items-center gap-3">
-                                                <TrendingUp className="size-5 text-yellow-500" />
-                                                <h3 className="text-[17px] font-black text-slate-900 dark:text-white tracking-tight">Luận điểm đầu tư</h3>
+                                                <TrendingUp className="size-5 text-[#C8A000]" />
+                                                <h3 className="text-[15px] font-semibold text-slate-900">Luận điểm đầu tư</h3>
                                             </div>
-                                            <p className="text-[14px] font-semibold text-slate-600 dark:text-slate-400 leading-[1.7]">
+                                            <p className="text-[13px] leading-relaxed text-slate-600">
                                                 {investor.investmentThesis}
                                             </p>
                                         </div>
@@ -328,26 +567,36 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
 
                                 {/* Connection Guidance */}
                                 {investor.connectionGuidance && (
-                                    <section className="space-y-6 pt-6">
+                                    <section className="rounded-[28px] border border-slate-200/70 bg-slate-50/90 p-6 sm:p-7 space-y-5">
                                         <div className="flex items-center gap-4">
-                                            <div className="size-10 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 flex items-center justify-center">
-                                                <Flag className="size-5 text-[#eec54e]" />
+                                            <div className="flex size-11 items-center justify-center rounded-2xl bg-white shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
+                                                <Flag className="size-5 text-[#C8A000]" />
                                             </div>
-                                            <h2 className="text-[22px] font-black text-slate-900 dark:text-white tracking-tight">Hướng dẫn kết nối</h2>
+                                            <div>
+                                                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Hướng dẫn tiếp cận</p>
+                                                <h2 className="mt-1 text-[20px] font-bold text-slate-900">Gợi ý kết nối</h2>
+                                            </div>
                                         </div>
-                                        <p className="text-[16px] text-slate-600 dark:text-slate-300 font-medium leading-[1.8]">
+                                        <p className="text-[14px] leading-relaxed text-slate-600">
                                             {investor.connectionGuidance}
                                         </p>
                                     </section>
                                 )}
                             </div>
-                        )}
 
-                        {/* Tab: Tiêu chí đầu tư */}
-                        {activeTab === "Tiêu chí đầu tư" && (
-                            <div className="bg-white dark:bg-slate-900 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm p-10 space-y-10">
+                        {/* Tieu chi dau tu */}
+                            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)] sm:p-8 space-y-8">
+                                <div className="flex items-center gap-4">
+                                    <div className="flex size-11 items-center justify-center rounded-2xl bg-amber-50">
+                                        <Target className="size-5 text-[#C8A000]" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Tiêu chí đầu tư</p>
+                                        <h2 className="mt-1 text-[20px] font-bold text-slate-900">Tiêu chí đầu tư</h2>
+                                    </div>
+                                </div>
                                 {[
-                                    { label: "Giai đoạn ưu tiên", items: (investor.preferredStages ?? []).map(getInvestorPreferredStageLabel) },
+                                    { label: "Giai đoạn ưu tiên", items: preferredStages },
                                     { label: "Lĩnh vực ưu tiên", items: investor.preferredIndustries },
                                     { label: "Địa lý", items: investor.preferredGeographies },
                                     { label: "Phạm vi thị trường", items: investor.preferredMarketScopes },
@@ -355,11 +604,11 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                                     { label: "Mức độ kiểm chứng", items: investor.preferredValidationLevel },
                                     { label: "Điểm mạnh ưu tiên", items: investor.preferredStrengths },
                                 ].filter(g => (g.items?.length ?? 0) > 0).map(group => (
-                                    <div key={group.label} className="space-y-4">
-                                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{group.label}</p>
+                                    <div key={group.label} className="rounded-[26px] border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 p-6 space-y-4">
+                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">{group.label}</p>
                                         <div className="flex flex-wrap gap-2">
                                             {(group.items ?? []).map(item => (
-                                                <span key={item} className="px-5 py-2.5 bg-[#f8fafc] dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-[12px] font-black text-slate-600 dark:text-slate-300 tracking-tight">
+                                                <span key={item} className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
                                                     {item}
                                                 </span>
                                             ))}
@@ -367,154 +616,85 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                                     </div>
                                 ))}
                                 {investor.preferredAIScoreRange && (
-                                    <div className="space-y-3">
-                                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Dải AI Score ưu tiên</p>
-                                        <p className="text-[20px] font-black text-slate-900 dark:text-white">
-                                            {typeof investor.preferredAIScoreRange === 'string' ? investor.preferredAIScoreRange : `${(investor.preferredAIScoreRange as any)?.min} – ${(investor.preferredAIScoreRange as any)?.max}`}
+                                    <div className="rounded-[28px] border border-amber-100/80 bg-amber-50/60 p-6 sm:p-7 space-y-3">
+                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Dải AI Score ưu tiên</p>
+                                        <p className="text-[20px] font-bold text-slate-900">
+                                            {aiScoreRangeLabel}
                                         </p>
-                                        <p className="text-[12px] text-slate-400 font-medium">Mức độ quan trọng: <span className="font-black text-yellow-600">{investor.aiScoreImportance}</span></p>
+                                        <p className="text-[13px] text-slate-500">Mức độ quan trọng: <span className="font-semibold text-amber-600">{investor.aiScoreImportance}</span></p>
                                     </div>
                                 )}
                             </div>
-                        )}
 
-                        {/* Tab: Thông tin liên hệ */}
-                        {activeTab === "Thông tin liên hệ" && (
-                            <div className="bg-white dark:bg-slate-900 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm p-10 space-y-8">
+                        {/* Thong tin lien he */}
+                            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)] sm:p-8 space-y-5">
+                                <div className="flex items-center gap-4">
+                                    <div className="flex size-11 items-center justify-center rounded-2xl bg-blue-50">
+                                        <HelpCircle className="size-5 text-blue-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Thông tin liên hệ</p>
+                                        <h2 className="mt-1 text-[20px] font-bold text-slate-900">Thông tin liên hệ</h2>
+                                    </div>
+                                </div>
                                 {investor.website && (
                                     <a href={investor.website.startsWith("http") ? investor.website : `https://${investor.website}`} target="_blank" rel="noopener noreferrer"
-                                        className="flex items-center gap-4 group cursor-pointer">
-                                        <div className="size-11 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0">
-                                            <Globe className="size-5 text-blue-500" />
+                                        className="group flex items-center justify-between gap-4 rounded-[24px] border border-slate-200/70 bg-slate-50/80 p-5 transition-colors hover:border-blue-200 hover:bg-blue-50/70">
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-white shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+                                                <Globe className="size-5 text-blue-500" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">Website chính thức</p>
+                                                <p className="mt-1 text-[13px] font-medium text-slate-700 transition-colors group-hover:text-blue-600">{investor.website}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Website chính thức</p>
-                                            <p className="text-[14px] font-bold text-slate-700 dark:text-slate-200 group-hover:text-blue-500 transition-colors">{investor.website}</p>
-                                        </div>
+                                        <ArrowUpRight className="size-4 text-slate-300 transition-colors group-hover:text-blue-500" />
                                     </a>
                                 )}
                                 {investor.linkedInURL && (
                                     <a href={investor.linkedInURL.startsWith("http") ? investor.linkedInURL : `https://linkedin.com/in/${investor.linkedInURL}`} target="_blank" rel="noopener noreferrer"
-                                        className="flex items-center gap-4 group cursor-pointer">
-                                        <div className="size-11 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0">
-                                            <Linkedin className="size-5 text-blue-500" />
+                                        className="group flex items-center justify-between gap-4 rounded-[24px] border border-slate-200/70 bg-slate-50/80 p-5 transition-colors hover:border-blue-200 hover:bg-blue-50/70">
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-white shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+                                                <Image src="/linkedin.svg" alt="LinkedIn" width={20} height={20} />
+                                            </div>
+                                            <div>
+                                                <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">LinkedIn</p>
+                                                <p className="mt-1 text-[13px] font-medium text-slate-700 transition-colors group-hover:text-blue-600">{investor.linkedInURL}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">LinkedIn</p>
-                                            <p className="text-[14px] font-bold text-slate-700 dark:text-slate-200 group-hover:text-blue-500 transition-colors">{investor.linkedInURL}</p>
-                                        </div>
+                                        <ArrowUpRight className="size-4 text-slate-300 transition-colors group-hover:text-blue-500" />
                                     </a>
                                 )}
-                                {(investor.location || investor.country) && (
-                                    <div className="flex items-start gap-4">
-                                        <div className="size-11 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0">
+                                {locationLabel && (
+                                    <div className="flex items-center gap-4 rounded-[24px] border border-slate-200/70 bg-slate-50/80 p-5">
+                                        <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-white shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
                                             <MapPin className="size-5 text-blue-500" />
                                         </div>
                                         <div>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Địa điểm</p>
-                                            <p className="text-[14px] font-bold text-slate-700 dark:text-slate-200 leading-relaxed">
-                                                {[investor.location, investor.country].filter(Boolean).join(", ")}
-                                            </p>
+                                            <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">Địa điểm</p>
+                                            <p className="mt-1 text-[13px] font-medium text-slate-700">{locationLabel}</p>
                                         </div>
                                     </div>
                                 )}
                             </div>
-                        )}
                     </div>
 
                     {/* Sidebar */}
-                    <div className="lg:col-span-4 space-y-8">
-                        {/* Investment Criteria Summary */}
-                        <div className="bg-white dark:bg-slate-900 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm p-8 space-y-8">
-                            <div className="flex items-center gap-3">
-                                <Target className="size-5 text-yellow-500" />
-                                <h3 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.2em]">Tiêu chí đầu tư</h3>
-                            </div>
-                            <div className="space-y-6">
-                                <div className="p-6 bg-[#f8fafc] dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Loại nhà đầu tư</p>
-                                    <p className="text-[18px] font-black text-slate-900 dark:text-white">{presentation.categoryLabel || investor.investorType}</p>
-                                    {presentation.organizationName && <p className="text-[12px] text-slate-400 font-medium mt-1">{presentation.organizationName}</p>}
-                                </div>
-                                {(investor.preferredStages?.length ?? 0) > 0 && (
-                                    <div className="space-y-4">
-                                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Giai đoạn ưu tiên</p>
-                                        <div className="flex flex-wrap gap-2">
-                                            {(investor.preferredStages ?? []).map(stage => (
-                                                <span key={stage} className="px-5 py-2.5 bg-white dark:bg-slate-800 border-2 border-slate-50 dark:border-slate-800 rounded-xl text-[12px] font-black text-slate-600 dark:text-slate-300 tracking-tight">
-                                                    {getInvestorPreferredStageLabel(stage)}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                                {(investor.preferredIndustries?.length ?? 0) > 0 && (
-                                    <div className="space-y-4 pt-2">
-                                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Lĩnh vực quan tâm</p>
-                                        <div className="flex flex-wrap gap-2">
-                                            {(investor.preferredIndustries ?? []).map(sector => (
-                                                <span key={sector} className="px-4 py-2 bg-[#f8fafc] dark:bg-slate-800 text-[11px] font-black text-slate-400 dark:text-slate-500 rounded-xl border border-slate-50 dark:border-slate-700">
-                                                    {sector}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Contact quick-view */}
-                        <div className="bg-white dark:bg-slate-900 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm p-8 space-y-6">
-                            <div className="flex items-center gap-3">
-                                <HelpCircle className="size-5 text-yellow-500" />
-                                <h3 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.2em]">Thông tin liên hệ</h3>
-                            </div>
-                            {investor.website && (
-                                <div className="flex items-center gap-3">
-                                    <Globe className="size-4 text-slate-400 shrink-0" />
-                                    <p className="text-[13px] font-bold text-slate-600 truncate">{investor.website}</p>
-                                </div>
-                            )}
-                            {investor.linkedInURL && (
-                                <div className="flex items-center gap-3">
-                                    <Linkedin className="size-4 text-slate-400 shrink-0" />
-                                    <p className="text-[13px] font-bold text-slate-600 truncate">{investor.linkedInURL}</p>
-                                </div>
-                            )}
-                            {(investor.location || investor.country) && (
-                                <div className="flex items-center gap-3">
-                                    <MapPin className="size-4 text-slate-400 shrink-0" />
-                                    <p className="text-[13px] font-bold text-slate-600">{[investor.location, investor.country].filter(Boolean).join(", ")}</p>
-                                </div>
-                            )}
-                        </div>
-
+                    <div className="space-y-6 lg:sticky lg:top-8 lg:self-start">
                         {/* Note */}
-                        <div className="p-8 bg-yellow-50/50 dark:bg-yellow-500/5 rounded-[32px] border border-yellow-100/50 dark:border-yellow-500/10 space-y-4">
+                        <div className="overflow-hidden rounded-2xl border border-amber-100/80 bg-gradient-to-b from-amber-50/90 to-orange-50/80 p-6 shadow-[0_1px_3px_rgba(251,191,36,0.12)] space-y-4">
                             <div className="flex items-center gap-3">
-                                <Zap className="size-5 text-yellow-500" />
-                                <h3 className="text-[12px] font-black text-slate-900 dark:text-white uppercase tracking-widest">Ghi chú quan trọng</h3>
+                                <Zap className="size-5 text-[#C8A000]" />
+                                <h3 className="text-[13px] font-semibold text-slate-900">Ghi chú quan trọng</h3>
                             </div>
-                            <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium leading-[1.6]">
-                                {investor.acceptingConnections
+                            <p className="text-[13px] leading-relaxed text-slate-600">
+                                {canRequestConnection
                                     ? "Nhà đầu tư này đang mở kết nối. Hãy đảm bảo hồ sơ dự án đã đầy đủ trước khi gửi lời mời."
-                                    : "Nhà đầu tư này hiện không nhận kết nối mới. Bạn vẫn có thể theo dõi hồ sơ của họ."}
+                                    : "Nhà đầu tư này đang tạm ẩn khỏi danh sách khám phá. Bạn vẫn có thể xem hồ sơ ở chế độ chỉ đọc."}
                             </p>
                         </div>
-                    </div>
-                </div>
-
-                {/* Footer */}
-                <div className="text-center pt-20">
-                    <div className="flex items-center justify-center gap-2 mb-6">
-                        <Image src="/AISEP_Logo.png" alt="AISEP" width={40} height={40} className="size-10 rounded-full grayscale opacity-50" />
-                        <span className="text-[18px] font-black text-slate-300 uppercase tracking-widest">AISEP</span>
-                    </div>
-                    <p className="text-[11px] font-black text-slate-300 uppercase tracking-[0.3em]">© 2026 AISEP STARTUP WORKSPACE • HỆ THỐNG KẾT NỐI NHÀ ĐẦU TƯ & QUỸ ĐẦU TƯ</p>
-                    <div className="flex justify-center gap-8 mt-6">
-                        <Link href="#" className="text-[11px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors">Điều khoản</Link>
-                        <Link href="#" className="text-[11px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors">Bảo mật</Link>
-                        <Link href="#" className="text-[11px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors">Liên hệ</Link>
                     </div>
                 </div>
 

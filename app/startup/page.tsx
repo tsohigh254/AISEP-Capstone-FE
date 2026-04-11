@@ -6,18 +6,17 @@ import { StartupShell } from "@/components/startup/startup-shell";
 import { useCountUp } from "@/lib/useCountUp";
 import { cn } from "@/lib/utils";
 import {
-  FileUp,
-  Brain,
+  BrainCircuit,
+  FileText,
   Users,
   Handshake,
   Sparkles,
   FolderOpen,
   MessageSquare,
-  FileText,
   TrendingUp,
   AlertTriangle,
   Eye,
-  MoreVertical
+  MoreVertical,
 } from "lucide-react";
 import {
   Dialog,
@@ -278,10 +277,10 @@ export default function StartupDashboardPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { icon: FileUp, label: "Tài liệu & IP", href: "/startup/documents", color: "text-blue-500", bg: "bg-blue-50" },
-                { icon: Brain, label: "Đánh giá AI", href: "/startup/ai-evaluation", color: "text-purple-500", bg: "bg-purple-50" },
+                { icon: FileText, label: "Tài liệu & SHTT", href: "/startup/documents", color: "text-blue-500", bg: "bg-blue-50" },
+                { icon: BrainCircuit, label: "Đánh giá tiềm năng", href: "/startup/ai-evaluation", color: "text-purple-500", bg: "bg-purple-50" },
                 { icon: Users, label: "Tìm cố vấn", href: "/startup/experts", color: "text-orange-500", bg: "bg-orange-50" },
-                { icon: Handshake, label: "Kết nối nhà ĐT", href: "/startup/investors", color: "text-emerald-500", bg: "bg-emerald-50" },
+                { icon: Handshake, label: "Kết nối đầu tư", href: "/startup/investors", color: "text-emerald-500", bg: "bg-emerald-50" },
               ].map((item, idx) => (
                 <Link
                   key={idx}

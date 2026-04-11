@@ -203,7 +203,11 @@ export default function InvestorProfileViewPage() {
         <div className="relative h-32 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700">
           <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:32px_32px]" />
           <div className="absolute right-5 top-4">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-[11px] font-medium text-white backdrop-blur-sm">
+            <Link
+              href="/investor/settings"
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-[11px] font-medium text-white backdrop-blur-sm transition-colors hover:bg-black/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+              title="Mở cài đặt nhận kết nối"
+            >
               <span
                 className={cn(
                   "h-1.5 w-1.5 flex-shrink-0 rounded-full",
@@ -211,7 +215,7 @@ export default function InvestorProfileViewPage() {
                 )}
               />
               {connectionLabel}
-            </span>
+            </Link>
           </div>
         </div>
 
@@ -265,7 +269,7 @@ export default function InvestorProfileViewPage() {
             {profile.preferredIndustries?.[0] && (
               <Tag>
                 <FileText className="h-3 w-3 text-slate-400" />
-                {profile.preferredIndustries[0]}
+                Lĩnh vực chính: {profile.preferredIndustries[0]}
               </Tag>
             )}
             {profile.preferredMarketScopes?.[0] && <Tag variant="blue">{profile.preferredMarketScopes[0]}</Tag>}

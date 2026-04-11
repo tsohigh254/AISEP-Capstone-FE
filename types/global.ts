@@ -25,7 +25,8 @@ declare global {
   }
 
   interface IPagingData<T> {
-    items: T[];
+    data?: T[];
+    items?: T[];
     paging: IPaging;
   }
 
@@ -176,6 +177,9 @@ declare global {
     preferredAIScoreRange: string;
     aiScoreImportance: string;
     acceptingConnections: boolean;
+    discoverableForStartups?: boolean;
+    canRequestConnection?: boolean;
+    profileAvailabilityReason?: "OPEN" | "INVESTOR_PAUSED_DISCOVERY";
     website: string;
     linkedInURL: string;
     country: string;
@@ -275,6 +279,7 @@ declare global {
     responseMessage?: string;
     closedAt?: string;
     closedReason?: string;
+    initiatedByRole?: "INVESTOR" | "STARTUP";
   }
 
   interface IInvestorSearchItem {
@@ -295,14 +300,17 @@ declare global {
     averageRating?: number;
     totalConnections?: number;
     portfolioCount?: number;
+    acceptedConnectionCount?: number;
     ticketSize?: number;
-    ticketSizeMin?: number;
-    ticketSizeMax?: number;
-    matchScore?: number;
+    ticketSizeMin?: number | null;
+    ticketSizeMax?: number | null;
     profileStatus?: string;
     workflowStatus?: string;
     verificationLabel?: string;
     kycVerified?: boolean;
+    discoverableForStartups?: boolean;
+    canRequestConnection?: boolean;
+    profileAvailabilityReason?: "OPEN" | "INVESTOR_PAUSED_DISCOVERY";
   }
 
   interface INotificationItem {
@@ -466,6 +474,8 @@ declare global {
     preferredStages?: string[];
     preferredMarketScopes?: string[];
     supportOffered?: string[];
+    ticketMin?: number | null;
+    ticketMax?: number | null;
   }
 
   interface IUpdateInvestorProfile {
@@ -515,6 +525,11 @@ declare global {
   interface ICreateConnection {
     startupId?: number;
     investorId?: number;
+    message?: string;
+  }
+
+  interface ICreateStartupInvestorInvite {
+    investorId: number;
     message?: string;
   }
 

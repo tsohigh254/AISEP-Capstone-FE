@@ -1,26 +1,28 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { 
   User, Shield, Bell, LogOut, 
   CheckCircle2, AlertCircle, Loader2, 
-  Eye, EyeOff, ShieldCheck, Mail,
-  ChevronRight, Lock, AlertTriangle, Users, Brain, Newspaper
+  Eye, EyeOff, ShieldCheck, Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { SupportModal } from "@/components/investor/support-modal";
+import { GetInvestorProfile, UpdateInvestorAcceptingConnections } from "@/services/investor/investor.api";
+import { ChangePassword } from "@/services/auth/auth.api";
 
 /* ─── Sub-components ─────────────────────────────────────────── */
 
-function SectionCard({ title, icon: Icon, description, children }: {
+function SectionCard({ title, icon: Icon, description, children, id }: {
   title: string; 
   icon: React.ElementType; 
   description?: string;
   children: React.ReactNode;
+  id?: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+    <div id={id} className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden scroll-mt-24">
       <div className="px-6 py-5 border-b border-slate-100">
         <div className="flex items-center gap-2.5 mb-1">
           <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100">
@@ -78,6 +80,30 @@ const DEFAULT_PREFS: Prefs = {
     email: true,
 };
 
+const APPROVED_PROFILE_STATUS = "Approved";
+
+const PROFILE_STATUS_LABELS: Record<string, string> = {
+    Draft: "Draft",
+    Pending: "Pending",
+    Approved: "Approved",
+    Rejected: "Rejected",
+    PendingKYC: "Pending KYC",
+};
+
+const isSuccessResponse = <T,>(res?: IBackendRes<T> | null): res is IBackendRes<T> => {
+    return Boolean(res && (res.success || res.isSuccess));
+};
+
+const getBackendErrorCode = (res?: IBackendRes<unknown> | null) => {
+    return res?.error?.code ?? null;
+};
+
+const getHttpStatusCode = (error: unknown): number | null => {
+    if (!error || typeof error !== "object") return null;
+    const maybeError = error as { response?: { status?: unknown } };
+    return typeof maybeError.response?.status === "number" ? maybeError.response.status : null;
+};
+
 /* ─── Main Page ─────────────────────────────────────────────── */
 export default function InvestorSettingsPage() {
     const [showSupportModal, setShowSupportModal] = useState(false);
@@ -92,8 +118,78 @@ export default function InvestorSettingsPage() {
     const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
     const originalPrefs = useRef<Prefs>(DEFAULT_PREFS);
     const [saving, setSaving] = useState(false);
+    const [profileStatus, setProfileStatus] = useState<string | null>(null);
+    const [acceptingConnections, setAcceptingConnections] = useState(false);
+    const [isLoadingConnectionSetting, setIsLoadingConnectionSetting] = useState(true);
+    const [isTogglingConnections, setIsTogglingConnections] = useState(false);
+    const [connectionSettingError, setConnectionSettingError] = useState<string | null>(null);
+    const [blockedByApprovalError, setBlockedByApprovalError] = useState(false);
 
     const isDirty = JSON.stringify(prefs) !== JSON.stringify(originalPrefs.current);
+    const isApprovedProfile = profileStatus === APPROVED_PROFILE_STATUS && !blockedByApprovalError;
+    const profileStatusLabel = profileStatus
+        ? (PROFILE_STATUS_LABELS[profileStatus] ?? profileStatus)
+        : "Unknown";
+
+    useEffect(() => {
+        let isDisposed = false;
+
+        const loadConnectionSetting = async () => {
+            setIsLoadingConnectionSetting(true);
+            setConnectionSettingError(null);
+            setBlockedByApprovalError(false);
+
+            try {
+                const profileRes = await GetInvestorProfile();
+
+                if (!isSuccessResponse(profileRes) || !profileRes.data) {
+                    const errorCode = getBackendErrorCode(profileRes);
+
+                    if (!isDisposed) {
+                        if (errorCode === "INVESTOR_PROFILE_NOT_FOUND") {
+                            setConnectionSettingError("Kh\u00f4ng t\u00ecm th\u1ea5y h\u1ed3 s\u01a1 investor.");
+                        } else if (errorCode === "INVESTOR_NOT_APPROVED") {
+                            setBlockedByApprovalError(true);
+                            setConnectionSettingError("H\u1ed3 s\u01a1/KYC ch\u01b0a \u0111\u01b0\u1ee3c duy\u1ec7t. Ch\u1ec9 h\u1ed3 s\u01a1 Approved m\u1edbi \u0111\u01b0\u1ee3c b\u1eadt/t\u1eaft c\u00e0i \u0111\u1eb7t n\u00e0y.");
+                        } else {
+                            setConnectionSettingError(profileRes?.message || "Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c c\u00e0i \u0111\u1eb7t nh\u1eadn k\u1ebft n\u1ed1i.");
+                        }
+                    }
+                    return;
+                }
+
+                if (isDisposed) return;
+                setProfileStatus(profileRes.data.profileStatus ?? null);
+                setAcceptingConnections(Boolean(profileRes.data.acceptingConnections));
+            } catch (error) {
+                const status = getHttpStatusCode(error);
+                if (isDisposed) return;
+
+                if (status === 400) {
+                    setConnectionSettingError("Y\u00eau c\u1ea7u kh\u00f4ng h\u1ee3p l\u1ec7 khi t\u1ea3i c\u00e0i \u0111\u1eb7t.");
+                } else if (status === 401) {
+                    setConnectionSettingError("Phi\u00ean \u0111\u0103ng nh\u1eadp \u0111\u00e3 h\u1ebft h\u1ea1n. Vui l\u00f2ng \u0111\u0103ng nh\u1eadp l\u1ea1i.");
+                } else if (status === 403) {
+                    setBlockedByApprovalError(true);
+                    setConnectionSettingError("B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n c\u1eadp nh\u1eadt c\u00e0i \u0111\u1eb7t n\u00e0y.");
+                } else if (status === 404) {
+                    setConnectionSettingError("Kh\u00f4ng t\u00ecm th\u1ea5y h\u1ed3 s\u01a1 investor.");
+                } else {
+                    setConnectionSettingError("Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c c\u00e0i \u0111\u1eb7t nh\u1eadn k\u1ebft n\u1ed1i. Vui l\u00f2ng th\u1eed l\u1ea1i.");
+                }
+            } finally {
+                if (!isDisposed) {
+                    setIsLoadingConnectionSetting(false);
+                }
+            }
+        };
+
+        void loadConnectionSetting();
+
+        return () => {
+            isDisposed = true;
+        };
+    }, []);
 
     const handleSavePrefs = () => {
         setSaving(true);
@@ -123,6 +219,205 @@ export default function InvestorSettingsPage() {
             setPwForm({ current: "", next: "", confirm: "" });
             setIsChangingPw(false);
         }, 1200);
+    };
+
+    const handlePasswordSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setPwError("");
+
+        if (!pwForm.current.trim()) {
+            setPwError("Vui lòng nhập mật khẩu hiện tại.");
+            return;
+        }
+        if (pwForm.next !== pwForm.confirm) {
+            setPwError("Mật khẩu xác nhận không khớp.");
+            return;
+        }
+        if (pwForm.next.length < 8) {
+            setPwError("Mật khẩu mới phải có ít nhất 8 ký tự.");
+            return;
+        }
+        if (pwForm.current === pwForm.next) {
+            setPwError("Mật khẩu mới phải khác mật khẩu hiện tại.");
+            return;
+        }
+
+        setIsChangingPw(true);
+        try {
+            const res = await ChangePassword(pwForm.current, pwForm.next, pwForm.confirm) as unknown as IBackendRes<null>;
+
+            if (!(res.success || res.isSuccess)) {
+                const fallbackMessage = res?.message || "Không cập nhật được mật khẩu. Vui lòng thử lại.";
+                setPwError(fallbackMessage);
+                toast.error(fallbackMessage);
+                return;
+            }
+
+            toast.success("Đổi mật khẩu thành công");
+            setPwForm({ current: "", next: "", confirm: "" });
+        } catch (error) {
+            const status = getHttpStatusCode(error);
+            let message = "Không cập nhật được mật khẩu. Vui lòng thử lại.";
+
+            if (status === 400) {
+                message = "Mật khẩu hiện tại không đúng hoặc dữ liệu không hợp lệ.";
+            } else if (status === 401) {
+                message = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+            } else if (status === 403) {
+                message = "Bạn không có quyền thực hiện thao tác này.";
+            }
+
+            setPwError(message);
+            toast.error(message);
+        } finally {
+            setIsChangingPw(false);
+        }
+    };
+
+    const handlePasswordSubmitV2 = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setPwError("");
+
+        if (!pwForm.current.trim()) {
+            setPwError("Vui lòng nhập mật khẩu hiện tại.");
+            return;
+        }
+        if (pwForm.next !== pwForm.confirm) {
+            setPwError("Mật khẩu xác nhận không khớp.");
+            return;
+        }
+        if (pwForm.next.length < 8) {
+            setPwError("Mật khẩu mới phải có ít nhất 8 ký tự.");
+            return;
+        }
+        if (pwForm.current === pwForm.next) {
+            setPwError("Mật khẩu mới phải khác mật khẩu hiện tại.");
+            return;
+        }
+
+        setIsChangingPw(true);
+        try {
+            const res = await ChangePassword(pwForm.current, pwForm.next, pwForm.confirm);
+
+            if (!(res.success || res.isSuccess)) {
+                const backendMessage =
+                    res.message ||
+                    res.error?.message ||
+                    res.error?.details?.[0]?.message ||
+                    "";
+
+                let message = backendMessage || "Không cập nhật được mật khẩu. Vui lòng thử lại.";
+
+                if (res.statusCode === 400) {
+                    if (backendMessage === "Current password is incorrect") {
+                        message = "Mật khẩu hiện tại không đúng.";
+                    } else if (backendMessage === "Passwords do not match") {
+                        message = "Mật khẩu xác nhận không khớp.";
+                    } else if (backendMessage === "New password must be different from current password") {
+                        message = "Mật khẩu mới phải khác mật khẩu hiện tại.";
+                    }
+                } else if (res.statusCode === 401) {
+                    message = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+                }
+
+                setPwError(message);
+                toast.error(message);
+
+                if (res.statusCode === 401 && typeof window !== "undefined") {
+                    localStorage.removeItem("accessToken");
+                    localStorage.removeItem("user");
+                    window.location.href = "/auth/login";
+                }
+                return;
+            }
+
+            toast.success("Đổi mật khẩu thành công. Vui lòng đăng nhập lại.");
+            setPwForm({ current: "", next: "", confirm: "" });
+
+            if (typeof window !== "undefined") {
+                localStorage.removeItem("accessToken");
+                localStorage.removeItem("user");
+                window.setTimeout(() => {
+                    window.location.href = "/auth/login";
+                }, 1200);
+            }
+        } catch {
+            const message = "Không cập nhật được mật khẩu. Vui lòng thử lại.";
+            setPwError(message);
+            toast.error(message);
+        } finally {
+            setIsChangingPw(false);
+        }
+    };
+
+    const handleToggleAcceptingConnections = async (nextValue: boolean) => {
+        if (!isApprovedProfile || isTogglingConnections || isLoadingConnectionSetting) {
+            return;
+        }
+
+        const previousValue = acceptingConnections;
+        setAcceptingConnections(nextValue);
+        setIsTogglingConnections(true);
+        setConnectionSettingError(null);
+
+        try {
+            const updateRes = await UpdateInvestorAcceptingConnections(nextValue);
+
+            if (!isSuccessResponse(updateRes) || !updateRes.data) {
+                const errorCode = getBackendErrorCode(updateRes);
+
+                setAcceptingConnections(previousValue);
+
+                if (errorCode === "INVESTOR_NOT_APPROVED") {
+                    setBlockedByApprovalError(true);
+                    const message = "H\u1ed3 s\u01a1/KYC ch\u01b0a \u0111\u01b0\u1ee3c duy\u1ec7t n\u00ean kh\u00f4ng th\u1ec3 c\u1eadp nh\u1eadt c\u00e0i \u0111\u1eb7t n\u00e0y.";
+                    setConnectionSettingError(message);
+                    toast.error(message);
+                    return;
+                }
+
+                if (errorCode === "INVESTOR_PROFILE_NOT_FOUND") {
+                    const message = "Kh\u00f4ng t\u00ecm th\u1ea5y h\u1ed3 s\u01a1 investor.";
+                    setConnectionSettingError(message);
+                    toast.error(message);
+                    return;
+                }
+
+                const fallbackMessage = updateRes?.message || "Kh\u00f4ng c\u1eadp nh\u1eadt \u0111\u01b0\u1ee3c c\u00e0i \u0111\u1eb7t nh\u1eadn k\u1ebft n\u1ed1i.";
+                setConnectionSettingError(fallbackMessage);
+                toast.error(fallbackMessage);
+                return;
+            }
+
+            const serverValue = Boolean(updateRes.data.acceptingConnections);
+            setAcceptingConnections(serverValue);
+            toast.success(
+                serverValue
+                    ? "\u0110\u00e3 b\u1eadt nh\u1eadn y\u00eau c\u1ea7u k\u1ebft n\u1ed1i m\u1edbi."
+                    : "\u0110\u00e3 t\u1eaft nh\u1eadn y\u00eau c\u1ea7u k\u1ebft n\u1ed1i m\u1edbi.",
+            );
+        } catch (error) {
+            setAcceptingConnections(previousValue);
+
+            const status = getHttpStatusCode(error);
+            let message = "Kh\u00f4ng c\u1eadp nh\u1eadt \u0111\u01b0\u1ee3c c\u00e0i \u0111\u1eb7t nh\u1eadn k\u1ebft n\u1ed1i. Vui l\u00f2ng th\u1eed l\u1ea1i.";
+
+            if (status === 400) {
+                message = "Y\u00eau c\u1ea7u kh\u00f4ng h\u1ee3p l\u1ec7. Vui l\u00f2ng th\u1eed l\u1ea1i.";
+            } else if (status === 401) {
+                message = "Phi\u00ean \u0111\u0103ng nh\u1eadp \u0111\u00e3 h\u1ebft h\u1ea1n. Vui l\u00f2ng \u0111\u0103ng nh\u1eadp l\u1ea1i.";
+            } else if (status === 403) {
+                message = "B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n c\u1eadp nh\u1eadt c\u00e0i \u0111\u1eb7t n\u00e0y.";
+                setBlockedByApprovalError(true);
+            } else if (status === 404) {
+                message = "Kh\u00f4ng t\u00ecm th\u1ea5y h\u1ed3 s\u01a1 investor.";
+            }
+
+            setConnectionSettingError(message);
+            toast.error(message);
+        } finally {
+            setIsTogglingConnections(false);
+        }
     };
 
     return (
@@ -167,13 +462,73 @@ export default function InvestorSettingsPage() {
                 </div>
             </SectionCard>
 
+            <SectionCard
+                id="connection-availability"
+                title={"Nh\u1eadn y\u00eau c\u1ea7u k\u1ebft n\u1ed1i"}
+                icon={Users}
+                description={"B\u1eadt ho\u1eb7c t\u1eaft nh\u1eadn y\u00eau c\u1ea7u k\u1ebft n\u1ed1i m\u1edbi t\u1eeb startup."}
+            >
+                {isLoadingConnectionSetting ? (
+                    <div className="flex items-center gap-2 text-[13px] text-slate-500">
+                        <Loader2 className="h-4 w-4 animate-spin text-[#eec54e]" />
+                        {"\u0110ang t\u1ea3i c\u00e0i \u0111\u1eb7t nh\u1eadn k\u1ebft n\u1ed1i..."}
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                            <div>
+                                <p className="text-[13px] font-semibold text-slate-800">
+                                    {"Cho ph\u00e9p startup g\u1eedi y\u00eau c\u1ea7u k\u1ebft n\u1ed1i m\u1edbi"}
+                                </p>
+                                <p className="mt-1 text-[12px] text-slate-500">
+                                    {acceptingConnections
+                                        ? "Hi\u1ec7n \u0111ang nh\u1eadn y\u00eau c\u1ea7u m\u1edbi."
+                                        : "Hi\u1ec7n \u0111ang t\u1ea1m d\u1eebng nh\u1eadn y\u00eau c\u1ea7u m\u1edbi."}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2 pt-0.5">
+                                {isTogglingConnections && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+                                <Toggle
+                                    checked={acceptingConnections}
+                                    onChange={handleToggleAcceptingConnections}
+                                    disabled={!isApprovedProfile || isTogglingConnections}
+                                />
+                            </div>
+                        </div>
+
+                        {!isApprovedProfile && (
+                            <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-[12px] text-amber-700">
+                                {"C\u00e0i \u0111\u1eb7t n\u00e0y ch\u1ec9 kh\u1ea3 d\u1ee5ng khi "}
+                                <span className="font-semibold">profileStatus = &quot;Approved&quot;</span>.
+                                {" Tr\u1ea1ng th\u00e1i hi\u1ec7n t\u1ea1i: "}
+                                <span className="font-semibold">{profileStatusLabel}</span>.
+                            </div>
+                        )}
+
+                        {connectionSettingError && (
+                            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[12px] text-red-600">
+                                {connectionSettingError}
+                            </div>
+                        )}
+
+                        <div className="rounded-xl border border-slate-200 px-4 py-3 text-[12px] text-slate-500">
+                            {"Khi t\u1eaft, c\u00e1c k\u1ebft n\u1ed1i "}
+                            <span className="font-semibold">Requested</span>
+                            {" ho\u1eb7c "}
+                            <span className="font-semibold">Accepted</span>
+                            {" kh\u00f4ng b\u1ecb h\u1ee7y. Ch\u1ec9 c\u00e1c y\u00eau c\u1ea7u m\u1edbi b\u1ecb ch\u1eb7n."}
+                        </div>
+                    </div>
+                )}
+            </SectionCard>
+
             {/* Section B: Bảo mật & Đổi mật khẩu */}
             <SectionCard 
                 title="Bảo mật & Mật khẩu" 
                 icon={Shield} 
                 description="Cập nhật mật khẩu định kỳ để đảm bảo an toàn cho tài khoản của bạn."
             >
-                <form onSubmit={handlePwChange} className="space-y-5 max-w-md">
+                <form onSubmit={handlePasswordSubmitV2} className="space-y-5 max-w-md">
                     {[
                         { label: "Mật khẩu hiện tại", key: "current" as const, placeholder: "Nhập mật khẩu đang dùng" },
                         { label: "Mật khẩu mới", key: "next" as const, placeholder: "Tối thiểu 8 ký tự" },
