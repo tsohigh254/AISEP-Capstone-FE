@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bell, ChevronDown, ChevronRight, User, LogOut, Trash2, Loader2, MessageSquare, LayoutGrid, CheckCheck, Settings, FileText, Brain, Users, Handshake, FileUp, CreditCard, ShieldCheck, ShieldAlert, ArrowRight, Inbox, Sparkles } from "lucide-react";
+import { Bell, ChevronDown, ChevronRight, User, LogOut, Trash2, Loader2, MessageSquare, LayoutGrid, CheckCheck, Settings, FileText, Brain, BrainCircuit, Users, Handshake, FileUp, CreditCard, ShieldCheck, ShieldAlert, BadgeCheck, ArrowRight, Inbox, Sparkles } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
