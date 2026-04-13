@@ -136,7 +136,7 @@ export default function AdvisorFeedbackPage() {
 
   return (
     <AdvisorShell>
-      <div className="max-w-[1000px] mx-auto space-y-6 pb-10">
+      <div className="max-w-[1100px] mx-auto space-y-6 pb-10">
         
         {/* Page Header Pattern */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-6 py-5 flex flex-col md:flex-row gap-6 md:items-center justify-between">

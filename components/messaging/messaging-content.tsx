@@ -18,6 +18,7 @@ import {
     Lock,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { useAuth } from "@/context/context";
 import { useChat } from "@/hooks/useChat";
 import {
@@ -81,6 +82,19 @@ function getInitials(name: string) {
 }
 
 const MAX_MESSAGE_LENGTH = 2000;
+
+function getConversationCreationErrorCode(payload: any) {
+    return payload?.error?.code ?? payload?.code ?? null;
+}
+
+function getConversationCreationErrorMessage(payload: any) {
+    const code = getConversationCreationErrorCode(payload);
+    if (code === "MENTORSHIP_CHAT_NOT_AVAILABLE") {
+        return "Chưa thể mở chat cho yêu cầu tư vấn này ở trạng thái hiện tại.";
+    }
+
+    return payload?.message || "Không thể mở cuộc trò chuyện. Vui lòng thử lại.";
+}
 
 /* ------------------------------------------------------------------ */
 /*  Message bubble with retry                                          */
@@ -283,14 +297,26 @@ export function MessagingContent() {
     useEffect(() => {
         const handleAutoCreate = async () => {
             let createdId = null;
-            if (conversationIdStr) {
-                createdId = parseInt(conversationIdStr);
-            } else if (connectionIdStr) {
-                const res = await CreateConversation({ connectionId: parseInt(connectionIdStr) });
-                if (res.success && res.data) createdId = res.data.conversationId;
-            } else if (mentorshipIdStr) {
-                const res = await CreateConversation({ mentorshipId: parseInt(mentorshipIdStr) });
-                if (res.success && res.data) createdId = res.data.conversationId;
+            try {
+                if (conversationIdStr) {
+                    createdId = parseInt(conversationIdStr);
+                } else if (connectionIdStr) {
+                    const res = await CreateConversation({ connectionId: parseInt(connectionIdStr) });
+                    if ((res.success || res.isSuccess) && res.data) {
+                        createdId = res.data.conversationId;
+                    } else {
+                        toast.error(getConversationCreationErrorMessage(res));
+                    }
+                } else if (mentorshipIdStr) {
+                    const res = await CreateConversation({ mentorshipId: parseInt(mentorshipIdStr) });
+                    if ((res.success || res.isSuccess) && res.data) {
+                        createdId = res.data.conversationId;
+                    } else {
+                        toast.error(getConversationCreationErrorMessage(res));
+                    }
+                }
+            } catch (error: any) {
+                toast.error(getConversationCreationErrorMessage(error?.response?.data));
             }
             if (createdId) setSelectedId(createdId);
             fetchConversations();

@@ -17,13 +17,19 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buildInvestorSearchPresentation, isInvestorKycVerified } from "@/lib/investor-profile-presenter";
+import {
+  INVESTOR_PREFERRED_STAGE_OPTIONS,
+  normalizeInvestorPreferredStage,
+  normalizeInvestorPreferredStages,
+} from "@/lib/investor-preferred-stages";
 import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
 import { Button } from "@/components/ui/button";
 import { AcceptConnection, RejectConnection, GetSentConnections, GetReceivedConnections, WithdrawConnection } from "@/services/connection/connection.api";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { InvestorConnectionModal } from "@/components/startup/investor-connection-modal";
-import { SearchInvestors } from "@/services/startup/startup.api";
+import { SearchInvestors, type SearchInvestorsParams } from "@/services/startup/startup.api";
+import { GetIndustriesFlat } from "@/services/master/master.api";
 
 // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -60,6 +66,41 @@ const STATUS_LABEL: Record<string, string> = {
   Rejected:  "REJECTED",
   Withdrawn: "WITHDRAWN",
   Closed:    "CLOSED",
+  WaitingResponse: "Äang chá» pháº£n há»“i",
+};
+
+const DISCOVERY_CONNECTION_STATUS = {
+  NONE: "NONE",
+  REQUESTED: "REQUESTED",
+  ACCEPTED: "ACCEPTED",
+  IN_DISCUSSION: "IN_DISCUSSION",
+} as const;
+
+type DiscoveryConnectionStatus =
+  (typeof DISCOVERY_CONNECTION_STATUS)[keyof typeof DISCOVERY_CONNECTION_STATUS];
+
+type DiscoveryFilterState = {
+  stage: string;
+  industry: string;
+  ticketRange: string;
+};
+
+const DISCOVERY_TICKET_RANGE_OPTIONS: Array<{
+  value: string;
+  label: string;
+  params: Pick<SearchInvestorsParams, "ticketSizeMin" | "ticketSizeMax">;
+}> = [
+  { value: "", label: "Quy mô đầu tư", params: {} },
+  { value: "upto-50k", label: "Dưới $50K", params: { ticketSizeMax: 50_000 } },
+  { value: "50k-250k", label: "$50K - $250K", params: { ticketSizeMin: 50_000, ticketSizeMax: 250_000 } },
+  { value: "250k-1m", label: "$250K - $1M", params: { ticketSizeMin: 250_000, ticketSizeMax: 1_000_000 } },
+  { value: "1m-plus", label: "Từ $1M", params: { ticketSizeMin: 1_000_000 } },
+];
+
+const DEFAULT_DISCOVERY_FILTERS: DiscoveryFilterState = {
+  stage: "",
+  industry: "",
+  ticketRange: "",
 };
 
 type PaginatedListData<T> = IPaginatedRes<T> & {
@@ -87,6 +128,33 @@ const getErrorStatus = (error: unknown): number | undefined => {
   if (typeof error !== "object" || error === null || !("response" in error)) return undefined;
   const response = (error as { response?: { status?: number } }).response;
   return typeof response?.status === "number" ? response.status : undefined;
+};
+
+const getDiscoveryTicketRangeParams = (ticketRange: string) => {
+  return DISCOVERY_TICKET_RANGE_OPTIONS.find((option) => option.value === ticketRange)?.params ?? {};
+};
+
+const DISCOVERY_PAGE_SIZE = 12;
+const DISCOVERY_STAGE_FALLBACK_PAGE_SIZE = 100;
+
+const matchesInvestorPreferredStage = (
+  investor: IInvestorSearchItem,
+  selectedStage: ReturnType<typeof normalizeInvestorPreferredStage>,
+) => {
+  if (!selectedStage) return true;
+  return normalizeInvestorPreferredStages(investor.preferredStages).includes(selectedStage);
+};
+
+const normalizeDiscoveryConnectionStatus = (status?: string | null): DiscoveryConnectionStatus => {
+  if (
+    status === DISCOVERY_CONNECTION_STATUS.REQUESTED ||
+    status === DISCOVERY_CONNECTION_STATUS.ACCEPTED ||
+    status === DISCOVERY_CONNECTION_STATUS.IN_DISCUSSION
+  ) {
+    return status;
+  }
+
+  return DISCOVERY_CONNECTION_STATUS.NONE;
 };
 
 const normalizeConnectionStatus = (status?: string): "Requested" | "Accepted" | "Rejected" | "Withdrawn" | "Closed" | string => {
@@ -129,6 +197,8 @@ export default function InvestorsPage() {
   const [isLoadingInvestors, setIsLoadingInvestors] = useState(false);
   const [investorsError, setInvestorsError] = useState<string | null>(null);
   const [keyword, setKeyword] = useState("");
+  const [discoveryFilters, setDiscoveryFilters] = useState<DiscoveryFilterState>(DEFAULT_DISCOVERY_FILTERS);
+  const [industryOptions, setIndustryOptions] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -155,7 +225,7 @@ export default function InvestorsPage() {
   const handleAcceptConnection = async (id: number) => {
     try {
       const res = await AcceptConnection(id);
-      if (isSuccessResponse(res)) { toast.success("Đã chấp nhận kết nối"); fetchReceived(receivedPage); fetchConnected(connectedPage); fetchConnectionMap(); }
+      if (isSuccessResponse(res)) { toast.success("Đã chấp nhận kết nối"); fetchReceived(receivedPage); fetchConnected(connectedPage); fetchInvestors(currentPage, keyword, discoveryFilters); }
       else { toast.error("Có lỗi xảy ra"); }
     } catch { toast.error("Có lỗi xảy ra"); }
   };
@@ -171,7 +241,7 @@ export default function InvestorsPage() {
   const handleWithdrawConnection = async (id: number) => {
     try {
       const res = await WithdrawConnection(id);
-      if (isSuccessResponse(res)) { toast.success("Đã thu hồi yêu cầu"); fetchSent(sentPage); fetchConnectionMap(); }
+      if (isSuccessResponse(res)) { toast.success("Đã thu hồi yêu cầu"); fetchSent(sentPage); fetchInvestors(currentPage, keyword, discoveryFilters); }
       else { toast.error("Có lỗi xảy ra"); }
     } catch { toast.error("Có lỗi xảy ra"); }
   };
@@ -183,17 +253,51 @@ export default function InvestorsPage() {
 
   // â”€â”€ Connection status map (investorID â†’ IConnectionItem) â”€â”€
   // Used on the Khám phá tab to show button states
-  const [connectionMap, setConnectionMap] = useState<Record<number, IConnectionItem>>({});
-
   // â”€â”€ Fetch: investors â”€â”€
-  const fetchInvestors = useCallback(async (page: number, kw: string) => {
+  const fetchInvestors = useCallback(async (page: number, kw: string, filters: DiscoveryFilterState) => {
     setIsLoadingInvestors(true);
     setInvestorsError(null);
     try {
-      const res = await SearchInvestors({ page, pageSize: 12, keyword: kw || undefined }) as IBackendRes<PaginatedListData<IInvestorSearchItem>>;
-      if (res.success && res.data) {
-        setInvestors(getListItems(res.data));
-        setTotalPages(getTotalPages(res.data, 12));
+      const ticketRangeParams = getDiscoveryTicketRangeParams(filters.ticketRange);
+      const selectedStage = filters.stage ? normalizeInvestorPreferredStage(filters.stage) : null;
+      const res = await SearchInvestors({
+        page,
+        pageSize: DISCOVERY_PAGE_SIZE,
+        keyword: kw || undefined,
+        stage: filters.stage || undefined,
+        industry: filters.industry || undefined,
+        ...ticketRangeParams,
+      }) as IBackendRes<PaginatedListData<IInvestorSearchItem>>;
+      if ((res.success || res.isSuccess) && res.data) {
+        const items = getListItems(res.data);
+        const serverStageLooksWrong = Boolean(
+          selectedStage &&
+          (items.length === 0 || items.some((item) => !matchesInvestorPreferredStage(item, selectedStage))),
+        );
+
+        if (serverStageLooksWrong) {
+          const fallbackRes = await SearchInvestors({
+            page: 1,
+            pageSize: DISCOVERY_STAGE_FALLBACK_PAGE_SIZE,
+            keyword: kw || undefined,
+            industry: filters.industry || undefined,
+            ...ticketRangeParams,
+          }) as IBackendRes<PaginatedListData<IInvestorSearchItem>>;
+
+          if ((fallbackRes.success || fallbackRes.isSuccess) && fallbackRes.data) {
+            const fallbackItems = getListItems(fallbackRes.data).filter((item) =>
+              matchesInvestorPreferredStage(item, selectedStage),
+            );
+            const startIndex = (page - 1) * DISCOVERY_PAGE_SIZE;
+            setInvestors(fallbackItems.slice(startIndex, startIndex + DISCOVERY_PAGE_SIZE));
+            setTotalItems(fallbackItems.length);
+            setTotalPages(Math.max(1, Math.ceil(fallbackItems.length / DISCOVERY_PAGE_SIZE)));
+            return;
+          }
+        }
+
+        setInvestors(items);
+        setTotalPages(getTotalPages(res.data, DISCOVERY_PAGE_SIZE));
         setTotalItems(res.data.paging?.totalItems ?? res.data.total ?? 0);
       } else {
         setInvestors([]);
@@ -212,31 +316,6 @@ export default function InvestorsPage() {
   }, []);
 
   // â”€â”€ Fetch: sent connections (all, for status map) â”€â”€
-  const fetchConnectionMap = useCallback(async () => {
-    try {
-      const [resSent, resReceived] = await Promise.all([
-        GetSentConnections(1, 100),
-        GetReceivedConnections(1, 100),
-      ]);
-      const map: Record<number, IConnectionItem> = {};
-      getListItems(resSent.data).forEach((connection) => {
-        if (!connection?.investorID) return;
-        map[connection.investorID] = {
-          ...connection,
-          initiatedByRole: connection.initiatedByRole ?? "STARTUP",
-        };
-      });
-      getListItems(resReceived.data).forEach((connection) => {
-        if (!connection?.investorID) return;
-        map[connection.investorID] = {
-          ...connection,
-          initiatedByRole: connection.initiatedByRole ?? "INVESTOR",
-        };
-      });
-      setConnectionMap(map);
-    } catch { /* silent */ }
-  }, []);
-
   // alias for BroadcastChannel compatibility
   
   // â”€â”€ Fetch: sent tab â”€â”€
@@ -302,11 +381,30 @@ export default function InvestorsPage() {
     }
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    GetIndustriesFlat()
+      .then((items) => {
+        if (!isMounted) return;
+        const uniqueIndustries = Array.from(
+          new Set(items.map((item) => item.industryName).filter((name) => typeof name === "string" && name.trim().length > 0)),
+        ).sort((a, b) => a.localeCompare(b));
+        setIndustryOptions(uniqueIndustries);
+      })
+      .catch(() => {
+        if (isMounted) setIndustryOptions([]);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Initial load
   useEffect(() => {
-    fetchInvestors(1, "");
-    fetchConnectionMap();
-  }, [fetchInvestors, fetchConnectionMap]);
+    fetchInvestors(1, "", DEFAULT_DISCOVERY_FILTERS);
+  }, [fetchInvestors]);
 
   // Listen for cross-tab connection updates (so startup UI refreshes when an investor sends a request)
   useEffect(() => {
@@ -314,7 +412,7 @@ export default function InvestorsPage() {
     const onMessage = (ev: MessageEvent) => {
       try {
         if (ev?.data?.type === "refresh") {
-          fetchConnectionMap();
+          fetchInvestors(currentPage, keyword, discoveryFilters);
           if (activeTab === "Yêu cầu đã gửi") fetchSent(sentPage);
           if (activeTab === "Nhận từ Investor") fetchReceived(receivedPage);
           if (activeTab === "Đã kết nối") fetchConnected(connectedPage);
@@ -324,7 +422,7 @@ export default function InvestorsPage() {
 
     const onStorage = (ev: StorageEvent) => {
       if (ev.key === "connections-refresh") {
-        fetchConnectionMap();
+        fetchInvestors(currentPage, keyword, discoveryFilters);
         if (activeTab === "Yêu cầu đã gửi") fetchSent(sentPage);
         if (activeTab === "Nhận từ Investor") fetchReceived(receivedPage);
         if (activeTab === "Đã kết nối") fetchConnected(connectedPage);
@@ -348,7 +446,7 @@ export default function InvestorsPage() {
         else window.removeEventListener("storage", onStorage);
       } catch {}
     };
-  }, [fetchConnectionMap, fetchSent, fetchReceived, fetchConnected, activeTab, sentPage, receivedPage, connectedPage]);
+  }, [fetchInvestors, currentPage, keyword, discoveryFilters, fetchSent, fetchReceived, fetchConnected, activeTab, sentPage, receivedPage, connectedPage]);
 
   // Reload when tab changes
   useEffect(() => {
@@ -361,14 +459,25 @@ export default function InvestorsPage() {
   useEffect(() => {
     const t = setTimeout(() => {
       setCurrentPage(1);
-      fetchInvestors(1, keyword);
+      fetchInvestors(1, keyword, discoveryFilters);
     }, 400);
     return () => clearTimeout(t);
-  }, [keyword, fetchInvestors]);
+  }, [keyword, discoveryFilters, fetchInvestors]);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-    fetchInvestors(page, keyword);
+    fetchInvestors(page, keyword, discoveryFilters);
+  };
+
+  const handleDiscoveryFilterChange = <K extends keyof DiscoveryFilterState>(
+    key: K,
+    value: DiscoveryFilterState[K],
+  ) => {
+    setDiscoveryFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleResetDiscoveryFilters = () => {
+    setDiscoveryFilters(DEFAULT_DISCOVERY_FILTERS);
   };
 
   const handleOpenRequest = (investor: IInvestorSearchItem) => {
@@ -385,7 +494,8 @@ export default function InvestorsPage() {
   };
 
   const handleConnectionSuccess = () => {
-    fetchConnectionMap();
+    fetchInvestors(currentPage, keyword, discoveryFilters);
+    fetchSent(sentPage);
   };
 
   // â”€â”€ Pagination component â”€â”€
@@ -437,6 +547,77 @@ export default function InvestorsPage() {
           <div className="space-y-6 animate-in fade-in duration-500">
             {/* Search & Filters */}
             <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative min-w-[260px] flex-1">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-5" />
+                  <Input
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                    placeholder="Tìm theo tên quỹ hoặc nhà đầu tư..."
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-12 text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:ring-0"
+                  />
+                </div>
+                <div className="relative">
+                  <select
+                    value={discoveryFilters.stage}
+                    onChange={(event) => handleDiscoveryFilterChange("stage", event.target.value)}
+                    className="h-11 min-w-[150px] appearance-none rounded-xl border border-slate-200 bg-white px-4 pr-10 text-[13px] font-medium text-slate-700 outline-none transition-colors hover:bg-slate-50"
+                  >
+                    <option value="">Giai đoạn</option>
+                    {INVESTOR_PREFERRED_STAGE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                </div>
+                <div className="relative">
+                  <select
+                    value={discoveryFilters.industry}
+                    onChange={(event) => handleDiscoveryFilterChange("industry", event.target.value)}
+                    className="h-11 min-w-[190px] appearance-none rounded-xl border border-slate-200 bg-white px-4 pr-10 text-[13px] font-medium text-slate-700 outline-none transition-colors hover:bg-slate-50"
+                  >
+                    <option value="">Ngành nghề ưu tiên</option>
+                    {industryOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                </div>
+                <div className="relative">
+                  <select
+                    value={discoveryFilters.ticketRange}
+                    onChange={(event) => handleDiscoveryFilterChange("ticketRange", event.target.value)}
+                    className="h-11 min-w-[170px] appearance-none rounded-xl border border-slate-200 bg-white px-4 pr-10 text-[13px] font-medium text-slate-700 outline-none transition-colors hover:bg-slate-50"
+                  >
+                    {DISCOVERY_TICKET_RANGE_OPTIONS.map((option) => (
+                      <option key={option.value || "all"} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleResetDiscoveryFilters}
+                  disabled={
+                    discoveryFilters.stage === "" &&
+                    discoveryFilters.industry === "" &&
+                    discoveryFilters.ticketRange === ""
+                  }
+                  className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
+                >
+                  <SlidersHorizontal className="size-4" />
+                  <span>Xóa lọc</span>
+                </Button>
+              </div>
+            </div>
+            <div className="hidden">
               <div className="flex flex-wrap items-center gap-3">
               <div className="relative min-w-[260px] flex-1">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-5" />
@@ -494,17 +675,39 @@ export default function InvestorsPage() {
             {!isLoadingInvestors && !investorsError && investors.length > 0 && (
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {investors.map((investor) => {
-                  const conn = connectionMap[investor.investorID];
                   const presentation = buildInvestorSearchPresentation(investor, {
                     institutionalIdentityLineMode: "organization",
                   });
                   const isKycVerified = isInvestorKycVerified(investor);
-                  const normalizedConnectionStatus = normalizeConnectionStatus(conn?.connectionStatus);
+                  const connectionStatus = normalizeDiscoveryConnectionStatus(investor.connectionStatus);
+                  const isAccepted =
+                    connectionStatus === DISCOVERY_CONNECTION_STATUS.ACCEPTED ||
+                    connectionStatus === DISCOVERY_CONNECTION_STATUS.IN_DISCUSSION;
+                  const isPending = connectionStatus === DISCOVERY_CONNECTION_STATUS.REQUESTED;
                   const hasPendingIncomingInvite =
-                    Boolean(conn) && isPendingConnection(conn?.connectionStatus) && conn?.initiatedByRole === "INVESTOR";
-                  const canRequestConnection =
-                    investor.canRequestConnection ??
-                    ((investor.profileAvailabilityReason ?? "OPEN") === "OPEN" && investor.acceptingConnections !== false);
+                    isPending && investor.initiatedByRole === "INVESTOR";
+                  const hasPendingOutgoingInvite =
+                    isPending && investor.initiatedByRole === "STARTUP";
+                  const canRequestConnection = investor.canRequestConnection;
+                  const conn =
+                    investor.connectionId != null
+                      ? ({
+                          connectionID: investor.connectionId,
+                          connectionStatus: isAccepted
+                            ? "Accepted"
+                            : isPending
+                              ? "Requested"
+                              : "Closed",
+                          initiatedByRole: investor.initiatedByRole ?? undefined,
+                        } as Pick<IConnectionItem, "connectionID" | "connectionStatus" | "initiatedByRole">)
+                      : null;
+                  const normalizedConnectionStatus = hasPendingOutgoingInvite
+                    ? "WaitingResponse"
+                    : isAccepted
+                      ? "Accepted"
+                      : !canRequestConnection
+                        ? "Closed"
+                        : normalizeConnectionStatus(conn?.connectionStatus) || "Closed";
                   const hasTicketSize = investor.ticketSizeMin != null || investor.ticketSizeMax != null;
                   const industries = (investor.preferredIndustries ?? []).slice(0, 3);
                   return (

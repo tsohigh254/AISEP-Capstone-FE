@@ -120,7 +120,7 @@ export default function ReportDetailPage() {
 
   if (isLoading) return (
     <AdvisorShell>
-        <div className="max-w-[1000px] mx-auto p-20 flex justify-center">
+        <div className="max-w-[1100px] mx-auto p-20 flex justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
     </AdvisorShell>
@@ -140,7 +140,7 @@ export default function ReportDetailPage() {
 
   return (
     <AdvisorShell>
-      <div className="max-w-[1000px] mx-auto space-y-6 pb-20 animate-in fade-in duration-500">
+      <div className="max-w-[1100px] mx-auto space-y-6 pb-20 animate-in fade-in duration-500">
         
         {/* Top Nav */}
         <div className="flex items-center justify-between">

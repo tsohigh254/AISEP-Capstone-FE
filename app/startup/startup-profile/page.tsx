@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { GetStartupProfile, GetMembers } from "@/services/startup/startup.api";
 import { GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
+import { GetStartupKYCStatus } from "@/services/startup/startup-kyc.api";
 
 const STAGE_LABELS: Record<string, string> = {
     "0": "Hạt giống (Idea)", "1": "Tiền ươm mầm (Pre-Seed)", "2": "Ươm mầm (Seed)", 
@@ -57,15 +58,17 @@ export default function StartupProfileViewPage() {
     const [members, setMembers] = useState<any[]>([]);
     const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
     const [loading, setLoading] = useState(true);
+    const [kycBadge, setKycBadge] = useState<"with_entity" | "no_entity" | null>(null);
 
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const [resProfile, resMembers, indData] = await Promise.all([
+                const [resProfile, resMembers, indData, resKyc] = await Promise.all([
                     GetStartupProfile() as any,
                     GetMembers() as any,
                     GetIndustriesFlat().catch(() => [] as IIndustryFlat[]),
+                    GetStartupKYCStatus().catch(() => null) as any,
                 ]);
                 if ((resProfile.success || resProfile.isSuccess) && resProfile.data) {
                     setP(resProfile.data);
@@ -76,6 +79,13 @@ export default function StartupProfileViewPage() {
                     setMembers(resMembers.data);
                 }
                 setIndustries(indData);
+                const kycData = resKyc?.data ?? resKyc;
+                if (kycData?.workflowStatus === "APPROVED") {
+                    const isLegal =
+                        kycData?.startupVerificationType === "WITH_LEGAL_ENTITY" ||
+                        kycData?.submissionSummary?.startupVerificationType === "WITH_LEGAL_ENTITY";
+                    setKycBadge(isLegal ? "with_entity" : "no_entity");
+                }
             } catch {
                 setP(null);
             } finally {
@@ -181,6 +191,18 @@ export default function StartupProfileViewPage() {
                             <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
                                 <span className="text-slate-200">·</span> {p.productStatus}
                             </span>
+                        )}
+                        {kycBadge === "with_entity" && (
+                            <Tag variant="green">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Đã đăng ký doanh nghiệp
+                            </Tag>
+                        )}
+                        {kycBadge === "no_entity" && (
+                            <Tag variant="green">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Đã xác minh đội ngũ
+                            </Tag>
                         )}
                     </div>
 

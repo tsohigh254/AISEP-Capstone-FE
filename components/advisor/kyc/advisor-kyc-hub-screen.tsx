@@ -62,7 +62,7 @@ export function AdvisorKycHubScreen() {
 
   return (
     <AdvisorShell>
-      <div className="max-w-[1000px] mx-auto space-y-4 py-4 md:py-6">
+      <div className="max-w-[1100px] mx-auto space-y-4 py-4 md:py-6">
         <KYCHub
           status={status}
           profile={profile}

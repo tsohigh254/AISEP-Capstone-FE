@@ -111,7 +111,7 @@ export default function AdvisorSchedulePage() {
 
   return (
     <AdvisorShell>
-      <div className="max-w-[1000px] mx-auto space-y-6 animate-in fade-in duration-400">
+      <div className="max-w-[1100px] mx-auto space-y-6 animate-in fade-in duration-400">
 
         {/* Page header */}
         <div>

@@ -18,6 +18,7 @@ import {
   GetMentorshipById,
   GetAdvisorById,
 } from "@/services/startup/startup-mentorship.api";
+import { isMentorshipPaymentCompleted } from "@/lib/mentorship-payment";
 import { CreatePaymentLink } from "@/services/payment/payment.api";
 import type {
   IMentorshipRequest,
@@ -44,6 +45,34 @@ export default function CheckoutPage({
   const [advisorData, setAdvisorData] = useState<IAdvisorDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const unwrapApiData = <T,>(value: unknown): T | null => {
+    if (!value || typeof value !== "object") {
+      return (value as T) ?? null;
+    }
+
+    const candidate = value as Record<string, unknown>;
+    if (candidate.data && typeof candidate.data === "object") {
+      return candidate.data as T;
+    }
+
+    return candidate as T;
+  };
+
+  const parsePositiveAmount = (value: unknown) => {
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      return value;
+    }
+
+    if (typeof value === "string") {
+      const parsed = Number(value.replace(/[^\d.-]/g, ""));
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+
+    return null;
+  };
+
   const parseDurationMinutes = (value?: string | number | null) => {
     if (typeof value === "number" && Number.isFinite(value)) return value;
     if (typeof value !== "string") return 60;
@@ -55,8 +84,11 @@ export default function CheckoutPage({
     const loadData = async () => {
       try {
         const res = (await GetMentorshipById(Number(id))) as any;
-        const isSuccess = Boolean(res?.success || res?.isSuccess);
-        const mentorship = (res?.data ?? null) as IMentorshipRequest | null;
+        const mentorship = unwrapApiData<IMentorshipRequest>(res?.data ?? res);
+        const isSuccess =
+          typeof res?.success === "boolean" || typeof res?.isSuccess === "boolean"
+            ? Boolean(res?.success || res?.isSuccess)
+            : Boolean(mentorship);
 
         if (isSuccess && mentorship) {
           setRequestData(mentorship);
@@ -67,8 +99,9 @@ export default function CheckoutPage({
                 (mentorship as any).advisorId ||
                 (mentorship as any).advisor?.advisorID,
             );
-            // The interceptor might unwrap axios response
-            setAdvisorData((advRes as any).data || (advRes as any));
+            setAdvisorData(
+              unwrapApiData<IAdvisorDetail>((advRes as any)?.data ?? advRes),
+            );
           } catch (advErr) {
             console.error("Failed to load advisor details", advErr);
           }
@@ -92,7 +125,10 @@ export default function CheckoutPage({
     null;
 
   const actualPrice =
-    advisorData?.hourlyRate || (requestData as any)?.advisor?.hourlyRate || 0; // The price strictly depends on the advisor's hourly rate setting
+    parsePositiveAmount(advisorData?.hourlyRate) ||
+    parsePositiveAmount((requestData as any)?.advisor?.hourlyRate) ||
+    parsePositiveAmount((requestData as any)?.hourlyRate) ||
+    0; // The price strictly depends on the advisor's hourly rate setting
   const actualDuration = parseDurationMinutes(
     (requestData as any)?.durationMinutes ??
       requestData?.expectedDuration ??
@@ -106,9 +142,17 @@ export default function CheckoutPage({
     (requestData as any)?.objective ||
     (requestData as any)?.challengeDescription ||
     "Tư vấn chuyên môn";
-  const actualTotal = Math.round((actualPrice / 60) * actualDuration) || 0; // Time proportion
+  const computedTotal =
+    actualPrice > 0 ? Math.round((actualPrice / 60) * actualDuration) : 0;
+  const actualTotal =
+    parsePositiveAmount(requestData?.sessionAmount) ?? computedTotal; // Fallback when backend still returns sessionAmount = 0
+  const isPaid = isMentorshipPaymentCompleted(requestData?.paymentStatus, requestData?.paidAt);
 
   const handlePay = async () => {
+    if (isPaid) {
+      router.push(`/startup/mentorship-requests/${id}`);
+      return;
+    }
     setIsProcessing(true);
     try {
       const res = await CreatePaymentLink(actualTotal, Number(id));
@@ -168,19 +212,6 @@ export default function CheckoutPage({
   return (
     <StartupShell>
       <div className="max-w-[960px] mx-auto space-y-6 pb-20 animate-in fade-in duration-500">
-        {/* Header */}
-        <div className="flex items-center gap-2 text-[13px] text-slate-400">
-          <button
-            onClick={() => router.push(`/startup/mentorship-requests/${id}`)}
-            className="hover:text-slate-700 transition-colors"
-          >
-            {requestData?.mentorshipID
-              ? `REQ-${requestData.mentorshipID}`
-              : `REQ-${id}`}
-          </button>
-          <ChevronRight className="w-3.5 h-3.5" />
-          <span className="text-slate-700 font-semibold">Thanh toán</span>
-        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left: Payment Form */}
@@ -232,15 +263,20 @@ export default function CheckoutPage({
             {/* Pay CTA */}
             <button
               onClick={handlePay}
-              disabled={isProcessing}
+              disabled={isProcessing || isPaid}
               className={cn(
                 "w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl text-[15px] font-bold transition-all shadow-md",
-                isProcessing
+                isProcessing || isPaid
                   ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
                   : "bg-[#0f172a] text-white hover:bg-slate-700 active:scale-[0.99]",
               )}
             >
-              {isProcessing ? (
+              {isPaid ? (
+                <>
+                  <CheckCircle2 className="w-4.5 h-4.5" />
+                  Đã thanh toán
+                </>
+              ) : isProcessing ? (
                 <>
                   <div className="w-5 h-5 border-2 border-slate-300/40 border-t-slate-400 rounded-full animate-spin" />
                   Đang xử lý giao dịch...
@@ -368,5 +404,3 @@ export default function CheckoutPage({
     </StartupShell>
   );
 }
-
-

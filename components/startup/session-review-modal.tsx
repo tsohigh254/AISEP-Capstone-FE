@@ -26,6 +26,7 @@ interface SessionReviewModalProps {
     session: {
         id?: number;
         advisorName: string;
+        advisorNameDisplay?: string;
         advisorAvatar: string;
         topic: string;
         time: string;
@@ -100,7 +101,7 @@ export function SessionReviewModal({ isOpen, onClose, session }: SessionReviewMo
                             <div className="p-5 bg-[#f8fafc] dark:bg-slate-800/50 rounded-2xl flex items-center gap-4 border border-slate-100 dark:border-slate-800">
                                 <img src={session.advisorAvatar} alt="" className="size-12 rounded-xl object-cover border-2 border-white shadow-sm" />
                                 <div>
-                                    <p className="text-[15px] font-bold text-slate-900 dark:text-white leading-tight">{session.advisorName}</p>
+                                    <p className="text-[15px] font-bold text-slate-900 dark:text-white leading-tight">{session.advisorNameDisplay || session.advisorName}</p>
                                     <p className="text-[12px] text-slate-500 font-medium mt-0.5">{session.topic}</p>
                                     <p className="text-[11px] text-[#eec54e] font-black uppercase tracking-wider mt-1">{session.time}</p>
                                 </div>

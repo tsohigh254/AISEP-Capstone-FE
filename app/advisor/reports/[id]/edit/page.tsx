@@ -236,7 +236,7 @@ function EditReportContent() {
   const avatarGradient = getAvatarColor(session.startup.displayName);
 
   return (
-    <div className="max-w-[1000px] mx-auto space-y-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-[1100px] mx-auto space-y-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       {/* Top Nav */}
       <div className="flex items-center justify-between">

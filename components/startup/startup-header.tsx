@@ -9,6 +9,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Logout } from "@/services/auth/auth.api";
 import { useAuth } from "@/context/context";
 import { IssueReportModal } from "@/components/shared/issue-report-modal";
+import { NotificationDetailModal } from "@/components/shared/notification-detail-modal";
 import { GetStartupProfile } from "@/services/startup/startup.api";
 import { GetStartupKYCStatus } from "@/services/startup/startup-kyc.api";
 import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
@@ -61,6 +62,8 @@ export function StartupHeader({
   const pathname = usePathname();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [selectedNotiId, setSelectedNotiId] = useState<number | null>(null);
+  const [isNotiDetailOpen, setIsNotiDetailOpen] = useState(false);
   const [isNotiOpen, setIsNotiOpen] = useState(false);
   const [isGridOpen, setIsGridOpen] = useState(false);
   const [notifications, setNotifications] = useState<INotificationItem[]>([]);
@@ -170,7 +173,8 @@ export function StartupHeader({
   const handleNotiClick = (item: INotificationItem) => {
     if (!item.isRead) handleMarkAsRead(item.notificationId);
     setIsNotiOpen(false);
-    router.push(item.actionUrl || "/startup/notifications");
+    setSelectedNotiId(item.notificationId);
+    setIsNotiDetailOpen(true);
   };
 
   const handleLogout = async () => {
@@ -374,10 +378,10 @@ export function StartupHeader({
 
           {/* User Profile Card */}
           <div className="flex items-center gap-3.5 relative shrink-0" ref={dropdownRef}>
-            <div className="text-right hidden sm:flex flex-col items-end justify-center min-w-0 max-w-[112px]">
+            <div className="text-right hidden sm:flex flex-col items-end justify-center min-w-0 max-w-[160px] pr-1">
               <p className="text-[13px] font-bold text-[#171611] tracking-tight leading-none truncate w-full text-right">{displayUserName}</p>
               <div className="mt-0.5 inline-flex items-center gap-1">
-                <p className="text-[10px] text-[#878164] font-medium">Startup Account</p>
+                <p className="text-[10px] text-[#878164] font-medium">Tài khoản Startup</p>
                 {isKycVerified && <VerifiedRoleMark className="h-3.5 w-3.5" />}
               </div>
             </div>
@@ -491,6 +495,15 @@ export function StartupHeader({
       <IssueReportModal
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
+      />
+      <NotificationDetailModal
+        notificationId={selectedNotiId}
+        isOpen={isNotiDetailOpen}
+        onClose={() => setIsNotiDetailOpen(false)}
+        onDeleteSuccess={(id) => {
+          handleDeleteNoti(id);
+          setIsNotiDetailOpen(false);
+        }}
       />
     </header>
   );

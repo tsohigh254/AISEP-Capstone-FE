@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
   Edit3, Video, Clock, MessageSquare,
@@ -11,9 +12,20 @@ import {
   ShieldAlert, ChevronRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isMentorshipPaymentCompleted } from "@/lib/mentorship-payment";
 import { IssueReportModal } from "@/components/shared/issue-report-modal";
-import { GetMentorshipById, CancelMentorship } from "@/services/startup/startup-mentorship.api";
-import type { IMentorshipRequest, MentorshipRequestStatus, MeetingFormat } from "@/types/startup-mentorship";
+import {
+  CancelMentorship,
+  GetAdvisorById,
+  GetMentorshipById,
+} from "@/services/startup/startup-mentorship.api";
+import type {
+  IAdvisorDetail,
+  IMentorshipRequest,
+  IMentorshipTimelineEvent,
+  MeetingFormat,
+  MentorshipRequestStatus,
+} from "@/types/startup-mentorship";
 
 
 const formatDateTime = (iso?: string | null) => {
@@ -42,6 +54,109 @@ const isValidImageUrl = (url?: string | null) => {
   return url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:image/");
 };
 
+const getMentorshipChatBlockMessage = (status?: MentorshipRequestStatus | string | null) => {
+  switch (status) {
+    case "Requested":
+    case "Pending":
+      return "Bạn chỉ có thể nhắn tin sau khi cố vấn chấp nhận yêu cầu tư vấn.";
+    case "Rejected":
+      return "Yêu cầu tư vấn đã bị từ chối nên hiện chưa thể nhắn tin với cố vấn.";
+    case "Cancelled":
+      return "Yêu cầu tư vấn đã bị hủy nên hiện chưa thể nhắn tin với cố vấn.";
+    default:
+      return null;
+  }
+};
+
+const getNormalizedCancellationActor = (cancelledBy?: string | null) => {
+  const value = cancelledBy?.trim().toLowerCase();
+  if (!value) return null;
+  if (value.includes("startup")) return "Startup";
+  if (value.includes("advisor") || value.includes("mentor") || value.includes("expert")) return "Cố vấn";
+  if (value.includes("system")) return "Hệ thống";
+  return null;
+};
+
+const getCancellationActorLabel = (cancelledBy?: string | null) => {
+  return getNormalizedCancellationActor(cancelledBy);
+};
+
+const getCancellationActorText = (cancelledBy?: string | null) => {
+  const actor = getNormalizedCancellationActor(cancelledBy);
+  if (!actor) return null;
+  if (actor === "Startup") return "Bạn";
+  return actor;
+};
+
+const getCancellationReasonText = (request: IMentorshipRequest) => {
+  const rawReason = (request.cancelReason || (request as any).rejectedReason || "").trim();
+  if (!rawReason) return "";
+
+  const reasonMatch = rawReason.match(/reason:\s*(.+)$/i);
+  if (reasonMatch?.[1]) {
+    return reasonMatch[1].trim();
+  }
+
+  return rawReason
+    .replace(/^cancelled by startup\.?\s*/i, "")
+    .replace(/^cancelled by advisor\.?\s*/i, "")
+    .replace(/^cancelled by system\.?\s*/i, "")
+    .trim();
+};
+
+const getCancellationSummary = (request: IMentorshipRequest) => {
+  const actorText = getCancellationActorText(request.cancelledBy);
+  const reason = getCancellationReasonText(request);
+  const actorSentence = !actorText
+    ? "Yêu cầu đã bị hủy."
+    : actorText === "Bạn"
+      ? "Bạn đã hủy yêu cầu này."
+      : `${actorText} đã hủy yêu cầu này.`;
+
+  if (!reason) return actorSentence;
+  return `${actorSentence} Lý do: ${reason}`;
+};
+
+const SUPPORT_SCOPE_LABELS: Record<string, string> = {
+  FUNDRAISING: "Gọi vốn",
+  PRODUCT_STRATEGY: "Chiến lược sản phẩm",
+  GO_TO_MARKET: "Go-to-market",
+  FINANCE: "Tài chính",
+  LEGAL_IP: "Pháp lý & SHTT",
+  OPERATIONS: "Vận hành",
+  TECHNOLOGY: "Công nghệ",
+  MARKETING: "Marketing",
+  HR_OR_TEAM_BUILDING: "Nhân sự",
+};
+
+const parseSpecificQuestions = (specificQuestions?: string | null) => {
+  if (!specificQuestions?.trim()) {
+    return { objective: "", additionalNotes: "" };
+  }
+
+  const parts = specificQuestions
+    .split(/\n\s*\n/)
+    .map(part => part.trim())
+    .filter(Boolean);
+
+  return {
+    objective: parts[0] || "",
+    additionalNotes: parts.slice(1).join("\n\n"),
+  };
+};
+
+const normalizeScopeTags = (request: IMentorshipRequest) => {
+  const rawTags =
+    request.scopeTags && request.scopeTags.length > 0
+      ? request.scopeTags
+      : (request.expectedScope || request.scope || "")
+          .split(",")
+          .map(tag => tag.trim())
+          .filter(Boolean);
+
+  return rawTags.map(tag => SUPPORT_SCOPE_LABELS[tag] || tag);
+};
+
 // ─── Status Config ─────────────────────────────────────────────────────────────
 
 type DisplayStatus = MentorshipRequestStatus | "InProgress";
@@ -58,8 +173,6 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
   Cancelled:  { label: "Đã hủy",       color: "text-slate-500",  bg: "bg-slate-50",  border: "border-slate-200",  icon: <X className="w-3.5 h-3.5" /> },
 };
 
-// ─── Dynamic Timeline Builder ──────────────────────────────────────────────────
-
 interface TimelineStep {
   label: string;
   note: string;
@@ -69,133 +182,301 @@ interface TimelineStep {
   failed?: boolean;
 }
 
-function buildTimeline(req: IMentorshipRequest, isPaid: boolean = false): TimelineStep[] {
-  const status = req.status || (req as any).mentorshipStatus;
-  const sessions = (req as any).sessions || [];
-  const firstSession = sessions.slice().reverse().find((s: any) => s.meetingUrl || s.meetingURL || s.meetingLink) || sessions[sessions.length - 1] || null;
-    const scheduledTime = req.scheduledAt || firstSession?.scheduledStartAt;
-  
-  const steps: TimelineStep[] = [
+interface HistoryItem {
+  type: string;
+  label: string;
+  note: string;
+  time: string;
+  sortTime?: string;
+  failed?: boolean;
+}
+
+const normalizeTimelineEventType = (event: IMentorshipTimelineEvent) => {
+  const raw = (event.type || event.actionType || "").trim().toLowerCase();
+  switch (raw) {
+    case "requested":
+    case "request_submitted":
+      return "Requested";
+    case "accepted":
+    case "request_accepted":
+      return "Accepted";
+    case "inprogress":
+    case "in_progress":
+    case "advisor_proposed_time":
+    case "session_created":
+    case "session_scheduled":
+      return "InProgress";
+    case "rejected":
+    case "request_rejected":
+      return "Rejected";
+    case "cancelled":
+    case "canceled":
+    case "session_cancelled":
+      return "Cancelled";
+    case "completed":
+    case "session_completed":
+      return "Completed";
+    case "report_submitted":
+      return "ReportSubmitted";
+    case "feedback_submitted":
+      return "FeedbackSubmitted";
+    default:
+      return event.type || event.actionType || "Unknown";
+  }
+};
+
+const getHistoryDefaults = (type: string, request: IMentorshipRequest) => {
+  switch (type) {
+    case "Requested":
+      return {
+        label: "Yêu cầu đã gửi",
+        note: "Yêu cầu tư vấn đã được tạo và gửi đến cố vấn.",
+      };
+    case "Accepted":
+      return {
+        label: "Cố vấn phản hồi",
+        note: "Cố vấn đã chấp nhận yêu cầu.",
+      };
+    case "InProgress":
+      return {
+        label: "Phiên bắt đầu",
+        note: "Cố vấn đã tạo phiên tư vấn đầu tiên.",
+      };
+    case "Rejected":
+      return {
+        label: "Yêu cầu bị từ chối",
+        note: request.rejectionReason || (request as any).rejectedReason || "Cố vấn đã từ chối yêu cầu.",
+      };
+    case "Cancelled":
+      return {
+        label: "Yêu cầu đã được hủy",
+        note: getCancellationSummary(request),
+      };
+    case "Completed":
+      return {
+        label: "Phiên hoàn thành",
+        note: "Phiên tư vấn đã hoàn thành.",
+      };
+    case "ReportSubmitted":
+      return {
+        label: "Báo cáo có sẵn",
+        note: "Cố vấn đã cung cấp báo cáo tư vấn.",
+      };
+    case "FeedbackSubmitted":
+      return {
+        label: "Đã đánh giá",
+        note: "Startup đã gửi đánh giá cho phiên tư vấn.",
+      };
+    default:
+      return {
+        label: "Cập nhật trạng thái",
+        note: "",
+      };
+  }
+};
+
+function buildHistoryItems(req: IMentorshipRequest): HistoryItem[] {
+  const rawEvents =
+    req.timelineEvents ||
+    req.timeline ||
+    (req as any).mentorshipHistories ||
+    (req as any).history ||
+    [];
+
+  if (Array.isArray(rawEvents) && rawEvents.length > 0) {
+    return rawEvents
+      .map((event: IMentorshipTimelineEvent) => {
+        const type = normalizeTimelineEventType(event);
+        const defaults = getHistoryDefaults(type, req);
+        const happenedAt = event.happenedAt || event.createdAt || "";
+        return {
+          type,
+          label: event.title || defaults.label,
+          note: event.description || defaults.note,
+          time: formatDateTime(happenedAt),
+          sortTime: happenedAt,
+          failed: type === "Rejected" || type === "Cancelled",
+        };
+      })
+      .filter((item: HistoryItem) => item.label || item.note || item.time)
+      .sort((a: HistoryItem, b: HistoryItem) => {
+        const at = new Date(a.sortTime || 0).getTime();
+        const bt = new Date(b.sortTime || 0).getTime();
+        return at - bt;
+      });
+  }
+
+  const items: HistoryItem[] = [
     {
+      type: "Requested",
       label: "Yêu cầu đã gửi",
       note: "Yêu cầu tư vấn đã được tạo và gửi đến cố vấn.",
-      time: formatDateTime(req.createdAt),
-      done: true,
-      current: false,
-    },
-    {
-      label: "Cố vấn phản hồi",
-      note: "",
-      time: "",
-      done: false,
-      current: false,
-    },
-    {
-      label: "Lịch xác nhận",
-      note: "",
-      time: "",
-      done: false,
-      current: false,
-    },
-    {
-      label: "Phiên diễn ra",
-      note: "",
-      time: "",
-      done: false,
-      current: false,
-    },
-    {
-      label: "Báo cáo có sẵn",
-      note: "",
-      time: "",
-      done: false,
-      current: false,
-    },
-    {
-      label: "Đã đánh giá",
-      note: "",
-      time: "",
-      done: false,
-      current: false,
+      time: formatDateTime(req.requestedAt || req.createdAt),
+      sortTime: req.requestedAt || req.createdAt,
     },
   ];
 
-  // Requested / Pending — only step 0 done
-  if (status === "Requested" || status === "Pending") {
+  if (req.acceptedAt) {
+    items.push({
+      type: "Accepted",
+      label: "Cố vấn phản hồi",
+      note: "Cố vấn đã chấp nhận yêu cầu.",
+      time: formatDateTime(req.acceptedAt),
+      sortTime: req.acceptedAt,
+    });
+  }
+
+  if (req.inProgressAt) {
+    items.push({
+      type: "InProgress",
+      label: "Phiên bắt đầu",
+      note: "Cố vấn đã tạo phiên tư vấn đầu tiên.",
+      time: formatDateTime(req.inProgressAt),
+      sortTime: req.inProgressAt,
+    });
+  }
+
+  if (req.rejectedAt) {
+    items.push({
+      type: "Rejected",
+      label: "Yêu cầu bị từ chối",
+      note: req.rejectionReason || (req as any).rejectedReason || "Cố vấn đã từ chối yêu cầu.",
+      time: formatDateTime(req.rejectedAt),
+      sortTime: req.rejectedAt,
+      failed: true,
+    });
+  } else if (req.cancelledAt) {
+    items.push({
+      type: "Cancelled",
+      label: "Yêu cầu đã được hủy",
+      note: getCancellationSummary(req),
+      time: formatDateTime(req.cancelledAt),
+      sortTime: req.cancelledAt,
+      failed: true,
+    });
+  } else if (req.completedAt) {
+    items.push({
+      type: "Completed",
+      label: "Phiên hoàn thành",
+      note: "Phiên tư vấn đã hoàn thành.",
+      time: formatDateTime(req.completedAt),
+      sortTime: req.completedAt,
+    });
+  }
+
+  if ((req as any).reports?.length) {
+    items.push({
+      type: "ReportSubmitted",
+      label: "Báo cáo có sẵn",
+      note: "Cố vấn đã cung cấp báo cáo tư vấn.",
+      time: formatDateTime((req as any).reports[0]?.createdAt || req.completedAt),
+      sortTime: (req as any).reports[0]?.createdAt || req.completedAt,
+    });
+  }
+
+  if ((req as any).feedbacks?.length) {
+    items.push({
+      type: "FeedbackSubmitted",
+      label: "Đã đánh giá",
+      note: "Startup đã gửi đánh giá cho phiên tư vấn.",
+      time: formatDateTime((req as any).feedbacks[0]?.createdAt || req.completedAt),
+      sortTime: (req as any).feedbacks[0]?.createdAt || req.completedAt,
+    });
+  }
+
+  return items.sort(
+    (a, b) => new Date(a.sortTime || 0).getTime() - new Date(b.sortTime || 0).getTime()
+  );
+}
+
+function buildProgressSteps(historyItems: HistoryItem[], currentStatus: string, isPaid: boolean, request: IMentorshipRequest): TimelineStep[] {
+  const steps: TimelineStep[] = [
+    { label: "Yêu cầu đã gửi", note: "", time: "", done: false, current: false },
+    { label: "Cố vấn phản hồi", note: "", time: "", done: false, current: false },
+    { label: "Lịch xác nhận", note: "", time: "", done: false, current: false },
+    { label: "Phiên diễn ra", note: "", time: "", done: false, current: false },
+    { label: "Báo cáo có sẵn", note: "", time: "", done: false, current: false },
+    { label: "Đã đánh giá", note: "", time: "", done: false, current: false },
+  ];
+
+  const findEvent = (type: string) => historyItems.find(item => item.type === type);
+  const requestedEvent = findEvent("Requested");
+  const acceptedEvent = findEvent("Accepted");
+  const inProgressEvent = findEvent("InProgress");
+  const completedEvent = findEvent("Completed");
+  const reportEvent = findEvent("ReportSubmitted");
+  const feedbackEvent = findEvent("FeedbackSubmitted");
+  const rejectedEvent = findEvent("Rejected");
+  const cancelledEvent = findEvent("Cancelled");
+  const terminalFailedEvent = rejectedEvent || cancelledEvent;
+  const cancellationActorText = getCancellationActorText(request.cancelledBy);
+
+  if (requestedEvent) {
+    steps[0].done = true;
+    steps[0].note = requestedEvent.note;
+    steps[0].time = requestedEvent.time;
+  }
+
+  if (acceptedEvent) {
+    steps[1].done = true;
+    steps[1].note = acceptedEvent.note;
+    steps[1].time = acceptedEvent.time;
+  }
+
+  if (inProgressEvent) {
+    steps[2].done = true;
+    steps[2].note = inProgressEvent.note;
+    steps[2].time = inProgressEvent.time;
+  }
+
+  if (completedEvent) {
+    steps[3].done = true;
+    steps[3].note = completedEvent.note;
+    steps[3].time = completedEvent.time;
+  } else if ((currentStatus === "Scheduled" || currentStatus === "InProgress") && inProgressEvent) {
+    steps[3].current = true;
+    steps[3].note = isPaid ? "Đang chờ phiên tư vấn diễn ra." : "Đang chờ hoàn tất thanh toán trước phiên tư vấn.";
+  }
+
+  if (reportEvent) {
+    steps[4].done = true;
+    steps[4].note = reportEvent.note;
+    steps[4].time = reportEvent.time;
+  } else if ((currentStatus === "Completed" || currentStatus === "Finalized") && completedEvent) {
+    steps[4].current = true;
+    steps[4].note = "Đang chờ báo cáo từ cố vấn.";
+  }
+
+  if (feedbackEvent) {
+    steps[5].done = true;
+    steps[5].current = true;
+    steps[5].note = feedbackEvent.note;
+    steps[5].time = feedbackEvent.time;
+    steps[4].current = false;
+  } else if (reportEvent) {
+    steps[5].current = currentStatus !== "Finalized";
+  }
+
+  if (terminalFailedEvent) {
+    const failIndex = inProgressEvent ? 3 : acceptedEvent ? 2 : 1;
+    const failNote =
+      terminalFailedEvent.type === "Rejected"
+        ? "Cố vấn đã từ chối yêu cầu"
+        : !cancellationActorText
+          ? "Yêu cầu đã bị hủy"
+          : cancellationActorText === "Bạn"
+          ? "Bạn đã hủy yêu cầu"
+          : `${cancellationActorText} đã hủy yêu cầu`;
+    steps[failIndex].failed = true;
+    steps[failIndex].current = true;
+    steps[failIndex].note = failNote;
+    steps[failIndex].time = terminalFailedEvent.time;
+  } else if (currentStatus === "Requested" || currentStatus === "Pending") {
     steps[0].current = true;
     steps[1].note = "Đang chờ cố vấn xem xét và phản hồi.";
-    return steps;
-  }
-
-  // Rejected
-  if (status === "Rejected") {
-    steps[1].done = true;
-    steps[1].failed = true;
-    steps[1].current = true;
-    steps[1].note = "Cố vấn đã từ chối yêu cầu.";
-    steps[1].time = formatDateTime(req.rejectedAt);
-    return steps;
-  }
-
-  // Cancelled
-  if (status === "Cancelled") {
-    steps[0].current = false;
-    // Mark step 1 as cancelled point
-    steps[1].done = false;
-    steps[1].failed = true;
-    steps[1].current = true;
-      steps[1].note = req.cancelReason || (req as any).rejectedReason || "Yêu cầu đã bị hủy.";
-    steps[1].done = true;
-    steps[1].current = true;
-    steps[1].note = "Cố vấn đã chấp nhận yêu cầu.";
-    steps[1].time = formatDateTime(req.acceptedAt);
-    steps[2].note = "Đang chờ xác nhận khung giờ.";
-    return steps;
-  }
-
-  // Scheduled — steps 0,1,2 done
-  if (status === "Scheduled" || status === "InProgress") {
-    steps[1].done = true;
-    steps[1].note = "Cố vấn đã chấp nhận yêu cầu.";
-    steps[1].time = formatDateTime(req.acceptedAt);
-    steps[2].done = true;
-    steps[2].current = !isPaid;
-    steps[2].note = "Lịch hẹn đã được xác nhận.";
-    steps[2].time = formatDateTime(scheduledTime);
-    steps[3].current = isPaid;
-    steps[3].note = "Đang chờ phiên tư vấn diễn ra.";
-    return steps;
-  }
-
-  // Completed — steps 0,1,2,3,4 done
-  const hasReport = ((req as any).reports || []).length > 0;
-  const hasFeedback = ((req as any).feedbacks || []).length > 0;
-
-  if (status === "Completed" || status === "Finalized") {
-    steps[1].done = true;
-    steps[1].note = "Cố vấn đã chấp nhận.";
-    steps[1].time = formatDateTime(req.acceptedAt);
-    steps[2].done = true;
-    steps[2].note = "Lịch hẹn đã được xác nhận.";
-    steps[2].time = formatDateTime(scheduledTime);
-    steps[3].done = true;
-    steps[3].note = "Phiên tư vấn đã hoàn thành.";
-    steps[3].time = formatDateTime(req.completedAt || req.updatedAt || req.createdAt);
-    
-    const isReportAvailable = hasReport || status === "Finalized";
-    steps[4].done = isReportAvailable;
-    steps[4].current = isReportAvailable && !hasFeedback && status !== "Finalized";
-    steps[4].note = isReportAvailable ? "Cố vấn đã cung cấp báo cáo tư vấn." : "Đang chờ báo cáo từ cố vấn.";
-    steps[4].time = isReportAvailable ? formatDateTime(req.updatedAt || req.completedAt) : "";
-
-    const isFeedbackDone = hasFeedback || status === "Finalized";
-    if (isFeedbackDone) {
-      steps[5].done = true;
-      steps[5].current = true;
-      steps[5].note = "Đã gửi đánh giá.";
-      steps[4].current = false;
-    }
-    return steps;
+  } else if (currentStatus === "Accepted" && acceptedEvent) {
+    steps[2].current = true;
+    steps[2].note = "Đang chờ cố vấn tạo phiên tư vấn đầu tiên.";
   }
 
   return steps;
@@ -205,41 +486,100 @@ function buildTimeline(req: IMentorshipRequest, isPaid: boolean = false): Timeli
 
 function ProgressStepper({ steps }: { steps: TimelineStep[] }) {
   return (
-    <div className="flex items-start gap-0 w-full overflow-x-auto pb-1">
-      {steps.map((step, i) => (
-        <div key={i} className="flex-1 flex flex-col items-center min-w-[80px]">
-          <div className="flex items-center w-full">
-            {i > 0 && (
-              <div className={cn("flex-1 h-0.5 -mr-0.5 mt-[-16px]", step.done ? "bg-[#eec54e]" : "bg-slate-200")} />
-            )}
-            <div className={cn(
-              "w-8 h-8 rounded-full border-2 flex items-center justify-center flex-shrink-0 z-10 transition-all",
-              step.failed ? "bg-red-50 border-red-300 text-red-500" :
-              step.done && step.current ? "bg-[#eec54e] border-[#eec54e] text-white shadow-[0_0_0_4px_rgba(238,197,78,0.15)]" :
-              step.done ? "bg-[#eec54e] border-[#eec54e] text-white" :
-              "bg-white border-slate-200 text-slate-300"
-            )}>
-              {step.failed
-                ? <X className="w-3.5 h-3.5" />
-                : step.done
-                  ? <CheckCircle2 className="w-3.5 h-3.5" />
-                  : <div className="w-2 h-2 rounded-full bg-current" />
-              }
+    <div className="w-full overflow-x-auto pb-2">
+      <div
+        className="grid min-w-[760px] gap-0 sm:min-w-0"
+        style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}
+      >
+        {steps.map((step, i) => {
+          const isReached = step.done || step.current || step.failed;
+          const isFuture = !step.done && !step.current && !step.failed;
+          const leftReached = i > 0 && isReached;
+          const rightReached = i < steps.length - 1 && step.done && !step.failed;
+
+          return (
+            <div key={i} className="relative px-2">
+              {i > 0 && (
+                <div
+                  className={cn(
+                    "absolute left-0 right-1/2 top-5 h-[3px] rounded-full",
+                    leftReached
+                      ? step.failed
+                        ? "bg-red-300"
+                        : "bg-[#eec54e]"
+                      : "bg-slate-200",
+                  )}
+                />
+              )}
+              {i < steps.length - 1 && (
+                <div
+                  className={cn(
+                    "absolute left-1/2 right-0 top-5 h-[3px] rounded-full",
+                    rightReached ? "bg-[#eec54e]" : "bg-slate-200",
+                  )}
+                />
+              )}
+
+              <div
+                className={cn(
+                  "relative z-10 mx-auto flex h-10 w-10 items-center justify-center rounded-full border-[2.5px] transition-all",
+                  step.failed
+                    ? "border-red-300 bg-red-50 text-red-500 shadow-[0_0_0_4px_rgba(248,113,113,0.08)]"
+                    : step.done && step.current
+                      ? "border-[#eec54e] bg-[#eec54e] text-white shadow-[0_0_0_5px_rgba(238,197,78,0.15)]"
+                      : step.done
+                        ? "border-[#eec54e] bg-[#eec54e] text-white"
+                        : step.current
+                          ? "border-[#eec54e] bg-white text-[#d4a62e] shadow-[0_0_0_5px_rgba(238,197,78,0.12)]"
+                          : "border-slate-200 bg-white text-slate-300",
+                )}
+              >
+                {step.failed ? (
+                  <X className="h-3.5 w-3.5" />
+                ) : step.done ? (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                ) : (
+                  <div
+                    className={cn(
+                      "h-2.5 w-2.5 rounded-full",
+                      step.current ? "bg-[#eec54e]" : "bg-current",
+                    )}
+                  />
+                )}
+              </div>
+
+              <div className="mt-4 flex min-h-[3.5rem] flex-col items-center text-center">
+                <p
+                  className={cn(
+                    "max-w-[130px] text-[11px] font-semibold leading-[1.35]",
+                    step.failed
+                      ? "text-red-600"
+                      : step.current
+                        ? "text-slate-900"
+                        : step.done
+                          ? "text-slate-700"
+                          : isFuture
+                            ? "text-slate-400"
+                            : "text-slate-500",
+                  )}
+                >
+                  {step.label}
+                </p>
+                {step.current && step.note && !step.failed && (
+                  <p className="mt-1 max-w-[150px] text-[10px] font-medium leading-tight text-slate-400">
+                    {step.note}
+                  </p>
+                )}
+                {step.failed && step.note && (
+                  <p className="mt-1 max-w-[150px] text-[10px] font-medium leading-tight text-red-400">
+                    {step.note}
+                  </p>
+                )}
+              </div>
             </div>
-            {i < steps.length - 1 && (
-              <div className={cn("flex-1 h-0.5 -ml-0.5 mt-[-16px]", steps[i + 1]?.done ? "bg-[#eec54e]" : "bg-slate-200")} />
-            )}
-          </div>
-          <p className={cn(
-            "text-[10px] font-semibold mt-2 text-center leading-tight",
-            step.failed ? "text-red-500" :
-            step.done && step.current ? "text-[#b8902e]" :
-            step.done ? "text-slate-600" : "text-slate-300"
-          )}>
-            {step.label}
-          </p>
-        </div>
-      ))}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -253,6 +593,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
 
   // Data state
   const [request, setRequest] = useState<IMentorshipRequest | null>(null);
+  const [advisorDetail, setAdvisorDetail] = useState<IAdvisorDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
 
@@ -260,17 +601,8 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
-  const [toast, setToast] = useState<string | null>(null);
   const [localStatus, setLocalStatus] = useState<MentorshipRequestStatus | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  const [isPaid, setIsPaid] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && request) {
-      const key = `mentorship_paid_${request.mentorshipID || (request as any).id}`;
-      setIsPaid(localStorage.getItem(key) === "true");
-    }
-  }, [request]);
 
   // Fetch data
   const fetchRequest = useCallback(async () => {
@@ -285,6 +617,25 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
       if ((res.success || res.isSuccess) && res.data) {
         setRequest(res.data);
         setLocalStatus(res.data.status as MentorshipRequestStatus);
+        const advisorId =
+          res.data.advisorID ||
+          (res.data as any).advisorId ||
+          res.data.advisor?.advisorID;
+
+        if (advisorId) {
+          try {
+            const advisorRes = await GetAdvisorById(Number(advisorId)) as unknown as IBackendRes<IAdvisorDetail>;
+            const advisorPayload =
+              advisorRes?.data && (advisorRes.data as any)?.data
+                ? (advisorRes.data as any).data
+                : advisorRes?.data;
+            setAdvisorDetail((advisorPayload as IAdvisorDetail) || null);
+          } catch {
+            setAdvisorDetail(null);
+          }
+        } else {
+          setAdvisorDetail(null);
+        }
         setFetchError(false);
       } else {
         setFetchError(true);
@@ -300,13 +651,6 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
     fetchRequest();
   }, [fetchRequest]);
 
-  // Toast auto-dismiss
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3000);
-    return () => clearTimeout(t);
-  }, [toast]);
-
   // Cancel handler (real API)
   const handleCancel = async () => {
     if (!request) return;
@@ -318,13 +662,13 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
       if (res.success || res.isSuccess) {
         setLocalStatus("Cancelled");
         setShowCancelConfirm(false);
-        setToast("Yêu cầu đã được hủy thành công.");
+        toast.success("Yêu cầu đã được hủy thành công.");
         fetchRequest(); // refresh data
       } else {
-        setToast(res.message || "Hủy yêu cầu thất bại.");
+        toast.error(res.message || "Hủy yêu cầu thất bại.");
       }
     } catch {
-      setToast("Hủy yêu cầu thất bại.");
+      toast.error("Hủy yêu cầu thất bại.");
     } finally {
       setIsCancelling(false);
     }
@@ -367,24 +711,47 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
   // ─── Derived data ────────────────────────────────────────────────────────────
 
   const currentStatus = localStatus || request.status || (request as any).mentorshipStatus;
+  const isPaid = isMentorshipPaymentCompleted(request.paymentStatus, request.paidAt);
   const cfg = STATUS_CONFIG[currentStatus] || STATUS_CONFIG["Requested"];
-  const timeline = buildTimeline({ ...request, status: currentStatus }, isPaid);
+  const historyItems = buildHistoryItems(request);
+  const progressSteps = buildProgressSteps(historyItems, currentStatus, isPaid, request);
   const requestNo = `REQ-${String(request.mentorshipID || (request as any).id || 0).padStart(4, "0")}`;
-  const advisor = request.advisor || { advisorID: request.advisorID, fullName: (request as any).advisorName, title: "Cố vấn viên", profilePhotoURL: "", averageRating: null };
+  const advisor = advisorDetail || request.advisor || {
+    advisorID: request.advisorID,
+    fullName: (request as any).advisorName,
+    title: "Cố vấn viên",
+    profilePhotoURL: "",
+    averageRating: null,
+  };
   const isCancelled = currentStatus === "Cancelled";
+  const blockedChatMessage = getMentorshipChatBlockMessage(currentStatus);
+  const parsedSpecificQuestions = parseSpecificQuestions(request.specificQuestions);
+  const requestObjective = request.objective || parsedSpecificQuestions.objective || "";
+  const requestProblemContext = request.problemContext || request.challengeDescription || "";
+  const requestAdditionalNotes = request.additionalNotes || parsedSpecificQuestions.additionalNotes || "";
+  const requestScopeTags = normalizeScopeTags(request);
+  const hasRequestContent = Boolean(
+    requestObjective ||
+    requestProblemContext ||
+    requestAdditionalNotes ||
+    requestScopeTags.length > 0
+  );
 
   const sessions = (request as any).sessions || [];
   const firstSession = sessions.slice().reverse().find((s: any) => s.meetingUrl || s.meetingURL || s.meetingLink) || sessions[sessions.length - 1] || null;
   const scheduledAtString = request.scheduledAt || firstSession?.scheduledStartAt || null;
+  const durationMinutes =
+    request.durationMinutes ||
+    Number((request as any).expectedDuration?.toString().replace(/[^\d]/g, "")) ||
+    firstSession?.durationMinutes ||
+    null;
+  const advisorProposedSessions = sessions.filter((s: any) =>
+    (s.status === "ProposedByAdvisor" || s.sessionStatus === "ProposedByAdvisor") &&
+    s.status !== "Cancelled" && s.sessionStatus !== "Cancelled"
+  );
 
   return (
     <StartupShell>
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] px-5 py-3 bg-[#0f172a] text-white text-[13px] font-medium rounded-xl shadow-lg">
-          {toast}
-        </div>
-      )}
-
       <div className="max-w-[1280px] mx-auto space-y-6 pb-20 animate-in fade-in duration-500">
 
         {/* Page Header */}
@@ -401,7 +768,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
           {(currentStatus === "Requested" || currentStatus === "Pending") && !isCancelled && (
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setToast("Chức năng chỉnh sửa sẽ sớm được mở.")}
+                onClick={() => toast.info("Chức năng chỉnh sửa sẽ sớm được mở.")}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 text-[13px] font-medium hover:bg-slate-50 transition-all"
               >
                 <Edit3 className="w-4 h-4" />
@@ -442,7 +809,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
             <CalendarCheck className="w-4 h-4 text-amber-500" />
             <span className="text-[13px] font-bold text-slate-700">Tiến trình yêu cầu</span>
           </div>
-          <ProgressStepper steps={timeline} />
+          <ProgressStepper steps={progressSteps} />
         </div>
 
         {/* Rejection Banner */}
@@ -462,17 +829,45 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
             </div>
           )}
 
-          {/* Cancellation Banner */}
-          {currentStatus === "Cancelled" && (request.cancelReason || (request as any).rejectedReason) && (
+        {/* Cancellation Banner */}
+          {currentStatus === "Cancelled" && (request.cancelReason || (request as any).rejectedReason || request.cancelledBy) && (
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex gap-4">
               <Ban className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-[13px] font-bold text-slate-600 mb-1">Lý do hủy</p>
-                <p className="text-[13px] text-slate-500 leading-relaxed">{request.cancelReason || (request as any).rejectedReason}</p>
+                <p className="text-[13px] font-bold text-slate-600 mb-1">Yêu cầu đã được hủy</p>
+                <p className="text-[13px] text-slate-500 leading-relaxed">{getCancellationSummary(request)}</p>
                 {request.cancelledBy && (
-                  <p className="text-[11px] text-slate-400 mt-1">Hủy bởi: {request.cancelledBy}</p>
+                  <p className="text-[11px] text-slate-400 mt-1">Hủy bởi: {getCancellationActorLabel(request.cancelledBy)}</p>
                 )}
               </div>
+          </div>
+        )}
+
+        {/* Advisor Proposed Slots Banner — hiện khi status còn Requested nhưng advisor đã đề xuất lịch */}
+        {advisorProposedSessions.length > 0 && currentStatus !== "Scheduled" && currentStatus !== "InProgress" && currentStatus !== "Completed" && (
+          <div className="bg-violet-50 border border-violet-200 rounded-2xl p-5 flex gap-4 items-start">
+            <Calendar className="w-5 h-5 text-violet-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-[13px] font-bold text-violet-800 mb-1">Cố vấn đề xuất {advisorProposedSessions.length} khung giờ mới</p>
+              <p className="text-[12px] text-violet-700 leading-relaxed mb-3">
+                Vui lòng xem và chọn khung giờ phù hợp để xác nhận lịch tư vấn.
+              </p>
+              <div className="space-y-2 mb-3">
+                {advisorProposedSessions.map((s: any) => (
+                  <div key={s.sessionID} className="flex items-center gap-2 text-[12px] text-violet-700 bg-white border border-violet-100 rounded-xl px-3 py-2">
+                    <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="font-semibold">{new Date(s.scheduledStartAt).toLocaleString("vi-VN", { weekday: "short", day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => router.push(`/startup/mentorship-requests/${request.mentorshipID}/confirm-schedule`)}
+                className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-xl text-[12px] font-semibold hover:bg-violet-700 transition-all shadow-sm"
+              >
+                <CalendarCheck className="w-3.5 h-3.5" />
+                Chọn và xác nhận lịch
+              </button>
+            </div>
           </div>
         )}
 
@@ -541,30 +936,38 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
                 Lịch hẹn lúc {formatDateTime(scheduledAtString)} đã ghi nhận thanh toán. Vui lòng tham gia phiên tư vấn đúng thông tin đã gửi và xác nhận sau khi kết thúc.
               </p>
               {(() => {
-                  const finalLink = (request as any)?.meetingLink || (request as any)?.meetingUrl || firstSession?.meetingUrl || firstSession?.meetingURL;                  console.log("DEBUG: finalLink =>", finalLink, "request =>", request, "firstSession =>", firstSession);                  if (finalLink && finalLink !== "undefined" && finalLink.trim() !== "") {
-                    return (
-                      <a
-                        href={finalLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl text-[12px] font-semibold hover:bg-green-700 transition-all shadow-sm"
-                      >
-                        <Video className="w-3.5 h-3.5" />
-                        Tham gia vào cuộc họp
-                      </a>
-                    );
-                  }
+                const finalLink =
+                  (request as any)?.meetingLink ||
+                  (request as any)?.meetingUrl ||
+                  firstSession?.meetingLink ||
+                  firstSession?.meetingUrl ||
+                  firstSession?.meetingURL;
+
+                if (finalLink && finalLink !== "undefined" && finalLink.trim() !== "") {
                   return (
-                    <button
-                      disabled
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-500 border border-slate-200 rounded-xl text-[12px] font-semibold cursor-not-allowed shadow-sm"
-                      title="Cố vấn chưa cung cấp đường dẫn cho cuộc họp này"
+                    <a
+                      href={finalLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl text-[12px] font-semibold hover:bg-green-700 transition-all shadow-sm"
                     >
                       <Video className="w-3.5 h-3.5" />
-                      Đang chờ cấp link cuộc họp
-                    </button>
+                      Tham gia vào cuộc họp
+                    </a>
                   );
-                })()}
+                }
+
+                return (
+                  <button
+                    disabled
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-500 border border-slate-200 rounded-xl text-[12px] font-semibold cursor-not-allowed shadow-sm"
+                    title="Cố vấn chưa cung cấp đường dẫn cho cuộc họp này"
+                  >
+                    <Video className="w-3.5 h-3.5" />
+                    Đang chờ cấp link cuộc họp
+                  </button>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -613,7 +1016,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
                 </div>
                 {(currentStatus === "Requested" || currentStatus === "Pending") && !isCancelled && (
                   <button
-                    onClick={() => setToast("Chức năng chỉnh sửa sẽ sớm được mở.")}
+                    onClick={() => toast.info("Chức năng chỉnh sửa sẽ sớm được mở.")}
                     className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-400 hover:text-slate-700 transition-colors"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
@@ -624,40 +1027,51 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
 
               <div className="space-y-6">
                 {/* Objective / Title */}
-                {request.objective && (
+                {requestObjective && (
                   <div>
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Mục tiêu</p>
-                    <p className="text-[15px] font-semibold text-slate-800 leading-relaxed">{request.objective}</p>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Mục tiêu buổi tư vấn</p>
+                    <p className="text-[15px] font-semibold text-slate-800 leading-relaxed">{requestObjective}</p>
                   </div>
                 )}
 
                 {/* Problem Context */}
-                {request.problemContext && (
+                {requestProblemContext && (
                   <div>
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Thách thức</p>
-                    <p className="text-[14px] text-slate-600 leading-relaxed">{request.problemContext}</p>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Mô tả vấn đề</p>
+                    <p className="text-[14px] text-slate-600 leading-relaxed">{requestProblemContext}</p>
                   </div>
                 )}
 
                 {/* Additional Notes */}
-                {request.additionalNotes && (
+                {requestAdditionalNotes && (
                   <div>
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Ghi chú thêm</p>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Câu hỏi / Ghi chú thêm</p>
                     <div className="flex gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                       <span className="w-5 h-5 rounded-full bg-amber-400 text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0">!</span>
-                      <p className="text-[13px] text-slate-700 leading-relaxed">{request.additionalNotes}</p>
+                      <p className="text-[13px] text-slate-700 leading-relaxed">{requestAdditionalNotes}</p>
                     </div>
                   </div>
                 )}
 
                 {/* Scope Tags */}
-                {request.scopeTags && request.scopeTags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
-                    {request.scopeTags.map(tag => (
+                {requestScopeTags.length > 0 && (
+                  <div>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Phạm vi hỗ trợ</p>
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+                    {requestScopeTags.map(tag => (
                       <span key={tag} className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-full text-[12px] font-medium text-slate-500">
                         {tag}
                       </span>
                     ))}
+                    </div>
+                  </div>
+                )}
+
+                {!hasRequestContent && (
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5">
+                    <p className="text-[13px] text-slate-500 leading-relaxed">
+                      Chưa có nội dung chi tiết cho yêu cầu tư vấn này từ API.
+                    </p>
                   </div>
                 )}
               </div>
@@ -673,7 +1087,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
               </div>
 
               <div className="space-y-8 pl-3">
-                {timeline.filter(t => t.done || t.current || t.failed).map((item, i, arr) => (
+                {historyItems.map((item, i, arr) => (
                   <div key={i} className="relative pl-8">
                     {i < arr.length - 1 && (
                       <div className="absolute left-2.5 top-5 bottom-[-20px] w-px bg-slate-100" />
@@ -681,19 +1095,15 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
                     <div className={cn(
                       "absolute left-0 top-1 w-5 h-5 rounded-full border-2 flex items-center justify-center",
                       item.failed ? "bg-red-50 border-red-300" :
-                      item.current ? "bg-amber-400 border-amber-400" :
-                      item.done ? "bg-amber-100 border-amber-300" :
-                      "bg-slate-50 border-slate-200"
+                      "bg-amber-100 border-amber-300"
                     )}>
                       {item.failed
                         ? <X className="w-2.5 h-2.5 text-red-500" />
-                        : item.done
-                          ? <CheckCircle2 className="w-2.5 h-2.5 text-amber-600" />
-                          : <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                        : <CheckCircle2 className="w-2.5 h-2.5 text-amber-600" />
                       }
                     </div>
                     <div>
-                      <p className={cn("text-[13px] font-bold leading-none mb-1", item.failed ? "text-red-600" : item.current ? "text-slate-900" : "text-slate-600")}>{item.label}</p>
+                      <p className={cn("text-[13px] font-bold leading-none mb-1", item.failed ? "text-red-600" : "text-slate-700")}>{item.label}</p>
                       {item.note && <p className="text-[12px] text-slate-400 leading-relaxed">{item.note}</p>}
                       {item.time && <p className="text-[11px] text-slate-300 font-medium mt-1 uppercase tracking-wide">{item.time}</p>}
                     </div>
@@ -749,7 +1159,13 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => router.push(`/startup/messaging?mentorshipId=${advisor?.advisorID}`)}
+                  onClick={() => {
+                    if (blockedChatMessage) {
+                      toast.error(blockedChatMessage);
+                      return;
+                    }
+                    router.push(`/startup/messaging?mentorshipId=${request.mentorshipID}`);
+                  }}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 border border-slate-200 rounded-xl text-[12px] font-semibold text-slate-600 hover:bg-slate-50 transition-all"
                 >
                   <MessageSquare className="w-3.5 h-3.5" />
@@ -780,7 +1196,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
                     <Clock className="w-3.5 h-3.5" />
                     Thời lượng
                   </div>
-                  <span className="text-[12px] font-semibold text-slate-700">{request.durationMinutes ? `${request.durationMinutes} phút` : "—"}</span>
+                  <span className="text-[12px] font-semibold text-slate-700">{durationMinutes ? `${durationMinutes} phút` : "—"}</span>
                 </div>
                 <div className="flex items-center justify-between py-2">
                   <div className="flex items-center gap-2 text-[12px] text-slate-500">

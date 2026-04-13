@@ -198,8 +198,6 @@ export function InvestorHeader({
             </div>
           </Link>
 
-          <div className="flex items-center gap-6">
-          </div>
         </div>
 
         {/* Right Section: Actions & User Details */}
@@ -361,7 +359,7 @@ export function InvestorHeader({
 
           {/* User Profile Card */}
           <div className="flex items-center gap-3.5 relative shrink-0" ref={dropdownRef}>
-            <div className="text-right hidden sm:flex flex-col items-end justify-center min-w-0 max-w-[112px]">
+            <div className="text-right hidden sm:flex flex-col items-end justify-center min-w-0 max-w-[160px] pr-1">
               <p className="text-[13px] font-bold text-[#171611] tracking-tight leading-none truncate w-full text-right">{displayUserName}</p>
               <div className="mt-0.5 inline-flex items-center gap-1">
                 <p className="text-[10px] text-[#878164] font-medium">Nhà Đầu Tư</p>
@@ -390,7 +388,7 @@ export function InvestorHeader({
             </button>
 
             {isDropdownOpen && (
-              <div className="absolute right-0 top-full mt-3 w-72 bg-white rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.13),0_4px_16px_rgba(0,0,0,0.06)] border border-slate-100 overflow-hidden z-[60] animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute right-0 top-full mt-3 w-64 bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.13),0_4px_16px_rgba(0,0,0,0.06)] border border-slate-100 overflow-hidden z-[60] animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="px-5 pt-5 pb-4 bg-white border-b border-slate-100">
                   <div className="flex items-center gap-3.5">
                     <div className="w-12 h-12 rounded-2xl bg-[#fef0d2] flex items-center justify-center text-[#d0a64b] font-black text-xl uppercase flex-shrink-0 overflow-hidden">
@@ -410,7 +408,7 @@ export function InvestorHeader({
                       <div className="flex items-center gap-2 mt-1">
                         <span className="inline-flex items-center text-[10px] font-black text-[#d0a64b] bg-[#fef0d2]/70 border border-[#fef0d2] px-2 py-0.5 rounded-full uppercase tracking-wider">PRO</span>
                         <span className="inline-flex items-center gap-1 text-[12px] text-slate-500 font-medium">
-                          Investor
+                          Nhà Đầu Tư
                           {isKycVerified && <VerifiedRoleMark className="h-3.5 w-3.5" />}
                         </span>
                       </div>
