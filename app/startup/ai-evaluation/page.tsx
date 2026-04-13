@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { StartupShell } from "@/components/startup/startup-shell";
@@ -11,8 +11,10 @@ import {
   Brain, Target, FileBarChart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockReports, mockReadiness } from "./mock-data";
-import { AIEvaluationStatus } from "./types";
+import { GetLatestScore, GetEvaluationHistory, GetEvaluationStatus, GetEvaluationReport } from "@/services/ai/ai.api";
+import { GetStartupProfile } from "@/services/startup/startup.api";
+import { mapCanonicalToReport, mapStatusToUI, normalizeTo100 } from "./canonical-mapper";
+import { AIEvaluationStatus, AIEvaluationReport } from "./types";
 
 /* ─── Status config ────────────────────────────────────────── */
 
@@ -49,9 +51,10 @@ function ScoreRing({ score, size = 80 }: { score: number; size?: number }) {
 
 /* ─── Onboarding (first-time, no evaluation) ───────────────── */
 
-function OnboardingView({ allReady }: { allReady: boolean }) {
+function OnboardingView({ allReady, profile, documents }: { allReady: boolean; profile?: any; documents?: any }) {
   const router = useRouter();
-  const { profile, documents } = mockReadiness;
+  const p = profile ?? { ready: false, completionPercent: 0, items: [] };
+  const d = documents ?? { ready: false, items: [], eligibleDocs: [] };
 
   return (
     <div className="space-y-6">
@@ -126,18 +129,18 @@ function OnboardingView({ allReady }: { allReady: boolean }) {
         {/* Profile */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", profile.ready ? "bg-emerald-50" : "bg-amber-50")}>
-                {profile.ready ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <AlertTriangle className="w-4 h-4 text-amber-500" />}
+                <div className="flex items-center gap-2">
+                  <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", p.ready ? "bg-emerald-50" : "bg-amber-50")}>
+                    {p.ready ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <AlertTriangle className="w-4 h-4 text-amber-500" />}
+                  </div>
+                  <p className="text-[13px] font-bold text-slate-800">Hồ sơ Startup</p>
+                </div>
+                <span className={cn("px-2.5 py-1 rounded-full text-[11px] font-bold", p.ready ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
+                  {p.completionPercent}%
+                </span>
               </div>
-              <p className="text-[13px] font-bold text-slate-800">Hồ sơ Startup</p>
-            </div>
-            <span className={cn("px-2.5 py-1 rounded-full text-[11px] font-bold", profile.ready ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
-              {profile.completionPercent}%
-            </span>
-          </div>
           <div className="space-y-2.5">
-            {profile.items.map((item, i) => (
+            {p.items.map((item: any, i: number) => (
               <div key={i} className="flex items-start gap-2">
                 {item.ready
                   ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
@@ -149,7 +152,7 @@ function OnboardingView({ allReady }: { allReady: boolean }) {
               </div>
             ))}
           </div>
-          {!profile.ready && (
+          {!p.ready && (
             <Link href="/startup/startup-profile" className="flex items-center gap-1 mt-4 text-[12px] font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               Hoàn thiện hồ sơ <ArrowRight className="w-3 h-3" />
             </Link>
@@ -160,17 +163,17 @@ function OnboardingView({ allReady }: { allReady: boolean }) {
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", documents.ready ? "bg-emerald-50" : "bg-amber-50")}>
-                {documents.ready ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <AlertTriangle className="w-4 h-4 text-amber-500" />}
+              <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", d.ready ? "bg-emerald-50" : "bg-amber-50")}> 
+                {d.ready ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <AlertTriangle className="w-4 h-4 text-amber-500" />}
               </div>
               <p className="text-[13px] font-bold text-slate-800">Tài liệu kinh doanh</p>
             </div>
-            <span className={cn("px-2.5 py-1 rounded-full text-[11px] font-bold", documents.ready ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
-              {documents.eligibleDocs.filter(d => d.recommended).length} phù hợp
+            <span className={cn("px-2.5 py-1 rounded-full text-[11px] font-bold", d.ready ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
+              {d.eligibleDocs.filter((doc: any) => doc.recommended).length} phù hợp
             </span>
           </div>
           <div className="space-y-2.5">
-            {documents.items.map((item, i) => (
+            {d.items.map((item: any, i: number) => (
               <div key={i} className="flex items-start gap-2">
                 {item.ready
                   ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
@@ -180,7 +183,7 @@ function OnboardingView({ allReady }: { allReady: boolean }) {
             ))}
           </div>
           <div className="mt-4 pt-3 border-t border-slate-100 space-y-1.5">
-            {documents.eligibleDocs.filter(d => d.recommended).map(doc => (
+            {d.eligibleDocs.filter((dd: any) => dd.recommended).map((doc: any) => (
               <div key={doc.id} className="flex items-center gap-2">
                 {doc.type === "PITCH_DECK" ? <Layout className="w-3 h-3 text-blue-400" /> : <BookOpen className="w-3 h-3 text-violet-400" />}
                 <p className="text-[11px] text-slate-500 truncate">{doc.name}</p>
@@ -188,7 +191,7 @@ function OnboardingView({ allReady }: { allReady: boolean }) {
               </div>
             ))}
           </div>
-          {!documents.ready && (
+          {!d.ready && (
             <Link href="/startup/documents" className="flex items-center gap-1 mt-4 text-[12px] font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               Quản lý tài liệu <ArrowRight className="w-3 h-3" />
             </Link>
@@ -232,9 +235,10 @@ function OnboardingView({ allReady }: { allReady: boolean }) {
 
 /* ─── Dashboard (has evaluation results) ───────────────────── */
 
-function DashboardView({ latestCompleted }: { latestCompleted: NonNullable<typeof mockReports[0]> }) {
+function DashboardView({ latestCompleted, profile, documents }: { latestCompleted: NonNullable<AIEvaluationReport>; profile?: any; documents?: any }) {
   const router = useRouter();
-  const { profile, documents } = mockReadiness;
+  const p = profile ?? { ready: true, completionPercent: 100, items: [] };
+  const d = documents ?? { ready: true, items: [], eligibleDocs: [] };
   const status: AIEvaluationStatus = "COMPLETED";
   const statusCfg = STATUS_CFG[status];
 
@@ -254,8 +258,8 @@ function DashboardView({ latestCompleted }: { latestCompleted: NonNullable<typeo
               {statusCfg.label}
             </span>
           </div>
-          <p className="text-[13px] text-slate-400">
-            AI đánh giá startup dựa trên dữ liệu hồ sơ và tài liệu kinh doanh đã tải lên.
+          <p className="text-[12px] text-slate-400">
+            Lần đánh giá gần nhất: <span className="font-semibold text-slate-500">{latestCompleted.calculatedAt}</span>
           </p>
           <p className="text-[12px] text-slate-400 mt-1">
             Lần đánh giá gần nhất: <span className="font-semibold text-slate-500">{latestCompleted.calculatedAt}</span>
@@ -275,16 +279,16 @@ function DashboardView({ latestCompleted }: { latestCompleted: NonNullable<typeo
         {/* Profile Readiness */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
           <div className="flex items-center gap-2 mb-4">
-            <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", profile.ready ? "bg-emerald-50" : "bg-amber-50")}>
-              {profile.ready ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <AlertTriangle className="w-4 h-4 text-amber-500" />}
+            <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", p.ready ? "bg-emerald-50" : "bg-amber-50")}>
+              {p.ready ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <AlertTriangle className="w-4 h-4 text-amber-500" />}
             </div>
             <div>
               <p className="text-[13px] font-bold text-slate-800">Hồ sơ Startup</p>
-              <p className="text-[11px] text-slate-400">{profile.completionPercent}% hoàn thành</p>
+              <p className="text-[11px] text-slate-400">{p.completionPercent}% hoàn thành</p>
             </div>
           </div>
           <div className="space-y-2.5">
-            {profile.items.map((item, i) => (
+            {p.items.map((item: any, i: number) => (
               <div key={i} className="flex items-start gap-2">
                 {item.ready ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" /> : <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />}
                 <div>
@@ -299,16 +303,16 @@ function DashboardView({ latestCompleted }: { latestCompleted: NonNullable<typeo
         {/* Document Readiness */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
           <div className="flex items-center gap-2 mb-4">
-            <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", documents.ready ? "bg-emerald-50" : "bg-amber-50")}>
-              {documents.ready ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <AlertTriangle className="w-4 h-4 text-amber-500" />}
+            <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", d.ready ? "bg-emerald-50" : "bg-amber-50")}> 
+              {d.ready ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <AlertTriangle className="w-4 h-4 text-amber-500" />}
             </div>
             <div>
               <p className="text-[13px] font-bold text-slate-800">Tài liệu kinh doanh</p>
-              <p className="text-[11px] text-slate-400">{documents.eligibleDocs.filter(d => d.recommended).length} tài liệu phù hợp</p>
+              <p className="text-[11px] text-slate-400">{d.eligibleDocs.filter((doc: any) => doc.recommended).length} tài liệu phù hợp</p>
             </div>
           </div>
           <div className="space-y-2.5">
-            {documents.items.map((item, i) => (
+            {d.items.map((item: any, i: number) => (
               <div key={i} className="flex items-start gap-2">
                 {item.ready ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" /> : <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />}
                 <p className="text-[12px] text-slate-600">{item.label}</p>
@@ -316,7 +320,7 @@ function DashboardView({ latestCompleted }: { latestCompleted: NonNullable<typeo
             ))}
           </div>
           <div className="mt-4 pt-3 border-t border-slate-100 space-y-1.5">
-            {documents.eligibleDocs.filter(d => d.recommended).map(doc => (
+            {d.eligibleDocs.filter((doc: any) => doc.recommended).map((doc: any) => (
               <div key={doc.id} className="flex items-center gap-2">
                 {doc.type === "PITCH_DECK" ? <Layout className="w-3 h-3 text-blue-400" /> : <BookOpen className="w-3 h-3 text-violet-400" />}
                 <p className="text-[11px] text-slate-500 truncate">{doc.name}</p>
@@ -400,7 +404,7 @@ function DashboardView({ latestCompleted }: { latestCompleted: NonNullable<typeo
               <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center group-hover:bg-amber-50 transition-colors"><History className="w-5 h-5 text-slate-400 group-hover:text-amber-500 transition-colors" /></div>
               <div>
                 <p className="text-[14px] font-bold text-slate-800">Lịch sử đánh giá</p>
-                <p className="text-[12px] text-slate-400">{mockReports.length} lượt đánh giá</p>
+                <p className="text-[12px] text-slate-400">{latestCompleted ? 1 : 0} lượt đánh giá</p>
               </div>
             </div>
             <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-amber-400 transition-colors" />
@@ -433,25 +437,290 @@ function DashboardView({ latestCompleted }: { latestCompleted: NonNullable<typeo
   );
 }
 
+function PendingRunView({ run, status, onRefresh }: { run: any; status: AIEvaluationStatus | null; onRefresh: () => void }) {
+  const router = useRouter();
+  const statusCfg = (status && STATUS_CFG[status]) || STATUS_CFG.QUEUED;
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200/80 shadow p-6 mb-6">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center">{statusCfg.icon}</div>
+          <div>
+            <p className="text-[16px] font-bold text-slate-900">Đang xử lý đánh giá</p>
+            <p className="text-[13px] text-slate-500 mt-1">ID: {run?.evaluationId ?? "-"} • {run?.calculatedAt ?? ""}</p>
+            <p className="text-[13px] text-slate-600 mt-3">Trạng thái hiện tại: <span className={cn("font-semibold ml-1", statusCfg.color)}>{statusCfg.label}</span></p>
+            {run?.overallScore > 0 && (
+              <p className="text-[20px] font-black text-slate-900 mt-3">{run.overallScore}/100</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button onClick={() => router.push(`/startup/ai-evaluation/${run?.evaluationId}`)} className="h-9 px-4 rounded-xl bg-slate-100 text-slate-700 text-[13px] font-semibold hover:bg-slate-200">Xem chi tiết</button>
+          <button onClick={onRefresh} className="h-9 px-4 rounded-xl bg-[#eec54e] text-slate-900 text-[13px] font-bold hover:bg-[#e6b800]">Làm mới</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Page ─────────────────────────────────────────────────── */
 
 function AIEvaluationHomePageInner() {
   const searchParams = useSearchParams();
-  const latestCompleted = mockReports.find(r => r.status === "COMPLETED" && r.isCurrent);
-  const { profile, documents } = mockReadiness;
-  const allReady = profile.ready && documents.ready;
+  const [latestCompleted, setLatestCompleted] = useState<AIEvaluationReport | null>(null);
+  const [latestRun, setLatestRun] = useState<any | null>(null);
+  const [runStatus, setRunStatus] = useState<AIEvaluationStatus | null>(null);
+  const [runLoading, setRunLoading] = useState<boolean>(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<any>({ ready: false, completionPercent: 0, items: [] });
+  const [documents, setDocuments] = useState<any>({ ready: false, items: [], eligibleDocs: [] });
+  const [loading, setLoading] = useState<boolean>(true);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        // Load profile first to get startupId. Normalise completeness field names and
+        // compute a heuristic if backend doesn't provide a percent value.
+        const pr = await GetStartupProfile() as unknown as any;
+        const pdata = pr?.data ?? pr ?? {};
+        const computeCompleteness = (d: any) => {
+          const keys = [
+            "companyName",
+            "oneLiner",
+            "description",
+            "industryID",
+            "stage",
+            "teamSize",
+            "pitchDeckUrl",
+            "problemStatement",
+            "solutionSummary",
+            "marketScope",
+            "logoURL",
+            "country",
+            "location",
+          ];
+          let filled = 0;
+          for (const k of keys) {
+            const v = d[k] ?? d[k === "teamSize" ? "TeamSize" : k.charAt(0).toUpperCase() + k.slice(1)];
+            if (Array.isArray(v)) {
+              if (v.length) filled += 1;
+            } else if (v !== undefined && v !== null && String(v).trim() !== "") {
+              filled += 1;
+            }
+          }
+          return Math.round((filled / keys.length) * 100);
+        };
+
+        const completeness = pdata?.profileCompleteness ?? pdata?.completionPercent ?? pdata?.completion ?? pdata?.percent ?? computeCompleteness(pdata);
+        const prof = {
+          ready: Boolean(pdata?.isComplete ?? pdata?.ready ?? pdata?.isReady ?? false),
+          completionPercent: completeness,
+          items: pdata?.items ?? pdata?.checks ?? [],
+        };
+        const docs = {
+          ready: Boolean(pdata?.hasDocuments ?? (Array.isArray(pdata?.documents) && pdata.documents.length > 0)),
+          items: pdata?.documents ?? [],
+          eligibleDocs: pdata?.eligibleDocs ?? pdata?.documents ?? [],
+        };
+        if (!cancelled) { setProfile(prof); setDocuments(docs); }
+
+        const startupId = pdata?.startupID ?? pdata?.startupId ?? pdata?.StartupID ?? 0;
+
+        // Try to fetch latest score (may 404 if no score yet)
+        try {
+          const sres = await GetLatestScore() as unknown as any;
+          const spayload = sres?.data ?? sres;
+          if (spayload) {
+            const runId = spayload?.runId ?? spayload?.RunId ?? spayload?.id ?? spayload?.evaluationId ?? 0;
+            const canonical = spayload?.report ?? spayload?.Report ?? spayload;
+            const mapped = mapCanonicalToReport(Number(runId) || 0, canonical);
+            if (!cancelled) setLatestCompleted(mapped);
+          } else {
+            if (!cancelled) setLatestCompleted(null);
+          }
+        } catch (err: any) {
+          if (!cancelled) {
+            setLatestCompleted(null);
+            if (!err?.response || err?.response?.status !== 404) setApiError(err?.message ?? "Lỗi khi lấy điểm mới");
+          }
+        }
+
+        // Load evaluation history (to find any recent run in progress)
+        try {
+          if (startupId) {
+            const hres = await GetEvaluationHistory(startupId) as unknown as any;
+            const list = hres?.data ?? hres ?? [];
+            if (Array.isArray(list) && list.length > 0) {
+              const r = list[0];
+              const evaluationId = String(r?.runId ?? r?.RunId ?? r?.id ?? r?.Id ?? r?.run_id ?? r?.id ?? "");
+              const sid = Number(evaluationId) || 0;
+              const status = mapStatusToUI(r?.status ?? r?.Status ?? r?.StatusName ?? r?.statusName ?? "");
+              const overallScore = normalizeTo100(r?.overallScore ?? r?.OverallScore ?? r?.overall_score ?? 0);
+              const calculatedAt = r?.updatedAt ?? r?.updated_at ?? r?.submittedAt ?? r?.submitted_at ?? r?.calculatedAt ?? "";
+              const snapshotLabel = r?.snapshotLabel ?? r?.label ?? r?.title ?? "";
+              const mappedRun = {
+                evaluationId,
+                startupId: String(r?.startupId ?? r?.StartupId ?? r?.startupID ?? ""),
+                status,
+                overallScore,
+                calculatedAt,
+                snapshotLabel,
+                executiveSummary: r?.summary ?? r?.executiveSummary ?? "",
+              } as any;
+
+              // If the most recent run is already completed, try to fetch its report and show it as the latestCompleted.
+              if (status === "COMPLETED") {
+                try {
+                  if (!cancelled) {
+                    // Only fetch report if we don't already have a latestCompleted
+                    if (!latestCompleted) {
+                      const rres = await GetEvaluationReport(sid) as unknown as any;
+                      const reportPayload = rres?.data?.report ?? rres?.data ?? rres;
+                      const mapped = mapCanonicalToReport(sid, reportPayload);
+                      if (!cancelled) {
+                        setLatestCompleted(mapped);
+                        setLatestRun(null);
+                        setRunStatus(status);
+                      }
+                    } else {
+                      if (!cancelled) { setLatestRun(null); setRunStatus(status); }
+                    }
+                  }
+                } catch (err) {
+                  // If fetching report failed, fall back to showing the run summary so user can refresh
+                  if (!cancelled) { setLatestRun(mappedRun); setRunStatus(status); }
+                }
+              } else {
+                if (!cancelled) { setLatestRun(mappedRun); setRunStatus(status); }
+              }
+            }
+          }
+        } catch (err: any) {
+          if (!cancelled) {
+            setLatestRun(null);
+            if (!err?.response || err?.response?.status !== 404) setApiError(err?.message ?? "Lỗi khi lấy lịch sử đánh giá");
+          }
+        }
+
+      } catch (err: any) {
+        console.error("Failed to load AI evaluation home data", err);
+        if (!cancelled) {
+          setProfile({ ready: false, completionPercent: 0, items: [] });
+          setDocuments({ ready: false, items: [], eligibleDocs: [] });
+          setApiError(err?.message ?? "Lỗi khi tải dữ liệu trang");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Poll status for an in-progress run
+  useEffect(() => {
+    if (!latestRun || !runStatus) return;
+    const nonTerminal = runStatus !== "COMPLETED" && runStatus !== "FAILED" && runStatus !== "INSUFFICIENT_DATA" && runStatus !== "ACCESS_RESTRICTED";
+    if (!nonTerminal) return;
+
+    let cancelled = false;
+    const iv = setInterval(async () => {
+      try {
+        setRunLoading(true);
+        const sid = Number(latestRun.evaluationId);
+        if (!sid) return;
+        const sres = await GetEvaluationStatus(sid) as unknown as any;
+        const spayload = sres?.data ?? sres ?? {};
+        const newStatus = mapStatusToUI(spayload?.status ?? spayload?.Status ?? spayload?.StatusName ?? spayload?.statusName ?? "");
+        if (newStatus && newStatus !== runStatus) setRunStatus(newStatus);
+
+        if (newStatus === "COMPLETED") {
+          try {
+            const rres = await GetEvaluationReport(sid) as unknown as any;
+            const reportPayload = rres?.data?.report ?? rres?.data ?? rres;
+            const mapped = mapCanonicalToReport(sid, reportPayload);
+            if (!cancelled) {
+              setLatestCompleted(mapped);
+              setLatestRun(null);
+            }
+          } catch (err) {
+            // report not ready or fetch failed; will retry
+          }
+          clearInterval(iv);
+        }
+
+        if (newStatus === "FAILED") {
+          // stop polling on failure; keep latestRun to show failure state
+          clearInterval(iv);
+        }
+      } catch (err) {
+        // ignore transient errors
+      } finally {
+        setRunLoading(false);
+      }
+    }, 8000);
+
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [latestRun, runStatus]);
+
+  const allReady = profile?.ready && documents?.ready;
   // ?demo=new to preview onboarding state
   const forceNew = searchParams.get("demo") === "new";
   const hasResult = !forceNew && !!latestCompleted;
 
+  const isProcessingRun = latestRun && runStatus && !(runStatus === "COMPLETED" || runStatus === "FAILED" || runStatus === "INSUFFICIENT_DATA" || runStatus === "ACCESS_RESTRICTED");
+
+  const handleRefreshRun = async () => {
+    if (!latestRun) return;
+    try {
+      setRunLoading(true);
+      const sid = Number(latestRun.evaluationId);
+      if (!sid) return;
+      const sres = await GetEvaluationStatus(sid) as unknown as any;
+      const spayload = sres?.data ?? sres ?? {};
+      const newStatus = mapStatusToUI(spayload?.status ?? spayload?.Status ?? spayload?.StatusName ?? spayload?.statusName ?? "");
+      setRunStatus(newStatus);
+      if (newStatus === "COMPLETED") {
+        const rres = await GetEvaluationReport(sid) as unknown as any;
+        const reportPayload = rres?.data?.report ?? rres?.data ?? rres;
+        const mapped = mapCanonicalToReport(sid, reportPayload);
+        setLatestCompleted(mapped);
+        setLatestRun(null);
+      }
+    } catch (err) {
+      console.error("Refresh run failed", err);
+    } finally {
+      setRunLoading(false);
+    }
+  };
+
   return (
     <StartupShell>
-      <div className="max-w-[1100px] mx-auto pb-20 animate-in fade-in duration-500">
-        {hasResult && latestCompleted
-          ? <DashboardView latestCompleted={latestCompleted} />
-          : <OnboardingView allReady={allReady} />
-        }
+      <div className="max-w-[1100px] mx-auto pb-20 animate-in fade-in duration-500 min-h-[600px]">
+        {/* API error banner */}
+        {apiError && (
+          <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-100 flex items-center justify-between">
+            <div className="text-sm text-red-700">{apiError}</div>
+            <div className="flex gap-2">
+              <button onClick={() => { setApiError(null); window.location.reload(); }} className="h-9 px-3 rounded bg-red-600 text-white text-[12px] font-semibold">Thử lại</button>
+              <button onClick={() => setApiError(null)} className="h-9 px-3 rounded bg-slate-100 text-slate-700 text-[12px] font-semibold">Đóng</button>
+            </div>
+          </div>
+        )}
+
+        {/* Show a small banner for an in-progress run to avoid swapping major page content */}
+        {isProcessingRun && latestRun && (
+          <PendingRunView run={latestRun} status={runStatus} onRefresh={handleRefreshRun} />
+        )}
+
+        {/* Main content stays mounted to reduce layout shifts */}
+        {hasResult && latestCompleted ? (
+          <DashboardView latestCompleted={latestCompleted} profile={profile} documents={documents} />
+        ) : (
+          <OnboardingView allReady={allReady} profile={profile} documents={documents} />
+        )}
       </div>
     </StartupShell>
   );
