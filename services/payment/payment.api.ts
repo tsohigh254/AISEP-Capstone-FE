@@ -5,6 +5,7 @@ export enum TargetPlan {
   Pro = 1,
   Fundraising = 2
 }
+
 export const CreatePaymentLink = (amount: number, mentorshipId: number) => {
   return axios.post<IBackendRes<IPaymentInfo>>(
     "/api/Payment/create-payment-link",
@@ -18,3 +19,11 @@ export const CreatePaymentLinkForSubscription = (targetPlan: TargetPlan, amount:
     { targetPlan, amount }
   );
 };
+
+export const Cashout = (accountNumber : string, bin : string, transactionId : number) => {
+  return axios.post<IBackendRes<string>>(`/api/Payment/cashout`, {
+    accountNumber,
+    bin,
+    transactionId
+  })
+}
