@@ -68,7 +68,41 @@ export default function StartupProfileViewPage() {
                     GetIndustriesFlat().catch(() => [] as IIndustryFlat[]),
                 ]);
                 if ((resProfile.success || resProfile.isSuccess) && resProfile.data) {
-                    setP(resProfile.data);
+                    const data: any = resProfile.data;
+                    const computeCompleteness = (d: any) => {
+                        const keys = [
+                            "companyName",
+                            "oneLiner",
+                            "description",
+                            "industryID",
+                            "stage",
+                            "teamSize",
+                            "pitchDeckUrl",
+                            "problemStatement",
+                            "solutionSummary",
+                            "marketScope",
+                            "logoURL",
+                            "country",
+                            "location",
+                        ];
+                        let filled = 0;
+                        for (const k of keys) {
+                            const v = d[k] ?? d[k === "teamSize" ? "TeamSize" : k.charAt(0).toUpperCase() + k.slice(1)];
+                            if (Array.isArray(v)) {
+                                if (v.length) filled += 1;
+                            } else if (v !== undefined && v !== null && String(v).trim() !== "") {
+                                filled += 1;
+                            }
+                        }
+                        return Math.round((filled / keys.length) * 100);
+                    };
+
+                    const completeness = data.profileCompleteness ?? data.completionPercent ?? data.completion ?? data.percent ?? computeCompleteness(data);
+                    data.profileCompleteness = completeness;
+                    data.completionPercent = completeness;
+                    data.completion = completeness;
+
+                    setP(data);
                 } else {
                     setP(null);
                 }

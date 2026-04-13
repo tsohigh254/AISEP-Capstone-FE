@@ -1,16 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
   Sparkles, ArrowLeft, History, Search, ArrowUpDown,
   CheckCircle2, XCircle, Clock, ChevronRight, FileText,
   BarChart3, Filter,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockReports } from "../mock-data";
-import { AIEvaluationStatus } from "../types";
+import { AIEvaluationReport, AIEvaluationStatus } from "../types";
+import { GetStartupProfile } from "@/services/startup/startup.api";
+import { GetEvaluationHistory } from "@/services/ai/ai.api";
+import { mapStatusToUI, normalizeTo100 } from "../canonical-mapper";
 
 /* ─── Status config ────────────────────────────────────────── */
 
@@ -29,9 +32,72 @@ export default function AIEvaluationHistoryPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | AIEvaluationStatus>("all");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+  const [reports, setReports] = useState<AIEvaluationReport[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadHistory() {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const profileRes = await GetStartupProfile() as unknown as any;
+        const startupId = profileRes?.data?.startupID ?? profileRes?.data?.StartupID;
+        if (!startupId) {
+          setReports([]);
+          return;
+        }
+        const histRes = await GetEvaluationHistory(startupId) as unknown as any;
+        const list = histRes?.data ?? histRes ?? [];
+        const mapped = (list || []).map((r: any, idx: number) => {
+          const status = mapStatusToUI(r.status ?? r.Status ?? r.StatusName ?? "");
+          const overallScore = normalizeTo100(r.overallScore ?? r.OverallScore ?? r.overall_score ?? 0);
+          const calculatedAt = r.updatedAt ?? r.updated_at ?? r.submittedAt ?? r.submitted_at ?? "";
+          return {
+            evaluationId: String(r.runId ?? r.RunId ?? r.id ?? r.Id ?? idx),
+            startupId: String(r.startupId ?? r.StartupId ?? r.startupID ?? ""),
+            status,
+            overallScore,
+            pitchDeckScore: 0,
+            businessPlanScore: 0,
+            teamScore: 0,
+            marketScore: 0,
+            productScore: 0,
+            tractionScore: 0,
+            financialScore: 0,
+            calculatedAt,
+            generatedAt: r.generatedAt ?? r.generated_at ?? "",
+            isCurrent: idx === 0,
+            configVersion: r.configVersion ?? r.config_version ?? "",
+            modelVersion: r.modelVersion ?? r.model_version ?? "",
+            promptVersion: r.promptVersion ?? r.prompt_version ?? "",
+            snapshotLabel: r.snapshotLabel ?? r.label ?? "",
+            warningMessages: [],
+            executiveSummary: "",
+            strengths: [],
+            opportunities: [],
+            risks: [],
+            concerns: [],
+            gaps: [],
+            recommendations: [],
+            subMetrics: { team: [], market: [], product: [], traction: [], financial: [] },
+          } as AIEvaluationReport;
+        });
+        if (!cancelled) setReports(mapped);
+      } catch (err: any) {
+        console.error("Load evaluation history failed", err);
+        setLoadError(err?.message ?? "Không thể tải lịch sử đánh giá");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    loadHistory();
+    return () => { cancelled = true; };
+  }, []);
 
   // Filter & sort
-  const filtered = mockReports
+  const filtered = reports
     .filter(r => {
       if (statusFilter !== "all" && r.status !== statusFilter) return false;
       if (search) {
@@ -56,6 +122,18 @@ export default function AIEvaluationHistoryPage() {
     <StartupShell>
       <div className="max-w-[1100px] mx-auto pb-20 animate-in fade-in duration-500">
 
+        {loading && (
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow p-10 text-center mb-6">
+            <Loader2 className="w-8 h-8 text-[#eec54e] mx-auto animate-spin mb-3" />
+            <p className="text-sm text-slate-500">Đang tải lịch sử đánh giá...</p>
+          </div>
+        )}
+
+        {loadError && (
+          <div className="bg-red-50 rounded-2xl border border-red-100 p-4 mb-6">
+            <p className="text-sm text-red-700">{loadError}</p>
+          </div>
+        )}
         {/* Back */}
         <button
           onClick={() => router.push("/startup/ai-evaluation")}
@@ -138,10 +216,10 @@ export default function AIEvaluationHistoryPage() {
               <History className="w-6 h-6 text-slate-300" />
             </div>
             <p className="text-[14px] font-bold text-slate-400 mb-1">
-              {mockReports.length === 0 ? "Chưa có lịch sử đánh giá" : "Không tìm thấy kết quả"}
+              {reports.length === 0 ? "Chưa có lịch sử đánh giá" : "Không tìm thấy kết quả"}
             </p>
             <p className="text-[12px] text-slate-300">
-              {mockReports.length === 0 ? "Yêu cầu đánh giá AI để bắt đầu." : "Thử thay đổi bộ lọc hoặc từ khóa."}
+              {reports.length === 0 ? "Yêu cầu đánh giá AI để bắt đầu." : "Thử thay đổi bộ lọc hoặc từ khóa."}
             </p>
           </div>
         ) : (
