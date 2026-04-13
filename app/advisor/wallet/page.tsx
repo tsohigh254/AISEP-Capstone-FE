@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
+import { Cashout } from "@/services/payment/payment.api";
 import {
   ETransactionStatus,
   ETransactionType,
@@ -10,6 +11,7 @@ import {
   ITransactionInfo,
   IWalletInfo,
 } from "@/services/wallet/wallet.api";
+import { GetBankOptions, IBankOption } from "@/services/external/external.api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
@@ -99,13 +101,36 @@ function statusBadgeClass(statusValue: ITransactionInfo["status"]) {
   return "bg-slate-100 text-slate-700 border-slate-200";
 }
 
+function isDepositTransaction(tx: ITransactionInfo) {
+  const status = String(tx.status ?? "").trim().toLowerCase();
+  const type = String(tx.type ?? "").trim().toLowerCase();
+  const typeAsNumber = typeof tx.type === "number" ? tx.type : Number(tx.type);
+
+  if (status === "deposit" || type === "deposit") {
+    return true;
+  }
+
+  return !Number.isNaN(typeAsNumber) && typeAsNumber === ETransactionType.Deposit;
+}
+
+interface ICashoutDraft {
+  accountNumber: string;
+  bin: string;
+}
+
 export default function AdvisorWalletPage() {
   const [walletInfo, setWalletInfo] = useState<IWalletInfo | null>(null);
   const [transactions, setTransactions] = useState<ITransactionInfo[]>([]);
+  const [banks, setBanks] = useState<IBankOption[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoadingWallet, setIsLoadingWallet] = useState(true);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
+  const [isLoadingBanks, setIsLoadingBanks] = useState(true);
+  const [cashoutDrafts, setCashoutDrafts] = useState<Record<number, ICashoutDraft>>({});
+  const [cashoutLoadingId, setCashoutLoadingId] = useState<number | null>(null);
+  const [cashoutError, setCashoutError] = useState<string | null>(null);
+  const [cashoutSuccess, setCashoutSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -174,11 +199,95 @@ export default function AdvisorWalletPage() {
   }, [loadWallet]);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const loadBanks = async () => {
+      setIsLoadingBanks(true);
+      try {
+        const bankOptions = await GetBankOptions();
+        if (!isMounted) return;
+        setBanks(bankOptions);
+      } catch (bankError) {
+        console.error(bankError);
+        if (!isMounted) return;
+        setBanks([]);
+      } finally {
+        if (isMounted) {
+          setIsLoadingBanks(false);
+        }
+      }
+    };
+
+    void loadBanks();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!walletInfo?.walletId) return;
     void fetchTransactions(walletInfo.walletId, page, typeFilter, statusFilter);
   }, [fetchTransactions, page, statusFilter, typeFilter, walletInfo?.walletId]);
 
   const hasTransactions = useMemo(() => transactions.length > 0, [transactions.length]);
+
+  const updateCashoutDraft = useCallback((transactionId: number, patch: Partial<ICashoutDraft>) => {
+    setCashoutDrafts((prev) => {
+      const current = prev[transactionId] ?? { accountNumber: "", bin: "" };
+      return {
+        ...prev,
+        [transactionId]: {
+          ...current,
+          ...patch,
+        },
+      };
+    });
+  }, []);
+
+  const handleCashout = useCallback(
+    async (tx: ITransactionInfo) => {
+      const draft = cashoutDrafts[tx.transactionID] ?? { accountNumber: "", bin: "" };
+
+      if (!draft.bin) {
+        setCashoutSuccess(null);
+        setCashoutError(`Vui lòng chọn ngân hàng cho giao dịch #${tx.transactionID}.`);
+        return;
+      }
+
+      if (!draft.accountNumber.trim()) {
+        setCashoutSuccess(null);
+        setCashoutError(`Vui lòng nhập số tài khoản cho giao dịch #${tx.transactionID}.`);
+        return;
+      }
+
+      setCashoutLoadingId(tx.transactionID);
+      setCashoutError(null);
+      setCashoutSuccess(null);
+
+      try {
+        await Cashout(draft.accountNumber.trim(), draft.bin, tx.transactionID);
+        setCashoutSuccess(`Đã gửi yêu cầu rút tiền cho giao dịch #${tx.transactionID}.`);
+
+        setCashoutDrafts((prev) => ({
+          ...prev,
+          [tx.transactionID]: { accountNumber: "", bin: "" },
+        }));
+
+        const wallet = await loadWallet();
+        if (wallet?.walletId) {
+          await fetchTransactions(wallet.walletId, page, typeFilter, statusFilter);
+        }
+      } catch (cashoutApiError) {
+        console.error(cashoutApiError);
+        setCashoutSuccess(null);
+        setCashoutError(`Rút tiền thất bại cho giao dịch #${tx.transactionID}. Vui lòng thử lại.`);
+      } finally {
+        setCashoutLoadingId(null);
+      }
+    },
+    [cashoutDrafts, fetchTransactions, loadWallet, page, statusFilter, typeFilter],
+  );
 
   return (
     <AdvisorShell>
@@ -208,6 +317,16 @@ export default function AdvisorWalletPage() {
                   Thử lại
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {(cashoutError || cashoutSuccess) && (
+          <Card className={cashoutError ? "border-rose-200 bg-rose-50" : "border-emerald-200 bg-emerald-50"}>
+            <CardContent className="pt-6">
+              <p className={`text-sm font-medium ${cashoutError ? "text-rose-700" : "text-emerald-700"}`}>
+                {cashoutError ?? cashoutSuccess}
+              </p>
             </CardContent>
           </Card>
         )}
@@ -357,20 +476,92 @@ export default function AdvisorWalletPage() {
                     <TableHead>Trạng thái</TableHead>
                     <TableHead className="text-right">Số tiền</TableHead>
                     <TableHead>Thời gian</TableHead>
+                    <TableHead>Rút tiền</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {transactions.map((tx) => (
-                    <TableRow key={tx.transactionID}>
-                      <TableCell className="font-medium">{tx.transactionID}</TableCell>
-                      <TableCell>{normalizeTypeLabel(tx.type)}</TableCell>
-                      <TableCell>
-                        <Badge className={statusBadgeClass(tx.status)}>{normalizeStatusLabel(tx.status)}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">{formatCurrency(tx.amount)}</TableCell>
-                      <TableCell>{formatDate(tx.createdAt)}</TableCell>
-                    </TableRow>
-                  ))}
+                  {transactions.map((tx) => {
+                    const isCashoutEnabled = isDepositTransaction(tx);
+                    const draft = cashoutDrafts[tx.transactionID] ?? { accountNumber: "", bin: "" };
+                    const selectedBank = banks.find((bank) => bank.bin === draft.bin);
+
+                    return (
+                      <TableRow key={tx.transactionID}>
+                        <TableCell className="font-medium">{tx.transactionID}</TableCell>
+                        <TableCell>{normalizeTypeLabel(tx.type)}</TableCell>
+                        <TableCell>
+                          <Badge className={statusBadgeClass(tx.status)}>{normalizeStatusLabel(tx.status)}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">{formatCurrency(tx.amount)}</TableCell>
+                        <TableCell>{formatDate(tx.createdAt)}</TableCell>
+                        <TableCell>
+                          {!isCashoutEnabled ? (
+                            <span className="text-xs text-slate-400">Không khả dụng</span>
+                          ) : (
+                            <div className="flex min-w-[320px] flex-col gap-2">
+                              <Select
+                                value={draft.bin}
+                                disabled={isLoadingBanks || cashoutLoadingId === tx.transactionID}
+                                onChange={(event) => {
+                                  updateCashoutDraft(tx.transactionID, { bin: event.target.value });
+                                }}
+                              >
+                                <option value="">
+                                  {isLoadingBanks ? "Đang tải ngân hàng..." : "Chọn ngân hàng"}
+                                </option>
+                                {banks.map((bank) => (
+                                  <option key={`${bank.bin}-${bank.shortName}`} value={bank.bin}>
+                                    {bank.shortName} ({bank.bin})
+                                  </option>
+                                ))}
+                              </Select>
+
+                              {draft.bin && (
+                                <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1">
+                                  {selectedBank?.logo ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={selectedBank.logo}
+                                      alt={selectedBank.shortName ?? "Bank logo"}
+                                      className="h-5 w-5 rounded-sm object-contain"
+                                    />
+                                  ) : null}
+                                  <span className="text-xs text-slate-600">{selectedBank?.shortName}</span>
+                                </div>
+                              )}
+
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="Nhập số tài khoản"
+                                value={draft.accountNumber}
+                                disabled={cashoutLoadingId === tx.transactionID}
+                                onChange={(event) => {
+                                  updateCashoutDraft(tx.transactionID, { accountNumber: event.target.value });
+                                }}
+                              />
+
+                              <Button
+                                size="sm"
+                                disabled={cashoutLoadingId === tx.transactionID}
+                                onClick={() => void handleCashout(tx)}
+                              >
+                                {cashoutLoadingId === tx.transactionID ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Đang xử lý
+                                  </>
+                                ) : (
+                                  "Rút tiền"
+                                )}
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
