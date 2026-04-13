@@ -25,6 +25,7 @@ const routeLabels: Record<string, string> = {
   checkout: "Thanh toán",
   result: "Kết quả thanh toán",
   payments: "Lịch sử thanh toán",
+  subscription: "Gói tài khoản",
   report: "Báo cáo tư vấn",
   feedback: "Gửi đánh giá",
   documents: "Tài liệu & IP",

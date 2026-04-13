@@ -37,6 +37,7 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           build-args: |
             NEXT_PUBLIC_BACKEND_URL=https://aisep.xyz
+            NEXT_PUBLIC_BANK_URI=https://api.vietqr.io/v2/banks
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
