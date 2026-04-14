@@ -120,7 +120,21 @@ export default function StartupPotentialScorePage() {
     return () => { cancelled = true; };
   }, []);
 
-  if (!report && !loading) {
+  if (loading) {
+    return (
+      <StartupShell>
+        <div className="max-w-[800px] mx-auto pb-20 pt-10 text-center animate-in fade-in duration-500">
+          <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
+            <History className="w-8 h-8 text-[#eec54e] animate-spin" />
+          </div>
+          <p className="text-[16px] font-bold text-slate-700 mb-1">Đang tải điểm tiềm năng...</p>
+          <p className="text-[13px] text-slate-400">Vui lòng chờ trong giây lát.</p>
+        </div>
+      </StartupShell>
+    );
+  }
+
+  if (!report) {
     return (
       <StartupShell>
         <div className="max-w-[800px] mx-auto pb-20 pt-10 text-center animate-in fade-in duration-500">
@@ -136,20 +150,6 @@ export default function StartupPotentialScorePage() {
             <Sparkles className="w-4 h-4" />
             Yêu cầu đánh giá AI
           </button>
-        </div>
-      </StartupShell>
-    );
-  }
-
-  if (loading) {
-    return (
-      <StartupShell>
-        <div className="max-w-[800px] mx-auto pb-20 pt-10 text-center animate-in fade-in duration-500">
-          <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
-            <History className="w-8 h-8 text-[#eec54e] animate-spin" />
-          </div>
-          <p className="text-[16px] font-bold text-slate-700 mb-1">Đang tải điểm tiềm năng...</p>
-          <p className="text-[13px] text-slate-400">Vui lòng chờ trong giây lát.</p>
         </div>
       </StartupShell>
     );
