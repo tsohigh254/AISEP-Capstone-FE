@@ -56,8 +56,8 @@ export const GetMasterStages = () => {
     return axios.get<IBackendRes<string[]>>(`/api/master/stages`);
 }
 
-export const GetRecommendations = () => {
-    return axios.get<IBackendRes<IStartupSearchItem[]>>(`/api/investors/recommendations`);
+export const GetRecommendations = (topN: number = 10) => {
+    return axios.get<IBackendRes<any>>(`/api/ai/recommendations/startups`, { params: { topN } });
 }
 
 export const GetStartupById = (id: number) => {

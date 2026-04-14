@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { 
-  BadgeCheck, Bell, Bookmark, Bot, Building2, ChevronRight, CheckCheck, Compass, Handshake, LayoutGrid, Loader2, LogOut, MessageSquare, Settings, ShieldAlert, Trash2,
+  BadgeCheck, Bell, Bookmark, Bot, Building2, ChevronRight, CheckCheck, Compass, Handshake, LayoutGrid, Loader2, LogOut, MessageSquare, Settings, ShieldAlert, Trash2, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -336,6 +336,7 @@ export function InvestorHeader({
                       { icon: Compass, label: "Khám phá Startup", href: "/investor/startups" },
                       { icon: Bookmark, label: "Danh sách theo dõi", href: "/investor/watchlist" },
                       { icon: Bot, label: "Trợ lý đầu tư AI", href: "/investor/ai-chatbot" },
+                      { icon: Sparkles, label: "Gợi ý AI", href: "/investor/recommendations" },
                       { icon: Handshake, label: "Kết nối đầu tư", href: "/investor/connections" },
                       { icon: BadgeCheck, label: "Xác minh nhà đầu tư", href: "/investor/kyc" },
                     ].map((item) => (

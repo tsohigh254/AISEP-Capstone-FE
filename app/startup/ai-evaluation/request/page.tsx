@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
@@ -9,7 +9,8 @@ import {
   AlertTriangle, Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockReadiness, mockProfile } from "../mock-data";
+import { GetStartupProfile } from "@/services/startup/startup.api";
+import { SubmitEvaluation } from "@/services/ai/ai.api";
 
 /* ─── Submission states ────────────────────────────────────── */
 
@@ -27,20 +28,38 @@ const SUBMIT_LABELS: Record<SubmitState, string> = {
 
 export default function RequestAIEvaluationPage() {
   const router = useRouter();
-  const { profile, documents } = mockReadiness;
+  const [profile, setProfile] = useState<any>({ ready: false, completionPercent: 0, items: [] });
+  const [documents, setDocuments] = useState<any>({ ready: false, items: [], eligibleDocs: [] });
+  const [profileSnapshot, setProfileSnapshot] = useState<any | null>(null);
   const allReady = profile.ready && documents.ready;
 
   // Only show Pitch Deck and Business Plan from Documents & IP
-  const aiEligibleDocs = documents.eligibleDocs.filter(d => d.type === "PITCH_DECK" || d.type === "BUSINESS_PLAN");
+  // and require that the document has been anchored on-chain (proofStatus === 'Anchored')
+  const aiEligibleDocs = (documents?.eligibleDocs ?? []).filter((d: any) => {
+    const t = (d.type ?? d.Type ?? '').toString().toUpperCase();
+    const typeOk = t === 'PITCH_DECK' || t === 'BUSINESS_PLAN';
+    const proof = (d.proofStatus ?? d.proofstatus ?? d.ProofStatus ?? d.proof ?? '').toString().toLowerCase();
+    const anchored = proof === 'anchored' || proof === '0';
+    return typeOk && anchored;
+  });
 
-  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(
-    new Set(aiEligibleDocs.filter(d => d.recommended).map(d => d.id))
-  );
+  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
+
+  // Initialize selected docs from API when available
+  useEffect(() => {
+    if (Array.isArray(documents?.eligibleDocs) && selectedDocs.size === 0) {
+      const initial = new Set<string>((documents.eligibleDocs ?? [])
+        .filter((d: any) => d.recommended)
+        .map((d: any) => String(d.id)));
+      if (initial.size > 0) setSelectedDocs(initial);
+    }
+  }, [documents]);
   const [submitState, setSubmitState] = useState<SubmitState>("idle");
   const [confirmed, setConfirmed] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const selectedPitchDeck = aiEligibleDocs.find(d => selectedDocs.has(d.id) && d.type === "PITCH_DECK");
-  const selectedBPlan = aiEligibleDocs.find(d => selectedDocs.has(d.id) && d.type === "BUSINESS_PLAN");
+  const selectedPitchDeck = aiEligibleDocs.find((d: any) => selectedDocs.has(d.id) && d.type === "PITCH_DECK");
+  const selectedBPlan = aiEligibleDocs.find((d: any) => selectedDocs.has(d.id) && d.type === "BUSINESS_PLAN");
   const canSubmit = allReady && confirmed && selectedPitchDeck && submitState === "idle";
 
   const toggleDoc = (id: string) => {
@@ -51,15 +70,90 @@ export default function RequestAIEvaluationPage() {
     });
   };
 
+  // Load startup profile & documents from backend
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await GetStartupProfile() as unknown as any;
+        const pdata = res?.data ?? res ?? {};
+        const prof = {
+          ready: Boolean(pdata?.isComplete ?? pdata?.ready ?? pdata?.isReady ?? false),
+          completionPercent: pdata?.completionPercent ?? pdata?.completion ?? pdata?.percent ?? 0,
+          items: pdata?.items ?? pdata?.checks ?? [],
+        };
+        const docs = {
+          ready: Boolean(pdata?.hasDocuments ?? (Array.isArray(pdata?.documents) && pdata.documents.length > 0)),
+          items: pdata?.documents ?? [],
+          eligibleDocs: pdata?.eligibleDocs ?? pdata?.documents ?? [],
+        };
+        if (!cancelled) {
+          setProfile(prof);
+          setDocuments(docs);
+          setProfileSnapshot(pdata ?? null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setProfile({ ready: false, completionPercent: 0, items: [] });
+          setDocuments({ ready: false, items: [], eligibleDocs: [] });
+          setProfileSnapshot(null);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const handleSubmit = async () => {
     if (!canSubmit) return;
-    setSubmitState("validating");
-    await new Promise(r => setTimeout(r, 1200));
-    setSubmitState("submitting");
-    await new Promise(r => setTimeout(r, 1500));
-    setSubmitState("queued");
-    // After 2s, redirect to home
-    setTimeout(() => router.push("/startup/ai-evaluation"), 2000);
+    setErrorMessage(null);
+    try {
+      setSubmitState("validating");
+      const profileRes = (await GetStartupProfile()) as unknown as IBackendRes<IStartupProfile | null>;
+      const startupId = profileRes?.data?.startupID;
+      if (!startupId) throw new Error("Startup not found");
+      setSubmitState("submitting");
+      const payload = { startupId }; // omit documentIds to let backend use all available docs
+      const res = (await SubmitEvaluation(payload)) as unknown as IBackendRes<any>;
+      console.debug("SubmitEvaluation response:", res);
+      if (res && (res.success || res.isSuccess)) {
+        setSubmitState("queued");
+        setTimeout(() => router.push("/startup/ai-evaluation"), 2000);
+      } else {
+        const msg = res?.message ?? res?.error?.message ?? "Gửi thất bại";
+        setErrorMessage(String(msg));
+        setSubmitState("failed");
+      }
+    } catch (err: any) {
+      console.error("Submit evaluation failed", err);
+      const msg = err?.response?.data?.message ?? err?.message ?? "Mạng hoặc lỗi máy chủ";
+      setErrorMessage(String(msg));
+      setSubmitState("failed");
+    }
+  };
+
+  const saveRequestToQueue = async () => {
+    setErrorMessage(null);
+    try {
+      setSubmitState("submitting");
+      const profileRes = (await GetStartupProfile()) as unknown as IBackendRes<IStartupProfile | null>;
+      const startupId = profileRes?.data?.startupID;
+      if (!startupId) throw new Error("Startup not found");
+
+      if (typeof window === "undefined") throw new Error("No localStorage available");
+
+      const queuedRaw = localStorage.getItem("aiEvaluationQueue") || "[]";
+      const queued = JSON.parse(queuedRaw) as any[];
+      const docIds = Array.from(selectedDocs);
+      queued.push({ startupId, documentIds: docIds, createdAt: new Date().toISOString() });
+      localStorage.setItem("aiEvaluationQueue", JSON.stringify(queued));
+
+      setErrorMessage("Yêu cầu đã được lưu cục bộ. Bạn có thể gửi lại khi dịch vụ hoạt động.");
+      setSubmitState("idle");
+    } catch (err: any) {
+      console.error("Save to queue failed", err);
+      setErrorMessage(err?.message ?? "Không thể lưu yêu cầu");
+      setSubmitState("failed");
+    }
   };
 
   return (
@@ -106,7 +200,7 @@ export default function RequestAIEvaluationPage() {
                     : <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />}
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-semibold text-slate-700">Hồ sơ Startup</p>
-                    <p className="text-[11px] text-slate-400">{profile.completionPercent}% hoàn thành — {profile.items.filter(i => i.ready).length}/{profile.items.length} mục đạt yêu cầu</p>
+                    <p className="text-[11px] text-slate-400">{profile.completionPercent}% hoàn thành — {profile.items.filter((i: any) => i.ready).length}/{profile.items.length} mục đạt yêu cầu</p>
                   </div>
                   <span className={cn("px-2.5 py-1 rounded-full text-[11px] font-bold", profile.ready ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500")}>
                     {profile.ready ? "Đạt" : "Chưa đạt"}
@@ -142,10 +236,10 @@ export default function RequestAIEvaluationPage() {
             {/* Eligible Documents — selectable */}
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
               <p className="text-[14px] font-bold text-slate-800 mb-1">Tài liệu đầu vào cho AI</p>
-              <p className="text-[12px] text-slate-400 mb-4">Chọn tài liệu từ mục Tài liệu & IP. Chỉ hỗ trợ Pitch Deck và Business Plan.</p>
+              <p className="text-[12px] text-slate-400 mb-4">Chọn tài liệu từ mục Tài liệu & IP. Chỉ hỗ trợ Pitch Deck và Business Plan. (Chỉ hiển thị tài liệu đã đưa lên blockchain)</p>
 
               <div className="space-y-2.5">
-                {aiEligibleDocs.map(doc => {
+                {aiEligibleDocs.map((doc: any) => {
                   const selected = selectedDocs.has(doc.id);
                   return (
                     <button
@@ -171,6 +265,11 @@ export default function RequestAIEvaluationPage() {
                     </button>
                   );
                 })}
+                {Array.isArray(documents?.items) && documents.items.length > 0 && aiEligibleDocs.length === 0 && (
+                  <div className="mt-3 px-4 py-3 bg-amber-50 rounded-xl text-[12px] text-amber-700">
+                    Hiện có {documents.items.length} tài liệu nhưng chưa có tài liệu nào được đưa lên blockchain. Vui lòng gửi tài liệu lên blockchain (Verify / Anchor) trước khi gửi yêu cầu AI.
+                  </div>
+                )}
               </div>
             </div>
 
@@ -183,7 +282,7 @@ export default function RequestAIEvaluationPage() {
                   { icon: <Briefcase className="w-4 h-4 text-violet-400" />, label: "Thị trường & Cạnh tranh", desc: "Quy mô, tốc độ tăng trưởng, timing" },
                   { icon: <Layout className="w-4 h-4 text-emerald-400" />, label: "Sản phẩm & Giải pháp", desc: "MVP, feedback, kiến trúc kỹ thuật" },
                   { icon: <Sparkles className="w-4 h-4 text-amber-400" />, label: "Traction & Tài chính", desc: "Doanh thu, tăng trưởng, unit economics" },
-                ].map((item, i) => (
+                ].map((item: any, i: number) => (
                   <div key={i} className="flex items-start gap-3 px-4 py-3 bg-slate-50 rounded-xl">
                     <div className="w-8 h-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center flex-shrink-0">{item.icon}</div>
                     <div>
@@ -204,13 +303,13 @@ export default function RequestAIEvaluationPage() {
               <p className="text-[13px] font-bold text-slate-800 mb-3">Snapshot hồ sơ</p>
               <div className="space-y-2.5">
                 {[
-                  { label: "Tên startup", value: mockProfile.name },
-                  { label: "Giai đoạn", value: mockProfile.stage },
-                  { label: "Ngành", value: mockProfile.industry },
-                  { label: "Năm thành lập", value: String(mockProfile.foundedYear) },
-                  { label: "Quy mô đội ngũ", value: `${mockProfile.teamSize} thành viên` },
-                  { label: "Cập nhật gần nhất", value: mockProfile.lastUpdated },
-                ].map((row, i) => (
+                  { label: "Tên startup", value: profileSnapshot?.companyName ?? profileSnapshot?.name ?? "—" },
+                  { label: "Giai đoạn", value: profileSnapshot?.stageName ?? String(profileSnapshot?.stage ?? "—") },
+                  { label: "Ngành", value: profileSnapshot?.industry ?? "—" },
+                  { label: "Năm thành lập", value: profileSnapshot?.foundedYear ?? profileSnapshot?.foundedDate ?? "—" },
+                  { label: "Quy mô đội ngũ", value: profileSnapshot?.teamSize ? `${profileSnapshot.teamSize} thành viên` : "—" },
+                  { label: "Cập nhật gần nhất", value: profileSnapshot?.lastUpdated ?? profileSnapshot?.updatedAt ?? "—" },
+                ].map((row: any, i: number) => (
                   <div key={i} className="flex items-center justify-between">
                     <span className="text-[12px] text-slate-400">{row.label}</span>
                     <span className="text-[12px] font-semibold text-slate-700">{row.value}</span>
@@ -269,6 +368,30 @@ export default function RequestAIEvaluationPage() {
                 <div className="flex items-start gap-2 mt-3 px-3 py-2 bg-amber-50 rounded-xl">
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" />
                   <p className="text-[11px] text-amber-700">Vui lòng hoàn thiện hồ sơ và tải lên tài liệu trước khi gửi yêu cầu.</p>
+                </div>
+              )}
+              {submitState === "failed" && errorMessage && (
+                <div>
+                  <div className="flex items-start gap-2 mt-3 px-3 py-2 bg-red-50 rounded-xl">
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-[11px] text-red-700">{errorMessage}</p>
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-3">
+                    <button
+                      onClick={() => handleSubmit()}
+                      className="inline-flex items-center gap-2 h-9 px-3 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:opacity-90"
+                    >
+                      Thử lại
+                    </button>
+
+                    <button
+                      onClick={() => saveRequestToQueue()}
+                      className="inline-flex items-center gap-2 h-9 px-3 rounded-xl bg-amber-50 text-amber-700 text-[13px] font-bold hover:opacity-90 border border-amber-100"
+                    >
+                      Lưu và gửi sau
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

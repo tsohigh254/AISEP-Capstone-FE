@@ -142,7 +142,43 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
         try {
             const res = await GetStartupProfile() as IBackendRes<IStartupProfile>;
             if ((res.success || res.isSuccess) && res.data) {
-                const data = res.data;
+                const data = res.data as any;
+                // Ensure we have a profile completeness value. Backend may not provide
+                // a unified field name, so compute a heuristic completeness score
+                // from important profile fields and expose it under a few aliases
+                // used across the app (`profileCompleteness`, `completionPercent`, `completion`).
+                const computeCompleteness = (d: any) => {
+                    const keys = [
+                        "companyName",
+                        "oneLiner",
+                        "description",
+                        "industryID",
+                        "stage",
+                        "teamSize",
+                        "pitchDeckUrl",
+                        "problemStatement",
+                        "solutionSummary",
+                        "marketScope",
+                        "logoURL",
+                        "country",
+                        "location",
+                    ];
+                    let filled = 0;
+                    for (const k of keys) {
+                        const v = d[k] ?? d[k === "teamSize" ? "TeamSize" : k.charAt(0).toUpperCase() + k.slice(1)];
+                        if (Array.isArray(v)) {
+                            if (v.length) filled += 1;
+                        } else if (v !== undefined && v !== null && String(v).trim() !== "") {
+                            filled += 1;
+                        }
+                    }
+                    return Math.round((filled / keys.length) * 100);
+                };
+
+                const completeness = data.profileCompleteness ?? data.completionPercent ?? data.completion ?? data.percent ?? computeCompleteness(data);
+                data.profileCompleteness = completeness;
+                data.completionPercent = completeness;
+                data.completion = completeness;
                 setProfile(data);
                 setForm({
                     companyName: data.companyName || "",

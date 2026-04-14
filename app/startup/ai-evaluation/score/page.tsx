@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
   Sparkles, BarChart3, FileText, History, RefreshCw, ArrowLeft,
@@ -8,7 +9,10 @@ import {
   Users, Globe, Layout, Zap, Banknote, Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockReports } from "../mock-data";
+import { GetLatestScore, GetEvaluationHistory, GetEvaluationReport } from "@/services/ai/ai.api";
+import { GetStartupProfile } from "@/services/startup/startup.api";
+import { mapCanonicalToReport } from "../canonical-mapper";
+import { AIEvaluationReport } from "../types";
 
 /* ─── Score Ring ────────────────────────────────────────────── */
 
@@ -63,7 +67,72 @@ function CategoryBar({ icon, label, score }: { icon: React.ReactNode; label: str
 
 export default function StartupPotentialScorePage() {
   const router = useRouter();
-  const report = mockReports.find(r => r.status === "COMPLETED" && r.isCurrent);
+  const [report, setReport] = useState<AIEvaluationReport | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await GetLatestScore() as unknown as any;
+        const payload = res?.data ?? res;
+        const runId = payload?.runId ?? payload?.RunId ?? payload?.id ?? payload?.evaluationId ?? 0;
+        const canonical = payload?.report ?? payload?.Report ?? payload;
+        let mapped = mapCanonicalToReport(Number(runId) || 0, canonical);
+
+        // If latest score is effectively empty (0) or no canonical report, try fallback to history
+        const isEmptyScore = !mapped || (mapped.overallScore === 0 && (!canonical || Object.keys(canonical).length === 0));
+        if (isEmptyScore) {
+          try {
+            const prof = await GetStartupProfile() as unknown as any;
+            const startupId = prof?.data?.id ?? prof?.id ?? 0;
+            if (startupId) {
+              const hres = await GetEvaluationHistory(Number(startupId)) as unknown as any;
+              const history = hres?.data ?? hres ?? [];
+              const completed = (history || []).find((h: any) => ((h?.status ?? h?.Status ?? "") + "").toLowerCase().includes("completed"));
+              if (completed) {
+                const pythonRunId = completed?.evaluationId ?? completed?.id ?? completed?.evaluation_run_id ?? completed?.evaluation_run_id ?? completed?.evaluationId ?? 0;
+                if (pythonRunId) {
+                  const rres = await GetEvaluationReport(Number(pythonRunId));
+                  const reportPayload = (rres as any)?.data ?? rres;
+                  const mapped2 = mapCanonicalToReport(Number(pythonRunId) || 0, reportPayload);
+                  if (!cancelled) {
+                    setReport(mapped2);
+                    setLoading(false);
+                  }
+                  return;
+                }
+              }
+            }
+          } catch (innerErr) {
+            console.warn("History fallback failed", innerErr);
+          }
+        }
+
+        if (!cancelled) setReport(mapped);
+      } catch (err) {
+        console.error("GetLatestScore failed", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) {
+    return (
+      <StartupShell>
+        <div className="max-w-[800px] mx-auto pb-20 pt-10 text-center animate-in fade-in duration-500">
+          <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
+            <History className="w-8 h-8 text-[#eec54e] animate-spin" />
+          </div>
+          <p className="text-[16px] font-bold text-slate-700 mb-1">Đang tải điểm tiềm năng...</p>
+          <p className="text-[13px] text-slate-400">Vui lòng chờ trong giây lát.</p>
+        </div>
+      </StartupShell>
+    );
+  }
 
   if (!report) {
     return (
