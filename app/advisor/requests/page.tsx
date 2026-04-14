@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import { FormatBadge } from "@/components/advisor/consulting-format-badge";
 import type { IConsultingRequest, ConsultingRequestStatus } from "@/types/advisor-consulting";
-import { GetAdvisorMentorships, AcceptMentorshipRequest, GetMentorshipReport } from "@/services/advisor/advisor.api";
+import { GetAdvisorMentorships, AcceptMentorshipRequest } from "@/services/advisor/advisor.api";
 import { mapMentorshipToConsultingRequest } from "@/services/advisor/advisor.mapper";
 import { toast } from "sonner";
 
@@ -232,17 +232,6 @@ const [isLoading, setIsLoading] = useState(true);
            const itemsArray = rawData?.items || rawData?.data || [];
            const mapped: IConsultingRequest[] = itemsArray.map(mapMentorshipToConsultingRequest);
 
-           await Promise.all(mapped.map(async (item) => {
-               if (item.status === "COMPLETED") {
-                   try {
-                       const reportRes = await GetMentorshipReport(item.mentorshipID as any);
-                       if (reportRes.isSuccess && reportRes.data) {
-                           item.status = "FINALIZED";
-                       }
-                   } catch(e) {}
-               }
-           }));
-
            if (isMounted) setRequests(mapped);
         }
       } catch(err) {
@@ -296,7 +285,7 @@ const [isLoading, setIsLoading] = useState(true);
 
   return (
     <AdvisorShell>
-      <div className="max-w-[1000px] mx-auto space-y-5 animate-in fade-in duration-400">
+      <div className="max-w-[1100px] mx-auto space-y-5 animate-in fade-in duration-400">
 
         {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

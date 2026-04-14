@@ -13,6 +13,8 @@ import {
 import { cn } from "@/lib/utils";
 import { GetStartupProfile, GetMembers } from "@/services/startup/startup.api";
 import { GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
+import { GetStartupKYCStatus } from "@/services/startup/startup-kyc.api";
+import { calcProfileCompleteness } from "@/lib/profile-completeness";
 
 const STAGE_LABELS: Record<string, string> = {
     "0": "Hạt giống (Idea)", "1": "Tiền ươm mầm (Pre-Seed)", "2": "Ươm mầm (Seed)", 
@@ -57,15 +59,17 @@ export default function StartupProfileViewPage() {
     const [members, setMembers] = useState<any[]>([]);
     const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
     const [loading, setLoading] = useState(true);
+    const [kycBadge, setKycBadge] = useState<"with_entity" | "no_entity" | null>(null);
 
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const [resProfile, resMembers, indData] = await Promise.all([
+                const [resProfile, resMembers, indData, resKyc] = await Promise.all([
                     GetStartupProfile() as any,
                     GetMembers() as any,
                     GetIndustriesFlat().catch(() => [] as IIndustryFlat[]),
+                    GetStartupKYCStatus().catch(() => null) as any,
                 ]);
                 if ((resProfile.success || resProfile.isSuccess) && resProfile.data) {
                     const data: any = resProfile.data;
@@ -110,6 +114,13 @@ export default function StartupProfileViewPage() {
                     setMembers(resMembers.data);
                 }
                 setIndustries(indData);
+                const kycData = resKyc?.data ?? resKyc;
+                if (kycData?.workflowStatus === "APPROVED") {
+                    const isLegal =
+                        kycData?.startupVerificationType === "WITH_LEGAL_ENTITY" ||
+                        kycData?.submissionSummary?.startupVerificationType === "WITH_LEGAL_ENTITY";
+                    setKycBadge(isLegal ? "with_entity" : "no_entity");
+                }
             } catch {
                 setP(null);
             } finally {
@@ -142,7 +153,7 @@ export default function StartupProfileViewPage() {
 
     const companyName = p.companyName || "Chưa có tên";
     const initials = companyName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
-    const completeness = p.profileCompleteness || 0;
+    const completeness = calcProfileCompleteness(p, members);
     const completenessColor = completeness >= 80 ? "bg-emerald-500" : completeness >= 50 ? "bg-[#e6cc4c]" : "bg-rose-400";
     
     // SafeArea values
@@ -156,7 +167,9 @@ export default function StartupProfileViewPage() {
         : null;
     const foundedYear = p.foundedDate ? new Date(p.foundedDate).getFullYear() : p.foundedYear;
 
-    const displayIndustry = p.industry || industries.find(x => x.industryID === p.industryID)?.industryName;
+    const childIndustryName = p.industryName || industries.find(x => x.industryID === p.industryID)?.industryName || p.industry;
+    const parentIndustryName = p.parentIndustryName || industries.find(x => x.industryID === industries.find(c => c.industryID === p.industryID)?.parentIndustryID)?.industryName;
+    const displayIndustry = parentIndustryName ? `${parentIndustryName} / ${childIndustryName}` : childIndustryName;
     const displayStage = STAGE_LABELS[p.stage?.toString()] || p.stage;
     const isApproved = !!(p.approvedAt || p.approvedBy);
     const teamSizeValue = p.teamSize ?? p.TeamSize;
@@ -204,7 +217,7 @@ export default function StartupProfileViewPage() {
                     <div className="flex flex-wrap items-center gap-1.5 mb-5">
                         {/* Primary */}
                         {displayStage && <Tag variant="green"><TrendingUp className="w-3 h-3" />{displayStage}</Tag>}
-                        <Tag><Building2 className="w-3 h-3 text-slate-400" />{displayIndustry || "Chưa có ngành"}{p.subIndustry ? ` / ${p.subIndustry}` : ""}</Tag>
+                        <Tag><Building2 className="w-3 h-3 text-slate-400" />{displayIndustry || "Chưa có ngành"}</Tag>
                         {p.marketScope && <Tag variant="blue">{p.marketScope}</Tag>}
                         {/* Secondary — divider + lighter style */}
                         <span className="text-slate-200 text-[14px] mx-0.5">·</span>
@@ -215,6 +228,18 @@ export default function StartupProfileViewPage() {
                             <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
                                 <span className="text-slate-200">·</span> {p.productStatus}
                             </span>
+                        )}
+                        {kycBadge === "with_entity" && (
+                            <Tag variant="green">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Đã đăng ký doanh nghiệp
+                            </Tag>
+                        )}
+                        {kycBadge === "no_entity" && (
+                            <Tag variant="green">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Đã xác minh đội ngũ
+                            </Tag>
                         )}
                     </div>
 
@@ -321,7 +346,7 @@ export default function StartupProfileViewPage() {
                             <div className="space-y-3">
                                 {[
                                     { icon: Layers, label: "Giai đoạn", val: displayStage || "-" },
-                                    { icon: Building2, label: "Ngành", val: `${displayIndustry || "-"} ${p.subIndustry ? `/ ${p.subIndustry}` : ""}` },
+                                    { icon: Building2, label: "Ngành", val: displayIndustry || "-" },
                                     { icon: Globe, label: "Thị trường", val: p.marketScope || "-" },
                                     { icon: CheckCircle2, label: "Sản phẩm", val: p.productStatus || "-" },
                                     { icon: Calendar, label: "Thành lập", val: foundedDateDisplay || (foundedYear ? `${foundedYear}` : "-") },
@@ -471,19 +496,18 @@ export default function StartupProfileViewPage() {
                         </div>
                     </div>
                     <div className="col-span-12 lg:col-span-4 space-y-4">
-                        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
-                            <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest">Xác thực đội ngũ</h3>
-                            <div className="flex items-center gap-2.5">
-                                <div className={cn("w-2 h-2 rounded-full",
-                                    p.validationStatus?.toLowerCase().includes("validat") ? "bg-emerald-500"
-                                    : p.validationStatus ? "bg-amber-400"
-                                    : "bg-slate-300"
-                                )} />
-                                <span className="text-[13px] font-medium text-slate-700">{p.validationStatus || "Chưa xác thực"}</span>
+                        {kycBadge && (
+                            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
+                                <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest">Pháp lý</h3>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                                    <span className="text-[12px] font-medium text-emerald-700">
+                                        {kycBadge === "with_entity" ? "Đã đăng ký doanh nghiệp" : "Đã xác minh đội ngũ"}
+                                    </span>
+                                </div>
+                                {p.enterpriseCode && <InfoPair label="Mã số doanh nghiệp" value={p.enterpriseCode} />}
                             </div>
-                            <InfoPair label="Quy mô team" value={teamSizeValue ? `${teamSizeValue} người` : undefined} />
-                        </div>
-
+                        )}
                         {isApproved && (
                             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
                                 <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest">Thông tin duyệt</h3>

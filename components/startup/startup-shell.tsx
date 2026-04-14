@@ -11,6 +11,11 @@ import { useRouter } from "next/navigation";
 import { GetStartupProfile } from "@/services/startup/startup.api";
 import { Loader2 } from "lucide-react";
 
+// Cache gắn với access token: khi token đổi (logout/login user khác) thì tự động re-check.
+// Tránh trường hợp user A (profile hợp lệ) logout → user B (profile Draft) login cùng session
+// nhưng vẫn bị bỏ qua redirect về /startup/onboard.
+let _verifiedToken: string | null = null;
+
 const routeLabels: Record<string, string> = {
   startup: "Workspace",
   "startup-profile": "Hồ sơ Startup",
@@ -83,9 +88,15 @@ type StartupShellProps = {
 export function StartupShell({ children }: StartupShellProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const [checking, setChecking] = useState(true);
+  const currentToken = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+  // Skip check nếu token hiện tại đã được verify trước đó (cùng user, cùng session)
+  const [checking, setChecking] = useState(currentToken === null || _verifiedToken !== currentToken);
 
   useEffect(() => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+    // Đã verify với token này rồi thì bỏ qua
+    if (token && _verifiedToken === token) return;
+
     // Only guard if NOT already on the onboard page
     if (pathname === "/startup/onboard") {
       setChecking(false);
@@ -101,6 +112,7 @@ export function StartupShell({ children }: StartupShellProps) {
           // Backend now returns 200 with data:null when the startup profile does not exist yet.
           router.replace("/startup/onboard");
         } else {
+          _verifiedToken = token;
           setChecking(false);
         }
       })
@@ -110,7 +122,7 @@ export function StartupShell({ children }: StartupShellProps) {
           router.replace("/startup/onboard");
         } else {
           // Other errors (server down?), maybe let them through or show error
-          setChecking(false); 
+          setChecking(false);
         }
       });
   }, [pathname, router]);

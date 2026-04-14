@@ -82,6 +82,8 @@ declare global {
     contactEmail: string;
     contactPhone: string;
     businessCode: string;
+    /** Mã doanh nghiệp đã xác minh qua KYC — null nếu chưa KYC hoặc không có pháp nhân. */
+    enterpriseCode?: string | null;
     marketScope: string;
     problemStatement: string;
     solutionSummary: string;
@@ -269,8 +271,13 @@ declare global {
     connectionID: number;
     startupID: number;
     startupName: string;
+    startupLogoURL?: string | null;
+    startupStage?: string | null;
+    startupIndustryName?: string | null;
     investorID: number;
     investorName: string;
+    investorPhotoURL?: string | null;
+    firmName?: string | null;
     connectionStatus: string;
     personalizedMessage: string;
     matchScore: number;
@@ -289,28 +296,32 @@ declare global {
     title?: string;
     bio?: string;
     profilePhotoURL?: string;
-    investorType?: string;
-    acceptingConnections?: boolean;
+    investorType?: "INDIVIDUAL_ANGEL" | "INSTITUTIONAL";
     website?: string;
     linkedInURL?: string;
     location?: string;
     country?: string;
     preferredStages?: string[];
     preferredIndustries?: string[];
+    preferredGeographies?: string[];
     averageRating?: number;
     totalConnections?: number;
-    portfolioCount?: number;
-    acceptedConnectionCount?: number;
+    portfolioCount: number;
+    acceptedConnectionCount: number;
     ticketSize?: number;
     ticketSizeMin?: number | null;
     ticketSizeMax?: number | null;
     profileStatus?: string;
     workflowStatus?: string;
     verificationLabel?: string;
-    kycVerified?: boolean;
+    kycVerified: boolean;
     discoverableForStartups?: boolean;
-    canRequestConnection?: boolean;
-    profileAvailabilityReason?: "OPEN" | "INVESTOR_PAUSED_DISCOVERY";
+    acceptingConnections: boolean;
+    canRequestConnection: boolean;
+    connectionStatus: "NONE" | "REQUESTED" | "ACCEPTED" | "IN_DISCUSSION";
+    initiatedByRole: "INVESTOR" | "STARTUP" | null;
+    connectionId: number | null;
+    updatedAt?: string;
   }
 
   interface INotificationItem {
@@ -492,9 +503,12 @@ declare global {
 
   interface IWatchlistItem {
     watchlistId: number;
-    investorID: number;
     startupID: number;
     startupName: string;
+    industry?: string | null;
+    stage?: string | null;
+    logoURL?: string | null;
+    priority?: string | null;
     addedAt: string;
   }
 
@@ -506,12 +520,20 @@ declare global {
     startupID: number;
     companyName: string;
     industry?: string;
+    industryID?: number;
+    industryName?: string;
+    parentIndustryName?: string | null;
     stage?: string;
     country?: string;
     aiScore?: number;
     profilePhotoURL?: string;
     tagline?: string;
     matchScore?: number;
+    subIndustry?: string;
+    logoURL?: string;
+    fundingAmountSought?: number | null;
+    currentFundingRaised?: number | null;
+    createdAt?: string;
   }
 
   interface IKYCStatus {
@@ -521,6 +543,14 @@ declare global {
     rejectionReason?: string | null;
   }
   interface IConnectionDetail extends IConnectionItem {}
+
+  interface ICanInviteResult {
+    canInvite: boolean;
+    reasonCodes: string[];
+    retryAfterSeconds?: number | null;
+    minMessageLength?: number | null;
+    messageMaxLength: number;
+  }
 
   interface ICreateConnection {
     startupId?: number;

@@ -26,7 +26,9 @@ import {
 } from "@/components/ui/dialog";
 import { GetDocument } from "@/services/document/document.api";
 import { GetMentorships, GetMentorshipSessions } from "@/services/startup/startup-mentorship.api";
-import { GetSentConnections, GetReceivedConnections } from "@/services/connection/connection.api"; 
+import { GetSentConnections, GetReceivedConnections } from "@/services/connection/connection.api";
+import { GetStartupProfile, GetMembers } from "@/services/startup/startup.api";
+import { calcProfileCompleteness } from "@/lib/profile-completeness";
 
 export default function StartupDashboardPage() {
   const [showProfile, setShowProfile] = useState(false);
@@ -40,8 +42,11 @@ export default function StartupDashboardPage() {
   const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
   const [actionableDocs, setActionableDocs] = useState<any[]>([]);
   const [recentDocs, setRecentDocs] = useState<any[]>([]);
+  const [profileData, setProfileData] = useState<any>(null);
+  const [profileMembers, setProfileMembers] = useState<any[]>([]);
 
-  const profileProgress = useCountUp(65, 1200, 0); // Vẫn là mockup tiến độ
+  const completeness = calcProfileCompleteness(profileData, profileMembers);
+  const profileProgress = useCountUp(completeness, 1200, 0);
 
   // Helper: lấy tên file từ URL nếu backend không cung cấp `title`
   const fileNameFromUrl = (url?: string | null) => {
@@ -55,6 +60,19 @@ export default function StartupDashboardPage() {
   };
 
   useEffect(() => {
+    // 0. Tải profile và members để tính độ hoàn thiện
+    Promise.all([
+      GetStartupProfile().catch(() => null),
+      GetMembers().catch(() => null),
+    ]).then(([resProfile, resMembers]: any) => {
+      if (resProfile && (resProfile.success || resProfile.isSuccess) && resProfile.data) {
+        setProfileData(resProfile.data);
+      }
+      if (resMembers && (resMembers.success || resMembers.isSuccess) && Array.isArray(resMembers.data)) {
+        setProfileMembers(resMembers.data);
+      }
+    });
+
     // 1. Tải thống kê số lượng tài liệu thật
     GetDocument()
       .then((res: any) => {
@@ -247,9 +265,12 @@ export default function StartupDashboardPage() {
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <h1 className="text-2xl font-bold text-[#171611]">AISEP Startup Platform</h1>
-                  <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-[10px] font-black rounded-full border border-yellow-200 uppercase tracking-[0.1em]">CHƯA HOÀN THIỆN</span>
+                  {completeness >= 100
+                    ? <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-full border border-emerald-200 uppercase tracking-[0.1em]">HOÀN THIỆN</span>
+                    : <span className="px-3 py-1 bg-yellow-100 text-yellow-700 text-[10px] font-black rounded-full border border-yellow-200 uppercase tracking-[0.1em]">CHƯA HOÀN THIỆN</span>
+                  }
                 </div>
-                <p className="text-neutral-muted text-sm mb-6 leading-relaxed">Hồ sơ của bạn hiện đạt 65%. Hoàn thiện các mục còn thiếu để tăng 3x khả năng tiếp cận nhà đầu tư và nhận đánh giá AI chuyên sâu.</p>
+                <p className="text-neutral-muted text-sm mb-6 leading-relaxed">Hồ sơ của bạn hiện đạt {completeness}%. Hoàn thiện các mục còn thiếu để tăng 3x khả năng tiếp cận nhà đầu tư và nhận đánh giá AI chuyên sâu.</p>
                 <div className="space-y-2 mb-6">
                   <div className="flex justify-between text-xs font-bold text-[#171611]">
                     <span>Tiến độ hoàn thiện hồ sơ</span>
@@ -591,7 +612,7 @@ export default function StartupDashboardPage() {
                   <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mt-1">Tài liệu</p>
                 </div>
                 <div className="bg-[#f8f8f6] rounded-xl p-4 text-center border border-neutral-100">
-                  <p className="text-2xl font-black text-[#171611]">65%</p>     
+                  <p className="text-2xl font-black text-[#171611]">{completeness}%</p>
                   <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mt-1">Hoàn thiện</p>
                 </div>
               </div>

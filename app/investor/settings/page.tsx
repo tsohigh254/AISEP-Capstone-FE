@@ -83,11 +83,11 @@ const DEFAULT_PREFS: Prefs = {
 const APPROVED_PROFILE_STATUS = "Approved";
 
 const PROFILE_STATUS_LABELS: Record<string, string> = {
-    Draft: "Draft",
-    Pending: "Pending",
-    Approved: "Approved",
-    Rejected: "Rejected",
-    PendingKYC: "Pending KYC",
+    Draft: "Bản nháp",
+    Pending: "Chờ duyệt",
+    Approved: "Đã duyệt",
+    Rejected: "Bị từ chối",
+    PendingKYC: "Chờ xác minh KYC",
 };
 
 const isSuccessResponse = <T,>(res?: IBackendRes<T> | null): res is IBackendRes<T> => {
@@ -102,6 +102,13 @@ const getHttpStatusCode = (error: unknown): number | null => {
     if (!error || typeof error !== "object") return null;
     const maybeError = error as { response?: { status?: unknown } };
     return typeof maybeError.response?.status === "number" ? maybeError.response.status : null;
+};
+
+const getAxiosErrorCode = (error: unknown): string | null => {
+    if (!error || typeof error !== "object") return null;
+    const maybeError = error as { response?: { data?: { error?: { code?: unknown } } } };
+    const code = maybeError.response?.data?.error?.code;
+    return typeof code === "string" ? code : null;
 };
 
 /* ─── Main Page ─────────────────────────────────────────────── */
@@ -148,9 +155,15 @@ export default function InvestorSettingsPage() {
                     if (!isDisposed) {
                         if (errorCode === "INVESTOR_PROFILE_NOT_FOUND") {
                             setConnectionSettingError("Kh\u00f4ng t\u00ecm th\u1ea5y h\u1ed3 s\u01a1 investor.");
-                        } else if (errorCode === "INVESTOR_NOT_APPROVED") {
+                        } else if (errorCode === "INVESTOR_ACCOUNT_INACTIVE") {
                             setBlockedByApprovalError(true);
-                            setConnectionSettingError("H\u1ed3 s\u01a1/KYC ch\u01b0a \u0111\u01b0\u1ee3c duy\u1ec7t. Ch\u1ec9 h\u1ed3 s\u01a1 Approved m\u1edbi \u0111\u01b0\u1ee3c b\u1eadt/t\u1eaft c\u00e0i \u0111\u1eb7t n\u00e0y.");
+                            setConnectionSettingError("T\u00e0i kho\u1ea3n \u0111ang b\u1ecb kh\u00f3a ho\u1eb7c ng\u01b0ng ho\u1ea1t \u0111\u1ed9ng.");
+                        } else if (errorCode === "INVESTOR_PROFILE_NOT_APPROVED") {
+                            setBlockedByApprovalError(true);
+                            setConnectionSettingError("H\u1ed3 s\u01a1 ch\u01b0a \u0111\u01b0\u1ee3c duy\u1ec7t. Ch\u1ec9 h\u1ed3 s\u01a1 Approved m\u1edbi \u0111\u01b0\u1ee3c b\u1eadt/t\u1eaft c\u00e0i \u0111\u1eb7t n\u00e0y.");
+                        } else if (errorCode === "INVESTOR_KYC_NOT_APPROVED") {
+                            setBlockedByApprovalError(true);
+                            setConnectionSettingError("KYC ch\u01b0a \u0111\u01b0\u1ee3c duy\u1ec7t ho\u1eb7c kh\u00f4ng c\u00f2n h\u1ee3p l\u1ec7.");
                         } else {
                             setConnectionSettingError(profileRes?.message || "Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c c\u00e0i \u0111\u1eb7t nh\u1eadn k\u1ebft n\u1ed1i.");
                         }
@@ -368,9 +381,24 @@ export default function InvestorSettingsPage() {
 
                 setAcceptingConnections(previousValue);
 
-                if (errorCode === "INVESTOR_NOT_APPROVED") {
+                if (errorCode === "INVESTOR_ACCOUNT_INACTIVE") {
                     setBlockedByApprovalError(true);
-                    const message = "H\u1ed3 s\u01a1/KYC ch\u01b0a \u0111\u01b0\u1ee3c duy\u1ec7t n\u00ean kh\u00f4ng th\u1ec3 c\u1eadp nh\u1eadt c\u00e0i \u0111\u1eb7t n\u00e0y.";
+                    const message = "Tài khoản đang bị khóa hoặc ngưng hoạt động — không thể cập nhật cài đặt này.";
+                    setConnectionSettingError(message);
+                    toast.error(message);
+                    return;
+                }
+
+                if (errorCode === "INVESTOR_PROFILE_NOT_APPROVED") {
+                    setBlockedByApprovalError(true);
+                    const message = "Hồ sơ chưa được duyệt — không thể cập nhật cài đặt này.";
+                    setConnectionSettingError(message);
+                    toast.error(message);
+                    return;
+                }
+
+                if (errorCode === "INVESTOR_KYC_NOT_APPROVED") {
+                    const message = "KYC chưa được duyệt hoặc không còn hợp lệ — không thể bật tính năng này.";
                     setConnectionSettingError(message);
                     toast.error(message);
                     return;
@@ -400,17 +428,26 @@ export default function InvestorSettingsPage() {
             setAcceptingConnections(previousValue);
 
             const status = getHttpStatusCode(error);
-            let message = "Kh\u00f4ng c\u1eadp nh\u1eadt \u0111\u01b0\u1ee3c c\u00e0i \u0111\u1eb7t nh\u1eadn k\u1ebft n\u1ed1i. Vui l\u00f2ng th\u1eed l\u1ea1i.";
+            const errorCode = getAxiosErrorCode(error);
+            let message = "Không cập nhật được cài đặt nhận kết nối. Vui lòng thử lại.";
 
-            if (status === 400) {
-                message = "Y\u00eau c\u1ea7u kh\u00f4ng h\u1ee3p l\u1ec7. Vui l\u00f2ng th\u1eed l\u1ea1i.";
+            if (errorCode === "INVESTOR_ACCOUNT_INACTIVE") {
+                message = "Tài khoản đang bị khóa hoặc ngưng hoạt động — không thể cập nhật cài đặt này.";
+                setBlockedByApprovalError(true);
+            } else if (errorCode === "INVESTOR_PROFILE_NOT_APPROVED") {
+                message = "Hồ sơ chưa được duyệt — không thể cập nhật cài đặt này.";
+                setBlockedByApprovalError(true);
+            } else if (errorCode === "INVESTOR_KYC_NOT_APPROVED") {
+                message = "KYC chưa được duyệt hoặc không còn hợp lệ — không thể bật tính năng này.";
+            } else if (status === 400) {
+                message = "Yêu cầu không hợp lệ. Vui lòng thử lại.";
             } else if (status === 401) {
-                message = "Phi\u00ean \u0111\u0103ng nh\u1eadp \u0111\u00e3 h\u1ebft h\u1ea1n. Vui l\u00f2ng \u0111\u0103ng nh\u1eadp l\u1ea1i.";
+                message = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
             } else if (status === 403) {
-                message = "B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n c\u1eadp nh\u1eadt c\u00e0i \u0111\u1eb7t n\u00e0y.";
+                message = "Bạn không có quyền cập nhật cài đặt này.";
                 setBlockedByApprovalError(true);
             } else if (status === 404) {
-                message = "Kh\u00f4ng t\u00ecm th\u1ea5y h\u1ed3 s\u01a1 investor.";
+                message = "Không tìm thấy hồ sơ investor.";
             }
 
             setConnectionSettingError(message);
@@ -498,9 +535,7 @@ export default function InvestorSettingsPage() {
 
                         {!isApprovedProfile && (
                             <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-[12px] text-amber-700">
-                                {"C\u00e0i \u0111\u1eb7t n\u00e0y ch\u1ec9 kh\u1ea3 d\u1ee5ng khi "}
-                                <span className="font-semibold">profileStatus = &quot;Approved&quot;</span>.
-                                {" Tr\u1ea1ng th\u00e1i hi\u1ec7n t\u1ea1i: "}
+                                {"Tính năng này chỉ khả dụng sau khi hồ sơ được duyệt. Trạng thái hiện tại: "}
                                 <span className="font-semibold">{profileStatusLabel}</span>.
                             </div>
                         )}

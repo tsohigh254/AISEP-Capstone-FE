@@ -338,13 +338,13 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
 
                     <div className="relative p-6 sm:p-8">
                         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-                            <Link
-                                href="/startup/investors"
+                            <button
+                                onClick={() => router.back()}
                                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-[12px] font-semibold text-slate-600 shadow-[0_10px_24px_rgba(15,23,42,0.05)] transition-colors hover:text-slate-900"
                             >
                                 <ArrowLeft className="size-4" />
                                 Quay lại danh sách
-                            </Link>
+                            </button>
 
                             <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-600 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
                                 <span

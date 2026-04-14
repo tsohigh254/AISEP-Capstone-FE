@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Loader2, ChevronDown } from "lucide-react";
 import { GetInvestorPreferences, GetInvestorProfile, UpdateInvestorProfile, UpdateInvestorPreferences } from "@/services/investor/investor.api";
 import { GetIndustriesFlat, GetStages, IIndustryFlat, IStageMasterItem } from "@/services/master/master.api";
 import { useInvestorEdit } from "@/context/investor-edit-context";
+import { getInvestorPreferredStageLabel, normalizeInvestorPreferredStage, normalizeInvestorPreferredStages } from "@/lib/investor-preferred-stages";
 
 const inputCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 outline-none transition-all";
 const labelCls = "block text-[12px] font-medium text-slate-500 mb-1.5";
@@ -68,6 +69,18 @@ export default function ThesisEditPage() {
     const [stageOptions, setStageOptions] = useState<IStageMasterItem[]>([]);
     const [expandedSections, setExpandedSections] = useState<number[]>([]);
 
+    const normalizedStageOptions = useMemo(
+        () =>
+            Array.from(
+                new Set(
+                    stageOptions
+                        .map(stage => normalizeInvestorPreferredStage(stage.stageName))
+                        .filter((stage): stage is NonNullable<ReturnType<typeof normalizeInvestorPreferredStage>> => stage != null),
+                ),
+            ),
+        [stageOptions],
+    );
+
     useEffect(() => {
         Promise.allSettled([
             GetInvestorProfile(),
@@ -88,7 +101,7 @@ export default function ThesisEditPage() {
                 if (prefsData.isSuccess && prefsData.data) {
                     const prefs = prefsData.data;
                     setPreferredIndustries(prefs.preferredIndustries || []);
-                    setPreferredStages(prefs.preferredStages || []);
+                    setPreferredStages(normalizeInvestorPreferredStages(prefs.preferredStages));
                     setPreferredMarketScopes((prefs.preferredMarketScopes || []).join(", "));
                     setSupportOffered((prefs.supportOffered || []).join(", "));
                     setTicketMin(prefs.ticketMin != null ? formatGroupedNumberInput(String(prefs.ticketMin)) : "");
@@ -133,15 +146,17 @@ export default function ThesisEditPage() {
     };
 
     const toggleStage = (stage: string) => {
+        const normalizedStage = normalizeInvestorPreferredStage(stage);
+        if (!normalizedStage) return;
         setPreferredStages(prev =>
-            prev.includes(stage) ? prev.filter(s => s !== stage) : [...prev, stage]
+            prev.includes(normalizedStage) ? prev.filter(s => s !== normalizedStage) : [...prev, normalizedStage]
         );
     };
 
     const handleSave = useCallback(async () => {
         setIsSaving(true);
         try {
-            const normalizedStages = preferredStages;
+            const normalizedStages = normalizeInvestorPreferredStages(preferredStages);
             const marketScopesList = normalizeTextList(preferredMarketScopes);
             const supportOfferedList = normalizeTextList(supportOffered);
             const parsedTicketMin = parseOptionalNumber(ticketMin);
@@ -164,7 +179,7 @@ export default function ThesisEditPage() {
                 }),
                 UpdateInvestorPreferences({
                     preferredIndustries,
-                    preferredStages,
+                    preferredStages: normalizedStages,
                     preferredMarketScopes: marketScopesList,
                     supportOffered: supportOfferedList,
                     ticketMin: parsedTicketMin,
@@ -183,7 +198,7 @@ export default function ThesisEditPage() {
             if (prefsData.data) {
                 const savedPreferences = prefsData.data;
                 const savedIndustries = savedPreferences.preferredIndustries || [];
-                const savedStages = savedPreferences.preferredStages || [];
+                const savedStages = normalizeInvestorPreferredStages(savedPreferences.preferredStages);
                 const savedMarketScopes = savedPreferences.preferredMarketScopes || [];
                 const savedSupportOffered = savedPreferences.supportOffered || [];
                 const savedTicketMin = savedPreferences.ticketMin ?? null;
@@ -345,19 +360,19 @@ export default function ThesisEditPage() {
                     <div>
                         <label className={labelCls}>Giai đoạn ưu tiên</label>
                         <div className="flex flex-wrap gap-2 mt-1">
-                            {stageOptions.map(stage => (
+                            {normalizedStageOptions.map(stage => (
                                 <button
-                                    key={stage.stageID ?? stage.stageName}
+                                    key={stage}
                                     type="button"
-                                    onClick={() => toggleStage(stage.stageName)}
+                                    onClick={() => toggleStage(stage)}
                                     className={cn(
                                         "px-3.5 py-2 rounded-xl text-[12px] font-bold border transition-all active:scale-95",
-                                        preferredStages.includes(stage.stageName)
+                                        preferredStages.includes(stage)
                                             ? "bg-[#0f172a] border-[#0f172a] text-white"
                                             : "bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300"
                                     )}
                                 >
-                                    {stage.stageName}
+                                    {getInvestorPreferredStageLabel(stage)}
                                 </button>
                             ))}
                         </div>

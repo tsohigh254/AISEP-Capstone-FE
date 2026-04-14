@@ -15,29 +15,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConnectStartupModal } from "@/components/investor/connect-startup-modal";
-import { SearchStartups } from "@/services/investor/investor.api";
-import { GetSentConnections } from "@/services/connection/connection.api";
-
-const INDUSTRY_OPTIONS = [
-  "SaaS & AI",
-  "HealthTech",
-  "FoodTech",
-  "EdTech",
-  "AgriTech",
-  "FinTech",
-  "CleanTech",
-  "PropTech",
-  "Blockchain",
-  "IoT",
-];
-
-const STAGE_OPTIONS = [
-  "Pre-Seed",
-  "Seed",
-  "Series A",
-  "Series B",
-  "Series C+",
-];
+import { SearchStartups, GetMasterIndustries, GetMasterStages } from "@/services/investor/investor.api";
+import { GetSentConnections, GetReceivedConnections } from "@/services/connection/connection.api";
 
 const AVATAR_COLORS = [
   "from-violet-500 to-violet-600",
@@ -54,12 +33,14 @@ type StartupCard = {
   id: string;
   name: string;
   industry: string;
+  industryId: number | null;
   stage: string;
   location: string;
   target: string;
+  raised: string;
   score: number;
   desc: string;
-  activeDays: number;
+  activeDays: number | null;
   logo: string;
   isHot: boolean;
 };
@@ -82,47 +63,102 @@ const checkCls =
 
 export default function StartupDiscoveryPage() {
   const [startups, setStartups] = useState<StartupCard[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [myConnections, setMyConnections] = useState<IConnectionItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [addingStartup, setAddingStartup] = useState<StartupCard | null>(null);
-  const [activeFilter, setActiveFilter] = useState("Tất cả");
   const [showFilter, setShowFilter] = useState(false);
 
-  const [selectedIndustries, setSelectedIndustries] = useState<string[]>([]);
+  // Dynamic master data
+  const [industryOptions, setIndustryOptions] = useState<{ id: number; name: string; parentId: number | null }[]>([]);
+  const [stageOptions, setStageOptions] = useState<string[]>([]);
+
+  const [selectedIndustryIds, setSelectedIndustryIds] = useState<number[]>([]);
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [minScore, setMinScore] = useState(0);
 
+  // Debounce search input → trigger server-side fetch
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const fetchConnections = async () => {
     try {
-      const res = await GetSentConnections(1, 100);
-      if (res.success && res.data) {
-        setMyConnections((res.data as any).data || res.data.items || res.data || []);
-      }
+      const [sentRes, receivedRes] = await Promise.all([
+        GetSentConnections(1, 100) as any,
+        GetReceivedConnections(1, 100) as any,
+      ]);
+      const sentItems = (sentRes?.success || sentRes?.isSuccess) ? ((sentRes.data as any)?.data || sentRes.data?.items || []) : [];
+      const receivedItems = (receivedRes?.success || receivedRes?.isSuccess) ? ((receivedRes.data as any)?.data || receivedRes.data?.items || []) : [];
+      const map = new Map<number, IConnectionItem>();
+      [...sentItems, ...receivedItems].forEach((c: IConnectionItem) => map.set(c.connectionID, c));
+      setMyConnections(Array.from(map.values()));
     } catch (error) {
       console.error("Error fetching connections", error);
     }
   };
 
+  // Fetch master data once
+  useEffect(() => {
+    GetMasterIndustries().then((res: any) => {
+      const data = res?.data ?? res;
+      const list = Array.isArray(data) ? data : [];
+      setIndustryOptions(list.map((i: any) => ({ id: i.industryID, name: i.industryName, parentId: i.parentIndustryID ?? null })));
+    }).catch(() => {});
+    GetMasterStages().then((res: any) => {
+      const data = res?.data ?? res;
+      const raw = Array.isArray(data) ? data : [];
+      // BE may return string[] or object[] — normalise to string[]
+      setStageOptions(raw.map((s: any) => typeof s === "string" ? s : s.stageName || s.name || s.stage || ""));
+    }).catch(() => {});
+  }, []);
+
+  // Re-fetch startups when search/filters change
   useEffect(() => {
     const fetchStartups = async () => {
+      setIsLoading(true);
       try {
-        const res: any = await SearchStartups(undefined, 1, 50);
+        // Only pass one industryId at a time (API supports single); if multiple selected, filter client-side
+        const res: any = await SearchStartups(
+          debouncedSearch || undefined,
+          1,
+          100,
+          selectedIndustryIds.length >= 1 ? selectedIndustryIds[0] : undefined,
+          selectedStages.length === 1 ? selectedStages[0] : undefined,
+        );
         const isSuccess = res.isSuccess || res.success || res.statusCode === 200;
 
         if (isSuccess) {
-          const items = res.data?.data || res.data?.items || res.items || [];
+          const items = res.data?.items || res.data?.data || res.items || [];
+          const total = res.data?.paging?.totalItems ?? items.length;
+          setTotalCount(total);
+          const formatMoney = (v: number | null | undefined) => {
+            if (v == null) return null;
+            if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1).replace(/\.0$/, '')}B`;
+            if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+            if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
+            return v.toLocaleString('vi-VN');
+          };
           const mapped: StartupCard[] = items.map((apiItem: any) => ({
             id: apiItem.startupID?.toString() || "0",
             name: apiItem.companyName || "Unknown",
-            industry: apiItem.industryName || apiItem.industry || "Other",
-            stage: apiItem.stage || "Pre-Seed",
+            industry: apiItem.parentIndustryName
+              ? `${apiItem.parentIndustryName} / ${apiItem.industryName || apiItem.industry || "Other"}`
+              : (apiItem.industryName || apiItem.industry || "Other"),
+            industryId: apiItem.industryID ?? null,
+            stage: apiItem.stage || "",
             location: apiItem.country || "VN",
-            target: "N/A",
+            target: formatMoney(apiItem.fundingAmountSought) ? `$${formatMoney(apiItem.fundingAmountSought)}` : "Chưa cập nhật",
+            raised: formatMoney(apiItem.currentFundingRaised) ? `$${formatMoney(apiItem.currentFundingRaised)}` : "Chưa cập nhật",
             score: apiItem.aiScore || 0,
             desc: apiItem.tagline || apiItem.subIndustry || "Chưa có thông tin mô tả",
-            activeDays: 0,
+            activeDays: apiItem.createdAt
+              ? Math.max(0, Math.floor((Date.now() - new Date(apiItem.createdAt).getTime()) / 86_400_000))
+              : null,
             logo:
               apiItem.logoURL ||
               (apiItem.companyName || "U").substring(0, 2).toUpperCase(),
@@ -138,59 +174,56 @@ export default function StartupDiscoveryPage() {
     };
 
     fetchStartups();
-    fetchConnections();
-  }, []);
+  }, [debouncedSearch, selectedIndustryIds, selectedStages]);
 
-  const toggleItem = (
-    list: string[],
-    item: string,
-    setter: (value: string[]) => void,
-  ) => {
-    setter(list.includes(item) ? list.filter((entry) => entry !== item) : [...list, item]);
+  useEffect(() => { fetchConnections(); }, []);
+
+  const toggleIndustry = (id: number) =>
+    setSelectedIndustryIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+
+  const selectAllChildren = (parentId: number) => {
+    const childIds = industryOptions.filter((i) => i.parentId === parentId).map((i) => i.id);
+    const allSelected = childIds.every((id) => selectedIndustryIds.includes(id));
+    setSelectedIndustryIds((prev) =>
+      allSelected
+        ? prev.filter((x) => !childIds.includes(x))
+        : [...prev.filter((x) => !childIds.includes(x)), ...childIds]
+    );
   };
 
-  const activeCount =
-    selectedIndustries.length + selectedStages.length + (minScore > 0 ? 1 : 0);
+  const toggleStage = (s: string) =>
+    setSelectedStages((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
+
+  const activeCount = selectedIndustryIds.length + selectedStages.length + (minScore > 0 ? 1 : 0);
 
   const clearAll = () => {
-    setSelectedIndustries([]);
+    setSelectedIndustryIds([]);
     setSelectedStages([]);
     setMinScore(0);
   };
 
-  const query = search.toLowerCase();
+  // Client-side filter for multi-select industry/stage (when >1 selected, API only handles 1)
   const filtered = startups.filter((startup) => {
-    const matchSearch =
-      !query ||
-      startup.name.toLowerCase().includes(query) ||
-      startup.industry.toLowerCase().includes(query) ||
-      startup.location.toLowerCase().includes(query) ||
-      startup.desc.toLowerCase().includes(query);
-
     const matchIndustry =
-      selectedIndustries.length === 0 ||
-      selectedIndustries.some((industry) => startup.industry.includes(industry));
-
+      selectedIndustryIds.length <= 1 || // handled server-side if <=1
+      (startup.industryId != null && selectedIndustryIds.includes(startup.industryId));
     const matchStage =
-      selectedStages.length === 0 || selectedStages.includes(startup.stage);
-
+      selectedStages.length <= 1 || // handled server-side if <=1
+      selectedStages.includes(startup.stage);
     const matchScore = startup.score >= minScore;
-
-    return matchSearch && matchIndustry && matchStage && matchScore;
+    return matchIndustry && matchStage && matchScore;
   });
 
-  const hasActiveFilters =
-    search !== "" ||
-    selectedIndustries.length > 0 ||
-    selectedStages.length > 0 ||
-    minScore > 0;
+  const hasActiveFilters = search !== "" || selectedIndustryIds.length > 0 || selectedStages.length > 0 || minScore > 0;
 
   return (
     <div className="max-w-6xl mx-auto w-full space-y-6">
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
         <h1 className="text-[20px] font-bold text-slate-900 mb-1">Khám phá Startup</h1>
         <p className="text-[13px] text-slate-500 mb-5">
-          Hệ sinh thái đang có <strong>52</strong> startup kêu gọi vốn. Khám phá
+          Hệ sinh thái đang có <strong>{totalCount > 0 ? totalCount : "—"}</strong> startup kêu gọi vốn. Khám phá
           các cơ hội đầu tư phù hợp với thesis của bạn.
         </p>
 
@@ -199,28 +232,12 @@ export default function StartupDiscoveryPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="Tìm kiếm tên công ty, ngành nghề, vị trí..."
+              placeholder="Tìm kiếm tên công ty hoặc mô tả..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 text-[13px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20 focus:border-[#eec54e] bg-white transition-all"
             />
           </div>
-
-          <select
-            value={activeFilter}
-            onChange={(event) => setActiveFilter(event.target.value)}
-            className="w-full md:w-auto px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20 focus:border-[#eec54e] bg-white transition-all cursor-pointer outline-none"
-          >
-            <option value="Tất cả">Tất cả thư mục</option>
-            <option value="Phù hợp nhất (AI Match)">Phù hợp nhất (Phù hợp AI)</option>
-            <option value="Đang Trending">Đang Trending</option>
-            <option value="Mới triển khai (Pre-Seed/Seed)">
-              Mới triển khai (Pre-Seed/Seed)
-            </option>
-            <option value="Đang bùng nổ (Series A+)">
-              Đang bùng nổ (Series A+)
-            </option>
-          </select>
 
           <button
             type="button"
@@ -275,36 +292,68 @@ export default function StartupDiscoveryPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div>
                   <label className={labelCls}>Ngành nghề</label>
-                  <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                    {INDUSTRY_OPTIONS.map((industry) => (
-                      <label
-                        key={industry}
-                        className="flex items-center gap-2.5 cursor-pointer group"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedIndustries.includes(industry)}
-                          onChange={() =>
-                            toggleItem(
-                              selectedIndustries,
-                              industry,
-                              setSelectedIndustries,
-                            )
-                          }
-                          className={checkCls}
-                        />
-                        <span className="text-[12px] text-slate-600 group-hover:text-slate-900 transition-colors">
-                          {industry}
-                        </span>
-                      </label>
-                    ))}
+                  <div className="space-y-3 max-h-52 overflow-y-auto pr-1">
+                    {industryOptions
+                      .filter((ind) => ind.parentId === null)
+                      .map((parent) => {
+                        const children = industryOptions.filter((c) => c.parentId === parent.id);
+                        const allChildSelected = children.length > 0 && children.every((c) => selectedIndustryIds.includes(c.id));
+                        return (
+                          <div key={parent.id}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                                {parent.name}
+                              </span>
+                              {children.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => selectAllChildren(parent.id)}
+                                  className="text-[10px] text-[#8a6a02] hover:underline"
+                                >
+                                  {allChildSelected ? "Bỏ chọn" : "Tất cả"}
+                                </button>
+                              )}
+                            </div>
+                            <div className="mt-1.5 space-y-1.5">
+                              {children.length > 0 ? (
+                                children.map((child) => (
+                                  <label key={child.id} className="flex items-center gap-2.5 cursor-pointer group">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedIndustryIds.includes(child.id)}
+                                      onChange={() => toggleIndustry(child.id)}
+                                      className={checkCls}
+                                    />
+                                    <span className="text-[12px] text-slate-600 group-hover:text-slate-900 transition-colors">
+                                      {child.name}
+                                    </span>
+                                  </label>
+                                ))
+                              ) : (
+                                // Leaf parent (no children) — selectable directly
+                                <label className="flex items-center gap-2.5 cursor-pointer group">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedIndustryIds.includes(parent.id)}
+                                    onChange={() => toggleIndustry(parent.id)}
+                                    className={checkCls}
+                                  />
+                                  <span className="text-[12px] text-slate-600 group-hover:text-slate-900 transition-colors">
+                                    {parent.name}
+                                  </span>
+                                </label>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
 
                 <div>
                   <label className={labelCls}>Giai đoạn</label>
                   <div className="space-y-2">
-                    {STAGE_OPTIONS.map((stage) => (
+                    {stageOptions.map((stage) => (
                       <label
                         key={stage}
                         className="flex items-center gap-2.5 cursor-pointer group"
@@ -312,9 +361,7 @@ export default function StartupDiscoveryPage() {
                         <input
                           type="checkbox"
                           checked={selectedStages.includes(stage)}
-                          onChange={() =>
-                            toggleItem(selectedStages, stage, setSelectedStages)
-                          }
+                          onChange={() => toggleStage(stage)}
                           className={checkCls}
                         />
                         <span className="text-[12px] text-slate-600 group-hover:text-slate-900 transition-colors">
@@ -427,11 +474,16 @@ export default function StartupDiscoveryPage() {
         {!isLoading &&
           filtered.map((startup) => {
             const avatarGradient = getAvatarColor(startup.id);
-            const hasConnected = myConnections.some(
-              (connection: any) =>
-                String(connection.receiverId) === startup.id ||
-                String(connection.startupId) === startup.id,
+            const connection = myConnections.find(
+              (c: any) =>
+                String(c.receiverId) === startup.id ||
+                String(c.startupId) === startup.id ||
+                String(c.startupID) === startup.id,
             );
+            const connStatus = connection?.connectionStatus?.toLowerCase();
+            const isAccepted = connStatus === "accepted" || connStatus === "indiscussion";
+            const isPending = connStatus === "requested";
+            const hasActiveConnection = isAccepted || isPending;
 
             return (
               <div
@@ -468,7 +520,7 @@ export default function StartupDiscoveryPage() {
                         <Sparkles className="w-4 h-4 text-amber-500 flex-shrink-0" />
                       )}
                       <span className="ml-auto flex-shrink-0 px-2 py-0.5 bg-slate-50 border border-slate-100 rounded-lg text-[11px] font-medium text-slate-500">
-                        {startup.stage} • {startup.target}
+                        {startup.stage}
                       </span>
                     </div>
                     <p className="text-[12px] text-slate-400 mt-0.5">
@@ -505,10 +557,14 @@ export default function StartupDiscoveryPage() {
                   <span>
                     <MapPin className="w-3 h-3 inline" /> {startup.location}
                   </span>
-                  <span>•</span>
-                  <span>
-                    <Clock className="w-3 h-3 inline" /> {startup.activeDays} ngày gọi vốn
-                  </span>
+                  {startup.activeDays != null && (
+                    <>
+                      <span>•</span>
+                      <span>
+                        <Clock className="w-3 h-3 inline" /> {startup.activeDays} ngày
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between px-3.5 py-2.5 bg-amber-50/60 border border-amber-100 rounded-xl mb-4">
@@ -543,18 +599,27 @@ export default function StartupDiscoveryPage() {
                   >
                     Xem chi tiết
                   </Link>
-                  <button
-                    onClick={() => setAddingStartup(startup)}
-                    disabled={hasConnected}
-                    className={cn(
-                      "flex-1 py-2.5 rounded-xl text-[13px] font-semibold transition-all",
-                      hasConnected
-                        ? "bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed"
-                        : "bg-[#fdf8e6] border border-[#eec54e]/30 text-slate-800 hover:bg-[#eec54e]",
-                    )}
-                  >
-                    {hasConnected ? "Đã gửi kết nối" : "Gửi yêu cầu kết nối"}
-                  </button>
+                  {isAccepted ? (
+                    <Link
+                      href={`/investor/messaging?connectionId=${connection?.connectionID}`}
+                      className="flex-1 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-[13px] font-semibold hover:bg-emerald-100 transition-all text-center"
+                    >
+                      Đã kết nối · Nhắn tin
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={() => setAddingStartup(startup)}
+                      disabled={isPending}
+                      className={cn(
+                        "flex-1 py-2.5 rounded-xl text-[13px] font-semibold transition-all",
+                        isPending
+                          ? "bg-amber-50 border border-amber-200 text-amber-600 cursor-not-allowed"
+                          : "bg-[#fdf8e6] border border-[#eec54e]/30 text-slate-800 hover:bg-[#eec54e]",
+                      )}
+                    >
+                      {isPending ? "Đang chờ phản hồi" : "Gửi yêu cầu kết nối"}
+                    </button>
+                  )}
                 </div>
               </div>
             );

@@ -222,11 +222,24 @@ export const SubmitForApproval = () => {
     return axios.post<IBackendRes<null>>(`/api/startups/me/submit-for-approval`)
 }
 
-export const SearchInvestors = (params: { page?: number; pageSize?: number; keyword?: string }) => {
-    return axios.get<IBackendRes<any>>(`/api/startups/investors`, { params });
+export type SearchInvestorsParams = {
+    page?: number;
+    pageSize?: number;
+    keyword?: string;
+    industry?: string;
+    stage?: string;
+    ticketSizeMin?: number;
+    ticketSizeMax?: number;
+    country?: string;
+    investorType?: "INDIVIDUAL_ANGEL" | "INSTITUTIONAL";
+    kycVerified?: boolean;
+    sortBy?: "latest" | "ticketSizeAsc" | "ticketSizeDesc" | "connectionsDesc";
+};
+
+export const SearchInvestors = (params: SearchInvestorsParams = {}) => {
+    return axios.get<IBackendRes<IPaginatedRes<IInvestorSearchItem>>>(`/api/startups/investors`, { params });
 }
 
 export const GetInvestorById = (id: number) => {
     return axios.get<IBackendRes<IInvestorProfile>>(`/api/startups/investors/${id}`);
 }
-

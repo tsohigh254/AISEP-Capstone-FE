@@ -375,7 +375,7 @@ function AdvisorProfileClientInner() {
   /* ── JSX ───────────────────────────────────────────────────── */
   return (
     <AdvisorShell>
-      <div className="max-w-[1000px] mx-auto pb-16 animate-in fade-in duration-400">
+      <div className="max-w-[1100px] mx-auto pb-16 animate-in fade-in duration-400">
 
         {/* Page header */}
         <div className="mb-6">

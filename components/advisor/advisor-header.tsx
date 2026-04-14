@@ -1,11 +1,15 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import {
+  ArrowRight,
   Bell,
+  CheckCheck,
   ChevronRight,
   User,
+  Inbox,
+  Loader2,
   LogOut,
   MessageSquare,
   ClipboardList,
@@ -17,6 +21,7 @@ import {
   Calendar,
   ShieldCheck,
   ShieldAlert,
+  Trash2,
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
@@ -24,7 +29,14 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/context";
 import { Logout } from "@/services/auth/auth.api";
 import { GetAdvisorKYCStatus, GetAdvisorProfile } from "@/services/advisor/advisor.api";
+import {
+  GetNotifications,
+  MarkNotificationAsRead,
+  MarkAllNotificationsAsRead,
+  DeleteNotification,
+} from "@/services/notification/notification.api";
 import { IssueReportModal } from "@/components/shared/issue-report-modal";
+import { NotificationDetailModal } from "@/components/shared/notification-detail-modal";
 import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
 
 type AdvisorHeaderProps = {
@@ -42,10 +54,15 @@ export function AdvisorHeader({
   const { user, setUser, setAccessToken, setIsAuthen } = useAuth();
   
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
+  const [isNotiOpen, setIsNotiOpen] = useState(false);
   const [isGridOpen, setIsGridOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  
+  const [selectedNotiId, setSelectedNotiId] = useState<number | null>(null);
+  const [isNotiDetailOpen, setIsNotiDetailOpen] = useState(false);
+  const [notifications, setNotifications] = useState<INotificationItem[]>([]);
+  const [notiLoading, setNotiLoading] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
   const dropdownRef = useRef<HTMLDivElement>(null);
   const notiRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -78,12 +95,73 @@ export function AdvisorHeader({
       .catch(() => {});
   }, []);
 
+  const fetchNotifications = useCallback(async () => {
+    setNotiLoading(true);
+    try {
+      const res = await GetNotifications({ pageSize: 10 }) as unknown as IBackendRes<IPaginatedRes<INotificationItem>>;
+      if (res.success && res.data) {
+        setNotifications(res.data.items ?? []);
+        setUnreadCount((res.data.items ?? []).filter((n) => !n.isRead).length);
+      }
+    } catch {
+      // silent
+    } finally {
+      setNotiLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  const handleToggleNoti = () => {
+    const opening = !isNotiOpen;
+    setIsNotiOpen(opening);
+    if (opening) fetchNotifications();
+  };
+
+  const handleMarkAsRead = async (id: number) => {
+    try {
+      await MarkNotificationAsRead(id, true);
+      setNotifications((prev) => prev.map((n) => n.notificationId === id ? { ...n, isRead: true } : n));
+      setUnreadCount((c) => Math.max(0, c - 1));
+    } catch { /* silent */ }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await MarkAllNotificationsAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch { /* silent */ }
+  };
+
+  const handleDeleteNoti = async (id: number) => {
+    try {
+      await DeleteNotification(id);
+      setNotifications((prev) => {
+        const item = prev.find((n) => n.notificationId === id);
+        if (item && !item.isRead) setUnreadCount((c) => Math.max(0, c - 1));
+        return prev.filter((n) => n.notificationId !== id);
+      });
+    } catch { /* silent */ }
+  };
+
+  const handleNotiClick = (item: INotificationItem) => {
+    if (!item.isRead) handleMarkAsRead(item.notificationId);
+    setIsNotiOpen(false);
+    setSelectedNotiId(item.notificationId);
+    setIsNotiDetailOpen(true);
+  };
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
       }
-
+      if (notiRef.current && !notiRef.current.contains(event.target as Node)) {
+        setIsNotiOpen(false);
+      }
       if (gridRef.current && !gridRef.current.contains(event.target as Node)) {
         setIsGridOpen(false);
       }
@@ -132,9 +210,115 @@ export function AdvisorHeader({
             </Link>
 
             <div className="relative" ref={notiRef}>
-              <button className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-500 hover:bg-[#e6cc4c]/10 hover:text-[#e6cc4c] transition-all relative">
+              <button
+                className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-500 hover:bg-[#e6cc4c]/10 hover:text-[#e6cc4c] transition-all relative"
+                onClick={handleToggleNoti}
+              >
                 <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-red-500 rounded-full ring-2 ring-white" />
+                )}
               </button>
+
+              {isNotiOpen && (
+                <div className="absolute right-0 mt-3 w-[380px] bg-white rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.13)] border border-slate-200/80 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[13px] font-semibold text-slate-900">Thông báo</h3>
+                      {unreadCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 text-[10px] font-bold">{unreadCount}</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleMarkAllRead}
+                      disabled={unreadCount === 0}
+                      className={cn(
+                        "inline-flex items-center gap-1 text-[12px] font-medium transition-colors",
+                        unreadCount > 0 ? "text-slate-500 hover:text-slate-800" : "text-slate-300 cursor-not-allowed"
+                      )}
+                    >
+                      <CheckCheck className="w-3.5 h-3.5" /> Đọc tất cả
+                    </button>
+                  </div>
+
+                  {/* List */}
+                  <div className="max-h-[360px] overflow-y-auto divide-y divide-slate-100">
+                    {notiLoading ? (
+                      <div className="flex items-center justify-center py-12">
+                        <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 gap-2">
+                        <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center">
+                          <Inbox className="w-5 h-5 text-slate-300" />
+                        </div>
+                        <p className="text-[13px] text-slate-400 font-medium">Không có thông báo</p>
+                      </div>
+                    ) : (
+                      notifications.map((item) => (
+                        <div
+                          key={item.notificationId}
+                          className={cn(
+                            "relative flex items-start gap-3 px-4 py-3.5 cursor-pointer group transition-colors",
+                            item.isRead ? "hover:bg-slate-50/80" : "bg-blue-50/30 hover:bg-blue-50/50"
+                          )}
+                          onClick={() => handleNotiClick(item)}
+                        >
+                          {!item.isRead && (
+                            <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full bg-[#e6cc4c]" />
+                          )}
+                          <div className={cn(
+                            "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5",
+                            item.isRead ? "bg-slate-100" : "bg-[#e6cc4c]/15"
+                          )}>
+                            <Bell className={cn("w-3.5 h-3.5", item.isRead ? "text-slate-400" : "text-[#C8A000]")} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={cn(
+                              "text-[12.5px] leading-snug line-clamp-1",
+                              item.isRead ? "font-normal text-slate-700" : "font-semibold text-slate-900"
+                            )}>
+                              {item.title}
+                            </p>
+                            <p className="text-[11.5px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
+                              {item.messagePreview}
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-1">
+                              {(() => {
+                                const diff = Date.now() - new Date(item.createdAt).getTime();
+                                const d = Math.floor(diff / 86400000);
+                                if (d > 0) return `${d} ngày trước`;
+                                const h = Math.floor(diff / 3600000);
+                                if (h > 0) return `${h} giờ trước`;
+                                const m = Math.floor(diff / 60000);
+                                if (m > 0) return `${m} phút trước`;
+                                return "Vừa xong";
+                              })()}
+                            </p>
+                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteNoti(item.notificationId); }}
+                            className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-md hover:bg-red-50 text-slate-300 hover:text-red-400 transition-all flex-shrink-0 mt-0.5"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <Link
+                    href="/advisor/notifications"
+                    onClick={() => setIsNotiOpen(false)}
+                    className="flex items-center justify-center gap-1.5 py-3 border-t border-slate-100 text-[12px] font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors"
+                  >
+                    Xem tất cả thông báo
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              )}
             </div>
 
             <div 
@@ -185,10 +369,10 @@ export function AdvisorHeader({
 
           {/* User Profile Card */}
           <div className="flex items-center gap-3.5 relative shrink-0" ref={dropdownRef}>
-            <div className="text-right hidden sm:flex flex-col items-end justify-center min-w-0 max-w-[112px]">
+            <div className="text-right hidden sm:flex flex-col items-end justify-center min-w-0 max-w-[160px] pr-1">
               <p className="text-[13px] font-bold text-[#171611] tracking-tight leading-none truncate w-full text-right">{displayUserName}</p>
               <div className="mt-0.5 inline-flex items-center gap-1">
-                <p className="text-[10px] text-[#878164] font-medium">Advisor Account</p>
+                <p className="text-[10px] text-[#878164] font-medium">Tài khoản Advisor</p>
                 {isKycVerified && <VerifiedRoleMark className="h-3.5 w-3.5" />}
               </div>
             </div>
@@ -299,9 +483,18 @@ export function AdvisorHeader({
           </div>
         </div>
       </div>
-      <IssueReportModal 
-        isOpen={isReportModalOpen} 
-        onClose={() => setIsReportModalOpen(false)} 
+      <IssueReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+      />
+      <NotificationDetailModal
+        notificationId={selectedNotiId}
+        isOpen={isNotiDetailOpen}
+        onClose={() => setIsNotiDetailOpen(false)}
+        onDeleteSuccess={(id) => {
+          handleDeleteNoti(id);
+          setIsNotiDetailOpen(false);
+        }}
       />
     </header>
   );

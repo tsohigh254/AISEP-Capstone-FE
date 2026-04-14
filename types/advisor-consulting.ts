@@ -68,7 +68,10 @@ export interface IConsultingActivity {
 // Scope tags submitted by startup
 export type ConsultingScopeTag =
   | 'strategy' | 'fundraising' | 'product'
-  | 'engineering' | 'marketing' | 'legal' | 'operations';
+  | 'engineering' | 'marketing' | 'legal' | 'operations'
+  | 'FUNDRAISING' | 'PRODUCT_STRATEGY' | 'GO_TO_MARKET'
+  | 'FINANCE' | 'LEGAL_IP' | 'OPERATIONS'
+  | 'TECHNOLOGY' | 'MARKETING' | 'HR_OR_TEAM_BUILDING';
 
 // Consulting Request (list item)
 export interface IConsultingRequest {
@@ -91,6 +94,8 @@ export interface IConsultingRequest {
   preferredSlots: ITimeSlotProposal[];
   slotProposals: ITimeSlotProposal[];
   confirmation: IScheduleConfirmation;
+  paymentStatus?: string | null;
+  paidAt?: string | null;
   rejectionReason?: string;
   cancelReason?: string;
   cancelledBy?: string;

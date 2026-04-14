@@ -31,7 +31,7 @@ const formatDate = (iso: string) => {
   });
 };
 
-function StartupAvatar({ name, size = "size-10" }: { name: string; size?: string }) {
+function StartupAvatar({ name, logoURL, size = "size-10" }: { name: string; logoURL?: string | null; size?: string }) {
   const gradients = [
     "from-violet-500 to-violet-600",
     "from-blue-500 to-blue-600",
@@ -39,8 +39,15 @@ function StartupAvatar({ name, size = "size-10" }: { name: string; size?: string
     "from-amber-500 to-amber-600",
   ];
   const idx = (name?.charCodeAt(0) ?? 0) % gradients.length;
+  if (logoURL) {
+    return (
+      <div className={cn(size, "rounded-xl overflow-hidden border border-slate-100 bg-white shadow-sm shadow-black/5 shrink-0")}>
+        <img src={logoURL} alt={name} className="w-full h-full object-cover" />
+      </div>
+    );
+  }
   return (
-    <div className={cn(size, "rounded-xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-xs shadow-sm shadow-black/5", gradients[idx])}>
+    <div className={cn(size, "rounded-xl bg-gradient-to-br flex items-center justify-center text-white font-bold text-xs shadow-sm shadow-black/5 shrink-0", gradients[idx])}>
       {(name ?? "?").charAt(0).toUpperCase()}
     </div>
   );
@@ -67,27 +74,54 @@ export default function ConnectionsPage() {
   const fetchTab = useCallback(async (tab: Tab, p = 1) => {
     setLoadingTab(tab);
     try {
-      const statusMap: Record<Tab, string | undefined> = {
-        pending: "Requested",
-        received: undefined,
-        accepted: "Accepted",
-        rejected: "Rejected",
-      };
-      let res: any;
-      if (tab === "received") {
-        res = await GetReceivedConnections(p, PAGE_SIZE) as any;
+      let items: IConnectionItem[] = [];
+      let total = 0;
+
+      if (tab === "pending") {
+        // Chỉ lấy connection investor đã gửi, đang chờ
+        const res = await GetSentConnections(p, PAGE_SIZE, "Requested") as any;
+        if (res?.isSuccess || res?.success) {
+          items = res.data?.data || res.data?.items || [];
+          total = res.data?.total ?? res.data?.paging?.totalItems ?? items.length;
+        }
+      } else if (tab === "received") {
+        // Chỉ lấy connection startup gửi đến, đang chờ xử lý
+        const res = await GetReceivedConnections(p, PAGE_SIZE, "Requested") as any;
+        if (res?.isSuccess || res?.success) {
+          items = res.data?.data || res.data?.items || [];
+          total = res.data?.total ?? res.data?.paging?.totalItems ?? items.length;
+        }
+      } else if (tab === "accepted") {
+        // Đã kết nối: gộp cả sent + received (bất kể ai gửi trước)
+        const [sentRes, receivedRes] = await Promise.all([
+          GetSentConnections(1, 100, "Accepted") as any,
+          GetReceivedConnections(1, 100, "Accepted") as any,
+        ]);
+        const sentItems: IConnectionItem[] =
+          (sentRes?.isSuccess || sentRes?.success) ? (sentRes.data?.data || sentRes.data?.items || []) : [];
+        const receivedItems: IConnectionItem[] =
+          (receivedRes?.isSuccess || receivedRes?.success) ? (receivedRes.data?.data || receivedRes.data?.items || []) : [];
+        const map = new Map<number, IConnectionItem>();
+        [...sentItems, ...receivedItems].forEach((item) => map.set(item.connectionID, item));
+        const allItems = Array.from(map.values()).sort(
+          (a, b) => new Date(b.respondedAt || b.requestedAt).getTime() - new Date(a.respondedAt || a.requestedAt).getTime()
+        );
+        total = allItems.length;
+        items = allItems.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE);
       } else {
-        res = await GetSentConnections(p, PAGE_SIZE, statusMap[tab]) as any;
+        // Bị từ chối: chỉ lấy connection investor gửi đi bị startup reject
+        const res = await GetSentConnections(p, PAGE_SIZE, "Rejected") as any;
+        if (res?.isSuccess || res?.success) {
+          items = res.data?.data || res.data?.items || [];
+          total = res.data?.total ?? res.data?.paging?.totalItems ?? items.length;
+        }
       }
-      if (res?.isSuccess || res?.success) {
-        const items: IConnectionItem[] = (res.data?.data || res.data?.items || []);
-        const total: number = res.data?.total ?? res.data?.paging?.totalItems ?? items.length;
-        setTotalPages(Math.max(1, Math.ceil(total / PAGE_SIZE)));
-        if (tab === "pending") setPending(items);
-        else if (tab === "received") setReceived(items);
-        else if (tab === "accepted") setAccepted(items);
-        else setRejected(items);
-      }
+
+      setTotalPages(Math.max(1, Math.ceil(total / PAGE_SIZE)));
+      if (tab === "pending") setPending(items);
+      else if (tab === "received") setReceived(items);
+      else if (tab === "accepted") setAccepted(items);
+      else setRejected(items);
     } catch {
       toast.error("Lỗi khi tải danh sách kết nối");
     } finally {
@@ -272,15 +306,19 @@ export default function ConnectionsPage() {
               currentList.map((item) => (
                 <tr key={item.connectionID} className="hover:bg-slate-50/30 transition-colors group">
                   <td className="px-8 py-6">
-                    <div className="flex items-center gap-4">
-                      <StartupAvatar name={activeTab === "received" ? item.startupName : item.startupName} />
+                    <Link href={`/investor/startups/${item.startupID}`} className="flex items-center gap-4">
+                      <StartupAvatar name={item.startupName} logoURL={item.startupLogoURL} />
                       <div>
                         <p className="text-[15px] font-semibold text-slate-900 group-hover:text-[#C8A000] transition-colors">
                           {item.startupName}
                         </p>
-                        <p className="text-[11px] text-slate-400 font-medium">ID #{item.startupID}</p>
+                        {(item.startupStage || item.startupIndustryName) && (
+                          <p className="text-[11px] text-slate-400 font-medium">
+                            {[item.startupStage, item.startupIndustryName].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
                       </div>
-                    </div>
+                    </Link>
                   </td>
                   <td className="px-8 py-6 max-w-[360px]">
                     {item.personalizedMessage ? (

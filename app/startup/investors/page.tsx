@@ -17,13 +17,19 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buildInvestorSearchPresentation, isInvestorKycVerified } from "@/lib/investor-profile-presenter";
+import {
+  INVESTOR_PREFERRED_STAGE_OPTIONS,
+  normalizeInvestorPreferredStage,
+  normalizeInvestorPreferredStages,
+} from "@/lib/investor-preferred-stages";
 import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
 import { Button } from "@/components/ui/button";
 import { AcceptConnection, RejectConnection, GetSentConnections, GetReceivedConnections, WithdrawConnection } from "@/services/connection/connection.api";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { InvestorConnectionModal } from "@/components/startup/investor-connection-modal";
-import { SearchInvestors } from "@/services/startup/startup.api";
+import { SearchInvestors, type SearchInvestorsParams } from "@/services/startup/startup.api";
+import { GetIndustriesFlat } from "@/services/master/master.api";
 
 // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -54,12 +60,47 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  Requested: "REQUESTED",
-  Pending:   "SENT",
-  Accepted:  "ACCEPTED",
-  Rejected:  "REJECTED",
-  Withdrawn: "WITHDRAWN",
-  Closed:    "CLOSED",
+  Requested: "Đang chờ",
+  Pending:   "Đang chờ",
+  Accepted:  "Đã chấp nhận",
+  Rejected:  "Đã từ chối",
+  Withdrawn: "Đã thu hồi",
+  Closed:    "Đã đóng",
+  WaitingResponse: "Đang chờ phản hồi",
+};
+
+const DISCOVERY_CONNECTION_STATUS = {
+  NONE: "NONE",
+  REQUESTED: "REQUESTED",
+  ACCEPTED: "ACCEPTED",
+  IN_DISCUSSION: "IN_DISCUSSION",
+} as const;
+
+type DiscoveryConnectionStatus =
+  (typeof DISCOVERY_CONNECTION_STATUS)[keyof typeof DISCOVERY_CONNECTION_STATUS];
+
+type DiscoveryFilterState = {
+  stage: string;
+  industry: string;
+  ticketRange: string;
+};
+
+const DISCOVERY_TICKET_RANGE_OPTIONS: Array<{
+  value: string;
+  label: string;
+  params: Pick<SearchInvestorsParams, "ticketSizeMin" | "ticketSizeMax">;
+}> = [
+  { value: "", label: "Quy mô đầu tư", params: {} },
+  { value: "upto-50k", label: "Dưới $50K", params: { ticketSizeMax: 50_000 } },
+  { value: "50k-250k", label: "$50K - $250K", params: { ticketSizeMin: 50_000, ticketSizeMax: 250_000 } },
+  { value: "250k-1m", label: "$250K - $1M", params: { ticketSizeMin: 250_000, ticketSizeMax: 1_000_000 } },
+  { value: "1m-plus", label: "Từ $1M", params: { ticketSizeMin: 1_000_000 } },
+];
+
+const DEFAULT_DISCOVERY_FILTERS: DiscoveryFilterState = {
+  stage: "",
+  industry: "",
+  ticketRange: "",
 };
 
 type PaginatedListData<T> = IPaginatedRes<T> & {
@@ -87,6 +128,33 @@ const getErrorStatus = (error: unknown): number | undefined => {
   if (typeof error !== "object" || error === null || !("response" in error)) return undefined;
   const response = (error as { response?: { status?: number } }).response;
   return typeof response?.status === "number" ? response.status : undefined;
+};
+
+const getDiscoveryTicketRangeParams = (ticketRange: string) => {
+  return DISCOVERY_TICKET_RANGE_OPTIONS.find((option) => option.value === ticketRange)?.params ?? {};
+};
+
+const DISCOVERY_PAGE_SIZE = 12;
+const DISCOVERY_STAGE_FALLBACK_PAGE_SIZE = 100;
+
+const matchesInvestorPreferredStage = (
+  investor: IInvestorSearchItem,
+  selectedStage: ReturnType<typeof normalizeInvestorPreferredStage>,
+) => {
+  if (!selectedStage) return true;
+  return normalizeInvestorPreferredStages(investor.preferredStages).includes(selectedStage);
+};
+
+const normalizeDiscoveryConnectionStatus = (status?: string | null): DiscoveryConnectionStatus => {
+  if (
+    status === DISCOVERY_CONNECTION_STATUS.REQUESTED ||
+    status === DISCOVERY_CONNECTION_STATUS.ACCEPTED ||
+    status === DISCOVERY_CONNECTION_STATUS.IN_DISCUSSION
+  ) {
+    return status;
+  }
+
+  return DISCOVERY_CONNECTION_STATUS.NONE;
 };
 
 const normalizeConnectionStatus = (status?: string): "Requested" | "Accepted" | "Rejected" | "Withdrawn" | "Closed" | string => {
@@ -126,9 +194,11 @@ export default function InvestorsPage() {
 
   // ── Tab: Khám phá ──
   const [investors, setInvestors] = useState<IInvestorSearchItem[]>([]);
-  const [isLoadingInvestors, setIsLoadingInvestors] = useState(false);
+  const [isLoadingInvestors, setIsLoadingInvestors] = useState(true);
   const [investorsError, setInvestorsError] = useState<string | null>(null);
   const [keyword, setKeyword] = useState("");
+  const [discoveryFilters, setDiscoveryFilters] = useState<DiscoveryFilterState>(DEFAULT_DISCOVERY_FILTERS);
+  const [industryOptions, setIndustryOptions] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -139,12 +209,14 @@ export default function InvestorsPage() {
   const [sentPage, setSentPage] = useState(1);
   const [sentTotalPages, setSentTotalPages] = useState(1);
   const [sentKeyword, setSentKeyword] = useState("");
+  const [sentStatusFilter, setSentStatusFilter] = useState("");
 
   // Tab: Nhận từ Investor
   const [receivedConnections, setReceivedConnections] = useState<IConnectionItem[]>([]);
   const [isLoadingReceived, setIsLoadingReceived] = useState(false);
   const [receivedPage, setReceivedPage] = useState(1);
   const [receivedTotalPages, setReceivedTotalPages] = useState(1);
+  const [receivedKeyword, setReceivedKeyword] = useState("");
 
   // ── Tab: Đã kết nối ──
   const [connected, setConnected] = useState<IConnectionItem[]>([]);
@@ -155,7 +227,7 @@ export default function InvestorsPage() {
   const handleAcceptConnection = async (id: number) => {
     try {
       const res = await AcceptConnection(id);
-      if (isSuccessResponse(res)) { toast.success("Đã chấp nhận kết nối"); fetchReceived(receivedPage); fetchConnected(connectedPage); fetchConnectionMap(); }
+      if (isSuccessResponse(res)) { toast.success("Đã chấp nhận kết nối"); fetchReceived(receivedPage); fetchConnected(connectedPage); fetchInvestors(currentPage, keyword, discoveryFilters); }
       else { toast.error("Có lỗi xảy ra"); }
     } catch { toast.error("Có lỗi xảy ra"); }
   };
@@ -171,29 +243,65 @@ export default function InvestorsPage() {
   const handleWithdrawConnection = async (id: number) => {
     try {
       const res = await WithdrawConnection(id);
-      if (isSuccessResponse(res)) { toast.success("Đã thu hồi yêu cầu"); fetchSent(sentPage); fetchConnectionMap(); }
+      if (isSuccessResponse(res)) { toast.success("Đã thu hồi yêu cầu"); fetchSent(sentPage); fetchInvestors(currentPage, keyword, discoveryFilters); }
       else { toast.error("Có lỗi xảy ra"); }
     } catch { toast.error("Có lỗi xảy ra"); }
   };
 
 
   // â”€â”€ Modal â”€â”€
+  const isFirstInvestorFetch = React.useRef(true);
+
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [selectedInvestor, setSelectedInvestor] = useState<{ name: string; logo: string; type: string; investorId: number } | null>(null);
 
   // â”€â”€ Connection status map (investorID â†’ IConnectionItem) â”€â”€
   // Used on the Khám phá tab to show button states
-  const [connectionMap, setConnectionMap] = useState<Record<number, IConnectionItem>>({});
-
   // â”€â”€ Fetch: investors â”€â”€
-  const fetchInvestors = useCallback(async (page: number, kw: string) => {
+  const fetchInvestors = useCallback(async (page: number, kw: string, filters: DiscoveryFilterState) => {
     setIsLoadingInvestors(true);
     setInvestorsError(null);
     try {
-      const res = await SearchInvestors({ page, pageSize: 12, keyword: kw || undefined }) as IBackendRes<PaginatedListData<IInvestorSearchItem>>;
-      if (res.success && res.data) {
-        setInvestors(getListItems(res.data));
-        setTotalPages(getTotalPages(res.data, 12));
+      const ticketRangeParams = getDiscoveryTicketRangeParams(filters.ticketRange);
+      const selectedStage = filters.stage ? normalizeInvestorPreferredStage(filters.stage) : null;
+      const res = await SearchInvestors({
+        page,
+        pageSize: DISCOVERY_PAGE_SIZE,
+        keyword: kw || undefined,
+        stage: filters.stage || undefined,
+        industry: filters.industry || undefined,
+        ...ticketRangeParams,
+      }) as IBackendRes<PaginatedListData<IInvestorSearchItem>>;
+      if ((res.success || res.isSuccess) && res.data) {
+        const items = getListItems(res.data);
+        const serverStageLooksWrong = Boolean(
+          selectedStage &&
+          (items.length === 0 || items.some((item) => !matchesInvestorPreferredStage(item, selectedStage))),
+        );
+
+        if (serverStageLooksWrong) {
+          const fallbackRes = await SearchInvestors({
+            page: 1,
+            pageSize: DISCOVERY_STAGE_FALLBACK_PAGE_SIZE,
+            keyword: kw || undefined,
+            industry: filters.industry || undefined,
+            ...ticketRangeParams,
+          }) as IBackendRes<PaginatedListData<IInvestorSearchItem>>;
+
+          if ((fallbackRes.success || fallbackRes.isSuccess) && fallbackRes.data) {
+            const fallbackItems = getListItems(fallbackRes.data).filter((item) =>
+              matchesInvestorPreferredStage(item, selectedStage),
+            );
+            const startIndex = (page - 1) * DISCOVERY_PAGE_SIZE;
+            setInvestors(fallbackItems.slice(startIndex, startIndex + DISCOVERY_PAGE_SIZE));
+            setTotalItems(fallbackItems.length);
+            setTotalPages(Math.max(1, Math.ceil(fallbackItems.length / DISCOVERY_PAGE_SIZE)));
+            return;
+          }
+        }
+
+        setInvestors(items);
+        setTotalPages(getTotalPages(res.data, DISCOVERY_PAGE_SIZE));
         setTotalItems(res.data.paging?.totalItems ?? res.data.total ?? 0);
       } else {
         setInvestors([]);
@@ -212,38 +320,13 @@ export default function InvestorsPage() {
   }, []);
 
   // â”€â”€ Fetch: sent connections (all, for status map) â”€â”€
-  const fetchConnectionMap = useCallback(async () => {
-    try {
-      const [resSent, resReceived] = await Promise.all([
-        GetSentConnections(1, 100),
-        GetReceivedConnections(1, 100),
-      ]);
-      const map: Record<number, IConnectionItem> = {};
-      getListItems(resSent.data).forEach((connection) => {
-        if (!connection?.investorID) return;
-        map[connection.investorID] = {
-          ...connection,
-          initiatedByRole: connection.initiatedByRole ?? "STARTUP",
-        };
-      });
-      getListItems(resReceived.data).forEach((connection) => {
-        if (!connection?.investorID) return;
-        map[connection.investorID] = {
-          ...connection,
-          initiatedByRole: connection.initiatedByRole ?? "INVESTOR",
-        };
-      });
-      setConnectionMap(map);
-    } catch { /* silent */ }
-  }, []);
-
   // alias for BroadcastChannel compatibility
   
   // â”€â”€ Fetch: sent tab â”€â”€
-  const fetchSent = useCallback(async (page: number) => {
+  const fetchSent = useCallback(async (page: number, kw?: string, status?: string) => {
     setIsLoadingSent(true);
     try {
-      const res = await GetSentConnections(page, 10);
+      const res = await GetSentConnections(page, 10, status || undefined, undefined, kw || undefined);
       if (isSuccessResponse(res)) {
         setSentConnections(
           getListItems(res.data).map((item) => ({
@@ -259,10 +342,10 @@ export default function InvestorsPage() {
   }, []);
 
   // â”€â”€ Fetch: received tab (investor â†’ startup) â”€â”€
-  const fetchReceived = useCallback(async (page: number) => {
+  const fetchReceived = useCallback(async (page: number, kw?: string) => {
     setIsLoadingReceived(true);
     try {
-      const res = await GetReceivedConnections(page, 10);
+      const res = await GetReceivedConnections(page, 10, "Requested", undefined, kw || undefined);
       if (isSuccessResponse(res)) {
         setReceivedConnections(
           getListItems(res.data).map((item) => ({
@@ -302,11 +385,25 @@ export default function InvestorsPage() {
     }
   }, []);
 
-  // Initial load
   useEffect(() => {
-    fetchInvestors(1, "");
-    fetchConnectionMap();
-  }, [fetchInvestors, fetchConnectionMap]);
+    let isMounted = true;
+
+    GetIndustriesFlat()
+      .then((items) => {
+        if (!isMounted) return;
+        const uniqueIndustries = Array.from(
+          new Set(items.map((item) => item.industryName).filter((name) => typeof name === "string" && name.trim().length > 0)),
+        ).sort((a, b) => a.localeCompare(b));
+        setIndustryOptions(uniqueIndustries);
+      })
+      .catch(() => {
+        if (isMounted) setIndustryOptions([]);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Listen for cross-tab connection updates (so startup UI refreshes when an investor sends a request)
   useEffect(() => {
@@ -314,7 +411,7 @@ export default function InvestorsPage() {
     const onMessage = (ev: MessageEvent) => {
       try {
         if (ev?.data?.type === "refresh") {
-          fetchConnectionMap();
+          fetchInvestors(currentPage, keyword, discoveryFilters);
           if (activeTab === "Yêu cầu đã gửi") fetchSent(sentPage);
           if (activeTab === "Nhận từ Investor") fetchReceived(receivedPage);
           if (activeTab === "Đã kết nối") fetchConnected(connectedPage);
@@ -324,7 +421,7 @@ export default function InvestorsPage() {
 
     const onStorage = (ev: StorageEvent) => {
       if (ev.key === "connections-refresh") {
-        fetchConnectionMap();
+        fetchInvestors(currentPage, keyword, discoveryFilters);
         if (activeTab === "Yêu cầu đã gửi") fetchSent(sentPage);
         if (activeTab === "Nhận từ Investor") fetchReceived(receivedPage);
         if (activeTab === "Đã kết nối") fetchConnected(connectedPage);
@@ -348,27 +445,56 @@ export default function InvestorsPage() {
         else window.removeEventListener("storage", onStorage);
       } catch {}
     };
-  }, [fetchConnectionMap, fetchSent, fetchReceived, fetchConnected, activeTab, sentPage, receivedPage, connectedPage]);
+  }, [fetchInvestors, currentPage, keyword, discoveryFilters, fetchSent, fetchReceived, fetchConnected, activeTab, sentPage, receivedPage, connectedPage]);
 
   // Reload when tab changes
   useEffect(() => {
-    if (activeTab === "Yêu cầu đã gửi") fetchSent(1);
-    if (activeTab === "Nhận từ Investor") fetchReceived(1);
+    if (activeTab === "Yêu cầu đã gửi") { setSentKeyword(""); setSentStatusFilter(""); fetchSent(1); }
+    if (activeTab === "Nhận từ Investor") { setReceivedKeyword(""); fetchReceived(1); }
     if (activeTab === "Đã kết nối") fetchConnected(1);
   }, [activeTab, fetchSent, fetchReceived, fetchConnected]);
 
-  // Search with debounce
+  // Search with debounce - Khám phá (fire immediately on first mount, debounce on subsequent changes)
   useEffect(() => {
+    if (isFirstInvestorFetch.current) {
+      isFirstInvestorFetch.current = false;
+      setCurrentPage(1);
+      fetchInvestors(1, keyword, discoveryFilters);
+      return;
+    }
     const t = setTimeout(() => {
       setCurrentPage(1);
-      fetchInvestors(1, keyword);
+      fetchInvestors(1, keyword, discoveryFilters);
     }, 400);
     return () => clearTimeout(t);
-  }, [keyword, fetchInvestors]);
+  }, [keyword, discoveryFilters, fetchInvestors]);
+
+  // Search with debounce - Yêu cầu đã gửi
+  useEffect(() => {
+    const t = setTimeout(() => { setSentPage(1); fetchSent(1, sentKeyword, sentStatusFilter); }, 400);
+    return () => clearTimeout(t);
+  }, [sentKeyword, sentStatusFilter, fetchSent]);
+
+  // Search with debounce - Nhận từ Investor
+  useEffect(() => {
+    const t = setTimeout(() => { setReceivedPage(1); fetchReceived(1, receivedKeyword); }, 400);
+    return () => clearTimeout(t);
+  }, [receivedKeyword, fetchReceived]);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-    fetchInvestors(page, keyword);
+    fetchInvestors(page, keyword, discoveryFilters);
+  };
+
+  const handleDiscoveryFilterChange = <K extends keyof DiscoveryFilterState>(
+    key: K,
+    value: DiscoveryFilterState[K],
+  ) => {
+    setDiscoveryFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleResetDiscoveryFilters = () => {
+    setDiscoveryFilters(DEFAULT_DISCOVERY_FILTERS);
   };
 
   const handleOpenRequest = (investor: IInvestorSearchItem) => {
@@ -385,7 +511,8 @@ export default function InvestorsPage() {
   };
 
   const handleConnectionSuccess = () => {
-    fetchConnectionMap();
+    fetchInvestors(currentPage, keyword, discoveryFilters);
+    fetchSent(sentPage);
   };
 
   // â”€â”€ Pagination component â”€â”€
@@ -438,6 +565,77 @@ export default function InvestorsPage() {
             {/* Search & Filters */}
             <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
               <div className="flex flex-wrap items-center gap-3">
+                <div className="relative min-w-[260px] flex-1">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-5" />
+                  <Input
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                    placeholder="Tìm theo tên quỹ hoặc nhà đầu tư..."
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-12 text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:ring-0"
+                  />
+                </div>
+                <div className="relative">
+                  <select
+                    value={discoveryFilters.stage}
+                    onChange={(event) => handleDiscoveryFilterChange("stage", event.target.value)}
+                    className="h-11 min-w-[150px] appearance-none rounded-xl border border-slate-200 bg-white px-4 pr-10 text-[13px] font-medium text-slate-700 outline-none transition-colors hover:bg-slate-50"
+                  >
+                    <option value="">Giai đoạn</option>
+                    {INVESTOR_PREFERRED_STAGE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                </div>
+                <div className="relative">
+                  <select
+                    value={discoveryFilters.industry}
+                    onChange={(event) => handleDiscoveryFilterChange("industry", event.target.value)}
+                    className="h-11 min-w-[190px] appearance-none rounded-xl border border-slate-200 bg-white px-4 pr-10 text-[13px] font-medium text-slate-700 outline-none transition-colors hover:bg-slate-50"
+                  >
+                    <option value="">Ngành nghề ưu tiên</option>
+                    {industryOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                </div>
+                <div className="relative">
+                  <select
+                    value={discoveryFilters.ticketRange}
+                    onChange={(event) => handleDiscoveryFilterChange("ticketRange", event.target.value)}
+                    className="h-11 min-w-[170px] appearance-none rounded-xl border border-slate-200 bg-white px-4 pr-10 text-[13px] font-medium text-slate-700 outline-none transition-colors hover:bg-slate-50"
+                  >
+                    {DISCOVERY_TICKET_RANGE_OPTIONS.map((option) => (
+                      <option key={option.value || "all"} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleResetDiscoveryFilters}
+                  disabled={
+                    discoveryFilters.stage === "" &&
+                    discoveryFilters.industry === "" &&
+                    discoveryFilters.ticketRange === ""
+                  }
+                  className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
+                >
+                  <SlidersHorizontal className="size-4" />
+                  <span>Xóa lọc</span>
+                </Button>
+              </div>
+            </div>
+            <div className="hidden">
+              <div className="flex flex-wrap items-center gap-3">
               <div className="relative min-w-[260px] flex-1">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-5" />
                 <Input
@@ -462,10 +660,45 @@ export default function InvestorsPage() {
               </div>
             </div>
 
-            {/* Loading */}
+            {/* Loading — skeleton cards thay vì spinner để tránh layout shift */}
             {isLoadingInvestors && (
-              <div className="flex justify-center py-20">
-                <Loader2 className="size-8 animate-spin text-[#eec54e]" />
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] animate-pulse">
+                    <div className="flex flex-1 flex-col p-6 text-center">
+                      {/* Avatar */}
+                      <div className="mx-auto mb-5 size-[84px] rounded-full bg-slate-200" />
+                      {/* Badge */}
+                      <div className="mx-auto mb-2 h-5 w-20 rounded-full bg-slate-200" />
+                      {/* Name */}
+                      <div className="mx-auto mb-2 h-6 w-36 rounded-lg bg-slate-200" />
+                      {/* Subtitle */}
+                      <div className="mx-auto mb-5 h-4 w-28 rounded-lg bg-slate-100" />
+                      {/* Stats grid */}
+                      <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-100/70 px-2 py-3">
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="h-5 w-8 rounded bg-slate-200" />
+                          <div className="h-3 w-16 rounded bg-slate-200" />
+                        </div>
+                        <div className="flex flex-col items-center gap-1 border-l border-slate-300/70">
+                          <div className="h-5 w-20 rounded bg-slate-200" />
+                          <div className="h-3 w-16 rounded bg-slate-200" />
+                        </div>
+                      </div>
+                      {/* Tags */}
+                      <div className="mb-4 flex min-h-[58px] flex-wrap justify-center gap-1.5">
+                        <div className="h-6 w-24 rounded-lg bg-slate-200" />
+                        <div className="h-6 w-28 rounded-lg bg-slate-200" />
+                        <div className="h-6 w-20 rounded-lg bg-slate-200" />
+                      </div>
+                      {/* Buttons */}
+                      <div className="mt-auto flex gap-3 pt-2">
+                        <div className="h-[44px] flex-1 rounded-xl bg-slate-200" />
+                        <div className="h-[44px] flex-1 rounded-xl bg-slate-200" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -494,17 +727,39 @@ export default function InvestorsPage() {
             {!isLoadingInvestors && !investorsError && investors.length > 0 && (
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {investors.map((investor) => {
-                  const conn = connectionMap[investor.investorID];
                   const presentation = buildInvestorSearchPresentation(investor, {
                     institutionalIdentityLineMode: "organization",
                   });
                   const isKycVerified = isInvestorKycVerified(investor);
-                  const normalizedConnectionStatus = normalizeConnectionStatus(conn?.connectionStatus);
+                  const connectionStatus = normalizeDiscoveryConnectionStatus(investor.connectionStatus);
+                  const isAccepted =
+                    connectionStatus === DISCOVERY_CONNECTION_STATUS.ACCEPTED ||
+                    connectionStatus === DISCOVERY_CONNECTION_STATUS.IN_DISCUSSION;
+                  const isPending = connectionStatus === DISCOVERY_CONNECTION_STATUS.REQUESTED;
                   const hasPendingIncomingInvite =
-                    Boolean(conn) && isPendingConnection(conn?.connectionStatus) && conn?.initiatedByRole === "INVESTOR";
-                  const canRequestConnection =
-                    investor.canRequestConnection ??
-                    ((investor.profileAvailabilityReason ?? "OPEN") === "OPEN" && investor.acceptingConnections !== false);
+                    isPending && investor.initiatedByRole === "INVESTOR";
+                  const hasPendingOutgoingInvite =
+                    isPending && investor.initiatedByRole === "STARTUP";
+                  const canRequestConnection = investor.canRequestConnection;
+                  const conn =
+                    investor.connectionId != null
+                      ? ({
+                          connectionID: investor.connectionId,
+                          connectionStatus: isAccepted
+                            ? "Accepted"
+                            : isPending
+                              ? "Requested"
+                              : "Closed",
+                          initiatedByRole: investor.initiatedByRole ?? undefined,
+                        } as Pick<IConnectionItem, "connectionID" | "connectionStatus" | "initiatedByRole">)
+                      : null;
+                  const normalizedConnectionStatus = hasPendingOutgoingInvite
+                    ? "WaitingResponse"
+                    : isAccepted
+                      ? "Accepted"
+                      : !canRequestConnection
+                        ? "Closed"
+                        : normalizeConnectionStatus(conn?.connectionStatus) || "Closed";
                   const hasTicketSize = investor.ticketSizeMin != null || investor.ticketSizeMax != null;
                   const industries = (investor.preferredIndustries ?? []).slice(0, 3);
                   return (
@@ -638,17 +893,32 @@ export default function InvestorsPage() {
       // ── Yêu cầu đã gửi ──────────────────────────────────────────────────
       case "Yêu cầu đã gửi":
         return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-            <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
-              <div className="relative w-full lg:w-[400px]">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-                <Input value={sentKeyword} onChange={e => setSentKeyword(e.target.value)} placeholder="Tìm kiếm nhà đầu tư..." className="w-full pl-10 h-11 bg-white dark:bg-slate-900 border-slate-200 rounded-xl text-sm" />
+          <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            {/* Toolbar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="relative w-full sm:w-[340px]">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                <Input
+                  value={sentKeyword}
+                  onChange={e => setSentKeyword(e.target.value)}
+                  placeholder="Tìm kiếm nhà đầu tư..."
+                  className="w-full pl-10 h-10 bg-white border-slate-200 rounded-xl text-[13px]"
+                />
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-[12px] font-black text-slate-400 uppercase tracking-widest">Trạng thái:</span>
-                <div className="h-11 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center gap-10 cursor-pointer min-w-[140px] justify-between">
-                  <span className="text-sm font-bold text-slate-900 dark:text-white">Tất cả</span>
-                  <ChevronDown className="size-4 text-slate-400" />
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Trạng thái:</span>
+                <div className="relative">
+                  <select
+                    value={sentStatusFilter}
+                    onChange={e => { setSentStatusFilter(e.target.value); setSentPage(1); fetchSent(1, sentKeyword, e.target.value); }}
+                    className="h-10 appearance-none rounded-xl border border-slate-200 bg-white px-4 pr-9 text-[13px] font-semibold text-slate-700 outline-none hover:bg-slate-50 transition-colors"
+                  >
+                    <option value="">Tất cả</option>
+                    <option value="Requested">Đang chờ</option>
+                    <option value="Rejected">Đã từ chối</option>
+                    <option value="Withdrawn">Đã thu hồi</option>
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
                 </div>
               </div>
             </div>
@@ -656,138 +926,59 @@ export default function InvestorsPage() {
             {isLoadingSent ? (
               <div className="flex justify-center py-20"><Loader2 className="size-8 animate-spin text-[#eec54e]" /></div>
             ) : (
-              <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
                 <table className="w-full border-collapse">
                   <thead>
-                    <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Nhà đầu tư</th>
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thông điệp</th>
-                      <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Ngày gửi</th>
-                      <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Trạng thái</th>
-                      <th className="px-8 py-5 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thao tác</th>
+                    <tr className="border-b border-slate-100 bg-slate-50/60">
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Nhà đầu tư</th>
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Thông điệp</th>
+                      <th className="px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Ngày gửi</th>
+                      <th className="px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Trạng thái</th>
+                      <th className="px-6 py-4 text-right text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Thao tác</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {sentConnections.length === 0 && (
-                      <tr><td colSpan={5} className="px-8 py-12 text-center text-slate-400 text-sm font-medium">Chưa có lời mời nào được gửi.</td></tr>
+                  <tbody className="divide-y divide-slate-100">
+                    {sentConnections.filter(c => normalizeConnectionStatus(c.connectionStatus) !== "Accepted").length === 0 && (
+                      <tr><td colSpan={5} className="px-6 py-14 text-center text-slate-400 text-[13px] font-medium">Chưa có lời mời nào được gửi.</td></tr>
                     )}
-                    {sentConnections.map((item) => (
-                      <tr key={item.connectionID} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
-                        <td className="px-8 py-6">
-                          <div className="flex items-center gap-4">
-                            <InvestorAvatar name={item.investorName} size="size-10" />
-                            <p className="text-sm font-black text-slate-900 dark:text-white group-hover:text-[#eec54e] transition-colors">{item.investorName}</p>
+                    {sentConnections.filter(c => normalizeConnectionStatus(c.connectionStatus) !== "Accepted").map((item) => (
+                      <tr key={item.connectionID} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <InvestorAvatar name={item.investorName} url={item.investorPhotoURL ?? undefined} size="size-9" />
+                            <p className="text-[13px] font-bold text-slate-800">{item.investorName}</p>
                           </div>
                         </td>
-                        <td className="px-8 py-6 max-w-[300px]">
-                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium truncate">{item.personalizedMessage || "\u2014"}</p>
+                        <td className="px-6 py-4 max-w-[260px]">
+                          <p className="text-[13px] text-slate-500 font-medium truncate">{item.personalizedMessage || "—"}</p>
                         </td>
-                        <td className="px-8 py-6 text-center text-[13px] font-black text-slate-500 uppercase tracking-tight opacity-70">
+                        <td className="px-6 py-4 text-center text-[12px] font-medium text-slate-400">
                           {formatDate(item.requestedAt)}
                         </td>
-                        <td className="px-8 py-6 text-center">
-                          <span className={cn("px-3 py-1 rounded-full text-[10px] font-black border tracking-widest", STATUS_STYLES[normalizeConnectionStatus(item.connectionStatus)] ?? "bg-slate-50 text-slate-500 border-slate-100")}>
-                            {"\u2022"} {STATUS_LABEL[normalizeConnectionStatus(item.connectionStatus)] ?? normalizeConnectionStatus(item.connectionStatus)}
+                        <td className="px-6 py-4 text-center">
+                          <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border", STATUS_STYLES[normalizeConnectionStatus(item.connectionStatus)] ?? "bg-slate-50 text-slate-500 border-slate-100")}>
+                            <span className="size-1.5 rounded-full bg-current opacity-70" />
+                            {STATUS_LABEL[normalizeConnectionStatus(item.connectionStatus)] ?? normalizeConnectionStatus(item.connectionStatus)}
                           </span>
                         </td>
-                        <td className="px-8 py-6 text-right">
-                            {isPendingConnection(item.connectionStatus) ? (
-                              <button
-                                onClick={() => handleWithdrawConnection(item.connectionID)}
-                                className="h-10 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all font-bold text-[13px] flex items-center gap-2"
-                              >
-                                Thu hồi
-                              </button>
-                            ) : isAcceptedConnection(item.connectionStatus) ? (
-                              <Button
-                                onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
-                                className="h-10 px-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 text-slate-900 dark:text-white border-none text-[12px] font-black gap-2 hover:bg-[#eec54e] hover:text-white transition-all group/btn"
-                              >
-                                <MessageCircle className="size-4 group-hover/btn:scale-110 transition-transform" />
-                                <span>Nhắn tin</span>
-                              </Button>
-                            ) : (
-                              <span className="text-[13px] font-bold text-slate-500">
-                                Đã xử lý
-                              </span>
-                            )}
-                          </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <div className="pt-6 flex items-center justify-between">
-              <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest">
-                Trang {sentPage} / {sentTotalPages}
-              </p>
-              <Pagination page={sentPage} total={sentTotalPages} onChange={(p) => { setSentPage(p); fetchSent(p); }} />
-            </div>
-          </div>
-        );
-      // Tab: Nhận từ Investor
-      case "Nhận từ Investor":
-        return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-            {isLoadingReceived ? (
-              <div className="flex justify-center py-20"><Loader2 className="size-8 animate-spin text-[#eec54e]" /></div>
-            ) : (
-              <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Nhà đầu tư</th>
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Lời nhắn</th>
-                      <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Ngày gửi</th>
-                      <th className="px-8 py-5 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {receivedConnections.length === 0 && (
-                      <tr><td colSpan={4} className="px-8 py-12 text-center text-slate-400 text-sm font-medium">Chưa có nhà đầu tư nào gửi lời mời kết nối.</td></tr>
-                    )}
-                    {receivedConnections.map((item) => (
-                      <tr key={item.connectionID} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
-                        <td className="px-8 py-6">
-                          <div className="flex items-center gap-4">
-                            <InvestorAvatar name={item.investorName} size="size-10" />
-                            <p className="text-sm font-black text-slate-900 dark:text-white group-hover:text-[#eec54e] transition-colors">{item.investorName}</p>
-                          </div>
-                        </td>
-                        <td className="px-8 py-6 max-w-[300px]">
-                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium truncate">{item.personalizedMessage || "\u2014"}</p>
-                        </td>
-                        <td className="px-8 py-6 text-center text-[13px] font-black text-slate-500 uppercase tracking-tight opacity-70">
-                          {formatDate(item.requestedAt)}
-                        </td>
-                        <td className="px-8 py-6 text-right">
+                        <td className="px-6 py-4 text-right">
                           {isPendingConnection(item.connectionStatus) ? (
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => handleAcceptConnection(item.connectionID)}
-                                className="h-10 px-4 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-all font-bold text-[13px]"
-                              >
-                                Chấp nhận
-                              </button>
-                              <button
-                                onClick={() => handleRejectConnection(item.connectionID)}
-                                className="h-10 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all font-bold text-[13px]"
-                              >
-                                Từ chối
-                              </button>
-                            </div>
-                          ) : isAcceptedConnection(item.connectionStatus) ? (
-                            <Button
-                              onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
-                              className="h-10 px-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 text-slate-900 dark:text-white border-none text-[12px] font-black gap-2 hover:bg-[#eec54e] hover:text-white transition-all group/btn"
+                            <button
+                              onClick={() => handleWithdrawConnection(item.connectionID)}
+                              className="h-9 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all font-semibold text-[12px]"
                             >
-                              <MessageCircle className="size-4" />
-                              <span>Nhắn tin</span>
-                            </Button>
+                              Thu hồi
+                            </button>
+                          ) : isAcceptedConnection(item.connectionStatus) ? (
+                            <button
+                              onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
+                              className="h-9 px-4 rounded-xl bg-[#eec54e] text-[#171611] font-bold text-[12px] inline-flex items-center gap-1.5 hover:bg-[#d4ae3d] transition-colors"
+                            >
+                              <MessageCircle className="size-3.5" />
+                              Nhắn tin
+                            </button>
                           ) : (
-                            <span className="text-[13px] font-bold text-slate-500">Đã xử lý</span>
+                            <span className="text-[12px] font-medium text-slate-400">Đã xử lý</span>
                           )}
                         </td>
                       </tr>
@@ -796,69 +987,166 @@ export default function InvestorsPage() {
                 </table>
               </div>
             )}
-            <div className="pt-6 flex items-center justify-between">
-              <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest">
-                Trang {receivedPage} / {receivedTotalPages}
-              </p>
-              <Pagination page={receivedPage} total={receivedTotalPages} onChange={(p) => { setReceivedPage(p); fetchReceived(p); }} />
+
+            <div className="flex items-center justify-between">
+              <p className="text-[12px] font-medium text-slate-400">Trang {sentPage} / {sentTotalPages}</p>
+              <Pagination page={sentPage} total={sentTotalPages} onChange={(p) => { setSentPage(p); fetchSent(p, sentKeyword, sentStatusFilter); }} />
+            </div>
+          </div>
+        );
+      // Tab: Nhận từ Investor
+      case "Nhận từ Investor":
+        return (
+          <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            {/* Toolbar */}
+            <div className="flex items-center gap-3">
+              <div className="relative w-full sm:w-[340px]">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                <Input
+                  value={receivedKeyword}
+                  onChange={e => setReceivedKeyword(e.target.value)}
+                  placeholder="Tìm kiếm nhà đầu tư..."
+                  className="w-full pl-10 h-10 bg-white border-slate-200 rounded-xl text-[13px]"
+                />
+              </div>
+            </div>
+
+            {isLoadingReceived ? (
+              <div className="flex justify-center py-20"><Loader2 className="size-8 animate-spin text-[#eec54e]" /></div>
+            ) : (
+              <div className="rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50/60">
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Nhà đầu tư</th>
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Lời nhắn</th>
+                      <th className="px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Ngày gửi</th>
+                      <th className="px-6 py-4 text-right text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {receivedConnections.length === 0 && (
+                      <tr><td colSpan={4} className="px-6 py-14 text-center text-slate-400 text-[13px] font-medium">Chưa có nhà đầu tư nào gửi lời mời kết nối.</td></tr>
+                    )}
+                    {receivedConnections.map((item) => (
+                      <tr key={item.connectionID} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <InvestorAvatar name={item.investorName} url={item.investorPhotoURL ?? undefined} size="size-9" />
+                            <div>
+                              <p className="text-[13px] font-bold text-slate-800">{item.investorName}</p>
+                              {item.firmName && (
+                                <p className="text-[11px] text-slate-400 font-medium mt-0.5">{item.firmName}</p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 max-w-[260px]">
+                          <p className="text-[13px] text-slate-500 font-medium truncate">{item.personalizedMessage || "—"}</p>
+                        </td>
+                        <td className="px-6 py-4 text-center text-[12px] font-medium text-slate-400">
+                          {formatDate(item.requestedAt)}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {isPendingConnection(item.connectionStatus) ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleAcceptConnection(item.connectionID)}
+                                className="h-9 px-4 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-all font-semibold text-[12px]"
+                              >
+                                Chấp nhận
+                              </button>
+                              <button
+                                onClick={() => handleRejectConnection(item.connectionID)}
+                                className="h-9 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all font-semibold text-[12px]"
+                              >
+                                Từ chối
+                              </button>
+                            </div>
+                          ) : isAcceptedConnection(item.connectionStatus) ? (
+                            <button
+                              onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
+                              className="h-9 px-4 rounded-xl bg-[#eec54e] text-[#171611] font-bold text-[12px] inline-flex items-center gap-1.5 hover:bg-[#d4ae3d] transition-colors"
+                            >
+                              <MessageCircle className="size-3.5" />
+                              Nhắn tin
+                            </button>
+                          ) : (
+                            <span className="text-[12px] font-medium text-slate-400">Đã xử lý</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <p className="text-[12px] font-medium text-slate-400">Trang {receivedPage} / {receivedTotalPages}</p>
+              <Pagination page={receivedPage} total={receivedTotalPages} onChange={(p) => { setReceivedPage(p); fetchReceived(p, receivedKeyword); }} />
             </div>
           </div>
         );
       // ── Đã kết nối ──────────────────────────────────────────────────────
       case "Đã kết nối":
         return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-            <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
-              <div className="relative w-full lg:w-[400px]">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-                <Input value={connectedKeyword} onChange={e => setConnectedKeyword(e.target.value)} placeholder="Tìm kiếm nhà đầu tư..." className="w-full pl-10 h-11 bg-white dark:bg-slate-900 border-slate-200 rounded-xl text-sm" />
+          <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            <div className="flex items-center gap-3">
+              <div className="relative w-full sm:w-[340px]">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                <Input
+                  value={connectedKeyword}
+                  onChange={e => setConnectedKeyword(e.target.value)}
+                  placeholder="Tìm kiếm nhà đầu tư..."
+                  className="w-full pl-10 h-10 bg-white border-slate-200 rounded-xl text-[13px]"
+                />
               </div>
             </div>
 
             {isLoadingConnected ? (
               <div className="flex justify-center py-20"><Loader2 className="size-8 animate-spin text-[#eec54e]" /></div>
             ) : (
-              <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
                 <table className="w-full border-collapse">
                   <thead>
-                    <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Nhà đầu tư</th>
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thông điệp</th>
-                      <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Ngày kết nối</th>
-                      <th className="px-8 py-5 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thao tác</th>
+                    <tr className="border-b border-slate-100 bg-slate-50/60">
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Nhà đầu tư</th>
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Thông điệp</th>
+                      <th className="px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Ngày kết nối</th>
+                      <th className="px-6 py-4 text-right text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Thao tác</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tbody className="divide-y divide-slate-100">
                     {connected.length === 0 && (
-                      <tr><td colSpan={4} className="px-8 py-12 text-center text-slate-400 text-sm font-medium">Chưa có kết nối nào được chấp nhận.</td></tr>
+                      <tr><td colSpan={4} className="px-6 py-14 text-center text-slate-400 text-[13px] font-medium">Chưa có kết nối nào được chấp nhận.</td></tr>
                     )}
                     {connected.map((item) => (
-                      <tr key={item.connectionID} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
-                        <td className="px-8 py-6">
-                          <div className="flex items-center gap-4">
-                            <InvestorAvatar name={item.investorName} size="size-10" />
-                            <p className="text-sm font-black text-slate-900 dark:text-white group-hover:text-[#eec54e] transition-colors">{item.investorName}</p>
+                      <tr key={item.connectionID} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <InvestorAvatar name={item.investorName} url={item.investorPhotoURL ?? undefined} size="size-9" />
+                            <p className="text-[13px] font-bold text-slate-800">{item.investorName}</p>
                           </div>
                         </td>
-                        <td className="px-8 py-6 max-w-[350px]">
-                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium italic border-l-2 border-slate-100 dark:border-slate-800 pl-4 truncate">
-                            {item.personalizedMessage || "\u2014"}
+                        <td className="px-6 py-4 max-w-[300px]">
+                          <p className="text-[13px] text-slate-500 font-medium border-l-2 border-slate-100 pl-3 truncate">
+                            {item.personalizedMessage || "—"}
                           </p>
                         </td>
-                        <td className="px-8 py-6 text-center text-[13px] font-black text-slate-500 uppercase tracking-tight opacity-70">
+                        <td className="px-6 py-4 text-center text-[12px] font-medium text-slate-400">
                           {formatDate(item.respondedAt || item.requestedAt)}
                         </td>
-                        <td className="px-8 py-6 text-right">
-                          <div className="flex items-center justify-end gap-3">
-                            <Button
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
                               onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
-                              className="h-10 px-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 text-slate-900 dark:text-white border-none text-[12px] font-black gap-2 hover:bg-[#eec54e] hover:text-white transition-all group/btn"
+                              className="h-9 px-4 rounded-xl bg-[#eec54e] text-[#171611] font-bold text-[12px] inline-flex items-center gap-1.5 hover:bg-[#d4ae3d] transition-colors"
                             >
-                              <MessageCircle className="size-4 group-hover/btn:scale-110 transition-transform" />
-                              <span>Nhắn tin</span>
-                            </Button>
+                              <MessageCircle className="size-3.5" />
+                              Nhắn tin
+                            </button>
                             <Link href={`/startup/investors/${item.investorID}`}>
-                              <button className="px-3 py-2 text-[12px] font-black text-slate-400 hover:text-slate-900 border border-slate-100 rounded-xl transition-all">
+                              <button className="h-9 px-3 text-[12px] font-semibold text-slate-400 hover:text-slate-700 border border-slate-200 rounded-xl transition-all hover:bg-slate-50">
                                 Xem hồ sơ
                               </button>
                             </Link>
@@ -871,10 +1159,8 @@ export default function InvestorsPage() {
               </div>
             )}
 
-            <div className="pt-6 flex items-center justify-between">
-              <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest">
-                Trang {connectedPage} / {connectedTotalPages}
-              </p>
+            <div className="flex items-center justify-between">
+              <p className="text-[12px] font-medium text-slate-400">Trang {connectedPage} / {connectedTotalPages}</p>
               <Pagination page={connectedPage} total={connectedTotalPages} onChange={(p) => { setConnectedPage(p); fetchConnected(p); }} />
             </div>
           </div>

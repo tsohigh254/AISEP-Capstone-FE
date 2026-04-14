@@ -10,6 +10,19 @@ import { Building2, Target, Info, Loader2 } from "lucide-react";
 import { CreateConnection } from "@/services/connection/connection.api";
 import { toast } from "sonner";
 
+const viMessages: Record<string, string> = {
+  "An active or pending connection already exists.": "Đã tồn tại kết nối hoặc yêu cầu đang chờ xử lý với startup này.",
+  "Connection not found.": "Không tìm thấy kết nối.",
+  "You cannot connect to yourself.": "Không thể tự kết nối với chính mình.",
+  "Startup not found.": "Không tìm thấy startup.",
+  "Investor not found.": "Không tìm thấy nhà đầu tư.",
+};
+
+const translateError = (msg?: string) => {
+  if (!msg) return "Gặp lỗi khi gửi yêu cầu kết nối";
+  return viMessages[msg] ?? msg;
+};
+
 interface ConnectStartupModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -61,12 +74,12 @@ export function ConnectStartupModal({
         onOpenChange(false);
         setReason("");
       } else {
-        toast.error((res as any)?.message || "Gặp lỗi khi gửi yêu cầu kết nối");
+        toast.error(translateError((res as any)?.message));
       }
     } catch (err: any) {
         // store error debug
         try { localStorage.setItem("connection-debug", JSON.stringify({ timestamp: Date.now(), op: "create-connection-error", error: err?.response?.data ?? err?.message ?? String(err) })); } catch (e) {}
-        toast.error(err?.response?.data?.message || "Gặp lỗi khi gửi yêu cầu kết nối");
+        toast.error(translateError(err?.response?.data?.message));
     } finally {
         setLoading(false);
     }
@@ -74,68 +87,72 @@ export function ConnectStartupModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="p-0 sm:max-w-[480px] rounded-2xl border-none shadow-2xl overflow-hidden bg-white">
-          <div className="bg-[#f8f8f6] px-6 py-8 border-b border-neutral-100 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-[#e6cc4c]/20 rounded-full blur-3xl -mr-16 -mt-16" />
-            <DialogHeader className="relative z-10">
-              <DialogTitle className="text-2xl font-bold text-[#171611]">Yêu cầu kết nối</DialogTitle>
-              <p className="text-sm text-neutral-500 font-medium mt-1">Gửi lời nhắn tới nhà sáng lập để mở ra cơ hội đầu tư.</p>
+        <DialogContent className="p-0 sm:max-w-[520px] rounded-2xl border-none shadow-2xl overflow-hidden bg-white">
+          {/* Header */}
+          <div className="px-6 pt-6 pb-4">
+            <DialogHeader>
+              <DialogTitle className="text-[20px] font-black text-[#171611] tracking-tight">Yêu cầu kết nối</DialogTitle>
+              <p className="text-[13px] text-slate-400 font-medium mt-0.5">Gửi lời nhắn tới nhà sáng lập để mở ra cơ hội đầu tư.</p>
             </DialogHeader>
           </div>
 
-          <div className="p-6 space-y-6 bg-white">
-            <div className="flex items-center gap-4 bg-white p-4 rounded-xl border border-neutral-100 shadow-sm">
-              <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center font-black text-[#171611] text-lg overflow-hidden">
+          <div className="px-6 pb-2 space-y-5">
+            {/* Startup info */}
+            <div className="flex items-center gap-4 p-4 rounded-2xl bg-[#f8f8f6] border border-slate-100">
+              <div className="w-11 h-11 rounded-xl bg-white border border-slate-100 flex items-center justify-center font-black text-[#171611] text-sm overflow-hidden flex-shrink-0">
                   {startup.logo && startup.logo.length > 5 ? (
                       <img src={startup.logo} alt={startup.name} className="w-full h-full object-cover" />
                   ) : (startup.logo || startup.name.charAt(0))}
               </div>
-              <div>
-                <p className="text-sm font-bold text-[#171611] leading-tight">{startup.name}</p>
-                <div className="flex items-center gap-3 mt-1 text-xs text-neutral-400 font-medium">
+              <div className="min-w-0">
+                <p className="text-[14px] font-bold text-[#171611] leading-tight truncate">{startup.name}</p>
+                <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-400 font-medium">
                   <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> {startup.industry}</span>
                   <span className="flex items-center gap-1"><Target className="w-3 h-3" /> {startup.stage}</span>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-3">
+            {/* Message input */}
+            <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                  <label className="text-[13px] font-bold text-[#171611] flex items-center gap-1.5 uppercase tracking-wider">
-                      Lời nhắn mở đầu
-                      <span className="text-red-500">*</span>
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                      Lời nhắn mở đầu <span className="text-red-400">*</span>
                   </label>
-                  <div className="flex items-center gap-1 text-[11px] text-neutral-400 font-medium">
-                      <Info className="w-3 h-3" />
-                      Tối đa 300 ký tự
-                  </div>
+                  <span className={`text-[11px] font-medium ${reason.length > 250 ? 'text-amber-500' : 'text-slate-300'}`}>
+                      {reason.length}/300
+                  </span>
               </div>
               <textarea
-                className="w-full h-32 px-4 py-3 bg-[#f8f8f6] border border-transparent focus:bg-white focus:border-[#e6cc4c] focus:ring-4 focus:ring-[#e6cc4c]/10 rounded-xl outline-none transition-all text-sm font-medium resize-none placeholder:text-neutral-400"
-                placeholder="VD: Chào bạn, tôi đánh giá cao tiềm năng tăng trưởng của startup. Chúng ta kết nối nhé!"
+                className="w-full h-[120px] px-4 py-3 bg-[#f8f8f6] border border-slate-200/80 focus:bg-white focus:border-[#e6cc4c] focus:ring-2 focus:ring-[#e6cc4c]/10 rounded-xl outline-none transition-all text-[13px] font-medium resize-none placeholder:text-slate-300 leading-relaxed"
+                placeholder="VD: Chào bạn, tôi quan tâm đến mô hình kinh doanh của startup và muốn trao đổi thêm về cơ hội hợp tác đầu tư."
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 maxLength={300}
               />
+              <p className="text-[11px] text-slate-300 flex items-center gap-1">
+                <Info className="w-3 h-3" /> Lời nhắn giúp startup hiểu rõ mục đích kết nối của bạn.
+              </p>
             </div>
           </div>
 
-          <DialogFooter className="p-6 pt-0 flex gap-3 sm:gap-0 bg-white">
+          {/* Footer */}
+          <div className="px-6 py-5 border-t border-slate-100 flex gap-3 bg-white">
             <button
               onClick={() => onOpenChange(false)}
               disabled={loading}
-              className="flex-1 px-4 py-3 border border-neutral-200 text-neutral-600 rounded-xl text-sm font-bold hover:bg-neutral-50 transition-colors disabled:opacity-50"
+              className="flex-1 h-11 border border-slate-200 text-slate-600 rounded-xl text-[13px] font-bold hover:bg-slate-50 transition-colors disabled:opacity-50"
             >
               Hủy bỏ
             </button>
             <button
               onClick={handleAdd}
               disabled={!reason.trim() || loading}
-              className="flex-[2] flex items-center justify-center gap-2 px-4 py-3 bg-[#e6cc4c] text-[#171611] rounded-xl text-sm font-black shadow-lg shadow-[#e6cc4c]/20 hover:bg-[#d8c040] transition-all disabled:opacity-50 disabled:shadow-none"
+              className="flex-[1.5] h-11 flex items-center justify-center gap-2 bg-[#e6cc4c] text-[#171611] rounded-xl text-[13px] font-black shadow-sm hover:bg-[#d8c040] transition-all disabled:opacity-40 disabled:shadow-none"
             >
               {loading && <Loader2 className="w-4 h-4 animate-spin"/>} Gửi yêu cầu
             </button>
-          </DialogFooter>
+          </div>
         </DialogContent>
     </Dialog>
   );

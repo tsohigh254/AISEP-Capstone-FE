@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronRight } from "lucide-react";
-import React from "react";
+import React, { Suspense } from "react";
 import { AdvisorHeader } from "@/components/advisor/advisor-header";
 import { AuthGuard } from "@/components/auth-guard";
 import { useEffect, useState } from "react";
@@ -27,22 +27,65 @@ const routeLabels: Record<string, string> = {
   availability: "Lịch rảnh",
   reports: "Báo cáo tư vấn",
   wallet: "Ví",
+  startups: "Hồ sơ Startup",
 };
+
+// Các path không có trang listing — hiển thị text thay vì link
+const NO_LINK_PATHS = new Set(["/advisor/startups"]);
 
 function AdvisorBreadcrumb() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const segments = pathname.split("/").filter(Boolean);
 
-  const crumbs = segments.map((seg, i) => {
-    const href = "/" + segments.slice(0, i + 1).join("/");
-    const label = routeLabels[seg] ?? (
-      /^\d+$/.test(seg) || /^req-/.test(seg) || /^rep-/.test(seg) || seg === "create"
-        ? (seg === "create" ? "Tạo mới" : "Chi tiết")
-        : seg
+  // /advisor/startups/[id]?from=[requestId] — dựng breadcrumb đầy đủ từ context
+  const isStartupDetail =
+    segments.length === 3 &&
+    segments[0] === "advisor" &&
+    segments[1] === "startups" &&
+    /^\d+$/.test(segments[2]);
+
+  if (isStartupDetail) {
+    const fromRequestId = searchParams.get("from");
+    const crumbs = [
+      { href: "/advisor", label: "Workspace", isLast: false, linked: true },
+      { href: "/advisor/requests", label: "Yêu cầu tư vấn", isLast: false, linked: true },
+      ...(fromRequestId
+        ? [{ href: `/advisor/requests/${fromRequestId}`, label: "Chi tiết", isLast: false, linked: true }]
+        : []),
+      { href: pathname, label: "Hồ sơ Startup", isLast: true, linked: false },
+    ];
+
+    return (
+      <nav className="flex items-center gap-1.5 mb-5 text-[12px]">
+        {crumbs.map((crumb, i) => (
+          <React.Fragment key={crumb.href}>
+            {i > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-300 flex-shrink-0" />}
+            {crumb.isLast ? (
+              <span className="text-slate-700 font-medium">{crumb.label}</span>
+            ) : (
+              <Link href={crumb.href} className="text-slate-400 hover:text-slate-600 transition-colors">
+                {crumb.label}
+              </Link>
+            )}
+          </React.Fragment>
+        ))}
+      </nav>
     );
-    const isLast = i === segments.length - 1;
-    return { href, label, isLast };
-  });
+  }
+
+  // Breadcrumb mặc định cho các route khác
+  const crumbs = segments
+    .map((seg, i) => {
+      const href = "/" + segments.slice(0, i + 1).join("/");
+      const label = routeLabels[seg] ?? (
+        /^\d+$/.test(seg) || /^req-/.test(seg) || /^rep-/.test(seg) || seg === "create"
+          ? (seg === "create" ? "Tạo mới" : "Chi tiết")
+          : seg
+      );
+      const isLast = i === segments.length - 1;
+      return { href, label, isLast };
+    });
 
   if (crumbs.length <= 1) return null;
 
@@ -127,7 +170,9 @@ export function AdvisorShell({ children }: AdvisorShellProps) {
         <AdvisorHeader />
         <div className="h-[64px]" />
         <main className="min-h-[calc(100vh-64px)] pb-12 w-full max-w-[1440px] mx-auto px-6 pt-8">
-          <AdvisorBreadcrumb />
+          <Suspense fallback={null}>
+            <AdvisorBreadcrumb />
+          </Suspense>
           {children}
         </main>
       </div>

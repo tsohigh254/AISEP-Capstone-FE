@@ -113,11 +113,11 @@ export function InvestorShell({ children }: InvestorShellProps) {
         {!isOnboarding && (
           <>
             <InvestorHeader />
-            <div className="h-[80px]" />
+            <div className="h-[64px]" />
           </>
         )}
         <main className={cn(
-          "min-h-[calc(100vh-80px)] pb-12 w-full max-w-[1440px] mx-auto px-6 pt-8",
+          "min-h-[calc(100vh-64px)] pb-12 w-full max-w-[1440px] mx-auto px-6 pt-8",
           isOnboarding && "h-screen pt-0 pb-0 px-0 max-w-full overflow-hidden"
         )}>
           {!isOnboarding && <InvestorBreadcrumb />}

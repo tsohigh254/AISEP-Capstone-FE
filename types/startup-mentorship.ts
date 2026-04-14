@@ -7,19 +7,22 @@
 
 export type MentorshipRequestStatus =
   | "Requested"
-  | "Pending"
   | "Accepted"
-  | "Rejected"
-  | "Scheduled"
   | "InProgress"
   | "Completed"
+  | "Rejected"
   | "Cancelled"
-  | "Finalized";
+  | "InDispute"
+  | "Resolved"
+  | "Expired"
+  | "Pending"
+  | "Scheduled";
 
 export type MentorshipSessionStatus =
-  | "Requested"
-  | "Pending"
+  | "ProposedByStartup"
+  | "ProposedByAdvisor"
   | "Scheduled"
+  | "InProgress"
   | "Completed"
   | "Cancelled";
 
@@ -35,6 +38,17 @@ export interface IMentorshipAdvisor {
   averageRating?: number;
 }
 
+export interface IMentorshipTimelineEvent {
+  type?: string;
+  actionType?: string;
+  title?: string;
+  description?: string;
+  actor?: string;
+  actorType?: string;
+  happenedAt?: string;
+  createdAt?: string;
+}
+
 // ── Mentorship Request (từ GET /api/mentorships) ─────────────────────────────
 
 export interface IMentorshipRequest {
@@ -42,6 +56,8 @@ export interface IMentorshipRequest {
   id?: number;
   startupID: number;
   startupName: string;
+  startupIndustry?: string | null;
+  startupStage?: string | null;
   advisorID: number;
   advisorName: string;
   advisor?: IMentorshipAdvisor;
@@ -62,6 +78,7 @@ export interface IMentorshipRequest {
   scheduledAt?: string;
   requestedAt: string;
   acceptedAt: string;
+  inProgressAt?: string;
   rejectedAt: string;
   rejectedReason: string;
   rejectionReason?: string;
@@ -69,6 +86,12 @@ export interface IMentorshipRequest {
   cancelledBy?: string;
   cancelledAt?: string;
   completedAt: string;
+  sessionAmount?: number | null;
+  paymentStatus?: string | null;
+  paidAt?: string | null;
+  hasReport?: boolean;
+  reportCount?: number;
+  latestReportSubmittedAt?: string | null;
   completionConfirmedByStartup: boolean;
   completionConfirmedByAdvisor: boolean;
   createdAt: string;
@@ -76,6 +99,8 @@ export interface IMentorshipRequest {
   sessions: IMentorshipSession[];
   reports: IMentorshipReport[];
   feedbacks: IMentorshipFeedback[];
+  timelineEvents?: IMentorshipTimelineEvent[];
+  timeline?: IMentorshipTimelineEvent[];
 }
 
 // ── Create mentorship request (POST /api/mentorships) ────────────────────────
@@ -105,21 +130,27 @@ export interface ICancelMentorshipRequest {
 export interface IMentorshipSession {
   sessionID: number;
   mentorshipID: number;
+  advisorID?: number;
+  advisorName?: string;
+  advisorProfilePhotoURL?: string;
   advisor?: IMentorshipAdvisor;
   objective?: string;
   status: MentorshipSessionStatus | string;
+  sessionStatus?: string;
+  mentorshipStatus?: string;
   scheduledStartAt: string;
+  scheduledEndAt?: string;
   durationMinutes: number;
   meetingFormat?: MeetingFormat;
-  sessionFormat: string;
-  meetingLink?: string;
+  sessionFormat?: string;
+  meetingMode?: string;
+  mentorshipChallengeDescription?: string;
+  hasReport?: boolean;
   meetingURL?: string;
-  eetingURL: string;
-  sessionStatus: string;
-  topicsDiscussed: string;
-  keyInsights: string;
-  actionItems: string;
-  nextSteps: string;
+  topicsDiscussed?: string;
+  keyInsights?: string;
+  actionItems?: string;
+  nextSteps?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import {
   Star, Search, ChevronRight, ChevronLeft, ChevronDown, Users, Briefcase, FileText, X, ArrowUpDown, BadgeCheck,
-  CalendarCheck, Video, Loader2, Eye
+  CalendarCheck, Video, Loader2, Eye, CheckCircle
 } from "lucide-react";
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { MentorshipRequestModal } from "@/components/startup/mentorship-request-modal";
@@ -13,6 +13,7 @@ import { StartupShell } from "@/components/startup/startup-shell";
 import {
   SearchAdvisors,
   GetMentorships,
+  GetMentorshipById,
   GetMentorshipSessions,
   CancelMentorship,
 } from "@/services/startup/startup-mentorship.api";
@@ -41,14 +42,17 @@ const formatTime = (iso: string) => {
 };
 
 const REQUEST_STATUS_MAP: Record<string, { label: string; color: string }> = {
-  Requested: { label: "Chờ phản hồi",  color: "text-blue-600 bg-blue-50 border-blue-100" },
-  Pending:   { label: "Chờ phản hồi",  color: "text-blue-600 bg-blue-50 border-blue-100" },
-  Accepted:  { label: "Đã chấp nhận",  color: "text-teal-600 bg-teal-50 border-teal-100" },
-  Scheduled: { label: "Đã lên lịch",   color: "text-indigo-600 bg-indigo-50 border-indigo-100" },
-  Completed: { label: "Hoàn thành",    color: "text-green-600 bg-green-50 border-green-100" },
-  Finalized: { label: "Hoàn thành",    color: "text-green-600 bg-green-50 border-green-100" },
-  Rejected:  { label: "Từ chối",       color: "text-red-500 bg-red-50 border-red-100" },
-  Cancelled: { label: "Đã hủy",        color: "text-slate-500 bg-slate-50 border-slate-100" },
+  Requested:  { label: "Chờ phản hồi",  color: "text-blue-600 bg-blue-50 border-blue-100" },
+  Pending:    { label: "Chờ phản hồi",  color: "text-blue-600 bg-blue-50 border-blue-100" },
+  Accepted:   { label: "Đã chấp nhận",  color: "text-teal-600 bg-teal-50 border-teal-100" },
+  Scheduled:  { label: "Đã lên lịch",   color: "text-indigo-600 bg-indigo-50 border-indigo-100" },
+  InProgress: { label: "Đang tư vấn",   color: "text-violet-600 bg-violet-50 border-violet-100" },
+  Completed:  { label: "Hoàn thành",    color: "text-green-600 bg-green-50 border-green-100" },
+  Rejected:   { label: "Từ chối",       color: "text-red-500 bg-red-50 border-red-100" },
+  Cancelled:  { label: "Đã hủy",        color: "text-slate-500 bg-slate-50 border-slate-100" },
+  InDispute:  { label: "Đang tranh chấp", color: "text-orange-600 bg-orange-50 border-orange-100" },
+  Resolved:   { label: "Đã giải quyết", color: "text-green-700 bg-green-50 border-green-200" },
+  Expired:    { label: "Hết hạn",       color: "text-slate-500 bg-slate-100 border-slate-200" },
 };
 
 const SESSION_STATUS_MAP: Record<string, { label: string; color: string }> = {
@@ -57,6 +61,95 @@ const SESSION_STATUS_MAP: Record<string, { label: string; color: string }> = {
   Completed: { label: "Đã hoàn thành", color: "text-green-600 bg-green-50 border-green-100" },
   Cancelled: { label: "Đã hủy",        color: "text-slate-500 bg-slate-50 border-slate-100" },
 };
+
+const SESSION_STATUS_META: Record<string, { label: string; color: string }> = {
+  ProposedByStartup: { label: "Chờ cố vấn xác nhận", color: "text-amber-700 bg-amber-50 border-amber-100" },
+  ProposedByAdvisor: { label: "Cố vấn đề xuất lịch mới", color: "text-violet-700 bg-violet-50 border-violet-200" },
+  Scheduled: { label: "Sắp tới", color: "text-indigo-600 bg-indigo-50 border-indigo-100" },
+  InProgress: { label: "Đang diễn ra", color: "text-teal-600 bg-teal-50 border-teal-100" },
+  Completed: { label: "Đã hoàn thành", color: "text-green-600 bg-green-50 border-green-100" },
+  Cancelled: { label: "Đã hủy", color: "text-slate-500 bg-slate-50 border-slate-100" },
+};
+
+const SESSION_FILTER_DEFS = [
+  { key: "all", label: "Tất cả" },
+  { key: "pending_confirmation", label: "Chờ xác nhận" },
+  { key: "advisor_proposed", label: "Cố vấn đề xuất lịch" },
+  { key: "upcoming", label: "Sắp tới" },
+  { key: "in_progress", label: "Đang diễn ra" },
+  { key: "completed", label: "Đã hoàn thành" },
+  { key: "cancelled", label: "Đã hủy" },
+] as const;
+
+type SessionFilterKey = typeof SESSION_FILTER_DEFS[number]["key"];
+
+const SESSION_TEXT = {
+  advisorFallback: "C\u1ed1 v\u1ea5n",
+  noTopic: "Ch\u01b0a c\u00f3 ch\u1ee7 \u0111\u1ec1",
+  unknownStatus: "Ch\u01b0a x\u00e1c \u0111\u1ecbnh",
+  all: "T\u1ea5t c\u1ea3",
+  pendingConfirmation: "Ch\u1edd x\u00e1c nh\u1eadn",
+  upcoming: "S\u1eafp t\u1edbi",
+  inProgress: "\u0110ang di\u1ec5n ra",
+  completed: "\u0110\u00e3 ho\u00e0n th\u00e0nh",
+  cancelled: "\u0110\u00e3 h\u1ee7y",
+  headerAdvisor: "C\u1ed1 v\u1ea5n",
+  headerTime: "Th\u1eddi gian",
+  headerTopic: "N\u1ed9i dung / Ch\u1ee7 \u0111\u1ec1",
+  headerFormat: "H\u00ecnh th\u1ee9c",
+  headerStatus: "Tr\u1ea1ng th\u00e1i",
+  headerAction: "H\u00e0nh \u0111\u1ed9ng",
+  emptySessions: "Kh\u00f4ng c\u00f3 phi\u00ean n\u00e0o.",
+  emDash: "\u2014",
+} as const;
+
+const SESSION_STATUS_DISPLAY_SAFE: Record<string, { label: string; color: string }> = {
+  ProposedByStartup: { label: "Chờ cố vấn xác nhận", color: "text-amber-700 bg-amber-50 border-amber-100" },
+  ProposedByAdvisor: { label: "Cố vấn đề xuất lịch mới", color: "text-violet-700 bg-violet-50 border-violet-200" },
+  Scheduled: { label: SESSION_TEXT.upcoming, color: "text-indigo-600 bg-indigo-50 border-indigo-100" },
+  InProgress: { label: SESSION_TEXT.inProgress, color: "text-teal-600 bg-teal-50 border-teal-100" },
+  Completed: { label: SESSION_TEXT.completed, color: "text-green-600 bg-green-50 border-green-100" },
+  Cancelled: { label: SESSION_TEXT.cancelled, color: "text-slate-500 bg-slate-50 border-slate-100" },
+};
+
+const SESSION_FILTER_BUTTONS_SAFE = [
+  { key: "all", label: SESSION_TEXT.all },
+  { key: "pending_confirmation", label: SESSION_TEXT.pendingConfirmation },
+  { key: "advisor_proposed", label: "Cố vấn đề xuất lịch" },
+  { key: "upcoming", label: SESSION_TEXT.upcoming },
+  { key: "in_progress", label: SESSION_TEXT.inProgress },
+  { key: "completed", label: SESSION_TEXT.completed },
+  { key: "cancelled", label: SESSION_TEXT.cancelled },
+] as const;
+
+const SESSION_FILTER_STATUS_PARAM: Record<SessionFilterKey, string | undefined> = {
+  all: undefined,
+  pending_confirmation: "ProposedByStartup",
+  advisor_proposed: "ProposedByAdvisor",
+  upcoming: "Scheduled",
+  in_progress: "InProgress",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
+const SESSION_STATUS_DISPLAY: Record<string, { label: string; color: string }> = {
+  ProposedByStartup: { label: "Chờ cố vấn xác nhận", color: "text-amber-700 bg-amber-50 border-amber-100" },
+  ProposedByAdvisor: { label: "Cố vấn đề xuất lịch mới", color: "text-violet-700 bg-violet-50 border-violet-200" },
+  Scheduled: { label: "Sắp tới", color: "text-indigo-600 bg-indigo-50 border-indigo-100" },
+  InProgress: { label: "Đang diễn ra", color: "text-teal-600 bg-teal-50 border-teal-100" },
+  Completed: { label: "Đã hoàn thành", color: "text-green-600 bg-green-50 border-green-100" },
+  Cancelled: { label: "Đã hủy", color: "text-slate-500 bg-slate-50 border-slate-100" },
+};
+
+const SESSION_FILTER_BUTTONS = [
+  { key: "all", label: "Tất cả" },
+  { key: "pending_confirmation", label: "Chờ xác nhận" },
+  { key: "advisor_proposed", label: "Cố vấn đề xuất lịch" },
+  { key: "upcoming", label: "Sắp tới" },
+  { key: "in_progress", label: "Đang diễn ra" },
+  { key: "completed", label: "Đã hoàn thành" },
+  { key: "cancelled", label: "Đã hủy" },
+] as const;
 
 const EXPERTISE_MAP: Record<string, string> = {
   "PRODUCT_STRATEGY": "Product Strategy",
@@ -78,7 +171,7 @@ const EXPERTISE_MAP: Record<string, string> = {
 const mapMeetingFormat = (fmt?: MeetingFormat | string | null): string => {
   if (fmt === "GoogleMeet") return "Google Meet";
   if (fmt === "MicrosoftTeams") return "Microsoft Teams";
-  return "—";
+  return SESSION_TEXT.emDash;
 };
 
 const isValidImageUrl = (url?: string | null) => {
@@ -86,7 +179,79 @@ const isValidImageUrl = (url?: string | null) => {
   return url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:image/");
 };
 
+const parseSpecificQuestions = (specificQuestions?: string | null) => {
+  if (!specificQuestions?.trim()) {
+    return { objective: "", additionalNotes: "" };
+  }
+
+  const parts = specificQuestions
+    .split(/\n\s*\n/)
+    .map(part => part.trim())
+    .filter(Boolean);
+
+  return {
+    objective: parts[0] || "",
+    additionalNotes: parts.slice(1).join("\n\n"),
+  };
+};
+
+const getMentorshipObjective = (item: IMentorshipRequest) => {
+  const parsed = parseSpecificQuestions(item.specificQuestions);
+  return item.objective || parsed.objective || item.challengeDescription || "Không có tiêu đề";
+};
+
+const getMentorshipAdvisorDisplay = (item: IMentorshipRequest) => {
+  const fullName = item.advisor?.fullName || item.advisorName || "Cố vấn";
+  const title = item.advisor?.title || "Cố vấn";
+  const profilePhotoURL = item.advisor?.profilePhotoURL || "";
+
+  return { fullName, title, profilePhotoURL };
+};
+
 // ─── Helper Components ───────────────────────────────────────────────────────
+
+const getSessionStatusKey = (session: IMentorshipSession) => {
+  return String(session.status || session.sessionStatus || "").trim();
+};
+
+const matchesSessionFilter = (session: IMentorshipSession, filter: SessionFilterKey) => {
+  const status = getSessionStatusKey(session);
+
+  if (filter === "all") return true;
+  if (filter === "pending_confirmation") return status === "ProposedByStartup";
+  if (filter === "upcoming") return status === "Scheduled";
+  if (filter === "in_progress") return status === "InProgress";
+  if (filter === "completed") return status === "Completed";
+  if (filter === "cancelled") return status === "Cancelled";
+
+  return false;
+};
+
+const getSessionAdvisorDisplay = (session: IMentorshipSession) => ({
+  fullName: session.advisorName || session.advisor?.fullName || SESSION_TEXT.advisorFallback,
+  profilePhotoURL: session.advisorProfilePhotoURL || session.advisor?.profilePhotoURL || "",
+});
+
+const getSessionTopic = (session: IMentorshipSession) => {
+  return session.objective?.trim() || session.mentorshipChallengeDescription?.trim() || SESSION_TEXT.noTopic;
+};
+
+const getSessionMeetingType = (
+  session: IMentorshipSession,
+  fallbackPreferredFormat?: string | null,
+) => {
+  const rawFormat = String(
+    session.meetingFormat ||
+      session.sessionFormat ||
+      session.meetingMode ||
+      fallbackPreferredFormat ||
+      (session as any).preferredFormat ||
+      "",
+  ).toLowerCase();
+  if (rawFormat.includes("google")) return "Google Meet";
+  if (rawFormat.includes("teams")) return "Microsoft Teams";
+  return SESSION_TEXT.unknownStatus;
+};
 
 function FSelect({ value, onChange, options, labels }: { value: string; onChange: (v: string) => void; options: string[]; labels: string[] }) {
   return (
@@ -123,6 +288,14 @@ function LoadingSpinner() {
   );
 }
 
+type SessionReviewContext = {
+  id?: number;
+  advisorName: string;
+  advisorAvatar: string;
+  topic: string;
+  time: string;
+} & Record<string, unknown>;
+
 const PAGE_SIZE = 4;
 
 // ─── Main Component ──────────────────────────────────────────────────────────
@@ -152,6 +325,9 @@ function StartupAdvisorsPageInner() {
 
   const [sessions, setSessions] = useState<IMentorshipSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsPage, setSessionsPage] = useState(1);
+  const [sessionsTotalPages, setSessionsTotalPages] = useState(1);
+  const [sessionPreferredFormats, setSessionPreferredFormats] = useState<Record<number, string>>({});
 
   const [completedMentorships, setCompletedMentorships] = useState<IMentorshipRequest[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
@@ -165,7 +341,7 @@ function StartupAdvisorsPageInner() {
 
   // Sub-filter state
   const [requestStatusFilter, setRequestStatusFilter] = useState("all");
-  const [sessionStatusFilter, setSessionStatusFilter] = useState("all");
+  const [sessionStatusFilter, setSessionStatusFilter] = useState<SessionFilterKey>("all");
   const [reportStatusFilter, setReportStatusFilter] = useState("all");
 
   // Request management
@@ -173,12 +349,13 @@ function StartupAdvisorsPageInner() {
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [cancelReason, setCancelReason] = useState("");
 
+
   // Modals
   const [selectedAdvisor, setSelectedAdvisor] = useState<IAdvisorSearchItem | null>(null);
   const selectedAdvisorForModal = selectedAdvisor;
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [selectedSession, setSelectedSession] = useState<any>(null);
+  const [selectedSession, setSelectedSession] = useState<SessionReviewContext | null>(null);
 
   // Toast
   const [toast, setToast] = useState<string | null>(null);
@@ -249,34 +426,94 @@ function StartupAdvisorsPageInner() {
   const fetchSessions = useCallback(async () => {
     setSessionsLoading(true);
     try {
-      const res = await GetMentorshipSessions({ page: 1, pageSize: 100 }) as unknown as IBackendRes<IPagingData<IMentorshipSession>>;
+      const statusParam = SESSION_FILTER_STATUS_PARAM[sessionStatusFilter];
+      const res = await GetMentorshipSessions({
+        ...(statusParam ? { status: statusParam } : {}),
+        page: sessionsPage,
+        pageSize: 20,
+      }) as unknown as IBackendRes<IPagingData<IMentorshipSession>>;
       if ((res.success || res.isSuccess) && res.data) {
-        setSessions(res.data.items ?? []);
+        const rawData = res.data as any;
+        const sessionItems = rawData.items ?? rawData.data ?? [];
+        setSessions(sessionItems);
+        setSessionsTotalPages(rawData.paging?.totalPages ?? 1);
+
+        const mentorshipIds: number[] = Array.from(
+          new Set(
+            sessionItems
+              .map((item: IMentorshipSession) => Number(item.mentorshipID))
+              .filter((id: number) => !Number.isNaN(id) && id > 0),
+          ),
+        );
+
+        if (mentorshipIds.length === 0) {
+          setSessionPreferredFormats({});
+          return;
+        }
+
+        const detailResults = await Promise.all(
+          mentorshipIds.map(async mentorshipId => {
+            try {
+              const detailRes = await GetMentorshipById(mentorshipId) as unknown as IBackendRes<IMentorshipRequest>;
+              if ((detailRes.success || detailRes.isSuccess) && detailRes.data?.preferredFormat) {
+                return [mentorshipId, detailRes.data.preferredFormat] as const;
+              }
+            } catch {
+              // ignore per-item lookup failures
+            }
+
+            return [mentorshipId, ""] as const;
+          }),
+        );
+
+        setSessionPreferredFormats(
+          detailResults.reduce<Record<number, string>>((acc, [mentorshipId, preferredFormat]) => {
+            if (preferredFormat) {
+              acc[mentorshipId] = preferredFormat;
+            }
+            return acc;
+          }, {}),
+        );
       }
     } catch {
       // silent
     } finally {
       setSessionsLoading(false);
     }
-  }, []);
+  }, [sessionsPage, sessionStatusFilter]);
 
   const fetchReports = useCallback(async () => {
     setReportsLoading(true);
     try {
-      const [completedRes, finalizedRes] = await Promise.all([
-        GetMentorships({ status: "Completed", page: 1, pageSize: 100 }) as unknown as Promise<IBackendRes<IPagingData<IMentorshipRequest>>>,
-        GetMentorships({ status: "Finalized", page: 1, pageSize: 100 }) as unknown as Promise<IBackendRes<IPagingData<IMentorshipRequest>>>,
-      ]);
-      const items: IMentorshipRequest[] = [];
-      if ((completedRes.success || completedRes.isSuccess) && completedRes.data) {
-        const raw = completedRes.data as any;
-        items.push(...(raw.items ?? raw.data ?? []));
-      }
-      if ((finalizedRes.success || finalizedRes.isSuccess) && finalizedRes.data) {
-        const raw = finalizedRes.data as any;
-        items.push(...(raw.items ?? raw.data ?? []));
-      }
-      setCompletedMentorships(items);
+      const completedRes = await GetMentorships({ status: "Completed", page: 1, pageSize: 100 }) as unknown as IBackendRes<IPagingData<IMentorshipRequest>>;
+      const raw = (completedRes.data as any) ?? {};
+      const completedItems: IMentorshipRequest[] = (completedRes.success || completedRes.isSuccess)
+        ? (raw.items ?? raw.data ?? [])
+        : [];
+
+      const reportItems = completedItems.filter(item => item.hasReport);
+      const detailedReportItems = await Promise.all(
+        reportItems.map(async (item) => {
+          try {
+            const detailRes = await GetMentorshipById(item.mentorshipID);
+            if ((detailRes.success || detailRes.isSuccess) && detailRes.data) {
+              return {
+                ...item,
+                ...detailRes.data,
+                hasReport: item.hasReport ?? detailRes.data.hasReport,
+                reportCount: item.reportCount ?? detailRes.data.reportCount,
+                latestReportSubmittedAt: item.latestReportSubmittedAt ?? detailRes.data.latestReportSubmittedAt,
+              };
+            }
+          } catch {
+            // fall back to lightweight list item if detail fetch fails
+          }
+
+          return item;
+        })
+      );
+
+      setCompletedMentorships(detailedReportItems);
     } catch {
       // silent
     } finally {
@@ -317,19 +554,28 @@ function StartupAdvisorsPageInner() {
 
   const filteredRequests = requests; // Now filtered server-side
 
-  const filteredSessions = sessionStatusFilter === "all"
-    ? sessions
-    : sessions.filter(s => {
-        const sessionStatusKey = (s.status || s.sessionStatus) as string;
-        const mapped = SESSION_STATUS_MAP[sessionStatusKey]?.label;
-        return mapped === sessionStatusFilter;
-      });
+  const filteredSessions = sessions;
 
   const filteredReports = reportStatusFilter === "all"
     ? completedMentorships
     : reportStatusFilter === "pending"
-      ? completedMentorships.filter(r => r.status === "Completed")
-      : completedMentorships.filter(r => r.status === "Finalized");
+      ? completedMentorships.filter(r => (r.feedbacks?.length ?? 0) === 0)
+      : completedMentorships.filter(r => (r.feedbacks?.length ?? 0) > 0);
+
+  const normalizedFilteredReports: IMentorshipRequest[] = filteredReports.map(item => {
+    const advisorDisplay = getMentorshipAdvisorDisplay(item);
+
+    return {
+      ...item,
+      objective: getMentorshipObjective(item),
+      advisor: {
+        advisorID: item.advisor?.advisorID || item.advisorID,
+        fullName: advisorDisplay.fullName,
+        title: advisorDisplay.title,
+        profilePhotoURL: advisorDisplay.profilePhotoURL,
+      },
+    };
+  });
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
@@ -359,12 +605,16 @@ function StartupAdvisorsPageInner() {
   };
 
   const handleOpenReview = (item: IMentorshipRequest) => {
+    const advisorDisplay = getMentorshipAdvisorDisplay(item);
     setSelectedSession({
       id: item.mentorshipID || (item as any).id,
       advisorName: item.advisor?.fullName || "Cố vấn",
-      advisorAvatar: item.advisor?.profilePhotoURL || "",
-      topic: item.objective || "",
+      advisorAvatarDisplay: advisorDisplay.profilePhotoURL,
+      topicDisplay: getMentorshipObjective(item),
       time: formatDate(item.completedAt || item.createdAt),
+      advisorNameDisplay: advisorDisplay.fullName,
+      advisorAvatar: advisorDisplay.profilePhotoURL,
+      topic: getMentorshipObjective(item),
     });
     setShowReviewModal(true);
   };
@@ -762,7 +1012,7 @@ function StartupAdvisorsPageInner() {
                                   <Video className="w-4 h-4" />
                                 </button>
                               )}
-                              {(item.status === "Completed" || item.status === "Finalized") && (
+                              {item.status === "Completed" && item.hasReport && (
                                 <button
                                   onClick={() => router.push(`/startup/mentorship-requests/${item.mentorshipID}/report`)}
                                   className="p-2 text-slate-400 hover:text-green-600 bg-slate-50 hover:bg-green-50 rounded-lg transition-all"
@@ -830,18 +1080,18 @@ function StartupAdvisorsPageInner() {
           <div className="space-y-5 animate-in fade-in duration-300">
             {/* Status filter buttons */}
             <div className="flex items-center gap-2 flex-wrap">
-              {(["all", "Sắp diễn ra", "Đã hoàn thành", "Đã hủy"] as const).map(s => (
+              {SESSION_FILTER_BUTTONS_SAFE.map(filter => (
                 <button
-                  key={s}
-                  onClick={() => setSessionStatusFilter(s)}
+                  key={filter.key}
+                  onClick={() => { setSessionStatusFilter(filter.key); setSessionsPage(1); }}
                   className={cn(
                     "px-4 py-2 rounded-xl text-[13px] font-semibold transition-all",
-                    sessionStatusFilter === s
+                    sessionStatusFilter === filter.key
                       ? "bg-[#eec54e] text-white shadow-sm"
                       : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                   )}
                 >
-                  {s === "all" ? "Tất cả" : s === "Sắp diễn ra" ? "Sắp tới" : s}
+                  {filter.label}
                 </button>
               ))}
             </div>
@@ -853,42 +1103,48 @@ function StartupAdvisorsPageInner() {
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-100">
-                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cố vấn</th>
-                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-widest">Thời gian</th>
-                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-widest">Nội dung / Chủ đề</th>
-                      <th className="px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">Hình thức</th>
-                      <th className="px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">Trạng thái</th>
-                      <th className="px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">Hành động</th>
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-widest">{SESSION_TEXT.headerAdvisor}</th>
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-widest">{SESSION_TEXT.headerTime}</th>
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-widest">{SESSION_TEXT.headerTopic}</th>
+                      <th className="px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">{SESSION_TEXT.headerFormat}</th>
+                      <th className="px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">{SESSION_TEXT.headerStatus}</th>
+                      <th className="px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">{SESSION_TEXT.headerAction}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredSessions.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="py-16 text-center text-[14px] text-slate-400">Không có phiên nào.</td>
+                        <td colSpan={6} className="py-16 text-center text-[14px] text-slate-400">{SESSION_TEXT.emptySessions}</td>
                       </tr>
                     )}
                     {filteredSessions.map(item => {
-                      const sessionStatusKey = (item.status || item.sessionStatus) as string;
-                      const sessionStatusInfo = SESSION_STATUS_MAP[sessionStatusKey] ?? { label: sessionStatusKey, color: "text-slate-500 bg-slate-50 border-slate-100" };
-                      const meetingType = mapMeetingFormat(item.meetingFormat || item.sessionFormat);
-                      const meetingLink = item.meetingLink || item.meetingURL || item.eetingURL;
-                      const canJoin = (sessionStatusKey === "Pending" || sessionStatusKey === "Requested" || sessionStatusKey === "Scheduled") && !!meetingLink;
+                      const sessionStatusKey = getSessionStatusKey(item);
+                      const sessionStatusInfo = SESSION_STATUS_DISPLAY_SAFE[sessionStatusKey] ?? { label: SESSION_TEXT.unknownStatus, color: "text-slate-500 bg-slate-50 border-slate-100" };
+                      const advisorDisplay = getSessionAdvisorDisplay(item);
+                      const meetingType = getSessionMeetingType(
+                        item,
+                        sessionPreferredFormats[item.mentorshipID],
+                      );
+                      const meetingLink = item.meetingURL;
+                      const canJoin = (sessionStatusKey === "Scheduled" || sessionStatusKey === "InProgress") && !!meetingLink;
+                      const sessionTopic = getSessionTopic(item);
+                      const advisorSubtitle = item.advisor?.title || "";
                       return (
                         <tr key={item.sessionID} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              {isValidImageUrl(item.advisor?.profilePhotoURL) ? (
-                                <img src={item.advisor?.profilePhotoURL as string} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-100" />
+                              {isValidImageUrl(advisorDisplay.profilePhotoURL) ? (
+                                <img src={advisorDisplay.profilePhotoURL} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-100" />
                               ) : (
                                 <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex-shrink-0 flex items-center justify-center">
                                   <span className="text-sm font-bold text-slate-400">
-                                    {(item.advisor?.fullName || "?")?.charAt(0)?.toUpperCase()}
+                                    {(advisorDisplay.fullName || "?")?.charAt(0)?.toUpperCase()}
                                   </span>
                                 </div>
                               )}
                               <div>
-                                <p className="text-[13px] font-semibold text-slate-900 leading-none mb-0.5">{item.advisor?.fullName || "Cố vấn"}</p>
-                                <p className="text-[11px] text-slate-400">{item.advisor?.title || ""}</p>
+                                <p className="text-[13px] font-semibold text-slate-900 leading-none mb-0.5">{advisorDisplay.fullName}</p>
+                                <p className="text-[11px] text-slate-400">{advisorSubtitle}</p>
                               </div>
                             </div>
                           </td>
@@ -897,11 +1153,12 @@ function StartupAdvisorsPageInner() {
                             <p className="text-[11px] text-slate-400">{formatTime(item.scheduledStartAt)}</p>
                           </td>
                           <td className="px-6 py-4 max-w-[250px]">
-                            <p className="text-[13px] font-semibold text-slate-800 truncate">{item.objective || "Không có tiêu đề"}</p>
+                            <p className="text-[13px] font-semibold text-slate-800 truncate">{sessionTopic}</p>
                           </td>
                           <td className="px-6 py-4 text-center">
                             <div className="flex items-center justify-center gap-1.5 text-slate-500 text-[12px] font-medium">
-                              {meetingType === "Google Meet" ? <img src="/google-meet.svg" alt="Google Meet" className="w-[14px] h-[14px]" /> : meetingType === "Microsoft Teams" ? <img src="/ms-teams.svg" alt="Microsoft Teams" className="w-[14px] h-[14px]" /> : <Users className="w-3.5 h-3.5 text-slate-400" />}
+                              {meetingType === "Google Meet" && <img src="/google-meet.svg" alt="Google Meet" className="w-[14px] h-[14px]" />}
+                              {meetingType === "Microsoft Teams" && <img src="/ms-teams.svg" alt="Microsoft Teams" className="w-[14px] h-[14px]" />}
                               {meetingType}
                             </div>
                           </td>
@@ -912,6 +1169,16 @@ function StartupAdvisorsPageInner() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-center gap-2">
+                              {sessionStatusKey === "ProposedByAdvisor" && (
+                                <button
+                                  onClick={() => router.push(`/startup/mentorship-requests/${item.mentorshipID}`)}
+                                  title="Xem và xác nhận lịch"
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-violet-600 text-white rounded-lg text-[11px] font-semibold hover:bg-violet-700 transition-all"
+                                >
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                  Xác nhận lịch
+                                </button>
+                              )}
                               {canJoin && (
                                 <a
                                   href={meetingLink!}
@@ -929,7 +1196,7 @@ function StartupAdvisorsPageInner() {
                               >
                                 <Eye className="w-4 h-4" />
                               </button>
-                              {sessionStatusKey === "Completed" && (
+                              {item.hasReport && (
                                 <button
                                   onClick={() => router.push(`/startup/mentorship-requests/${item.mentorshipID}/report`)}
                                   title="Xem báo cáo tư vấn"
@@ -945,6 +1212,40 @@ function StartupAdvisorsPageInner() {
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Pagination for sessions */}
+            {sessionsTotalPages > 1 && !sessionsLoading && (
+              <div className="flex items-center justify-center gap-2 pt-4">
+                <button
+                  onClick={() => setSessionsPage(p => Math.max(1, p - 1))}
+                  disabled={sessionsPage === 1}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                {Array.from({ length: sessionsTotalPages }, (_, i) => i + 1).map(page => (
+                  <button
+                    key={page}
+                    onClick={() => setSessionsPage(page)}
+                    className={cn(
+                      "w-9 h-9 flex items-center justify-center rounded-xl text-[13px] font-semibold transition-all",
+                      sessionsPage === page
+                        ? "bg-[#eec54e] text-white shadow-sm"
+                        : "border border-slate-200 text-slate-500 hover:bg-slate-50"
+                    )}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setSessionsPage(p => Math.min(sessionsTotalPages, p + 1))}
+                  disabled={sessionsPage === sessionsTotalPages}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             )}
           </div>
@@ -989,12 +1290,12 @@ function StartupAdvisorsPageInner() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredReports.length === 0 && (
+                    {normalizedFilteredReports.length === 0 && (
                       <tr>
                         <td colSpan={5} className="py-16 text-center text-[14px] text-slate-400">Không có báo cáo nào.</td>
                       </tr>
                     )}
-                    {filteredReports.map(item => (
+                    {normalizedFilteredReports.map(item => (
                       <tr key={item.mentorshipID} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
@@ -1015,7 +1316,7 @@ function StartupAdvisorsPageInner() {
                         </td>
                         <td className="px-6 py-4">
                           <p className="text-[13px] font-semibold text-slate-800">{item.objective || "Không có tiêu đề"}</p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">{formatDate(item.completedAt || item.createdAt)}</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">{formatDate(item.latestReportSubmittedAt || item.completedAt || item.createdAt)}</p>
                         </td>
                         <td className="px-6 py-4 text-center">
                           <button
@@ -1026,7 +1327,7 @@ function StartupAdvisorsPageInner() {
                           </button>
                         </td>
                         <td className="px-6 py-4 text-center">
-                          {item.status === "Finalized" ? (
+                          {(item.feedbacks?.length ?? 0) > 0 ? (
                             <span className="px-2.5 py-1 bg-green-50 text-green-600 rounded-lg text-[10px] font-bold uppercase border border-green-100">Đã đánh giá</span>
                           ) : (
                             <span className="px-2.5 py-1 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-bold uppercase border border-amber-100">Chưa đánh giá</span>
@@ -1034,7 +1335,7 @@ function StartupAdvisorsPageInner() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-center gap-2">
-                            {item.status === "Completed" && (
+                            {(item.feedbacks?.length ?? 0) === 0 && (
                               <button
                                 onClick={() => handleOpenReview(item)}
                                 className="px-3 py-1.5 bg-[#eec54e] text-white rounded-lg text-[11px] font-semibold shadow-sm hover:bg-[#d4ae3d] transition-all"

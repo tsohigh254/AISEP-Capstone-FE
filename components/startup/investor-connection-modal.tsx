@@ -3,8 +3,8 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { BadgeCheck, Loader2, Send, X } from "lucide-react";
-import { InviteInvestorConnection } from "@/services/connection/connection.api";
+import { AlertCircle, BadgeCheck, Loader2, Send, X } from "lucide-react";
+import { CanInviteInvestor, InviteInvestorConnection } from "@/services/connection/connection.api";
 
 interface InvestorConnectionModalProps {
   isOpen: boolean;
@@ -35,6 +35,25 @@ const getErrorStatus = (error: unknown): number | undefined => {
   return response?.status;
 };
 
+const REASON_CODE_LABELS: Record<string, string> = {
+  INVESTOR_ACCOUNT_INACTIVE: "Tài khoản investor đang bị khóa hoặc ngưng hoạt động.",
+  INVESTOR_PROFILE_NOT_APPROVED: "Hồ sơ investor chưa được duyệt.",
+  INVESTOR_KYC_NOT_APPROVED: "KYC của investor chưa được duyệt hoặc không còn hợp lệ.",
+  INVESTOR_NOT_ACCEPTING_CONNECTIONS: "Investor hiện đang tắt nhận yêu cầu kết nối mới.",
+};
+
+const getReasonLabel = (codes: string[]): string => {
+  // Priority: account > profile > kyc > toggle
+  const priority = [
+    "INVESTOR_ACCOUNT_INACTIVE",
+    "INVESTOR_PROFILE_NOT_APPROVED",
+    "INVESTOR_KYC_NOT_APPROVED",
+    "INVESTOR_NOT_ACCEPTING_CONNECTIONS",
+  ];
+  const first = priority.find((c) => codes.includes(c));
+  return first ? REASON_CODE_LABELS[first] : "Không thể gửi lời mời kết nối lúc này.";
+};
+
 export function InvestorConnectionModal({
   isOpen,
   onClose,
@@ -43,18 +62,44 @@ export function InvestorConnectionModal({
 }: InvestorConnectionModalProps) {
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+  const [canInviteResult, setCanInviteResult] = useState<ICanInviteResult | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
       setMessage("");
       setIsSubmitting(false);
+      setCanInviteResult(null);
+      return;
     }
-  }, [isOpen]);
+    if (!investor) return;
+
+    const check = async () => {
+      setIsChecking(true);
+      try {
+        const res = await CanInviteInvestor(investor.investorId) as IBackendRes<ICanInviteResult>;
+        if (res?.isSuccess && res.data) {
+          setCanInviteResult(res.data);
+        } else {
+          // fallback: assume can invite if check fails (non-blocking)
+          setCanInviteResult({ canInvite: true, reasonCodes: [], messageMaxLength: 300 });
+        }
+      } catch {
+        setCanInviteResult({ canInvite: true, reasonCodes: [], messageMaxLength: 300 });
+      } finally {
+        setIsChecking(false);
+      }
+    };
+    void check();
+  }, [isOpen, investor]);
 
   if (!isOpen || !investor) return null;
 
+  const maxLen = canInviteResult?.messageMaxLength ?? 300;
+  const canSend = canInviteResult?.canInvite !== false;
+
   const handleSubmit = async () => {
-    if (isSubmitting) return;
+    if (isSubmitting || !canSend) return;
 
     const trimmedMessage = message.trim();
     setIsSubmitting(true);
@@ -66,20 +111,20 @@ export function InvestorConnectionModal({
 
       const isSuccess = Boolean(res?.success || res?.isSuccess);
       if (!isSuccess) {
-        toast.error(res?.message || "Khong the gui loi moi ket noi.");
+        toast.error(res?.message || "Không thể gửi lời mời kết nối.");
         return;
       }
 
-      toast.success("Da gui loi moi ket noi.");
+      toast.success("Đã gửi lời mời kết nối thành công.");
       onSuccess?.(res.data?.connectionID ?? 0);
       onClose();
     } catch (error) {
       const status = getErrorStatus(error);
       const code = getErrorCode(error);
-      if (status === 409 && code === "INVESTOR_NOT_ACCEPTING_CONNECTIONS") {
-        toast.error("Nha dau tu hien khong tiep nhan loi moi ket noi moi.");
+      if (status === 409 && code) {
+        toast.error(REASON_CODE_LABELS[code] ?? "Gửi lời mời thất bại. Vui lòng thử lại.");
       } else {
-        toast.error("Gui loi moi that bai. Vui long thu lai.");
+        toast.error("Gửi lời mời thất bại. Vui lòng thử lại.");
       }
     } finally {
       setIsSubmitting(false);
@@ -139,19 +184,32 @@ export function InvestorConnectionModal({
         </div>
 
         <div className="border-y border-slate-100 bg-slate-50/70 px-6 py-5">
+          {/* Can-invite check banner */}
+          {isChecking ? (
+            <div className="mb-4 flex items-center gap-2 text-[12px] text-slate-400">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Đang kiểm tra trạng thái nhận kết nối...
+            </div>
+          ) : !canSend && canInviteResult ? (
+            <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>{getReasonLabel(canInviteResult.reasonCodes)}</span>
+            </div>
+          ) : null}
+
           <label className="mb-2 block text-[12px] font-semibold uppercase tracking-wide text-slate-500">
-            Loi nhan mo dau (tuy chon)
+            Lời nhắn mở đầu (tùy chọn)
           </label>
           <textarea
             value={message}
-            onChange={(event) => setMessage(event.target.value.slice(0, MAX_MESSAGE_LENGTH))}
+            onChange={(event) => setMessage(event.target.value.slice(0, maxLen))}
             rows={4}
-            disabled={isSubmitting}
-            placeholder="VD: Startup chung toi rat phu hop voi thesis dau tu cua anh/chi..."
+            disabled={isSubmitting || !canSend}
+            placeholder="VD: Startup chúng tôi rất phù hợp với thesis đầu tư của anh/chị..."
             className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[13px] text-slate-700 outline-none transition focus:border-amber-300 focus:ring-2 focus:ring-amber-100 disabled:cursor-not-allowed disabled:bg-slate-50"
           />
           <p className="mt-2 text-right text-[11px] text-slate-400">
-            {message.length}/{MAX_MESSAGE_LENGTH}
+            {message.length}/{maxLen}
           </p>
         </div>
 
@@ -161,15 +219,15 @@ export function InvestorConnectionModal({
             disabled={isSubmitting}
             className="inline-flex items-center rounded-xl border border-slate-200 px-4 py-2 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
           >
-            Huy
+            Hủy
           </button>
           <button
             onClick={handleSubmit}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isChecking || !canSend}
             className="inline-flex items-center gap-2 rounded-xl bg-[#0f172a] px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#1e293b] disabled:opacity-70"
           >
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            Gui loi moi
+            Gửi lời mời
           </button>
         </div>
       </div>

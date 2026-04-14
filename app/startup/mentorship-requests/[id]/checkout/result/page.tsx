@@ -40,15 +40,9 @@ function ResultContent({ id }: { id: string }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const key = `mentorship_paid_${id}`;
-
     if (isExplicitFailure) {
-      localStorage.removeItem(key);
       router.replace(`/startup/mentorship-requests/${id}/checkout`);
-      return;
     }
-
-    localStorage.setItem(key, "true");
   }, [id, isExplicitFailure, router]);
 
   return (

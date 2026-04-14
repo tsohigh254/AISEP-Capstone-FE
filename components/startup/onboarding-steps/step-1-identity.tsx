@@ -26,11 +26,15 @@ interface Step1Props {
 }
 
 export function Step1({ data, update, onNext }: Step1Props) {
-  const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
+  const [parents, setParents] = useState<IIndustryFlat[]>([]);
+  const [allIndustries, setAllIndustries] = useState<IIndustryFlat[]>([]);
 
   useEffect(() => {
     GetIndustriesFlat()
-      .then(all => setIndustries(all.filter(i => !i.parentIndustryID)))
+      .then(all => {
+        setAllIndustries(all);
+        setParents(all.filter(i => !i.parentIndustryID));
+      })
       .catch(() => {});
   }, []);
 
@@ -103,13 +107,24 @@ export function Step1({ data, update, onNext }: Step1Props) {
                 onChange={e => update({ ...data, industryID: e.target.value })}
               >
                 <option value="" disabled>
-                  {industries.length === 0 ? "Đang tải..." : "Chọn lĩnh vực"}
+                  {parents.length === 0 ? "Đang tải..." : "Chọn lĩnh vực"}
                 </option>
-                {industries.map(ind => (
-                  <option key={ind.industryID} value={ind.industryID}>
-                    {ind.industryName}
-                  </option>
-                ))}
+                {parents.map(parent => {
+                  const children = allIndustries.filter(i => i.parentIndustryID === parent.industryID);
+                  return children.length > 0 ? (
+                    <optgroup key={parent.industryID} label={parent.industryName}>
+                      {children.map(child => (
+                        <option key={child.industryID} value={child.industryID.toString()}>
+                          {child.industryName}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : (
+                    <option key={parent.industryID} value={parent.industryID.toString()}>
+                      {parent.industryName}
+                    </option>
+                  );
+                })}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             </div>

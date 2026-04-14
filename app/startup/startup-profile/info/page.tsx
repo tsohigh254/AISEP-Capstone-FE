@@ -4,13 +4,15 @@ import { useRef, useState, useEffect, useCallback, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { getNames } from "country-list";
-import { Building2, Camera, X, ChevronDown } from "lucide-react";
+import { Building2, Camera, X, ChevronDown, CheckCircle2, ShieldCheck } from "lucide-react";
 import { useStartupProfile } from "@/context/startup-profile-context";
 import { StartupStage } from "@/services/startup/startup.api";
 import { GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
+import { GetStartupKYCStatus } from "@/services/startup/startup-kyc.api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { NumericFormat } from "react-number-format";
+import Link from "next/link";
 
 const COUNTRIES = [
     "Viet Nam",
@@ -22,6 +24,82 @@ const COUNTRIES = [
 
 const inputCls = "w-full bg-slate-50 border border-slate-200/80 rounded-[14px] px-4 py-3 text-[13px] text-[#0f172a] placeholder:text-slate-400 focus:bg-white focus:ring-4 focus:ring-[#0f172a]/5 focus:border-[#0f172a]/30 outline-none transition-all shadow-[0_1px_2px_rgba(0,0,0,0.02)]";
 const labelCls = "block text-[12px] font-semibold text-slate-700 mb-1.5";
+
+type EnterpriseState =
+    | { kind: "loading" }
+    | { kind: "verified_with_code"; code: string }
+    | { kind: "verified_no_entity" }
+    | { kind: "not_verified" };
+
+// Component hiển thị mã doanh nghiệp đã xác minh (read-only)
+function EnterpriseCodeDisplay() {
+    const [state, setState] = useState<EnterpriseState>({ kind: "loading" });
+
+    useEffect(() => {
+        GetStartupKYCStatus()
+            .then((res: any) => {
+                const data = res?.data ?? res;
+                const isApproved = data?.workflowStatus === "APPROVED";
+                if (!isApproved) {
+                    setState({ kind: "not_verified" });
+                    return;
+                }
+                const isLegal =
+                    data?.startupVerificationType === "WITH_LEGAL_ENTITY" ||
+                    data?.submissionSummary?.startupVerificationType === "WITH_LEGAL_ENTITY";
+                const enterpriseCode = data?.submissionSummary?.enterpriseCode ?? null;
+                if (isLegal && enterpriseCode) {
+                    setState({ kind: "verified_with_code", code: enterpriseCode });
+                } else if (!isLegal) {
+                    setState({ kind: "verified_no_entity" });
+                } else {
+                    setState({ kind: "not_verified" });
+                }
+            })
+            .catch(() => setState({ kind: "not_verified" }));
+    }, []);
+
+    if (state.kind === "loading") {
+        return <div className="w-full bg-slate-50 border border-slate-200/80 rounded-[14px] px-4 py-3 h-[46px] animate-pulse" />;
+    }
+
+    if (state.kind === "verified_with_code") {
+        return (
+            <div className="w-full bg-emerald-50 border border-emerald-200/60 rounded-[14px] px-4 py-3 flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                <div className="min-w-0">
+                    <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wide">Đã xác minh qua KYC</p>
+                    <p className="text-[13px] font-semibold text-emerald-800 tracking-wide">{state.code}</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (state.kind === "verified_no_entity") {
+        return (
+            <div className="w-full bg-emerald-50 border border-emerald-200/60 rounded-[14px] px-4 py-3 flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                <div className="min-w-0">
+                    <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wide">Đã xác minh đội ngũ sáng lập</p>
+                    <p className="text-[12px] text-emerald-700">Startup không có pháp nhân đăng ký</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="w-full bg-slate-50 border border-slate-200/80 rounded-[14px] px-4 py-3 flex items-center gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-slate-400 flex-shrink-0" />
+            <div className="min-w-0">
+                <p className="text-[12px] text-slate-500">Chưa xác minh —{" "}
+                    <Link href="/startup/verification" className="text-blue-600 hover:underline font-medium">
+                        Hoàn thiện KYC
+                    </Link>
+                </p>
+            </div>
+        </div>
+    );
+}
 
 // Component chọn Quốc gia (custom dropdown dùng portal để tránh overflow-hidden)
 const CountrySelect = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => {
@@ -160,6 +238,7 @@ function StartupInfoPageInner() {
     const { form, updateForm, logoFile, setLogoFile, profileLogoURL, setProfileLogoURL, loading } = useStartupProfile();
     const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
     const [allIndustries, setAllIndustries] = useState<IIndustryFlat[]>([]);
+    const [parentIndustryId, setParentIndustryId] = useState<string>("");
     const fileRef = useRef<HTMLInputElement>(null);
     const searchParams = useSearchParams();
     const activeTab = searchParams.get("tab") || "overview";
@@ -170,6 +249,18 @@ function StartupInfoPageInner() {
             setIndustries(data.filter(i => i.parentIndustryID === null || i.parentIndustryID === undefined));
         }).catch(() => {});
     }, []);
+
+    // Sync parentIndustryId whenever form.industryID or allIndustries becomes available
+    useEffect(() => {
+        if (!form.industryID || allIndustries.length === 0) return;
+        const current = allIndustries.find(i => i.industryID === Number(form.industryID));
+        if (current?.parentIndustryID) {
+            setParentIndustryId(current.parentIndustryID.toString());
+        } else {
+            // form.industryID is itself a parent (leaf or legacy data)
+            setParentIndustryId(form.industryID.toString());
+        }
+    }, [form.industryID, allIndustries]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const f = e.target.files?.[0];
@@ -273,9 +364,12 @@ function StartupInfoPageInner() {
                             <div>
                                 <label className={labelCls}>Lĩnh vực chính (Industry)</label>
                                 <select
-                                    name="industryID"
-                                    value={form.industryID || ""}
-                                    onChange={(e) => updateForm("industryID", e.target.value)}
+                                    value={parentIndustryId}
+                                    onChange={(e) => {
+                                        setParentIndustryId(e.target.value);
+                                        updateForm("industryID", "");
+                                        updateForm("subIndustry", "");
+                                    }}
                                     className={cn(inputCls, "appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5%207.5L10%2012.5L15%207.5%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[length:20px] bg-no-repeat bg-[position:right_16px_center]")}
                                 >
                                     <option value="">Chọn lĩnh vực</option>
@@ -287,17 +381,19 @@ function StartupInfoPageInner() {
                             <div>
                                 <label className={labelCls}>Lĩnh vực phụ (Sub-Industry)</label>
                                 <select
-                                    name="subIndustry"
-                                    value={form.subIndustry || ""}
-                                    onChange={(e) => updateForm("subIndustry", e.target.value)}
-                                    disabled={!form.industryID}
+                                    value={form.industryID?.toString() || ""}
+                                    onChange={(e) => {
+                                        updateForm("industryID", e.target.value);
+                                        updateForm("subIndustry", "");
+                                    }}
+                                    disabled={!parentIndustryId}
                                     className={cn(inputCls, "appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5%207.5L10%2012.5L15%207.5%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[length:20px] bg-no-repeat bg-[position:right_16px_center] disabled:opacity-50 disabled:cursor-not-allowed")}
                                 >
-                                    <option value="">{form.industryID ? "Chọn lĩnh vực phụ" : "Chọn lĩnh vực chính trước"}</option>
+                                    <option value="">{parentIndustryId ? "Chọn lĩnh vực phụ" : "Chọn lĩnh vực chính trước"}</option>
                                     {allIndustries
-                                        .filter(i => i.parentIndustryID === Number(form.industryID))
+                                        .filter(i => i.parentIndustryID === Number(parentIndustryId))
                                         .map(i => (
-                                            <option key={i.industryID} value={i.industryName}>{i.industryName}</option>
+                                            <option key={i.industryID} value={i.industryID.toString()}>{i.industryName}</option>
                                         ))
                                     }
                                 </select>
@@ -354,14 +450,8 @@ function StartupInfoPageInner() {
                                     />
                                 </div>
                                 <div>
-                                    <label className={labelCls}>Mã số Doanh nghiệp <span className="text-red-500">*</span></label>
-                                    <input 
-                                        name="businessCode"
-                                        value={form.businessCode || ""}
-                                        onChange={(e) => updateForm("businessCode", e.target.value)}
-                                        className={inputCls}
-                                        placeholder="Mã số doanh nghiệp..."
-                                    />
+                                    <label className={labelCls}>Mã số Doanh nghiệp</label>
+                                    <EnterpriseCodeDisplay />
                                 </div>
                                 <div>
                                     <label className={labelCls}>Email liên hệ <span className="text-red-500">*</span></label>

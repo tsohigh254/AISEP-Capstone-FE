@@ -66,6 +66,15 @@ export const GetMentorshipSessions = (params?: {
   );
 };
 
+export const ConfirmMentorshipSession = (
+  mentorshipId: number,
+  sessionId: number
+) => {
+  return axios.post<IBackendRes<null>>(
+    `/api/mentorships/${mentorshipId}/sessions/${sessionId}/confirm`
+  );
+};
+
 // ── Feedback & Reports ───────────────────────────────────────────────────────
 
 export const SubmitMentorshipFeedback = (

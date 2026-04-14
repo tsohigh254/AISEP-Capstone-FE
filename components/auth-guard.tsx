@@ -40,10 +40,21 @@ function getEffectiveUserRole(user?: IUser) {
 export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
   const router = useRouter();
   const { user, isAuthen, isLoading } = useAuth();
-  const [checked, setChecked] = useState(false);
+
+  // Lazy initializer: nếu auth đã resolve (isLoading=false) và đúng role thì skip spinner ngay.
+  // AuthProvider nằm ở root layout nên KHÔNG remount khi navigate — isLoading/user đã sẵn sàng
+  // cho các lần navigate tiếp theo, không cần chờ useEffect.
+  const [checked, setChecked] = useState(() => {
+    if (isLoading) return false;
+    if (typeof window === "undefined") return false;
+    const token = localStorage.getItem("accessToken");
+    if (!token || !isAuthen || !user) return false;
+    const userRole = getEffectiveUserRole(user);
+    return !!(userRole && allowedRoles.includes(userRole));
+  });
 
   useEffect(() => {
-    if (isLoading) return; 
+    if (isLoading) return;
 
     const token = localStorage.getItem("accessToken");
 

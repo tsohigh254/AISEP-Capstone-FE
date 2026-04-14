@@ -35,15 +35,14 @@ export default function WatchlistPage() {
           else items = [];
           // Normalize casing from backend DTOs to frontend-friendly camelCase
           const normalized = (items as any[]).map((raw) => ({
-            watchlistId: raw?.watchlistID ?? raw?.watchlistId ?? raw?.WatchlistID ?? raw?.WatchlistId ?? null,
-            investorID: raw?.investorID ?? raw?.investorId ?? raw?.InvestorID ?? raw?.InvestorId ?? null,
-            startupID: raw?.startupID ?? raw?.startupId ?? raw?.StartupID ?? raw?.StartupId ?? null,
-            startupName: raw?.companyName ?? raw?.CompanyName ?? raw?.startupName ?? raw?.StartupName ?? raw?.companyname ?? null,
-            addedAt: raw?.addedAt ?? raw?.AddedAt ?? raw?.AddedAt ?? null,
-            industry: raw?.industry ?? raw?.Industry ?? null,
-            stage: raw?.stage ?? raw?.Stage ?? null,
-            logoURL: raw?.logoURL ?? raw?.LogoURL ?? null,
-            priority: raw?.priority ?? raw?.Priority ?? null,
+            watchlistId: raw?.watchlistID ?? raw?.watchlistId ?? null,
+            startupID: raw?.startupID ?? raw?.startupId ?? null,
+            startupName: raw?.companyName ?? raw?.startupName ?? null,
+            industry: raw?.industry ?? null,
+            stage: raw?.stage ?? null,
+            logoURL: raw?.logoURL ?? null,
+            priority: raw?.priority ?? null,
+            addedAt: raw?.addedAt ?? null,
           }));
           setWatchlist(normalized as any);
         } else {
@@ -119,7 +118,7 @@ export default function WatchlistPage() {
   }, []);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="max-w-[1100px] mx-auto space-y-6 pb-16 animate-in fade-in duration-500">
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-neutral-surface">
         <div>
@@ -189,7 +188,9 @@ export default function WatchlistPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-xl overflow-hidden bg-white border border-neutral-100 shadow-sm flex-shrink-0 flex items-center justify-center text-sm font-black text-slate-500">
-                          {item.startupName?.charAt(0)?.toUpperCase() ?? "-"}
+                          {item.logoURL
+                            ? <img src={item.logoURL} alt={item.startupName} className="w-full h-full object-cover" />
+                            : (item.startupName?.charAt(0)?.toUpperCase() ?? "-")}
                         </div>
                         <div>
                           <Link href={`/investor/startups/${item.startupID}`} className="text-sm font-bold text-[#171611] hover:text-[#C8A000] transition-colors line-clamp-1">
@@ -204,7 +205,7 @@ export default function WatchlistPage() {
                     <td className="px-6 py-4">
                       <p className="font-bold text-[#171611] flex items-center gap-2 whitespace-nowrap">
                         <TrendingUp className="w-4 h-4 text-neutral-400" />
-                        <span className="text-sm text-[#171611] font-semibold">{(item as any).stage ?? "—"}</span>
+                        <span className="text-sm text-[#171611] font-semibold">{item.stage ?? "—"}</span>
                       </p>
                     </td>
                     <td className="px-6 py-4">
@@ -215,7 +216,7 @@ export default function WatchlistPage() {
                     </td>
                     <td className="px-6 py-4 max-w-[240px]">
                       <div className="bg-[#f8f8f6] p-3 rounded-xl border border-neutral-100">
-                        <p className="text-[12px] text-[#171611] leading-relaxed font-medium italic">{(item as any).priority ?? "—"}</p>
+                        <p className="text-[12px] text-[#171611] leading-relaxed font-medium italic">{item.priority ?? "—"}</p>
                       </div>
                     </td>
                     <td className="px-6 py-4">

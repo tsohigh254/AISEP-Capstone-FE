@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
@@ -32,6 +32,7 @@ import {
   ShieldAlert
 } from "lucide-react";
 import { FormatBadge } from "@/components/advisor/consulting-format-badge";
+import { isMentorshipPaymentCompleted } from "@/lib/mentorship-payment";
 import { toast } from 'sonner';
 import type {
   IConsultingRequest,
@@ -50,7 +51,8 @@ import {
   CancelMentorshipRequest,
   ProposeMentorshipSlots,
   GetMentorshipReport,
-  CompleteMentorship
+  CompleteMentorship,
+  AcceptMentorshipSession,
 } from "@/services/advisor/advisor.api";
 import { mapMentorshipToConsultingRequest } from "@/services/advisor/advisor.mapper";
 /* ─── Constants ──────────────────────────────────────────────── */
@@ -78,7 +80,7 @@ const STATUS_CFG: Record<ConsultingRequestStatus, { dot: string; badge: string }
 };
 
 
-const SCOPE_LABEL: Record<ConsultingScopeTag, string> = {
+const SCOPE_LABEL: Partial<Record<ConsultingScopeTag, string>> = {
   strategy: "Chiến lược",
   fundraising: "Gọi vốn",
   product: "Product",
@@ -86,6 +88,18 @@ const SCOPE_LABEL: Record<ConsultingScopeTag, string> = {
   marketing: "Marketing",
   legal: "Pháp lý",
   operations: "Vận hành",
+};
+
+const EXTRA_SCOPE_LABELS: Record<string, string> = {
+  FUNDRAISING: "Gọi vốn",
+  PRODUCT_STRATEGY: "Chiến lược sản phẩm",
+  GO_TO_MARKET: "Go-to-market",
+  FINANCE: "Tài chính",
+  LEGAL_IP: "Pháp lý & SHTT",
+  OPERATIONS: "Vận hành",
+  TECHNOLOGY: "Công nghệ",
+  MARKETING: "Marketing",
+  HR_OR_TEAM_BUILDING: "Nhân sự",
 };
 
 const SLOT_STATUS_STYLE: Record<SlotProposalStatus, string> = {
@@ -100,6 +114,11 @@ const SLOT_STATUS_LABEL: Record<SlotProposalStatus, string> = {
   ACCEPTED: "Chấp nhận",
   DECLINED: "Từ chối",
   SUPERSEDED: "Đã thay thế",
+};
+
+type ConfirmationBadge = {
+  label: string;
+  tone: "pending" | "success";
 };
 
 const TIMELINE_LABELS: Record<string, string> = {
@@ -175,6 +194,7 @@ function expiryCountdown(expiresAt: string): string {
 
 function ReportField({ label, content, icon: Icon, colorClass = "text-slate-900" }: { label: string; content?: string; icon?: any; colorClass?: string }) {
   if (!content) return null;
+
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
@@ -213,6 +233,7 @@ export default function AdvisorRequestDetailPage() {
   const [proposedSlots, setProposedSlots] = useState<ProposedSlotRow[]>([
     { date: "", startTime: "", endTime: "", note: "" },
   ]);
+  const [proposeNote, setProposeNote] = useState("");
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [completeOpen, setCompleteOpen] = useState(false);
@@ -299,41 +320,22 @@ export default function AdvisorRequestDetailPage() {
 const handleAcceptConfirm = async () => {
     if (!request || !selectedSlotId) return;
     const now = new Date().toISOString();
-    
-    // Find selected slot details to send to Schedule payload
-    const slot = request.preferredSlots.find(s => s.id === selectedSlotId);
-    if (!slot) return;
+    const sessionId = Number(selectedSlotId);
 
     try {
-      // First accept the request (if separate behavior in backend, though sometimes one is enough)
-      await AcceptMentorshipRequest(requestId);
-      
-      // Then schedule with the selected slot data
-      const preferredLink = request.preferredFormat === "MICROSOFT_TEAMS" ? advisorLinks?.msTeams : advisorLinks?.googleMeet;
-      const alternativeLink = advisorLinks?.googleMeet || advisorLinks?.msTeams || "";
-      const finalMeetingLink = preferredLink || alternativeLink || "https://meet.google.com/test-ai-fallback";
-      
-      const schedulePayload = {
-        startAt: slot.startAt,
-        endAt: slot.endAt,
-        timezone: slot.timezone,
-        meetingLink: finalMeetingLink
-      };
-      console.log("PAYLOAD:", schedulePayload, advisorLinks);
-      const res = await ScheduleMentorshipRequest(requestId, schedulePayload);
-      
+      const res = await AcceptMentorshipSession(requestId, sessionId) as unknown as IBackendRes<null>;
+
       if (res.isSuccess || res.success) {
         const updatedSlots = request.preferredSlots.map(s => ({
           ...s,
           status: s.id === selectedSlotId ? ("ACCEPTED" as const) : ("SUPERSEDED" as const),
         }));
-        const startupAlreadyConfirmed = request.confirmation.startupConfirmedAt !== null;
 
         setRequest({
           ...request,
-          status: "SCHEDULED", // BE puts it to scheduled/in-progress once slots are picked
+          status: "SCHEDULED",
           acceptedAt: request.acceptedAt ?? now,
-          advisorRespondedAt: request.advisorRespondedAt ?? now,
+          advisorRespondedAt: now,
           preferredSlots: updatedSlots,
           confirmation: {
             ...request.confirmation,
@@ -342,9 +344,10 @@ const handleAcceptConfirm = async () => {
           }
         });
         setAcceptOpen(false);
-        toast.success("Đã xác nhận và lên lịch buổi tư vấn!");
+        setSelectedSlotId(null);
+        toast.success("Đã chấp nhận lịch — buổi tư vấn đã lên lịch!");
       } else {
-        toast.error(res.message || "Lỗi khi xác nhận lịch");
+        toast.error((res as any).message || "Lỗi khi chấp nhận lịch");
       }
     } catch (err) {
       toast.error("Đã xảy ra lỗi mạng");
@@ -416,20 +419,21 @@ const handleProposeConfirm = async () => {
     const wasRequested = request.status === "PENDING";
     const wasScheduled = request.status === "SCHEDULED";
 
-    const payloadSlots = validSlots.map(s => {
-      // Create a local date and adjust for the selected timezone if strictly needed, 
-      // but for standard ISO dates, it's typical to append the offset dynamically.
-      // E.g., Asia/Ho_Chi_Minh has +07:00 offset roughly. We'll build basic ISO formatting:
-      return {
-        startAt: `${s.date}T${s.startTime}:00`,
-        endAt: `${s.date}T${s.endTime}:00`,
-        timezone: proposedTimezone,
-        note: s.note || undefined
-      };
-    });
+    const requestDuration = Number(request.durationMinutes) || 60;
+    const payloadSlots = validSlots.map(s => ({
+      startAt: `${s.date}T${s.startTime}:00`,
+      endAt: `${s.date}T${s.endTime}:00`,
+      timezone: proposedTimezone,
+      note: proposeNote.trim() || undefined,
+      durationMinutes: requestDuration,
+    }));
 
     try {
-      const res = await ProposeMentorshipSlots(requestId, { requestedSlots: payloadSlots });
+      // Gửi từng slot riêng vì BE tạo từng session một
+      const results = await Promise.all(
+        payloadSlots.map(slot => ProposeMentorshipSlots(requestId, { requestedSlots: [slot] }))
+      );
+      const res = results[results.length - 1]; // lấy kết quả cuối để check
       
       if (res.isSuccess || (res as any).success) {
         // Gắn lại date locally cho UI đỡ phải reload ngay:
@@ -454,7 +458,7 @@ const handleProposeConfirm = async () => {
 
         setRequest({
           ...request,
-          status: wasRequested || wasScheduled ? "ACCEPTED" : request.status,       
+          status: wasRequested || wasScheduled ? "SCHEDULED" : request.status,
           acceptedAt: wasRequested ? now : request.acceptedAt,
           advisorRespondedAt: (wasRequested || wasScheduled) ? now : request.advisorRespondedAt,
           preferredSlots: updatedPreferred,
@@ -545,7 +549,7 @@ const handleCancelConfirm = async () => {
   if (!request) {
     return (
       <AdvisorShell>
-        <div className="max-w-[1000px] mx-auto space-y-6 animate-in fade-in duration-400">
+        <div className="max-w-[1100px] mx-auto space-y-6 animate-in fade-in duration-400">
           <div className="flex flex-col items-center justify-center py-20 space-y-4">
             <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center">
               <AlertCircle className="w-7 h-7 text-slate-300" />
@@ -569,10 +573,60 @@ const handleCancelConfirm = async () => {
   const confirmedSlot =
     request.preferredSlots.find(s => s.status === "ACCEPTED") ??
     request.slotProposals.find(s => s.status === "ACCEPTED");
+  const hasStartupProposedSlots = request.preferredSlots.some(s => s.status === "PROPOSED");
+  const hasAdvisorProposedSlots = request.slotProposals.some(s => s.status === "PROPOSED");
+  const hasStartupAcceptedAdvisorProposal = request.slotProposals.some(s => s.status === "ACCEPTED");
+  const hasAdvisorAcceptedStartupProposal = request.preferredSlots.some(s => s.status === "ACCEPTED");
+  const hasConfirmedSchedule =
+    request.status === "SCHEDULED" ||
+    request.status === "COMPLETED" ||
+    request.status === "FINALIZED" ||
+    hasStartupAcceptedAdvisorProposal ||
+    hasAdvisorAcceptedStartupProposal;
+  const isStartupPaid = isMentorshipPaymentCompleted(
+    request.paymentStatus,
+    request.paidAt,
+  );
+  const advisorConfirmation: ConfirmationBadge = hasConfirmedSchedule
+    ? { label: "Đã xác nhận lịch", tone: "success" }
+    : hasAdvisorProposedSlots
+      ? { label: "Đã đề xuất lịch", tone: "success" }
+      : hasStartupProposedSlots
+        ? { label: "Chờ xác nhận lịch", tone: "pending" }
+        : { label: "Chờ xử lý", tone: "pending" };
+  const startupConfirmation: ConfirmationBadge = hasConfirmedSchedule
+    ? { label: "Đã xác nhận lịch", tone: "success" }
+    : hasStartupProposedSlots
+      ? { label: "Đã gửi lịch đề xuất", tone: "success" }
+      : hasAdvisorProposedSlots
+        ? { label: "Chờ xác nhận lịch", tone: "pending" }
+        : { label: "Chờ phản hồi", tone: "pending" };
+  const advisorConfirmationDisplay: ConfirmationBadge = advisorConfirmation;
+  const startupConfirmationDisplay: ConfirmationBadge = hasConfirmedSchedule
+    ? {
+        label: isStartupPaid ? "Đã thanh toán" : "Chờ thanh toán",
+        tone: isStartupPaid ? "success" : "pending",
+      }
+    : startupConfirmation;
+
+  const confirmedSlotStartAt = confirmedSlot?.startAt || null;
+  const confirmedSlotEndAt = confirmedSlot?.endAt || (
+    confirmedSlotStartAt && request.durationMinutes
+      ? new Date(new Date(confirmedSlotStartAt).getTime() + request.durationMinutes * 60000).toISOString()
+      : null
+  );
+  const completeGateReason = !isStartupPaid
+    ? "Startup chưa hoàn tất thanh toán cho buổi tư vấn này."
+    : !confirmedSlot
+      ? "Chưa xác định được khung giờ đã chốt cho buổi tư vấn."
+      : confirmedSlotEndAt && Date.now() < new Date(confirmedSlotEndAt).getTime()
+        ? `Bạn có thể xác nhận sau khi buổi tư vấn kết thúc dự kiến vào ${formatDateTime(confirmedSlotEndAt)}.`
+        : null;
+  const canCompleteSession = request.status === "SCHEDULED" && !completeGateReason;
 
   return (
     <AdvisorShell>
-      <div className="max-w-[1000px] mx-auto space-y-6 animate-in fade-in duration-400">
+      <div className="max-w-[1100px] mx-auto space-y-6 animate-in fade-in duration-400">
 
         {/* Page header */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-6 py-5">
@@ -600,7 +654,7 @@ const handleCancelConfirm = async () => {
                   {STATUS_LABEL[request.status] || request.status}
                 </span>
                 <Link 
-                  href={`/advisor/startups/${request.startup.id}`}
+                  href={`/advisor/startups/${request.startup.id}?from=${requestId}`}
                   className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold border border-slate-200 hover:bg-slate-200 transition-colors"
                 >
                   <ExternalLink className="w-3 h-3" />
@@ -647,6 +701,12 @@ const handleCancelConfirm = async () => {
                 Nội dung yêu cầu
               </h2>
               <div className="space-y-4">
+                {request.objective && (
+                  <div>
+                    <p className="text-[11px] text-slate-400 uppercase tracking-wide mb-1">Mục tiêu buổi tư vấn</p>
+                    <p className="text-[13px] text-slate-700 leading-relaxed">{request.objective}</p>
+                  </div>
+                )}
 
                 {/* 2. Mô tả vấn đề / thách thức */}
                 {request.problemContext && (
@@ -663,7 +723,7 @@ const handleCancelConfirm = async () => {
                     <div className="flex flex-wrap gap-1.5">
                       {request.scopeTags.map(tag => (
                         <span key={tag} className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-semibold">
-                          {SCOPE_LABEL[tag] ?? tag}
+                          {EXTRA_SCOPE_LABELS[tag] ?? SCOPE_LABEL[tag] ?? tag}
                         </span>
                       ))}
                     </div>
@@ -713,32 +773,15 @@ const handleCancelConfirm = async () => {
                         <div className="flex items-center gap-2 shrink-0">
                           {request.status === "PENDING" && slot.status === "PROPOSED" && (
                             <button
-                              onClick={() => handleToggleSlotSelect(slot.id)}
-                              className={cn(
-                                "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all",
-                                selectedSlotId === slot.id
-                                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                                  : "bg-[#0f172a] text-white hover:bg-[#1e293b]"
-                              )}
+                              onClick={() => { setSelectedSlotId(slot.id); setAcceptOpen(true); }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#0f172a] text-white hover:bg-[#1e293b] transition-all"
                             >
-                              {selectedSlotId === slot.id ? (
-                                <>
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  Đã chọn
-                                </>
-                              ) : (
-                                <>
-                                  <Check className="w-3 h-3" />
-                                  Chọn giờ này
-                                </>
-                              )}
+                              <CheckCircle2 className="w-3 h-3" />
+                              Chấp nhận slot này
                             </button>
                           )}
-                          <span className={cn(
-                            "inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold",
-                            selectedSlotId === slot.id ? "bg-emerald-50 text-emerald-600 border border-emerald-200" : SLOT_STATUS_STYLE[slot.status]
-                          )}>
-                            {selectedSlotId === slot.id ? "Đang chọn" : SLOT_STATUS_LABEL[slot.status]}
+                          <span className={cn("inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold", SLOT_STATUS_STYLE[slot.status])}>
+                            {SLOT_STATUS_LABEL[slot.status]}
                           </span>
                         </div>
                       </div>
@@ -761,15 +804,6 @@ const handleCancelConfirm = async () => {
                             <span className="text-[10px] text-slate-400">{slot.timezone}</span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            {request.status === "ACCEPTED" && slot.status === "PROPOSED" && slot.proposedBy === "STARTUP" && (
-                              <button
-                                onClick={() => handleConfirmSlot(slot.id, true)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-semibold hover:bg-emerald-700 transition-colors"
-                              >
-                                <Check className="w-3 h-3" />
-                                Xác nhận giờ này
-                              </button>
-                            )}
                             <span className={cn("inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold", SLOT_STATUS_STYLE[slot.status])}>
                               {SLOT_STATUS_LABEL[slot.status]}
                             </span>
@@ -901,10 +935,31 @@ const handleCancelConfirm = async () => {
                       Lưu ý: Link này chỉ hiển thị cho bạn và Startup đã xác nhận.
                     </p>
                   </div>
+                  {completeGateReason && (
+                    <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
+                      <p className="text-[11px] text-amber-600 uppercase tracking-wide font-medium mb-1">
+                        Chưa thể xác nhận hoàn thành
+                      </p>
+                      <p className="text-[12px] text-amber-700 leading-relaxed">
+                        {completeGateReason}
+                      </p>
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     <button
-                      onClick={() => setCompleteOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-white text-[13px] font-medium hover:bg-emerald-700 transition-colors shadow-sm"
+                      type="button"
+                      disabled={!canCompleteSession}
+                      title={completeGateReason || "Xác nhận buổi tư vấn đã hoàn thành"}
+                      onClick={() => {
+                        if (!canCompleteSession) return;
+                        setCompleteOpen(true);
+                      }}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-medium transition-colors",
+                        canCompleteSession
+                          ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
+                          : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                      )}
                     >
                       <CheckCircle2 className="w-4 h-4" />
                       Xác nhận đã họp xong
@@ -1061,13 +1116,13 @@ const handleCancelConfirm = async () => {
             </div>
 
             {/* Card E - Confirmation Status */}
-            {(request.status === "ACCEPTED" || request.status === "SCHEDULED") && (
+            {false && (
               <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-6 py-5">
                 <h2 className="text-[13px] font-semibold text-slate-900 mb-4">Trạng thái xác nhận</h2>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[13px] text-slate-600">Advisor</span>
-                    {request.confirmation.advisorConfirmedAt ? (
+                    {advisorConfirmationDisplay.tone === "success" ? (
                       <span className="inline-flex items-center gap-1 text-[12px] text-emerald-600 font-medium">
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Đã xác nhận
@@ -1082,7 +1137,7 @@ const handleCancelConfirm = async () => {
                   <div className="h-px bg-slate-100" />
                   <div className="flex items-center justify-between">
                     <span className="text-[13px] text-slate-600">Startup</span>
-                    {request.confirmation.startupConfirmedAt ? (
+                    {startupConfirmationDisplay.tone === "success" ? (
                       <span className="inline-flex items-center gap-1 text-[12px] text-emerald-600 font-medium">
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Đã xác nhận
@@ -1091,6 +1146,42 @@ const handleCancelConfirm = async () => {
                       <span className="inline-flex items-center gap-1 text-[12px] text-amber-500 font-medium">
                         <Clock className="w-3.5 h-3.5" />
                         Chờ xác nhận
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            {(request.status === "ACCEPTED" || request.status === "SCHEDULED") && (
+              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-6 py-5">
+                <h2 className="text-[13px] font-semibold text-slate-900 mb-4">Trạng thái xác nhận</h2>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] text-slate-600">Advisor</span>
+                    {advisorConfirmationDisplay.tone === "success" ? (
+                      <span className="inline-flex items-center gap-1 text-[12px] text-emerald-600 font-medium">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        {advisorConfirmationDisplay.label}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[12px] text-amber-500 font-medium">
+                        <Clock className="w-3.5 h-3.5" />
+                        {advisorConfirmationDisplay.label}
+                      </span>
+                    )}
+                  </div>
+                  <div className="h-px bg-slate-100" />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] text-slate-600">Startup</span>
+                    {startupConfirmationDisplay.tone === "success" ? (
+                      <span className="inline-flex items-center gap-1 text-[12px] text-emerald-600 font-medium">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        {startupConfirmationDisplay.label}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[12px] text-amber-500 font-medium">
+                        <Clock className="w-3.5 h-3.5" />
+                        {startupConfirmationDisplay.label}
                       </span>
                     )}
                   </div>
@@ -1141,7 +1232,7 @@ const handleCancelConfirm = async () => {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-[15px] font-semibold text-slate-900">Đề xuất thời gian khác</h3>
-              <button onClick={() => { setProposeOpen(false); setProposedSlots([{ date: "", startTime: "", endTime: "", note: "" }]); }} className="p-1 rounded-lg hover:bg-slate-100 transition-colors">
+              <button onClick={() => { setProposeOpen(false); setProposedSlots([{ date: "", startTime: "", endTime: "", note: "" }]); setProposeNote(""); }} className="p-1 rounded-lg hover:bg-slate-100 transition-colors">
                 <X className="w-4 h-4 text-slate-400" />
               </button>
             </div>
@@ -1180,7 +1271,7 @@ const handleCancelConfirm = async () => {
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Khung giờ {idx + 1}</span>
                     {proposedSlots.length > 1 && (
-                      <button 
+                      <button
                         onClick={() => setProposedSlots(prev => prev.filter((_, i) => i !== idx))}
                         className="p-1.5 rounded-lg hover:bg-red-50 hover:text-red-500 text-slate-400 transition-all opacity-0 group-hover/slot:opacity-100"
                       >
@@ -1194,6 +1285,7 @@ const handleCancelConfirm = async () => {
                       <input
                         type="date"
                         value={slot.date}
+                        min={new Date().toISOString().split("T")[0]}
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[13px] bg-white focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20 focus:border-[#eec54e] transition-all"
                         onChange={e => setProposedSlots(prev => prev.map((s, i) => i === idx ? { ...s, date: e.target.value } : s))}
                       />
@@ -1210,14 +1302,13 @@ const handleCancelConfirm = async () => {
                             if (i !== idx) return s;
                             if (!val) return { ...s, startTime: val, endTime: "" };
                             
-                            // Auto-calculate end time
+                            // Auto-calculate end time (pure arithmetic, no Date object)
                             const [h, m] = val.split(":").map(Number);
-                            const duration = request.durationMinutes ?? 60;
-                            const date = new Date();
-                            date.setHours(h, m + duration);
-                            const endH = date.getHours().toString().padStart(2, "0");
-                            const endM = date.getMinutes().toString().padStart(2, "0");
-                            
+                            const duration = Number(request.durationMinutes) || 60;
+                            const totalMinutes = h * 60 + m + duration;
+                            const endH = (Math.floor(totalMinutes / 60) % 24).toString().padStart(2, "0");
+                            const endM = (totalMinutes % 60).toString().padStart(2, "0");
+
                             return { ...s, startTime: val, endTime: `${endH}:${endM}` };
                           }));
                         }}
@@ -1233,18 +1324,18 @@ const handleCancelConfirm = async () => {
                       />
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-slate-500 ml-1">Ghi chú thêm</label>
-                    <input
-                      type="text"
-                      placeholder="vd: Tôi có thể dời sớm hơn 15p nếu cần"
-                      value={slot.note}
-                      onChange={e => setProposedSlots(prev => prev.map((s, i) => i === idx ? { ...s, note: e.target.value } : s))}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[13px] bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20 focus:border-[#eec54e] transition-all"
-                    />
-                  </div>
                 </div>
               ))}
+            </div>
+            <div className="space-y-1 mt-4">
+              <label className="text-[11px] font-medium text-slate-500 ml-1">Ghi chú thêm</label>
+              <input
+                type="text"
+                placeholder="vd: Tôi có thể dời sớm hơn 15p nếu cần"
+                value={proposeNote}
+                onChange={e => setProposeNote(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-[13px] bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20 focus:border-[#eec54e] transition-all"
+              />
             </div>
             {proposedSlots.length < 3 && (
               <button
@@ -1255,11 +1346,25 @@ const handleCancelConfirm = async () => {
                 Thêm khung giờ
               </button>
             )}
+            {(() => {
+              const keys = proposedSlots.map(s => s.date && s.startTime ? `${s.date}|${s.startTime}` : null);
+              const hasDup = keys.some((k, i) => k && keys.indexOf(k) !== i);
+              return hasDup ? (
+                <p className="text-[12px] text-red-500 mt-3">Có 2 khung giờ trùng ngày và giờ bắt đầu. Vui lòng chọn lại.</p>
+              ) : null;
+            })()}
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => { setProposeOpen(false); setProposedSlots([{ date: "", startTime: "", endTime: "", note: "" }]); }} className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-[13px] font-medium hover:bg-slate-50 transition-colors">
+              <button onClick={() => { setProposeOpen(false); setProposedSlots([{ date: "", startTime: "", endTime: "", note: "" }]); setProposeNote(""); }} className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-[13px] font-medium hover:bg-slate-50 transition-colors">
                 Huỷ
               </button>
-              <button onClick={handleProposeConfirm} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0f172a] text-white text-[13px] font-medium hover:bg-[#1e293b] transition-colors shadow-sm">
+              <button
+                onClick={handleProposeConfirm}
+                disabled={(() => {
+                  const keys = proposedSlots.map(s => s.date && s.startTime ? `${s.date}|${s.startTime}` : null);
+                  return keys.some((k, i) => k && keys.indexOf(k) !== i);
+                })()}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0f172a] text-white text-[13px] font-medium hover:bg-[#1e293b] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <Send className="w-3.5 h-3.5" />
                 Gửi đề xuất
               </button>

@@ -211,15 +211,19 @@ export const CancelMentorshipRequest = (id: string, reason: string) => {
 };
 
 // Đề xuất thời gian — tạo session qua endpoint thực tế của backend
-export const ProposeMentorshipSlots = (id: string, payload: { requestedSlots: { startAt: string; endAt: string; timezone: string; note?: string }[] }) => {
-  // Backend chỉ hỗ trợ tạo từng session, lấy slot đầu tiên để tạo
+export const ProposeMentorshipSlots = (id: string, payload: { requestedSlots: { startAt: string; endAt: string; timezone: string; note?: string; durationMinutes?: number }[] }) => {
   const slot = payload.requestedSlots[0];
   if (!slot) return Promise.reject(new Error("No slots provided"));
-  
-  const startDate = new Date(slot.startAt);
-  const endDate = new Date(slot.endAt);
-  const durationMinutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000) || 60;
-  
+
+  // Ưu tiên durationMinutes truyền vào, fallback tính từ thời gian, fallback 60
+  let durationMinutes = slot.durationMinutes;
+  if (!durationMinutes || durationMinutes < 15) {
+    const startMs = new Date(slot.startAt).getTime();
+    const endMs = new Date(slot.endAt).getTime();
+    const calc = Math.round((endMs - startMs) / 60000);
+    durationMinutes = (Number.isFinite(calc) && calc >= 15) ? calc : 60;
+  }
+
   return axios.post<IBackendRes<any>>(`/api/mentorships/${id}/sessions`, {
     scheduledStartAt: slot.startAt,
     durationMinutes,
@@ -230,7 +234,7 @@ export const ProposeMentorshipSlots = (id: string, payload: { requestedSlots: { 
 
 // Lấy báo cáo tư vấn (nếu có)
 export const GetMentorshipReport = (id: string) => {
-  return axios.get<IBackendRes<any>>(`/api/mentorships/reports/${id}`);
+  return axios.get<IBackendRes<any>>(`/api/mentorships/${id}/reports`);
 };
 
 export const CreateMentorshipReport = (id: string, payload: {
@@ -246,4 +250,11 @@ export const CreateMentorshipReport = (id: string, payload: {
 export const GetAdvisorSessions = (params?: { status?: string; page?: number; pageSize?: number }) => {
   return axios.get<IBackendRes<IPagingData<any>>>("/api/mentorships/sessions", { params });
 };
+
+// Chấp nhận slot startup đề xuất (ProposedByStartup → Scheduled)
+export const AcceptMentorshipSession = (mentorshipId: string | number, sessionId: number) => {
+  return axios.post<IBackendRes<null>>(
+    `/api/mentorships/${mentorshipId}/sessions/${sessionId}/accept`
+  );
+};;
 

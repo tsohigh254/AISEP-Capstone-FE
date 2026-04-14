@@ -8,6 +8,7 @@ import {
     ShieldCheck, FileText, Users, Brain, Newspaper, AlertTriangle,
     RefreshCw,
 } from "lucide-react";
+import { toast } from "sonner";
 import { ChangePasswordModal } from "@/components/startup/change-password-modal";
 
 /* ─── Types ─────────────────────────────────────────────────── */
@@ -41,35 +42,39 @@ function Toggle({
             disabled={disabled}
             onClick={() => !disabled && onChange(!checked)}
             className={cn(
-                "relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/20",
-                checked ? "bg-[#0f172a]" : "bg-slate-200",
+                "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#eec54e]/20",
+                checked ? "bg-[#eec54e]" : "bg-slate-200",
                 disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"
             )}
         >
             <span className={cn(
-                "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform",
-                checked ? "translate-x-[18px]" : "translate-x-[3px]"
+                "inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform",
+                checked ? "translate-x-[22px]" : "translate-x-[2px]"
             )} />
         </button>
     );
 }
 
-/* ─── Toast component ───────────────────────────────────────── */
-function Toast({ type, message, onClose }: { type: "success" | "error"; message: string; onClose: () => void }) {
+/* ─── SectionCard component (consistent with investor/advisor) ── */
+function SectionCard({ title, icon: Icon, description, children, id }: {
+    title: string;
+    icon: React.ElementType;
+    description?: string;
+    children: React.ReactNode;
+    id?: string;
+}) {
     return (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[110] animate-in slide-in-from-top-3 duration-300">
-            <div className="bg-white border border-slate-200 px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 min-w-[300px]">
-                <div className={cn("w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0",
-                    type === "success" ? "bg-emerald-100" : "bg-red-100")}>
-                    {type === "success"
-                        ? <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        : <X className="w-3.5 h-3.5 text-red-600" />}
+        <div id={id} className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden scroll-mt-24">
+            <div className="px-6 py-5 border-b border-slate-100">
+                <div className="flex items-center gap-2.5 mb-1">
+                    <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100">
+                        <Icon className="w-4 h-4 text-slate-400" />
+                    </div>
+                    <p className="text-[15px] font-bold text-slate-800">{title}</p>
                 </div>
-                <p className="text-[13px] font-medium text-slate-700 flex-1">{message}</p>
-                <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
-                    <X className="w-3.5 h-3.5" />
-                </button>
+                {description && <p className="text-[12px] text-slate-400 ml-9">{description}</p>}
             </div>
+            <div className="p-6">{children}</div>
         </div>
     );
 }
@@ -134,12 +139,7 @@ export default function StartupSettingsPage() {
     const [prefsSaveFailed, setPrefsSaveFailed] = useState(false);
     const prefsDirty = JSON.stringify(prefs) !== JSON.stringify(originalPrefs.current);
 
-    /* ── Toast ── */
-    const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
-    const showToast = (type: "success" | "error", message: string) => {
-        setToast({ type, message });
-        setTimeout(() => setToast(null), 4000);
-    };
+
 
     /* ── Handlers: Notification prefs ── */
     const setChannel = (key: keyof Prefs, channel: keyof Channel, value: boolean) => {
@@ -155,33 +155,27 @@ export default function StartupSettingsPage() {
             const success = true;
             if (success) {
                 originalPrefs.current = prefs;
-                showToast("success", "Tùy chọn thông báo đã được lưu thành công.");
+                toast.success("Tùy chọn thông báo đã được lưu thành công.");
             } else {
                 setPrefsSaveFailed(true);
-                showToast("error", "Lưu thất bại. Vui lòng thử lại.");
+                toast.error("Lưu thất bại. Vui lòng thử lại.");
             }
         }, 600);
     };
 
     return (
         <StartupShell>
-            {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
-
             <div className="max-w-[760px] mx-auto space-y-5 pb-20">
 
                 {/* ── Page header ── */}
                 <div className="mb-6">
-                    <h1 className="text-[22px] font-semibold text-[#0f172a] tracking-[-0.02em]">Cài đặt tài khoản</h1>
+                    <h1 className="text-[22px] font-semibold text-slate-800 tracking-[-0.02em]">Cài đặt tài khoản</h1>
                     <p className="text-[13px] text-slate-500 mt-1">Quản lý mật khẩu, thông báo và khả năng hiển thị hồ sơ startup của bạn.</p>
                 </div>
 
                 {/* ── Security card ── */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-                        <Shield className="w-4 h-4 text-slate-400" />
-                        <h2 className="text-[13px] font-semibold text-slate-700">Bảo mật</h2>
-                    </div>
-                    <div className="px-6 py-5 flex items-center justify-between gap-6">
+                <SectionCard title="Bảo mật" icon={Shield} description="Quản lý mật khẩu và bảo vệ tài khoản.">
+                    <div className="flex items-center justify-between gap-6">
                         <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center flex-shrink-0">
                                 <Lock className="w-4 h-4 text-slate-400" />
@@ -198,13 +192,17 @@ export default function StartupSettingsPage() {
                             Đổi mật khẩu <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                         </button>
                     </div>
-                </div>
+                </SectionCard>
 
                 {/* ── Notification Preferences card ── */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-                        <Bell className="w-4 h-4 text-slate-400" />
-                        <h2 className="text-[13px] font-semibold text-slate-700">Tùy chọn thông báo</h2>
+                    <div className="px-6 py-5 border-b border-slate-100">
+                        <div className="flex items-center gap-2.5 mb-1">
+                            <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100">
+                                <Bell className="w-4 h-4 text-slate-400" />
+                            </div>
+                            <p className="text-[15px] font-bold text-slate-800">Tùy chọn thông báo</p>
+                        </div>
                     </div>
 
                     {/* Essential note */}
@@ -274,7 +272,7 @@ export default function StartupSettingsPage() {
                                 (prefsDirty || prefsSaveFailed) && !prefsSaving
                                     ? prefsSaveFailed
                                         ? "bg-red-600 text-white hover:bg-red-700 shadow-sm"
-                                        : "bg-[#0f172a] text-white hover:bg-slate-800 shadow-sm"
+                                        : "bg-[#eec54e] text-[#171611] hover:bg-[#e6c445] shadow-sm"
                                     : "bg-slate-100 text-slate-400 cursor-not-allowed"
                             )}
                         >
@@ -312,7 +310,7 @@ export default function StartupSettingsPage() {
                                 disabled={prefsSaving}
                                 className={cn(
                                     "px-4 h-10 rounded-xl text-[13px] font-semibold transition-all",
-                                    prefsSaveFailed ? "bg-red-600 text-white" : "bg-[#0f172a] text-white"
+                                    prefsSaveFailed ? "bg-red-600 text-white" : "bg-[#eec54e] text-[#171611]"
                                 )}
                             >
                                 {prefsSaving ? "..." : prefsSaveFailed ? "Thử lại" : "Lưu TB"}
@@ -328,7 +326,7 @@ export default function StartupSettingsPage() {
                 onClose={() => setShowPasswordModal(false)}
                 onSuccess={() => {
                     setShowPasswordModal(false);
-                    showToast("success", "Mật khẩu đã được cập nhật thành công.");
+                    toast.success("Mật khẩu đã được cập nhật thành công.");
                 }}
             />
 

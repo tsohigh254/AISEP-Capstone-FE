@@ -24,6 +24,13 @@ export const CreateConnection = (data: ICreateConnection) => {
   return axios.post<IBackendRes<IConnectionItem>>(`/api/connections`, data);
 };
 
+// Startup: check if investor is accepting connections
+export const CanInviteInvestor = (investorId: number) => {
+  return axios.get<IBackendRes<ICanInviteResult>>(`/api/connections/can-invite`, {
+    params: { investorId },
+  });
+};
+
 // Startup -> Investor (StartupOnly)
 export const InviteInvestorConnection = (data: ICreateStartupInvestorInvite) => {
   return axios.post<IBackendRes<IConnectionItem>>(`/api/connections/invite`, data);
@@ -34,6 +41,7 @@ export const GetSentConnections = (
   pageSize: number = 20,
   status?: string,
   counterpartId?: number,
+  keyword?: string,
 ) => {
   return axios.get<IBackendRes<IPaginatedRes<IConnectionItem>>>(`/api/connections/sent`, {
     params: {
@@ -41,6 +49,7 @@ export const GetSentConnections = (
       pageSize,
       ...(status ? { status } : {}),
       ...(counterpartId ? { counterpartId } : {}),
+      ...(keyword?.trim() ? { keyword: keyword.trim() } : {}),
     },
   });
 };
@@ -50,6 +59,7 @@ export const GetReceivedConnections = (
   pageSize: number = 20,
   status?: string,
   counterpartId?: number,
+  keyword?: string,
 ) => {
   return axios.get<IBackendRes<IPaginatedRes<IConnectionItem>>>(`/api/connections/received`, {
     params: {
@@ -57,6 +67,7 @@ export const GetReceivedConnections = (
       pageSize,
       ...(status ? { status } : {}),
       ...(counterpartId ? { counterpartId } : {}),
+      ...(keyword?.trim() ? { keyword: keyword.trim() } : {}),
     },
   });
 };
