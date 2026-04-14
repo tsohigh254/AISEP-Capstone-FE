@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { Logout } from "@/services/auth/auth.api";
 import { useAuth } from "@/context/context";
+import { useNotifications } from "@/hooks/useNotifications";
 import { IssueReportModal } from "@/components/shared/issue-report-modal";
 import { GetStartupProfile } from "@/services/startup/startup.api";
 import { GetStartupKYCStatus } from "@/services/startup/startup-kyc.api";
@@ -116,6 +117,23 @@ export function StartupHeader({
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
+
+  // Persistent notifications SignalR connection for realtime bell updates
+  useNotifications((incoming) => {
+    if (!incoming) return;
+    setNotifications((prev) => {
+      try {
+        const exists = prev.some((n) => n.notificationId === incoming.notificationId);
+        if (exists) return prev;
+        if (!incoming.isRead) setUnreadCount((c) => c + 1);
+        return [incoming, ...prev];
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("Failed to apply incoming notification", e);
+        return prev;
+      }
+    });
+  });
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

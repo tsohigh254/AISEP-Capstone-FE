@@ -8,6 +8,7 @@ export type ChatConnectionState = "idle" | "connecting" | "connected" | "reconne
 interface UseChatOptions {
     conversationId: number | null;
     onMessage: (msg: IIncomingMessage) => void;
+    onNotification?: (n: any) => void;
 }
 
 interface UseChatReturn {
@@ -15,9 +16,11 @@ interface UseChatReturn {
     connectionState: ChatConnectionState;
 }
 
-export function useChat({ conversationId, onMessage }: UseChatOptions): UseChatReturn {
+export function useChat({ conversationId, onMessage, onNotification }: UseChatOptions): UseChatReturn {
     const onMessageRef = useRef(onMessage);
+    const onNotificationRef = useRef<((n: any) => void) | undefined>(onNotification);
     useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
+    useEffect(() => { onNotificationRef.current = onNotification; }, [onNotification]);
 
     const connectionRef = useRef<signalR.HubConnection | null>(null);
     const [connectionState, setConnectionState] = useState<ChatConnectionState>("idle");
@@ -57,6 +60,7 @@ export function useChat({ conversationId, onMessage }: UseChatOptions): UseChatR
 
         // Sự kiện từ Hub
         connection.on("ReceiveMessage", (msg) => onMessageRef.current(msg));
+        connection.on("ReceiveNotification", (n) => { try { onNotificationRef.current && onNotificationRef.current(n); } catch (e) { console.warn('[ChatHub] ReceiveNotification handler error', e); } });
         connection.on("Error", (msg: string) => console.error("[ChatHub]", msg));
 
         // Theo dõi trạng thái reconnect
