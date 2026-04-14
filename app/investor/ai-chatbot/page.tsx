@@ -118,7 +118,7 @@ export default function AIChatbotPage() {
     };
   }, []);
 
-  const handleSend = (text: string) => {
+  const handleSend = async (text: string) => {
     if (!text.trim()) return;
 
     const userMsg: Message = {
@@ -128,36 +128,108 @@ export default function AIChatbotPage() {
       timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    const aiId = `ai_${Date.now()}`;
+    const aiPlaceholder: Message = {
+      id: aiId,
+      type: "ai",
+      content: "",
+      timestamp: new Date(),
+    };
+
+    // Add user message and AI placeholder in one update
+    setMessages(prev => [...prev, userMsg, aiPlaceholder]);
     setInputValue("");
     setIsLoading(true);
 
-    // Mock AI Response
-    setTimeout(() => {
-      let aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        type: "ai",
-        content: `Tôi đã ghi nhận mong muốn của bạn về: "${text}". Dưới đây là một số thông tin và phân tích AI liên quan.`,
-        timestamp: new Date(),
-        suggestions: ["Tìm hiểu sâu hơn", "So sánh với startup khác", "Tải báo cáo chi tiết"]
-      };
+    // Build endpoint: prefer backend proxy so auth + session work
+    const backendBase = (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_AI_SERVICE_URL || "").replace(/\/$/, "");
+    const endpoint = `${backendBase}/api/ai/investor-agent/chat/stream`;
 
-      // Add conditional rich content based on keywords
-      if (text.includes("xu hướng")) {
-        aiResponse.blocks = [
-          { type: 'insight', title: 'SaaS B2B tăng trưởng mạnh', description: 'Các startup trong mảng SaaS B2B tại Đông Nam Á đang nhận được sự quan tâm lớn nhờ dòng tiền ổn định và khả năng mở rộng nhanh.', badge: 'HOT TREND' },
-          { type: 'insight', title: 'AI & Machine Learning', description: 'Ứng dụng AI vào quy trình sản xuất truyền thống đang là "đại dương xanh" mới cho các quỹ đầu tư mạo hiểm.', badge: 'EMERGING' }
-        ];
-      } else if (text.includes("phù hợp") || text.includes("khám phá")) {
-        aiResponse.blocks = [
-          { type: 'startup', name: 'TechAlpha', industry: 'Fintech', stage: 'Seed', matchScore: 92 },
-          { type: 'startup', name: 'EcoFlow', industry: 'GreenTech', stage: 'Series A', matchScore: 88 }
-        ];
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const resp = await fetch(endpoint, {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ query: text }),
+      });
+
+      if (!resp.ok) {
+        // try to show backend error message
+        let bodyText = await resp.text();
+        try { bodyText = JSON.parse(bodyText).message ?? JSON.stringify(JSON.parse(bodyText)); } catch {}
+        setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: `Lỗi server: ${resp.status} ${bodyText}` } : m));
+        setIsLoading(false);
+        return;
       }
 
-      setMessages(prev => [...prev, aiResponse]);
+      const reader = resp.body?.getReader();
+      if (!reader) {
+        const textBody = await resp.text();
+        setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: textBody } : m));
+        setIsLoading(false);
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finished = false;
+
+      while (!finished) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const parts = buffer.split(/\r?\n\r?\n/);
+        buffer = parts.pop() ?? "";
+
+        for (const part of parts) {
+          const lines = part.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            const data = line.replace(/^data:\s?/, "").trim();
+            if (data === "[DONE]") {
+              finished = true;
+              break;
+            }
+
+            // Try parse JSON event, otherwise append raw
+            let evt: any = null;
+            try {
+              evt = JSON.parse(data);
+            } catch (e) {
+              setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: (m.content ?? "") + data } : m));
+              continue;
+            }
+
+            const type = evt?.type;
+            if (type === "answer_chunk" && evt.content) {
+              setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: (m.content ?? "") + evt.content } : m));
+            } else if (type === "final_answer" && evt.content) {
+              setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: (m.content ?? "") + evt.content } : m));
+            } else if (type === "final_metadata") {
+              // attach simple suggestions from references (titles)
+              const refs = evt.references ?? [];
+              const suggestions = refs.map((r: any) => r.title).filter(Boolean);
+              if (suggestions.length) {
+                setMessages(prev => prev.map(m => m.id === aiId ? { ...m, suggestions } : m));
+              }
+            } else if (type === "error") {
+              setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: (m.content ?? "") + `\n\nError: ${evt.content}` } : m));
+            }
+          }
+          if (finished) break;
+        }
+      }
+
+    } catch (err: any) {
+      setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: `Lỗi khi kết nối: ${err?.message ?? String(err)}` } : m));
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const handleIntentClick = (label: string) => {
@@ -207,7 +279,15 @@ export default function AIChatbotPage() {
                     ? "bg-[#0f172a] text-white rounded-tr-none" 
                     : "bg-slate-50 text-slate-800 rounded-tl-none border border-slate-100"
                 )}>
-                  {msg.content}
+                  {msg.type === "ai" && !msg.content ? (
+                    <div className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" />
+                      <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.2s]" />
+                      <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.4s]" />
+                    </div>
+                  ) : (
+                    msg.content
+                  )}
                 </div>
 
                 {/* Rich Blocks (AI Only) */}
@@ -245,15 +325,7 @@ export default function AIChatbotPage() {
             </div>
           ))}
 
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-slate-50 border border-slate-100 px-5 py-4 rounded-3xl rounded-tl-none shadow-sm flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" />
-                <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.2s]" />
-                <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.4s]" />
-              </div>
-            </div>
-          )}
+          {/* Loading is represented inside the AI placeholder bubble; no separate loading bubble here. */}
         </div>
 
         {/* Bottom UI (Intents + Input) */}
