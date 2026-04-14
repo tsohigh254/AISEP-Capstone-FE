@@ -37,8 +37,8 @@ export const SearchStartups = (query?: string, page: number = 1, pageSize: numbe
     });
 }
 
-export const GetRecommendations = () => {
-    return axios.get<IBackendRes<IStartupSearchItem[]>>(`/api/investors/recommendations`);
+export const GetRecommendations = (topN: number = 10) => {
+    return axios.get<IBackendRes<any>>(`/api/ai/recommendations/startups`, { params: { topN } });
 }
 
 export const GetStartupById = (id: number) => {
