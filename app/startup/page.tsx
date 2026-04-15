@@ -42,6 +42,7 @@ export default function StartupDashboardPage() {
   const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
   const [actionableDocs, setActionableDocs] = useState<any[]>([]);
   const [recentDocs, setRecentDocs] = useState<any[]>([]);
+  const [recentSessions, setRecentSessions] = useState<any[]>([]);
   const [profileData, setProfileData] = useState<any>(null);
   const [profileMembers, setProfileMembers] = useState<any[]>([]);
 
@@ -206,6 +207,19 @@ export default function StartupDashboardPage() {
               console.log("[Startup Dashboard] uniqueByMentorship:", uniqueByMentorship);
 
               setUpcomingSessions(uniqueByMentorship.slice(0, 3));
+
+              // Lưu tất cả sessions gần nhất cho section "Consulting & Advisors sessions"
+              const allSorted = [...allSessions].sort((a: any, b: any) => {
+                const aTime = new Date(a.scheduledStartAt || a.scheduledAt || a.ScheduledStartAt || a.ScheduledAt || 0).getTime();
+                const bTime = new Date(b.scheduledStartAt || b.scheduledAt || b.ScheduledStartAt || b.ScheduledAt || 0).getTime();
+                return bTime - aTime; // mới nhất trước
+              });
+              // Gắn thêm mentorship status vào mỗi session
+              setRecentSessions(allSorted.slice(0, 4).map((s: any) => {
+                const mId = s.MentorshipID ?? s.mentorshipID ?? s.mentorshipId ?? s.MentorshipId ?? null;
+                const mStatus = mId ? (mentorshipStatusMap.get(Number(mId)) || "") : "";
+                return { ...s, _mentorshipStatus: mStatus };
+              }));
             })
             .catch(() => {
               // Nếu không lấy được mentorship list thì fallback về filter cục bộ chỉ dựa vào session
@@ -243,6 +257,14 @@ export default function StartupDashboardPage() {
               // eslint-disable-next-line no-console
               console.log("[Startup Dashboard] fallback uniqueByMentorship:", uniqueByMentorship);
               setUpcomingSessions(uniqueByMentorship.slice(0, 3));
+
+              // Fallback: lưu sessions gần nhất không có mentorship status
+              const allSorted = [...allSessions].sort((a: any, b: any) => {
+                const aTime = new Date(a.scheduledStartAt || a.scheduledAt || a.ScheduledStartAt || a.ScheduledAt || 0).getTime();
+                const bTime = new Date(b.scheduledStartAt || b.scheduledAt || b.ScheduledStartAt || b.ScheduledAt || 0).getTime();
+                return bTime - aTime;
+              });
+              setRecentSessions(allSorted.slice(0, 4));
             });
         }
       })
@@ -532,43 +554,70 @@ export default function StartupDashboardPage() {
 
         <div className="grid grid-cols-12 gap-6 pb-12">
           <div className="col-span-12 bg-white rounded-2xl shadow-sm border border-neutral-surface p-6">
-            <h3 className="font-bold text-lg text-[#171611] mb-6 tracking-tight">Consulting & Advisors sessions</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[
-                {
-                  name: "Dr. Anh Tuan",
-                  role: "Expert in FinTech & Blockchain",
-                  date: "14 May, 2024",
-                  status: "Đã hoàn thành",
-                  statusColor: "text-green-600",
-                  img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDSyd89CCj_zHc_LuQhWMmfq2Fe9NIXo7kap3iqhwQmj6hnZ6O9G9_TEa34oVVb9u8J5WLiZKx69vTFAGzAy-bhFnogecGAGCURhKAi82skiJ-lqbRY4oyNOkcPGFCpuJzHA_CY1eapDWvsmjvttoJFOY2UyF6XDh5BVzml3HhIGL0xmQAsEIg5td4Imhf83cA9Ksa2iMq1iLFJOYjkRWnuond7_4mFqlM6HrmkPr8BPArVgb-lQuIG9HHfZKUjbN28uwltwj3MkxM"
-                },
-                {
-                  name: "Ms. Linh Chi",
-                  role: "Marketing Strategy Specialist",
-                  date: "18 May, 2024",
-                  status: "Sắp diễn ra",
-                  statusColor: "text-[#e6cc4c]",
-                  img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDKY4d1Y63lERm80mlyRmr3m2Np_8yG6dWJUtCxN7kvLrLu89DM4CSm8QpBtvvwm3konSP-3BflEBvD1vqDcqq91_XkNfgpXBi-GPYd-hBFOCZXxz2lwC-9Czkenukr5SyakSEBVtFO25lNewwy9nxMzGyi50hodZ59AUpBSMAX5bRNom8hV9w2Ni1St46YJ1PH-4LxUjHCc1vVLoVNzGnhOEiEB8wmQvzY7Ci7l7jd4qiiMK_8yyL4A1qfApGUmiShlRKOIamZjWU"
-                }
-              ].map((advisor, idx) => (
-                <div key={idx} className="flex items-center justify-between p-4 bg-[#f8f8f6] rounded-xl hover:shadow-md transition-shadow group cursor-pointer border border-transparent hover:border-[#e6cc4c]/20">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-[#e6cc4c]/20 flex items-center justify-center overflow-hidden border-2 border-white shadow-sm group-hover:scale-105 transition-transform">
-                      <img alt={advisor.name} className="w-full h-full object-cover" src={advisor.img} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-[#171611]">{advisor.name}</p>
-                      <p className="text-xs text-neutral-muted font-medium italic">{advisor.role}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-bold text-[#171611]">{advisor.date}</p>
-                    <p className={`text-[10px] font-black uppercase tracking-wider ${advisor.statusColor}`}>{advisor.status}</p>
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-bold text-lg text-[#171611] tracking-tight">Consulting & Advisors sessions</h3>
+              <Link href="/startup/mentorship-requests" className="text-[#e6cc4c] font-bold text-sm hover:underline tracking-tight">Xem tất cả</Link>
             </div>
+            {recentSessions.length === 0 ? (
+              <div className="text-center py-8">
+                <MessageSquare className="w-8 h-8 text-neutral-200 mx-auto mb-3" />
+                <p className="text-sm text-neutral-400 font-medium">Chưa có phiên tư vấn nào</p>
+                <Link href="/startup/experts" className="text-[#e6cc4c] text-xs font-bold mt-2 inline-block hover:underline">Tìm cố vấn</Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {recentSessions.map((session, idx) => {
+                  const advisorName = session?.advisor?.fullName || session?.advisorName || session?.AdvisorName || "Cố vấn";
+                  const scheduledAt = session?.scheduledStartAt || session?.scheduledAt || session?.ScheduledStartAt || session?.ScheduledAt;
+                  const scheduledDate = scheduledAt ? new Date(scheduledAt).toLocaleDateString("vi-VN") : "—";
+                  const scheduledTime = scheduledAt ? new Date(scheduledAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "";
+                  const rawStatus = String(session?.sessionStatus || session?.status || session?.SessionStatus || session?._mentorshipStatus || "").toLowerCase();
+                  const mentorshipId = session?.mentorshipID || session?.mentorshipId || session?.MentorshipID || "";
+
+                  const now = Date.now();
+                  const sessionTime = scheduledAt ? new Date(scheduledAt).getTime() : 0;
+                  const isPast = sessionTime < now;
+
+                  let statusLabel = "Đang chờ";
+                  let statusColor = "text-[#e6cc4c]";
+                  if (["completed", "finished", "done"].includes(rawStatus)) {
+                    statusLabel = "Đã hoàn thành"; statusColor = "text-green-600";
+                  } else if (["cancelled", "canceled", "rejected", "declined"].includes(rawStatus)) {
+                    statusLabel = "Đã hủy"; statusColor = "text-red-500";
+                  } else if (isPast) {
+                    statusLabel = "Đã diễn ra"; statusColor = "text-green-600";
+                  } else {
+                    statusLabel = "Sắp diễn ra"; statusColor = "text-[#e6cc4c]";
+                  }
+
+                  const initials = advisorName.split(" ").map((w: string) => w[0]).join("").substring(0, 2).toUpperCase();
+
+                  return (
+                    <Link
+                      key={idx}
+                      href={mentorshipId ? `/startup/mentorship-requests/${mentorshipId}` : "/startup/mentorship-requests"}
+                      className="flex items-center justify-between p-4 bg-[#f8f8f6] rounded-xl hover:shadow-md transition-shadow group cursor-pointer border border-transparent hover:border-[#e6cc4c]/20"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-[#e6cc4c]/20 flex items-center justify-center border-2 border-white shadow-sm group-hover:scale-105 transition-transform text-sm font-bold text-[#171611]">
+                          {initials}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-[#171611]">{advisorName}</p>
+                          <p className="text-xs text-neutral-muted font-medium italic">
+                            {session?.objective || session?.topics || "Phiên tư vấn"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-bold text-[#171611]">{scheduledDate} {scheduledTime}</p>
+                        <p className={`text-[10px] font-black uppercase tracking-wider ${statusColor}`}>{statusLabel}</p>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
