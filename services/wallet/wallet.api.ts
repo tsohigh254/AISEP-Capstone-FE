@@ -6,6 +6,9 @@ export interface IWalletInfo {
   balance: number
   totalEarned: number
   totalWithdrawn: number
+  bankAccountNumber: string
+  bankBin : string
+  bankName : string
   createdAt: string
 }
 
@@ -39,6 +42,22 @@ export enum ETransactionStatus {
 export const GetWalletInfo = () => {
   return axios.get<IBackendRes<IWalletInfo>>(`/api/wallets/me`);
 };
+
+export const CreateWallet = (bankAccountNumber: string, bankBin: string, bankName : string) => {
+  return axios.post<IBackendRes<IWalletInfo>>("/api/wallets", {
+    bankAccountNumber,
+    bankBin,
+    bankName,
+  });
+}
+
+export const UpdateWallet = (bankAccountNumber: string, bankBin: string, bankName : string) => {
+  return axios.put<IBackendRes<IWalletInfo>>("/api/wallets/bank-info", {
+    bankAccountNumber,
+    bankBin,
+    bankName,
+  });
+}
 
 export const GetWalletTransactions = (
   walletId: number,
