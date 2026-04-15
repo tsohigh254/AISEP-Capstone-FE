@@ -97,7 +97,7 @@ export default function RequestAIEvaluationPage() {
         let members: any[] = [];
         try {
           const mres = await GetMembers();
-          members = mres?.data ?? mres ?? [];
+          members = mres?.data ?? [];
         } catch {}
         const completeness = calcProfileCompleteness(pdata, members);
         const prof = {
