@@ -30,7 +30,7 @@ export function useNotifications(onNotification?: NotificationHandler) {
     const backend = process.env.NEXT_PUBLIC_BACKEND_URL ?? "";
     if (!backend) return;
 
-    const url = `${backend.replace(/\/$/, "")}/hubs/chat`;
+    const url = `${backend.replace(/\/$/, "")}/hubs/notifications`;
 
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(url, { accessTokenFactory })
@@ -50,20 +50,23 @@ export function useNotifications(onNotification?: NotificationHandler) {
 
     connection.on("ReceiveNotification", handleReceive);
 
-    connection.onreconnecting(() => {
-      // reconnecting
+    connection.onreconnecting((err) => {
+      console.warn("[useNotifications] reconnecting...", err);
     });
-    connection.onreconnected(() => {
-      // reconnected
+    connection.onreconnected((connId) => {
+      console.info("[useNotifications] reconnected:", connId);
     });
-    connection.onclose(() => {
-      // closed
+    connection.onclose((err) => {
+      console.warn("[useNotifications] connection closed", err);
     });
 
-    connection.start().catch((err) => {
-      // eslint-disable-next-line no-console
-      console.warn("useNotifications: connection failed", err);
-    });
+    connection.start()
+      .then(() => {
+        console.info("[useNotifications] connected to", url);
+      })
+      .catch((err) => {
+        console.warn("useNotifications: connection failed", err);
+      });
 
     return () => {
       try {
