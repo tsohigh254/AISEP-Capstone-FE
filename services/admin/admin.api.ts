@@ -172,6 +172,34 @@ export const GetSystemHealth = () => {
 };
 
 /* ═══════════════════════════════════════════════════════════
+   Server Logs  (api/admin/logs)
+   ═══════════════════════════════════════════════════════════ */
+
+export interface LogFileRes {
+    fileName: string;
+    sizeBytes: number;
+    lastModifiedUtc: string;
+}
+
+export interface LogContentRes {
+    fileName: string;
+    sizeBytes: number;
+    lastModifiedUtc: string;
+    totalLinesReturned: number;
+    lines: string[];
+}
+
+export const ListLogFiles = () => {
+    return axios.get<IBackendRes<LogFileRes[]>>(`/api/admin/logs`);
+};
+
+export const ReadLogFile = (fileName: string, tail: number = 500) => {
+    return axios.get<IBackendRes<LogContentRes>>(`/api/admin/logs/${encodeURIComponent(fileName)}`, {
+        params: { tail },
+    });
+};
+
+/* ═══════════════════════════════════════════════════════════
    Auth — Admin Password Reset  (api/auth/admin/reset-password)
    ═══════════════════════════════════════════════════════════ */
 
