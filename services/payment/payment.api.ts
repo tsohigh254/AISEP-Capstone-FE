@@ -20,10 +20,8 @@ export const CreatePaymentLinkForSubscription = (targetPlan: TargetPlan, amount:
   );
 };
 
-export const Cashout = (accountNumber : string, bin : string, transactionId : number) => {
-  return axios.post<IBackendRes<string>>(`/api/Payment/cashout`, {
-    accountNumber,
-    bin,
+export const Cashout = (transactionId : number) => {
+  return axios.post<IBackendRes<string>>(`/api/Transfer/cashout`, {
     transactionId
   })
 }

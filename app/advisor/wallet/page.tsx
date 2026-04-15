@@ -1,15 +1,17 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import { Cashout } from "@/services/payment/payment.api";
 import {
+  CreateWallet,
   ETransactionStatus,
   ETransactionType,
   GetWalletInfo,
   GetWalletTransactions,
   ITransactionInfo,
   IWalletInfo,
+  UpdateWallet,
 } from "@/services/wallet/wallet.api";
 import { GetBankOptions, IBankOption } from "@/services/external/external.api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -101,6 +104,12 @@ function statusBadgeClass(statusValue: ITransactionInfo["status"]) {
   return "bg-slate-100 text-slate-700 border-slate-200";
 }
 
+function getHttpStatusCode(error: unknown): number | null {
+  if (!error || typeof error !== "object") return null;
+  const maybeError = error as { response?: { status?: unknown } };
+  return typeof maybeError.response?.status === "number" ? maybeError.response.status : null;
+}
+
 function isDepositTransaction(tx: ITransactionInfo) {
   const status = String(tx.status ?? "").trim().toLowerCase();
   const type = String(tx.type ?? "").trim().toLowerCase();
@@ -113,11 +122,6 @@ function isDepositTransaction(tx: ITransactionInfo) {
   return !Number.isNaN(typeAsNumber) && typeAsNumber === ETransactionType.Deposit;
 }
 
-interface ICashoutDraft {
-  accountNumber: string;
-  bin: string;
-}
-
 export default function AdvisorWalletPage() {
   const [walletInfo, setWalletInfo] = useState<IWalletInfo | null>(null);
   const [transactions, setTransactions] = useState<ITransactionInfo[]>([]);
@@ -127,11 +131,15 @@ export default function AdvisorWalletPage() {
   const [isLoadingWallet, setIsLoadingWallet] = useState(true);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
   const [isLoadingBanks, setIsLoadingBanks] = useState(true);
-  const [cashoutDrafts, setCashoutDrafts] = useState<Record<number, ICashoutDraft>>({});
   const [cashoutLoadingId, setCashoutLoadingId] = useState<number | null>(null);
   const [cashoutError, setCashoutError] = useState<string | null>(null);
   const [cashoutSuccess, setCashoutSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [noWallet, setNoWallet] = useState(false);
+  const [bankDraft, setBankDraft] = useState({ bin: "", accountNumber: "" });
+  const [isSavingBank, setIsSavingBank] = useState(false);
+  const [bankInfoMessage, setBankInfoMessage] = useState<string | null>(null);
+  const [bankInfoError, setBankInfoError] = useState<string | null>(null);
 
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -176,14 +184,41 @@ export default function AdvisorWalletPage() {
     setError(null);
     setIsLoadingWallet(true);
     try {
-      const res = await GetWalletInfo();
-      const envelope = res as IBackendRes<IWalletInfo>;
+      const envelope = (await GetWalletInfo()) as IBackendRes<IWalletInfo>;
       const wallet = envelope.data ?? null;
-      setWalletInfo(wallet);
-      return wallet;
+      if (wallet?.walletId) {
+        setWalletInfo(wallet);
+        setNoWallet(false);
+        return wallet;
+      }
+      if (envelope.success || envelope.isSuccess) {
+        setWalletInfo(null);
+        setNoWallet(true);
+        setTransactions([]);
+        setTotalPages(1);
+        setIsLoadingTransactions(false);
+        return null;
+      }
+      setWalletInfo(null);
+      setNoWallet(false);
+      setTransactions([]);
+      setTotalPages(1);
+      setError(envelope.message || "Không thể tải thông tin ví. Vui lòng thử lại.");
+      setIsLoadingTransactions(false);
+      return null;
     } catch (loadError) {
       console.error(loadError);
+      const status = getHttpStatusCode(loadError);
+      if (status === 404) {
+        setWalletInfo(null);
+        setNoWallet(true);
+        setTransactions([]);
+        setTotalPages(1);
+        setIsLoadingTransactions(false);
+        return null;
+      }
       setWalletInfo(null);
+      setNoWallet(false);
       setTransactions([]);
       setTotalPages(1);
       setError("Không thể tải thông tin ví. Vui lòng thử lại.");
@@ -197,6 +232,14 @@ export default function AdvisorWalletPage() {
   useEffect(() => {
     void loadWallet();
   }, [loadWallet]);
+
+  useEffect(() => {
+    if (!walletInfo?.walletId) return;
+    setBankDraft({
+      bin: walletInfo.bankBin?.trim() ?? "",
+      accountNumber: walletInfo.bankAccountNumber?.trim() ?? "",
+    });
+  }, [walletInfo]);
 
   useEffect(() => {
     let isMounted = true;
@@ -232,32 +275,88 @@ export default function AdvisorWalletPage() {
 
   const hasTransactions = useMemo(() => transactions.length > 0, [transactions.length]);
 
-  const updateCashoutDraft = useCallback((transactionId: number, patch: Partial<ICashoutDraft>) => {
-    setCashoutDrafts((prev) => {
-      const current = prev[transactionId] ?? { accountNumber: "", bin: "" };
-      return {
-        ...prev,
-        [transactionId]: {
-          ...current,
-          ...patch,
-        },
-      };
-    });
+  const selectedBankForDraft = useMemo(
+    () => banks.find((bank) => bank.bin === bankDraft.bin),
+    [banks, bankDraft.bin],
+  );
+
+  const applyWalletFromEnvelope = useCallback((envelope: IBackendRes<IWalletInfo>) => {
+    const next = envelope.data ?? null;
+    if (next?.walletId && (envelope.success || envelope.isSuccess)) {
+      setWalletInfo(next);
+      setNoWallet(false);
+      setBankDraft({
+        bin: next.bankBin?.trim() ?? "",
+        accountNumber: next.bankAccountNumber?.trim() ?? "",
+      });
+      return next;
+    }
+    return null;
   }, []);
 
-  const handleCashout = useCallback(
-    async (tx: ITransactionInfo) => {
-      const draft = cashoutDrafts[tx.transactionID] ?? { accountNumber: "", bin: "" };
+  const handleSaveBankInfo = useCallback(async () => {
+    setBankInfoError(null);
+    setBankInfoMessage(null);
 
-      if (!draft.bin) {
-        setCashoutSuccess(null);
-        setCashoutError(`Vui lòng chọn ngân hàng cho giao dịch #${tx.transactionID}.`);
+    const bin = bankDraft.bin.trim();
+    const accountNumber = bankDraft.accountNumber.trim();
+    const bankName =
+      selectedBankForDraft?.shortName?.trim() || walletInfo?.bankName?.trim() || "";
+
+    if (!bin) {
+      setBankInfoError("Vui lòng chọn ngân hàng.");
+      return;
+    }
+    if (!accountNumber) {
+      setBankInfoError("Vui lòng nhập số tài khoản.");
+      return;
+    }
+    if (!bankName) {
+      setBankInfoError("Không xác định được tên ngân hàng. Vui lòng chọn lại ngân hàng.");
+      return;
+    }
+
+    setIsSavingBank(true);
+    try {
+      const envelope = noWallet
+        ? ((await CreateWallet(accountNumber, bin, bankName)) as IBackendRes<IWalletInfo>)
+        : ((await UpdateWallet(accountNumber, bin, bankName)) as IBackendRes<IWalletInfo>);
+
+      if (!(envelope.success || envelope.isSuccess) || !envelope.data?.walletId) {
+        setBankInfoError(envelope.message || "Không lưu được thông tin ngân hàng. Vui lòng thử lại.");
         return;
       }
 
-      if (!draft.accountNumber.trim()) {
+      const updated = applyWalletFromEnvelope(envelope);
+      setBankInfoMessage(noWallet ? "Đã tạo ví thành công." : "Đã cập nhật thông tin ngân hàng.");
+
+      if (updated?.walletId) {
+        await fetchTransactions(updated.walletId, page, typeFilter, statusFilter);
+      }
+    } catch (saveError) {
+      console.error(saveError);
+      setBankInfoError("Không lưu được thông tin ngân hàng. Vui lòng thử lại.");
+    } finally {
+      setIsSavingBank(false);
+    }
+  }, [
+    applyWalletFromEnvelope,
+    bankDraft.accountNumber,
+    bankDraft.bin,
+    fetchTransactions,
+    noWallet,
+    page,
+    selectedBankForDraft?.shortName,
+    statusFilter,
+    typeFilter,
+    walletInfo?.bankName,
+  ]);
+
+  const handleCashout = useCallback(
+    async (tx: ITransactionInfo) => {
+      if (!walletInfo?.walletId || !walletInfo.bankAccountNumber?.trim() || !walletInfo.bankBin?.trim()) {
         setCashoutSuccess(null);
-        setCashoutError(`Vui lòng nhập số tài khoản cho giao dịch #${tx.transactionID}.`);
+        setCashoutError("Vui lòng tạo/cập nhật thông tin ví trước khi rút tiền.");
         return;
       }
 
@@ -266,13 +365,8 @@ export default function AdvisorWalletPage() {
       setCashoutSuccess(null);
 
       try {
-        await Cashout(draft.accountNumber.trim(), draft.bin, tx.transactionID);
+        await Cashout(tx.transactionID);
         setCashoutSuccess(`Đã gửi yêu cầu rút tiền cho giao dịch #${tx.transactionID}.`);
-
-        setCashoutDrafts((prev) => ({
-          ...prev,
-          [tx.transactionID]: { accountNumber: "", bin: "" },
-        }));
 
         const wallet = await loadWallet();
         if (wallet?.walletId) {
@@ -286,7 +380,7 @@ export default function AdvisorWalletPage() {
         setCashoutLoadingId(null);
       }
     },
-    [cashoutDrafts, fetchTransactions, loadWallet, page, statusFilter, typeFilter],
+    [fetchTransactions, loadWallet, page, statusFilter, typeFilter, walletInfo?.bankAccountNumber, walletInfo?.bankBin, walletInfo?.walletId],
   );
 
   return (
@@ -398,6 +492,125 @@ export default function AdvisorWalletPage() {
 
         <Card>
           <CardHeader>
+            <CardTitle className="text-base font-semibold">
+              {noWallet ? "Thiết lập ngân hàng nhận tiền" : "Ngân hàng nhận tiền"}
+            </CardTitle>
+            <p className="text-sm text-slate-500">
+              {noWallet
+                ? "Tạo ví bằng thông tin tài khoản ngân hàng của bạn. Bạn có thể chỉnh sửa sau."
+                : "Cập nhật tài khoản nhận thanh toán khi cần."}
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(bankInfoError || bankInfoMessage) && (
+              <div
+                className={`rounded-md border px-3 py-2 text-sm ${
+                  bankInfoError
+                    ? "border-rose-200 bg-rose-50 text-rose-700"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                }`}
+              >
+                {bankInfoError ?? bankInfoMessage}
+              </div>
+            )}
+
+            {!isLoadingWallet && walletInfo?.walletId && !noWallet && (
+              <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50/80 p-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs font-medium text-slate-500">Ngân hàng</p>
+                  <p className="text-sm font-semibold text-slate-900">{walletInfo.bankName || "--"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-500">Mã BIN</p>
+                  <p className="text-sm font-semibold text-slate-900">{walletInfo.bankBin || "--"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-500">Số tài khoản</p>
+                  <p className="text-sm font-semibold text-slate-900">{walletInfo.bankAccountNumber || "--"}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-500">Ngày tạo ví</p>
+                  <p className="text-sm font-semibold text-slate-900">{formatDate(walletInfo.createdAt)}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="advisor-wallet-bank">Ngân hàng</Label>
+                <Select
+                  id="advisor-wallet-bank"
+                  value={bankDraft.bin}
+                  disabled={isLoadingBanks || isSavingBank || isLoadingWallet}
+                  onChange={(event) => {
+                    setBankDraft((prev) => ({ ...prev, bin: event.target.value }));
+                  }}
+                >
+                  <option value="">{isLoadingBanks ? "Đang tải..." : "Chọn ngân hàng"}</option>
+                  {banks.map((bank) => (
+                    <option key={`wallet-${bank.bin}-${bank.shortName}`} value={bank.bin}>
+                      {bank.shortName} ({bank.bin})
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="advisor-wallet-account">Số tài khoản</Label>
+                <input
+                  id="advisor-wallet-account"
+                  type="text"
+                  inputMode="numeric"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="Nhập số tài khoản"
+                  value={bankDraft.accountNumber}
+                  disabled={isSavingBank || isLoadingWallet}
+                  onChange={(event) => {
+                    setBankDraft((prev) => ({ ...prev, accountNumber: event.target.value }));
+                  }}
+                />
+              </div>
+            </div>
+
+            {bankDraft.bin && (
+              <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2">
+                {selectedBankForDraft?.logo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={selectedBankForDraft.logo}
+                    alt={selectedBankForDraft.shortName ?? "Logo ngân hàng"}
+                    className="h-6 w-6 rounded-sm object-contain"
+                  />
+                ) : null}
+                <span className="text-sm text-slate-700">
+                  {selectedBankForDraft?.shortName || "Đã chọn mã BIN"}
+                </span>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" disabled={isSavingBank || isLoadingWallet} onClick={() => void handleSaveBankInfo()}>
+                {isSavingBank ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Đang lưu...
+                  </>
+                ) : noWallet ? (
+                  "Tạo ví"
+                ) : (
+                  "Cập nhật thông tin"
+                )}
+              </Button>
+              {walletInfo?.walletId && !isLoadingWallet ? (
+                <span className="text-xs text-slate-500">
+                  Số dư: {formatCurrency(walletInfo.balance)} · Đã rút: {formatCurrency(walletInfo.totalWithdrawn)}
+                </span>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle className="text-base font-semibold">Bộ lọc giao dịch</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -482,8 +695,10 @@ export default function AdvisorWalletPage() {
                 <TableBody>
                   {transactions.map((tx) => {
                     const isCashoutEnabled = isDepositTransaction(tx);
-                    const draft = cashoutDrafts[tx.transactionID] ?? { accountNumber: "", bin: "" };
-                    const selectedBank = banks.find((bank) => bank.bin === draft.bin);
+                    const hasWalletBankInfo = Boolean(
+                      walletInfo?.walletId && walletInfo.bankAccountNumber?.trim() && walletInfo.bankBin?.trim(),
+                    );
+                    const canCashout = isCashoutEnabled && hasWalletBankInfo;
 
                     return (
                       <TableRow key={tx.transactionID}>
@@ -498,55 +713,8 @@ export default function AdvisorWalletPage() {
                           {!isCashoutEnabled ? (
                             <span className="text-xs text-slate-400">Không khả dụng</span>
                           ) : (
-                            <div className="flex min-w-[320px] flex-col gap-2">
-                              <Select
-                                value={draft.bin}
-                                disabled={isLoadingBanks || cashoutLoadingId === tx.transactionID}
-                                onChange={(event) => {
-                                  updateCashoutDraft(tx.transactionID, { bin: event.target.value });
-                                }}
-                              >
-                                <option value="">
-                                  {isLoadingBanks ? "Đang tải ngân hàng..." : "Chọn ngân hàng"}
-                                </option>
-                                {banks.map((bank) => (
-                                  <option key={`${bank.bin}-${bank.shortName}`} value={bank.bin}>
-                                    {bank.shortName} ({bank.bin})
-                                  </option>
-                                ))}
-                              </Select>
-
-                              {draft.bin && (
-                                <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1">
-                                  {selectedBank?.logo ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
-                                      src={selectedBank.logo}
-                                      alt={selectedBank.shortName ?? "Bank logo"}
-                                      className="h-5 w-5 rounded-sm object-contain"
-                                    />
-                                  ) : null}
-                                  <span className="text-xs text-slate-600">{selectedBank?.shortName}</span>
-                                </div>
-                              )}
-
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                placeholder="Nhập số tài khoản"
-                                value={draft.accountNumber}
-                                disabled={cashoutLoadingId === tx.transactionID}
-                                onChange={(event) => {
-                                  updateCashoutDraft(tx.transactionID, { accountNumber: event.target.value });
-                                }}
-                              />
-
-                              <Button
-                                size="sm"
-                                disabled={cashoutLoadingId === tx.transactionID}
-                                onClick={() => void handleCashout(tx)}
-                              >
+                            <div className="flex min-w-[220px] flex-col gap-2">
+                              <Button size="sm" disabled={!canCashout || cashoutLoadingId === tx.transactionID} onClick={() => void handleCashout(tx)}>
                                 {cashoutLoadingId === tx.transactionID ? (
                                   <>
                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -556,6 +724,11 @@ export default function AdvisorWalletPage() {
                                   "Rút tiền"
                                 )}
                               </Button>
+                              {!hasWalletBankInfo && (
+                                <span className="text-xs text-amber-700">
+                                  Cần cập nhật thông tin ví trước khi rút tiền.
+                                </span>
+                              )}
                             </div>
                           )}
                         </TableCell>
