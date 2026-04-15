@@ -51,10 +51,10 @@ export function StartupProfileFooter() {
                     onClick={handleSave}
                     disabled={saving || !isInfoRoute}
                     className={cn(
-                        "px-5 py-2 rounded-xl text-[13px] font-medium transition-colors flex items-center gap-2",
+                        "px-5 py-2 rounded-xl text-[13px] font-semibold transition-colors flex items-center gap-2 shadow-sm",
                         (saving || !isInfoRoute)
                             ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                            : "text-slate-600 bg-white border border-slate-200 hover:bg-slate-50"
+                            : "bg-[#0f172a] text-white hover:bg-[#1e293b] border border-[#0f172a]"
                     )}
                 >
                     {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}

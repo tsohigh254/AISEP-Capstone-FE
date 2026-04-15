@@ -12,9 +12,30 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GetLatestScore, GetEvaluationHistory, GetEvaluationStatus, GetEvaluationReport } from "@/services/ai/ai.api";
-import { GetStartupProfile } from "@/services/startup/startup.api";
+import { GetDocument, GetStartupDocuments } from "@/services/document/document.api";
+import { GetStartupProfile, GetMembers } from "@/services/startup/startup.api";
 import { mapCanonicalToReport, mapStatusToUI, normalizeTo100 } from "./canonical-mapper";
+import { calcProfileCompleteness } from "@/lib/profile-completeness";
 import { AIEvaluationStatus, AIEvaluationReport } from "./types";
+
+function fileNameFromUrl(url?: string | null): string {
+  if (!url) return "Untitled";
+  try {
+    const parts = url.split("/");
+    return parts[parts.length - 1] || "Untitled";
+  } catch {
+    return "Untitled";
+  }
+}
+
+// Lấy tên tài liệu ưu tiên: label, name, title, fileNameFromUrl(fileUrl), "Không tên tài liệu"
+function getDocumentDisplayName(item: any): string {
+  if (item?.label && item.label.trim()) return item.label;
+  if (item?.name && item.name.trim()) return item.name;
+  if (item?.title && item.title.trim()) return item.title;
+  if (item?.fileUrl && fileNameFromUrl(item.fileUrl).trim()) return fileNameFromUrl(item.fileUrl);
+  return "Không tên tài liệu";
+}
 
 /* ─── Status config ────────────────────────────────────────── */
 
@@ -140,17 +161,20 @@ function OnboardingView({ allReady, profile, documents }: { allReady: boolean; p
                 </span>
               </div>
           <div className="space-y-2.5">
-            {p.items.map((item: any, i: number) => (
-              <div key={i} className="flex items-start gap-2">
-                {item.ready
-                  ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
-                  : <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />}
-                <div>
-                  <p className="text-[12px] text-slate-600">{item.label}</p>
-                  {item.detail && <p className="text-[11px] text-slate-400">{item.detail}</p>}
+            {p.items.map((item: any, i: number) => {
+              const label = item?.label ?? item?.name ?? item?.title ?? (item?.fileUrl ? fileNameFromUrl(item.fileUrl) : "Không tên tài liệu");
+              return (
+                <div key={i} className="flex items-start gap-2">
+                  {item.ready
+                    ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
+                    : <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />}
+                  <div>
+                    <p className="text-[12px] text-slate-600">{label}</p>
+                    {item.detail && <p className="text-[11px] text-slate-400">{item.detail}</p>}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           {!p.ready && (
             <Link href="/startup/startup-profile" className="flex items-center gap-1 mt-4 text-[12px] font-semibold text-amber-600 hover:text-amber-700 transition-colors">
@@ -173,14 +197,17 @@ function OnboardingView({ allReady, profile, documents }: { allReady: boolean; p
             </span>
           </div>
           <div className="space-y-2.5">
-            {d.items.map((item: any, i: number) => (
-              <div key={i} className="flex items-start gap-2">
-                {item.ready
-                  ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
-                  : <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />}
-                <p className="text-[12px] text-slate-600">{item.label}</p>
-              </div>
-            ))}
+            {d.items.map((item: any, i: number) => {
+              const label = getDocumentDisplayName(item);
+              return (
+                <div key={i} className="flex items-start gap-2">
+                  {item.ready
+                    ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
+                    : <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />}
+                  <p className="text-[12px] text-slate-600">{label}</p>
+                </div>
+              );
+            })}
           </div>
           <div className="mt-4 pt-3 border-t border-slate-100 space-y-1.5">
             {d.eligibleDocs.filter((dd: any) => dd.recommended).map((doc: any) => (
@@ -239,6 +266,30 @@ function DashboardView({ latestCompleted, profile, documents }: { latestComplete
   const router = useRouter();
   const p = profile ?? { ready: true, completionPercent: 100, items: [] };
   const d = documents ?? { ready: true, items: [], eligibleDocs: [] };
+
+    // --- Đồng bộ logic lọc tài liệu hợp lệ ---
+    const mapType = (t: any) => {
+      if (typeof t === 'number') {
+        if (t === 0) return 'PITCH_DECK';
+        if (t === 1) return 'BUSINESS_PLAN';
+      }
+      const s = t?.toString().toUpperCase();
+      if (s === '0') return 'PITCH_DECK';
+      if (s === '1') return 'BUSINESS_PLAN';
+      if (s === 'PITCH_DECK') return 'PITCH_DECK';
+      if (s === 'BUSINESS_PLAN' || s === 'BUSSINESS_PLAN') return 'BUSINESS_PLAN';
+      return '';
+    };
+    const isAnchored = (proof: any) => {
+      const p = (proof ?? '').toString().toLowerCase();
+      return [
+        'anchored', 'recorded', 'verified', 'submitted', '0'
+      ].includes(p);
+    };
+    const aiEligibleDocs = (d.items ?? []).filter((doc: any) => {
+      const t = mapType(doc.type ?? doc.Type ?? doc.documentType);
+      return (t === 'PITCH_DECK' || t === 'BUSINESS_PLAN') && isAnchored(doc.proofStatus ?? doc.blockchainStatus ?? doc.proof);
+    });
   const status: AIEvaluationStatus = "COMPLETED";
   const statusCfg = STATUS_CFG[status];
 
@@ -259,9 +310,6 @@ function DashboardView({ latestCompleted, profile, documents }: { latestComplete
             </span>
           </div>
           <p className="text-[12px] text-slate-400">
-            Lần đánh giá gần nhất: <span className="font-semibold text-slate-500">{latestCompleted.calculatedAt}</span>
-          </p>
-          <p className="text-[12px] text-slate-400 mt-1">
             Lần đánh giá gần nhất: <span className="font-semibold text-slate-500">{latestCompleted.calculatedAt}</span>
           </p>
         </div>
@@ -308,23 +356,33 @@ function DashboardView({ latestCompleted, profile, documents }: { latestComplete
             </div>
             <div>
               <p className="text-[13px] font-bold text-slate-800">Tài liệu kinh doanh</p>
-              <p className="text-[11px] text-slate-400">{d.eligibleDocs.filter((doc: any) => doc.recommended).length} tài liệu phù hợp</p>
+              <p className="text-[11px] text-slate-400">{aiEligibleDocs.length} tài liệu phù hợp</p>
             </div>
           </div>
           <div className="space-y-2.5">
-            {d.items.map((item: any, i: number) => (
-              <div key={i} className="flex items-start gap-2">
-                {item.ready ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" /> : <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />}
-                <p className="text-[12px] text-slate-600">{item.label}</p>
-              </div>
-            ))}
+            {d.items.map((item: any, i: number) => {
+              const label = getDocumentDisplayName(item);
+              const t = mapType(item.type ?? item.Type ?? item.documentType);
+              const anchored = isAnchored(item.proofStatus ?? item.blockchainStatus ?? item.proof);
+              const ready = (t === 'PITCH_DECK' || t === 'BUSINESS_PLAN') && anchored;
+              return (
+                <div key={i} className="flex items-start gap-2">
+                  {ready
+                    ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
+                    : <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />}
+                  <p className="text-[12px] text-slate-600">{label}</p>
+                </div>
+              );
+            })}
           </div>
           <div className="mt-4 pt-3 border-t border-slate-100 space-y-1.5">
-            {d.eligibleDocs.filter((doc: any) => doc.recommended).map((doc: any) => (
+            {aiEligibleDocs.map((doc: any) => (
               <div key={doc.id} className="flex items-center gap-2">
-                {doc.type === "PITCH_DECK" ? <Layout className="w-3 h-3 text-blue-400" /> : <BookOpen className="w-3 h-3 text-violet-400" />}
-                <p className="text-[11px] text-slate-500 truncate">{doc.name}</p>
-                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-semibold flex-shrink-0">Khuyến nghị</span>
+                {mapType(doc.type ?? doc.Type ?? doc.documentType) === "PITCH_DECK"
+                  ? <Layout className="w-3 h-3 text-blue-400" />
+                  : <BookOpen className="w-3 h-3 text-violet-400" />}
+                <p className="text-[11px] text-slate-500 truncate">{getDocumentDisplayName(doc)}</p>
+                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-semibold flex-shrink-0">Hợp lệ</span>
               </div>
             ))}
           </div>
@@ -482,52 +540,38 @@ function AIEvaluationHomePageInner() {
     (async () => {
       setLoading(true);
       try {
-        // Load profile first to get startupId. Normalise completeness field names and
-        // compute a heuristic if backend doesn't provide a percent value.
+        // Load profile and members to compute a consistent completeness percent
         const pr = await GetStartupProfile() as unknown as any;
+        const mr = await GetMembers().catch(() => null) as unknown as any;
         const pdata = pr?.data ?? pr ?? {};
-        const computeCompleteness = (d: any) => {
-          const keys = [
-            "companyName",
-            "oneLiner",
-            "description",
-            "industryID",
-            "stage",
-            "teamSize",
-            "pitchDeckUrl",
-            "problemStatement",
-            "solutionSummary",
-            "marketScope",
-            "logoURL",
-            "country",
-            "location",
-          ];
-          let filled = 0;
-          for (const k of keys) {
-            const v = d[k] ?? d[k === "teamSize" ? "TeamSize" : k.charAt(0).toUpperCase() + k.slice(1)];
-            if (Array.isArray(v)) {
-              if (v.length) filled += 1;
-            } else if (v !== undefined && v !== null && String(v).trim() !== "") {
-              filled += 1;
-            }
-          }
-          return Math.round((filled / keys.length) * 100);
-        };
+        const membersData = mr?.data ?? mr ?? [];
 
-        const completeness = pdata?.profileCompleteness ?? pdata?.completionPercent ?? pdata?.completion ?? pdata?.percent ?? computeCompleteness(pdata);
+        const completeness = pdata?.profileCompleteness ?? pdata?.completionPercent ?? pdata?.completion ?? pdata?.percent ?? calcProfileCompleteness(pdata, membersData);
         const prof = {
           ready: Boolean(pdata?.isComplete ?? pdata?.ready ?? pdata?.isReady ?? false),
           completionPercent: completeness,
           items: pdata?.items ?? pdata?.checks ?? [],
         };
+        const startupId = pdata?.startupID ?? pdata?.startupId ?? pdata?.StartupID ?? 0;
+        let docsItems: any[] = pdata?.documents ?? [];
+        try {
+          if (startupId) {
+            const dres = await GetStartupDocuments(startupId) as unknown as any;
+            docsItems = dres?.data ?? dres ?? docsItems;
+          } else {
+            const dres = await GetDocument() as unknown as any;
+            docsItems = dres?.data ?? dres ?? docsItems;
+          }
+        } catch (err) {
+          // ignore and fallback to embedded profile documents
+        }
+
         const docs = {
-          ready: Boolean(pdata?.hasDocuments ?? (Array.isArray(pdata?.documents) && pdata.documents.length > 0)),
-          items: pdata?.documents ?? [],
-          eligibleDocs: pdata?.eligibleDocs ?? pdata?.documents ?? [],
+          ready: Boolean(Array.isArray(docsItems) && docsItems.length > 0),
+          items: docsItems,
+          eligibleDocs: (pdata?.eligibleDocs ?? docsItems) || [],
         };
         if (!cancelled) { setProfile(prof); setDocuments(docs); }
-
-        const startupId = pdata?.startupID ?? pdata?.startupId ?? pdata?.StartupID ?? 0;
 
         // Try to fetch latest score (may 404 if no score yet)
         try {

@@ -9,7 +9,8 @@ import {
   AlertTriangle, Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { GetStartupProfile } from "@/services/startup/startup.api";
+import { GetStartupProfile, GetMembers } from "@/services/startup/startup.api";
+import { calcProfileCompleteness } from "@/lib/profile-completeness";
 import { SubmitEvaluation } from "@/services/ai/ai.api";
 
 /* ─── Submission states ────────────────────────────────────── */
@@ -33,13 +34,29 @@ export default function RequestAIEvaluationPage() {
   const [profileSnapshot, setProfileSnapshot] = useState<any | null>(null);
   const allReady = profile.ready && documents.ready;
 
+  // Map type to string for robust comparison (accept both number and string)
+  const mapType = (t: any) => {
+    if (typeof t === 'number') {
+      if (t === 0) return 'PITCH_DECK';
+      if (t === 1) return 'BUSINESS_PLAN';
+    }
+    const s = t?.toString().toUpperCase();
+    if (s === '0') return 'PITCH_DECK';
+    if (s === '1') return 'BUSINESS_PLAN';
+    if (s === 'PITCH_DECK') return 'PITCH_DECK';
+    if (s === 'BUSINESS_PLAN' || s === 'BUSSINESS_PLAN') return 'BUSINESS_PLAN';
+    return '';
+  };
   // Only show Pitch Deck and Business Plan from Documents & IP
   // and require that the document has been anchored on-chain (proofStatus === 'Anchored')
   const aiEligibleDocs = (documents?.eligibleDocs ?? []).filter((d: any) => {
-    const t = (d.type ?? d.Type ?? '').toString().toUpperCase();
+    // Chỉ cần đúng loại và đã ghi nhận blockchain
+    const t = mapType(d.type ?? d.Type);
     const typeOk = t === 'PITCH_DECK' || t === 'BUSINESS_PLAN';
-    const proof = (d.proofStatus ?? d.proofstatus ?? d.ProofStatus ?? d.proof ?? '').toString().toLowerCase();
-    const anchored = proof === 'anchored' || proof === '0';
+    const proof = (d.proofStatus ?? d.proofstatus ?? d.ProofStatus ?? d.proof ?? d.blockchainStatus ?? '').toString().toLowerCase();
+    const anchored = [
+      'anchored', 'recorded', 'verified', 'submitted', '0'
+    ].includes(proof);
     return typeOk && anchored;
   });
 
@@ -77,9 +94,15 @@ export default function RequestAIEvaluationPage() {
       try {
         const res = await GetStartupProfile() as unknown as any;
         const pdata = res?.data ?? res ?? {};
+        let members: any[] = [];
+        try {
+          const mres = await GetMembers();
+          members = mres?.data ?? [];
+        } catch {}
+        const completeness = calcProfileCompleteness(pdata, members);
         const prof = {
-          ready: Boolean(pdata?.isComplete ?? pdata?.ready ?? pdata?.isReady ?? false),
-          completionPercent: pdata?.completionPercent ?? pdata?.completion ?? pdata?.percent ?? 0,
+          ready: completeness === 100,
+          completionPercent: completeness,
           items: pdata?.items ?? pdata?.checks ?? [],
         };
         const docs = {

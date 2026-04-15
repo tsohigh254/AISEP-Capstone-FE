@@ -18,7 +18,7 @@ import { AddMetaData, DeleteDocument, DocumentType, GetDocument } from "@/servic
 
 /* ─── Types ───────────────────────────────────────────────── */
 type BlockchainStatus = "not_submitted" | "pending" | "recorded" | "matched" | "mismatch" | "failed";
-type DocType = "Pitch Deck" | "Tài chính" | "Pháp lý" | "Kỹ thuật" | "Khác";
+// Removed duplicate DocType definition. Use the one below for filtering.
 type SortKey = "updatedAt" | "name" | "type" | "blockchainStatus" | "version";
 
 interface Doc {
@@ -49,13 +49,13 @@ function formatUploadedAt(uploadedAt?: string | null): string {
     return `${dd}/${mm}/${yyyy}`;
 }
 
+type DocType = "Pitch Deck" | "Bussiness Plan" | "Không xác định";
 function mapBackendTypeToUiType(documentType?: string | null): DocType {
     const t = String(documentType ?? "").toLowerCase();
-    if (t.includes("pitch")) return "Pitch Deck";
-    if (t.includes("business") || t.includes("plan")) return "Tài chính";
-    if (t.includes("legal")) return "Pháp lý";
-    if (t.includes("tech") || t.includes("technical")) return "Kỹ thuật";
-    return "Khác";
+    // Chỉ cho phép 2 loại: Pitch Deck và Bussiness Plan
+    if (t === "0" || t === "pitch_deck" || t === "pitchdeck" || t.includes("pitch")) return "Pitch Deck";
+    if (t === "1" || t === "business_plan" || t === "bussiness_plan" || t === "businessplan" || t.includes("business") || t.includes("plan")) return "Bussiness Plan";
+    return "Không xác định";
 }
 
 function mapBlockchainStatus(doc: IDocument): BlockchainStatus {
