@@ -35,8 +35,21 @@ export function useNotifications(onNotification?: NotificationHandler) {
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(url, { accessTokenFactory })
       .withAutomaticReconnect()
-      .configureLogging(signalR.LogLevel.Warning)
+      .configureLogging(signalR.LogLevel.None)
       .build();
+
+    let disposed = false;
+    let startPromise: Promise<void> | null = null;
+
+    const isExpectedShutdownError = (err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err ?? "");
+      const lower = msg.toLowerCase();
+      return (
+        lower.includes("stopped during negotiation") ||
+        lower.includes("connection was stopped") ||
+        lower.includes("abort")
+      );
+    };
 
     const handleReceive = (payload: any) => {
       try {
@@ -57,21 +70,38 @@ export function useNotifications(onNotification?: NotificationHandler) {
       console.info("[useNotifications] reconnected:", connId);
     });
     connection.onclose((err) => {
+      if (disposed) return;
       console.warn("[useNotifications] connection closed", err);
     });
 
-    connection.start()
-      .then(() => {
+    startPromise = connection.start()
+      .then(async () => {
+        if (disposed) {
+          if (connection.state !== signalR.HubConnectionState.Disconnected) {
+            await connection.stop().catch(() => { /* ignore */ });
+          }
+          return;
+        }
         console.info("[useNotifications] connected to", url);
       })
       .catch((err) => {
+        if (disposed && isExpectedShutdownError(err)) return;
         console.warn("useNotifications: connection failed", err);
       });
 
     return () => {
+      disposed = true;
       try {
         connection.off("ReceiveNotification", handleReceive);
-        connection.stop().catch(() => { /* ignore */ });
+
+        // Avoid stopping while negotiation is still in-flight (common in StrictMode)
+        Promise.resolve(startPromise)
+          .catch(() => { /* ignore */ })
+          .finally(() => {
+            if (connection.state !== signalR.HubConnectionState.Disconnected) {
+              connection.stop().catch(() => { /* ignore */ });
+            }
+          });
       } catch {
         // ignore
       }

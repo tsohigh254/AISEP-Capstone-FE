@@ -158,7 +158,6 @@ const CountrySelect = ({ value, onChange }: { value: string; onChange: (v: strin
                 <span>{value || "Chọn quốc gia"}</span>
                 <ChevronDown className={cn("w-4 h-4 text-slate-400 shrink-0 transition-transform", open && "rotate-180")} />
             </button>
-
             {open && createPortal(
                 <div ref={dropdownRef} style={dropdownStyle} className="bg-white border border-slate-200 rounded-[14px] shadow-xl overflow-hidden">
                     <div className="p-2 border-b border-slate-100">
@@ -479,12 +478,16 @@ function StartupInfoPageInner() {
                         </div>
                         
                         <div className="pt-2">
-                            <label className={labelCls}>Nhu cầu tìm kiếm hiện tại (Current Needs)</label>
-                            <p className="text-[11px] text-slate-400 mb-3 font-medium">Hiển thị dạng huy hiệu (badge) cho nhà đầu tư dễ nắm bắt. (Ví dụ: Marketing, Tech, Funding...)</p>
-                            <TagsInput
-                                value={form.currentNeeds || []}
-                                onChange={(val) => updateForm("currentNeeds", val)}
-                            />
+                                                        <label className={labelCls}>Nhu cầu tìm kiếm hiện tại (Current Needs)</label>
+                                                        <p className="text-[11px] text-slate-400 mb-3 font-medium">
+                                                            Hiển thị dạng huy hiệu (badge) cho nhà đầu tư dễ nắm bắt. (Ví dụ: Marketing, Tech, Funding...)<br/>
+                                                            <span style={{color:'#eab308'}}>Nhập xong mỗi nhu cầu, hãy ấn <b>Enter</b> để thêm!</span>
+                                                        </p>
+                                                        <TagsInput
+                                                                value={form.currentNeeds || []}
+                                                                onChange={(val) => updateForm("currentNeeds", val)}
+                                                                placeholder="Nhập nhu cầu, ấn Enter để thêm..."
+                                                        />
                         </div>
 
                         <div>
