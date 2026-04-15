@@ -21,7 +21,9 @@ import {
 } from "lucide-react";
 import { AddToWatchlist, RemoveFromWatchlist, GetInvestorWatchlist, GetStartupById, GetInvestorProfile, SearchStartups } from "@/services/investor/investor.api";
 import { CreateConnection, GetSentConnections } from "@/services/connection/connection.api";
+import { GetStartupDocuments, ViewDocument } from "@/services/document/document.api";
 import { toast } from "sonner";
+import { Download, Eye, RefreshCcw } from "lucide-react";
 
 // Mock Data (Shared with Discovery page)
 const STARTUPS = [
@@ -130,6 +132,9 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
     const [isConnecting, setIsConnecting] = useState<boolean>(false);
     const [connectionSent, setConnectionSent] = useState<boolean>(false);
 
+    const [startupDocs, setStartupDocs] = useState<IDocument[]>([]);
+    const [docsLoading, setDocsLoading] = useState(false);
+
     const startup = startupData ?? (STARTUPS.find(s => s.id === id) || STARTUPS[0]);
     const avatarGradient = getAvatarColor(String(startup.id ?? startup.name ?? id));
     
@@ -214,6 +219,21 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
             }
         };
         fetchStartup();
+    }, [id]);
+
+    useEffect(() => {
+        const numId = Number(id);
+        if (!numId || numId <= 0) return;
+        let cancelled = false;
+        (async () => {
+            setDocsLoading(true);
+            try {
+                const res = await GetStartupDocuments(numId);
+                if (!cancelled && res?.isSuccess) setStartupDocs(res.data ?? []);
+            } catch { /* silent */ }
+            finally { if (!cancelled) setDocsLoading(false); }
+        })();
+        return () => { cancelled = true; };
     }, [id]);
 
     useEffect(() => {
@@ -579,28 +599,92 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                         <div className="flex items-center justify-between mb-6">
                             <h3 className="font-bold text-[16px] text-[#171611]">Tài liệu Data Room</h3>
-                            <span className="text-[12px] text-slate-400 font-medium">3 tài liệu tải lên</span>
+                            <span className="text-[12px] text-slate-400 font-medium">{startupDocs.length} tài liệu</span>
                         </div>
-                        <div className="space-y-3">
-                            {[
-                                { name: "Pitch_Deck_" + startup.name.replace(" ", "_") + ".pdf", type: "Pitch Deck", date: "12/05/2024", icon: FileText, color: "text-red-500" },
-                                { name: "Financial_Projections_2024.xlsx", type: "Tài chính", date: "10/05/2024", icon: FileText, color: "text-green-500" },
-                                { name: "Legal_Documents.pdf", type: "Pháp lý", date: "05/05/2024", icon: FileText, color: "text-blue-500" },
-                            ].map((doc, idx) => (
-                                <div key={idx} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:bg-slate-50 hover:border-[#e6cc4c]/40 transition-all cursor-pointer group">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 rounded-lg bg-white shadow-sm flex items-center justify-center border border-slate-100 group-hover:bg-[#e6cc4c]/10 transition-colors">
-                                            <doc.icon className={cn("w-5 h-5", doc.color)} />
+                        {docsLoading ? (
+                            <div className="flex items-center justify-center py-8">
+                                <RefreshCcw className="w-4 h-4 text-slate-300 animate-spin" />
+                                <span className="ml-2 text-[12px] text-slate-400">Đang tải...</span>
+                            </div>
+                        ) : startupDocs.length === 0 ? (
+                            <div className="text-center py-8">
+                                <FolderOpen className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+                                <p className="text-[13px] text-slate-400">Chưa có tài liệu nào được chia sẻ</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {startupDocs.map((doc) => {
+                                    const docType = (doc.documentType ?? "").toLowerCase();
+                                    const color = docType.includes("pitch") ? "text-red-500"
+                                        : docType.includes("business") || docType.includes("financ") ? "text-green-500"
+                                        : docType.includes("legal") ? "text-blue-500"
+                                        : "text-slate-500";
+                                    const label = docType.includes("pitch") ? "Pitch Deck"
+                                        : docType.includes("business") ? "Business Plan"
+                                        : docType.includes("financ") ? "Tài chính"
+                                        : docType.includes("legal") ? "Pháp lý"
+                                        : doc.documentType ?? "Khác";
+                                    const uploadDate = doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString("vi-VN") : "—";
+
+                                    return (
+                                        <div key={doc.documentID} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:bg-slate-50 hover:border-[#e6cc4c]/40 transition-all group">
+                                            <div className="flex items-center gap-4 min-w-0">
+                                                <div className="w-10 h-10 rounded-lg bg-white shadow-sm flex items-center justify-center border border-slate-100 group-hover:bg-[#e6cc4c]/10 transition-colors flex-shrink-0">
+                                                    <FileText className={cn("w-5 h-5", color)} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-[14px] font-bold text-slate-700 group-hover:text-[#171611] transition-colors truncate">{doc.title ?? "Untitled"}</p>
+                                                    <p className="text-[11px] text-slate-400 mt-0.5 font-medium">{label} • {uploadDate} • v{doc.version ?? "1"}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
+                                                {doc.fileUrl && (
+                                                    <a
+                                                        href={/\.pdf(\?|$)/i.test(doc.fileUrl)
+                                                            ? doc.fileUrl
+                                                            : `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(doc.fileUrl)}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        onClick={() => { ViewDocument(doc.documentID).catch(() => {}); }}
+                                                        className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
+                                                        title="Xem tài liệu"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                    </a>
+                                                )}
+                                                <button
+                                                    onClick={async () => {
+                                                        try {
+                                                            const token = localStorage.getItem("accessToken") ?? "";
+                                                            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/documents/${doc.documentID}/download`, {
+                                                                headers: { Authorization: `Bearer ${token}` },
+                                                            });
+                                                            if (!res.ok) throw new Error("Download failed");
+                                                            const blob = await res.blob();
+                                                            const cd = res.headers.get("content-disposition");
+                                                            const match = cd?.match(/filename="?(.+?)"?$/);
+                                                            const fileName = match?.[1] ?? `${doc.title ?? "document"}.pdf`;
+                                                            const url = URL.createObjectURL(blob);
+                                                            const a = document.createElement("a");
+                                                            a.href = url; a.download = fileName;
+                                                            document.body.appendChild(a); a.click();
+                                                            document.body.removeChild(a);
+                                                            URL.revokeObjectURL(url);
+                                                        } catch {
+                                                            toast.error("Tải xuống thất bại");
+                                                        }
+                                                    }}
+                                                    className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-[#e6cc4c]/10 hover:text-[#e6cc4c] transition-all"
+                                                    title="Tải xuống"
+                                                >
+                                                    <Download className="w-4 h-4" />
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-[14px] font-bold text-slate-700 group-hover:text-[#171611] transition-colors">{doc.name}</p>
-                                            <p className="text-[11px] text-slate-400 mt-0.5 font-medium">{doc.type} • Tải lên: {doc.date}</p>
-                                        </div>
-                                    </div>
-                                    <FolderOpen className="w-5 h-5 text-slate-300 group-hover:text-[#e6cc4c] transition-colors" />
-                                </div>
-                            ))}
-                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 </div>
 

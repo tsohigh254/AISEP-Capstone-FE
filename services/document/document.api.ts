@@ -65,6 +65,26 @@ export const UploadNewVersion = (documentId: number, file: File, title?: string)
     });
 }
 
+// -------------------------- Cross-role (Investor / Advisor / Public) --------------------------
+export const GetStartupDocuments = (startupId: number) => {
+    return axios.get<IBackendRes<IDocument[]>>(`/api/startups/${startupId}/documents`);
+}
+
+export const ViewDocument = (documentId: number) => {
+    return axios.get<IBackendRes<IDocument>>(`/api/documents/${documentId}/view`);
+}
+
+export const DownloadDocument = (documentId: number) => {
+    return axios.get<IBackendRes<Blob>>(`/api/documents/${documentId}/download`, {
+        responseType: 'blob',
+    });
+}
+
+// -------------------------- Access Logs --------------------------
+export const GetDocumentAccessLogs = (documentId: number) => {
+    return axios.get<IBackendRes<IDocumentAccessLog[]>>(`/api/documents/${documentId}/access-logs`);
+}
+
 // -------------------------- Blockchain --------------------------
 export const HashDocument = (documentId: number) => {
     return axios.post<IBackendRes<string>>(`/api/documents/${documentId}/hash`);

@@ -23,13 +23,15 @@ import {
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import axios from "@/services/interceptor";
-import { 
-  startupFinNext, 
-  startupMedScanAI, 
-  startupEduPlatform, 
-  startupGreenLogistics 
+import {
+  startupFinNext,
+  startupMedScanAI,
+  startupEduPlatform,
+  startupGreenLogistics
 } from "@/services/advisor/advisor-consulting.mock";
+import { GetStartupDocuments, ViewDocument } from "@/services/document/document.api";
 import { cn } from "@/lib/utils";
+import { Download, FolderOpen, RefreshCcw } from "lucide-react";
 
 const MOCK_STARTUPS = [
   { ...startupFinNext, startupID: 101, companyName: startupFinNext.displayName, oneLiner: "Giải pháp quản lý tài chính thông minh cho SME." },
@@ -62,6 +64,8 @@ export default function AdvisorStartupDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "ai-report">("overview");
+  const [startupDocs, setStartupDocs] = useState<IDocument[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
 
   const fetchStartup = useCallback(async () => {
     setLoading(true);
@@ -95,6 +99,20 @@ export default function AdvisorStartupDetailPage() {
   }, [startupId]);
 
   useEffect(() => { if (startupId) fetchStartup(); }, [startupId, fetchStartup]);
+
+  useEffect(() => {
+    if (!startupId || startupId <= 0) return;
+    let cancelled = false;
+    (async () => {
+      setDocsLoading(true);
+      try {
+        const res = await GetStartupDocuments(startupId);
+        if (!cancelled && res?.isSuccess) setStartupDocs(res.data ?? []);
+      } catch { /* silent */ }
+      finally { if (!cancelled) setDocsLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [startupId]);
 
   const getInitials = (name: string) => name.split(" ").map((w) => w[0]).join("").substring(0, 2).toUpperCase();
 
@@ -239,6 +257,105 @@ export default function AdvisorStartupDetailPage() {
                       </span>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Documents Data Room */}
+              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+                <div className="px-7 py-5 border-b border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center border border-amber-100/60">
+                      <FolderOpen className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <h2 className="text-[16px] font-bold text-[#0f172a]">Tài liệu Data Room</h2>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-medium">{startupDocs.length} tài liệu</span>
+                </div>
+                <div className="px-7 py-5">
+                  {docsLoading ? (
+                    <div className="flex items-center justify-center py-6">
+                      <RefreshCcw className="w-4 h-4 text-slate-300 animate-spin" />
+                      <span className="ml-2 text-[12px] text-slate-400">Đang tải...</span>
+                    </div>
+                  ) : startupDocs.length === 0 ? (
+                    <div className="text-center py-6">
+                      <FolderOpen className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+                      <p className="text-[13px] text-slate-400">Chưa có tài liệu nào được chia sẻ</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {startupDocs.map((doc) => {
+                        const docType = (doc.documentType ?? "").toLowerCase();
+                        const color = docType.includes("pitch") ? "text-red-500"
+                          : docType.includes("business") || docType.includes("financ") ? "text-green-500"
+                          : docType.includes("legal") ? "text-blue-500"
+                          : "text-slate-500";
+                        const label = docType.includes("pitch") ? "Pitch Deck"
+                          : docType.includes("business") ? "Business Plan"
+                          : docType.includes("financ") ? "Tài chính"
+                          : docType.includes("legal") ? "Pháp lý"
+                          : doc.documentType ?? "Khác";
+                        const uploadDate = doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString("vi-VN") : "—";
+
+                        return (
+                          <div key={doc.documentID} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:bg-slate-50 hover:border-[#eec54e]/40 transition-all group">
+                            <div className="flex items-center gap-4 min-w-0">
+                              <div className="w-10 h-10 rounded-lg bg-white shadow-sm flex items-center justify-center border border-slate-100 group-hover:bg-[#eec54e]/10 transition-colors flex-shrink-0">
+                                <FileText className={cn("w-5 h-5", color)} />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-[14px] font-semibold text-slate-700 group-hover:text-[#0f172a] transition-colors truncate">{doc.title ?? "Untitled"}</p>
+                                <p className="text-[11px] text-slate-400 mt-0.5 font-medium">{label} • {uploadDate} • v{doc.version ?? "1"}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
+                              {doc.fileUrl && (
+                                <a
+                                  href={/\.pdf(\?|$)/i.test(doc.fileUrl)
+                                    ? doc.fileUrl
+                                    : `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(doc.fileUrl)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={() => { ViewDocument(doc.documentID).catch(() => {}); }}
+                                  className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
+                                  title="Xem tài liệu"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </a>
+                              )}
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const token = localStorage.getItem("accessToken") ?? "";
+                                    const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/documents/${doc.documentID}/download`, {
+                                      headers: { Authorization: `Bearer ${token}` },
+                                    });
+                                    if (!res.ok) throw new Error("Download failed");
+                                    const blob = await res.blob();
+                                    const cd = res.headers.get("content-disposition");
+                                    const match = cd?.match(/filename="?(.+?)"?$/);
+                                    const fileName = match?.[1] ?? `${doc.title ?? "document"}.pdf`;
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement("a");
+                                    a.href = url; a.download = fileName;
+                                    document.body.appendChild(a); a.click();
+                                    document.body.removeChild(a);
+                                    URL.revokeObjectURL(url);
+                                  } catch {
+                                    // silent — toast not available in advisor shell
+                                  }
+                                }}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-[#eec54e]/10 hover:text-[#eec54e] transition-all"
+                                title="Tải xuống"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

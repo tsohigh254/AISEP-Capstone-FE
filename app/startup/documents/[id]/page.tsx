@@ -9,7 +9,7 @@ import {
     ShieldCheck, Shield, Copy, ExternalLink, CheckCircle2, AlertTriangle,
     RefreshCcw, XCircle, Brain, Sparkles, ArrowRight,
     History as LucideHistory, Lock, Users, UserCheck, Pencil, X,
-    ChevronDown, Tag, MoreHorizontal, Eye, RotateCcw, Info, AlertCircle,
+    ChevronDown, Tag, MoreHorizontal, Eye, RotateCcw, Info, AlertCircle, Clock,
 } from "lucide-react";
 import {
     GetDocumentById,
@@ -20,6 +20,7 @@ import {
     VerifyDocumentOnchain,
     GetVersionHistory,
     UploadNewVersion,
+    GetDocumentAccessLogs,
 } from "@/services/document/document.api";
 
 /* ─── Types ───────────────────────────────────────────────── */
@@ -444,6 +445,9 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     const [showUploadVersion, setShowUploadVersion] = useState(false);
     const [uploadingVersion, setUploadingVersion] = useState(false);
     const [uploadVersionError, setUploadVersionError] = useState<string | null>(null);
+    const [accessLogs, setAccessLogs] = useState<IDocumentAccessLog[]>([]);
+    const [accessLogsLoading, setAccessLogsLoading] = useState(false);
+    const [activeTab, setActiveTab] = useState<"versions" | "access-logs">("versions");
 
     const showToast = useCallback((msg: string, type: "info"|"success"|"error" = "info") => {
         setToast({ msg, type });
@@ -539,6 +543,17 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                         hashShort: shortHash(mapped.hash),
                     }]);
                 }
+                // Fetch access logs
+                try {
+                    setAccessLogsLoading(true);
+                    const logRes = await GetDocumentAccessLogs(backendDocId);
+                    if (!cancelled) setAccessLogs(logRes?.data ?? []);
+                } catch {
+                    // Access logs are optional — silently ignore errors (e.g. 403 for non-owner)
+                } finally {
+                    if (!cancelled) setAccessLogsLoading(false);
+                }
+
                 // Auto-poll if status is pending on page load
                 if (mapped.blockchainStatus === "pending") {
                     pollTxStatus(backendDocId);
@@ -843,91 +858,206 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                     {/* Right column */}
                     <div className="lg:col-span-8 space-y-5">
 
-                        {/* Version history */}
+                        {/* Tabbed card: Version History + Access Logs */}
                         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-                            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[13px] font-semibold text-slate-700">Lịch sử phiên bản</span>
-                                    <span className="text-[11px] text-slate-400">({versions.length})</span>
+                            {/* Tab header */}
+                            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => setActiveTab("versions")}
+                                        className={cn(
+                                            "flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-all",
+                                            activeTab === "versions"
+                                                ? "bg-slate-100 text-[#0f172a]"
+                                                : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                                        )}
+                                    >
+                                        <LucideHistory className="w-3.5 h-3.5" />
+                                        Lịch sử phiên bản
+                                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full", activeTab === "versions" ? "bg-slate-200 text-slate-600" : "bg-slate-100 text-slate-400")}>{versions.length}</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab("access-logs")}
+                                        className={cn(
+                                            "flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-all",
+                                            activeTab === "access-logs"
+                                                ? "bg-slate-100 text-[#0f172a]"
+                                                : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                                        )}
+                                    >
+                                        <Clock className="w-3.5 h-3.5" />
+                                        Nhật ký truy cập
+                                        {accessLogs.length > 0 && (
+                                            <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full", activeTab === "access-logs" ? "bg-slate-200 text-slate-600" : "bg-slate-100 text-slate-400")}>{accessLogs.length}</span>
+                                        )}
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => { setShowUploadVersion(true); setUploadVersionError(null); }}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0f172a] text-white rounded-lg text-[12px] font-medium hover:bg-slate-800 transition-all"
-                                >
-                                    <Upload className="w-3.5 h-3.5" /> Phiên bản mới
-                                </button>
+                                {activeTab === "versions" && (
+                                    <button
+                                        onClick={() => { setShowUploadVersion(true); setUploadVersionError(null); }}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0f172a] text-white rounded-lg text-[12px] font-medium hover:bg-slate-800 transition-all"
+                                    >
+                                        <Upload className="w-3.5 h-3.5" /> Phiên bản mới
+                                    </button>
+                                )}
                             </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="border-b border-slate-100">
-                                            {["Phiên bản","Ngày upload","Hash","Blockchain",""].map((h, i) => (
-                                                <th key={i} className={cn("px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest", i === 3 ? "text-right" : "text-left")}>{h}</th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {versions.map(v => {
-                                            const vbc = BC[v.blockchainStatus];
-                                            return (
-                                                <tr
-                                                    key={v.version}
-                                                    className={cn("transition-colors cursor-pointer", v.isCurrent ? "bg-teal-50/30" : "hover:bg-slate-50/40")}
-                                                    onClick={() => { if (v.documentID && v.documentID !== Number(id)) router.push(`/startup/documents/${v.documentID}`); }}
-                                                >
-                                                    <td className="px-5 py-3.5">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className={cn("text-[13px] font-semibold", v.isCurrent ? "text-teal-700" : "text-[#0f172a]")}>{formatVersion(v.version)}</span>
-                                                            {v.isCurrent && <span className="px-1.5 py-0.5 bg-teal-100 text-teal-700 text-[9px] font-semibold rounded border border-teal-200">Hiện tại</span>}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-5 py-3.5">
-                                                        <span className="text-[12px] text-slate-500">{v.date}</span>
-                                                    </td>
-                                                    <td className="px-5 py-3.5">
-                                                        <code className="text-[11px] text-slate-500 font-mono">{v.hashShort}</code>
-                                                    </td>
-                                                    <td className="px-4 py-3.5 text-right">
-                                                        <span className={cn("inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full border whitespace-nowrap", vbc.cls)}>
-                                                            <vbc.Icon className={cn("w-2.5 h-2.5", vbc.spin && "animate-spin")} /> {vbc.label}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3.5 text-right">
-                                                        <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
-                                                            {v.documentID && (
-                                                                <button
-                                                                    onClick={() => router.push(`/startup/documents/${v.documentID}`)}
-                                                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
-                                                                    title="Xem chi tiết"
-                                                                >
-                                                                    <Eye className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            )}
-                                                            {!v.isCurrent && v.documentID && (
-                                                                <button
-                                                                    onClick={async () => {
-                                                                        try {
-                                                                            await DeleteDocument(String(v.documentID));
-                                                                            showToast("Đã xóa phiên bản", "success");
-                                                                            setReloadToken(t => t + 1);
-                                                                        } catch {
-                                                                            showToast("Xóa phiên bản thất bại", "error");
-                                                                        }
-                                                                    }}
-                                                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all"
-                                                                    title="Xóa phiên bản"
-                                                                >
-                                                                    <X className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
+
+                            {/* Tab: Version History */}
+                            {activeTab === "versions" && (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="border-b border-slate-100">
+                                                {["Phiên bản","Ngày upload","Hash","Blockchain",""].map((h, i) => (
+                                                    <th key={i} className={cn("px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest", i === 3 ? "text-right" : "text-left")}>{h}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {versions.map(v => {
+                                                const vbc = BC[v.blockchainStatus];
+                                                return (
+                                                    <tr
+                                                        key={v.version}
+                                                        className={cn("transition-colors cursor-pointer", v.isCurrent ? "bg-teal-50/30" : "hover:bg-slate-50/40")}
+                                                        onClick={() => { if (v.documentID && v.documentID !== Number(id)) router.push(`/startup/documents/${v.documentID}`); }}
+                                                    >
+                                                        <td className="px-5 py-3.5">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={cn("text-[13px] font-semibold", v.isCurrent ? "text-teal-700" : "text-[#0f172a]")}>{formatVersion(v.version)}</span>
+                                                                {v.isCurrent && <span className="px-1.5 py-0.5 bg-teal-100 text-teal-700 text-[9px] font-semibold rounded border border-teal-200">Hiện tại</span>}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3.5">
+                                                            <span className="text-[12px] text-slate-500">{v.date}</span>
+                                                        </td>
+                                                        <td className="px-5 py-3.5">
+                                                            <code className="text-[11px] text-slate-500 font-mono">{v.hashShort}</code>
+                                                        </td>
+                                                        <td className="px-4 py-3.5 text-right">
+                                                            <span className={cn("inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full border whitespace-nowrap", vbc.cls)}>
+                                                                <vbc.Icon className={cn("w-2.5 h-2.5", vbc.spin && "animate-spin")} /> {vbc.label}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3.5 text-right">
+                                                            <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                                                                {v.documentID && (
+                                                                    <button
+                                                                        onClick={() => router.push(`/startup/documents/${v.documentID}`)}
+                                                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
+                                                                        title="Xem chi tiết"
+                                                                    >
+                                                                        <Eye className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                )}
+                                                                {!v.isCurrent && v.documentID && (
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            try {
+                                                                                await DeleteDocument(String(v.documentID));
+                                                                                showToast("Đã xóa phiên bản", "success");
+                                                                                setReloadToken(t => t + 1);
+                                                                            } catch {
+                                                                                showToast("Xóa phiên bản thất bại", "error");
+                                                                            }
+                                                                        }}
+                                                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all"
+                                                                        title="Xóa phiên bản"
+                                                                    >
+                                                                        <X className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            {/* Tab: Access Logs */}
+                            {activeTab === "access-logs" && (
+                                <>
+                                    {accessLogsLoading ? (
+                                        <div className="px-5 py-8 text-center">
+                                            <RefreshCcw className="w-4 h-4 text-slate-300 animate-spin mx-auto mb-2" />
+                                            <p className="text-[12px] text-slate-400">Đang tải...</p>
+                                        </div>
+                                    ) : accessLogs.length === 0 ? (
+                                        <div className="px-5 py-12 text-center">
+                                            <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center mx-auto mb-3">
+                                                <Eye className="w-5 h-5 text-slate-300" />
+                                            </div>
+                                            <p className="text-[13px] font-medium text-slate-400">Chưa có ai truy cập</p>
+                                            <p className="text-[11px] text-slate-300 mt-1">Khi nhà đầu tư hoặc cố vấn xem tài liệu, lịch sử sẽ hiển thị ở đây</p>
+                                        </div>
+                                    ) : (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full">
+                                                <thead>
+                                                    <tr className="border-b border-slate-100">
+                                                        <th className="px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest text-left">Người truy cập</th>
+                                                        <th className="px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest text-left">Vai trò</th>
+                                                        <th className="px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest text-left">Hành động</th>
+                                                        <th className="px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest text-right">Thời gian</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {accessLogs.map(log => (
+                                                        <tr key={log.logID} className="hover:bg-slate-50/40 transition-colors">
+                                                            <td className="px-5 py-3.5">
+                                                                <div className="flex items-center gap-2.5">
+                                                                    <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                                                                        <User className="w-3.5 h-3.5 text-slate-400" />
+                                                                    </div>
+                                                                    <span className="text-[12px] font-medium text-slate-700 truncate max-w-[180px]">{log.userName}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-5 py-3.5">
+                                                                <span className={cn(
+                                                                    "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full border",
+                                                                    log.userType === "Investor" ? "bg-blue-50 text-blue-600 border-blue-100" :
+                                                                    log.userType === "Advisor" ? "bg-violet-50 text-violet-600 border-violet-100" :
+                                                                    log.userType === "Staff" ? "bg-amber-50 text-amber-600 border-amber-100" :
+                                                                    log.userType === "Admin" ? "bg-red-50 text-red-600 border-red-100" :
+                                                                    "bg-slate-100 text-slate-500 border-slate-200"
+                                                                )}>
+                                                                    {log.userType === "Investor" ? "Nhà đầu tư" :
+                                                                     log.userType === "Advisor" ? "Cố vấn" :
+                                                                     log.userType === "Staff" ? "Staff" :
+                                                                     log.userType === "Admin" ? "Admin" : log.userType}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-5 py-3.5">
+                                                                <span className={cn(
+                                                                    "inline-flex items-center gap-1 text-[11px] font-medium",
+                                                                    log.action === "Download" ? "text-emerald-600" : "text-slate-500"
+                                                                )}>
+                                                                    {log.action === "Download" ? <Download className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                                                    {log.action === "Download" ? "Tải xuống" : "Xem"}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-5 py-3.5 text-right">
+                                                                <span className="text-[11px] text-slate-400">{(() => {
+                                                                    const d = new Date(log.accessedAt);
+                                                                    if (Number.isNaN(d.getTime())) return log.accessedAt;
+                                                                    const dd = String(d.getDate()).padStart(2, "0");
+                                                                    const mm = String(d.getMonth() + 1).padStart(2, "0");
+                                                                    const hh = String(d.getHours()).padStart(2, "0");
+                                                                    const mi = String(d.getMinutes()).padStart(2, "0");
+                                                                    return `${dd}/${mm} · ${hh}:${mi}`;
+                                                                })()}</span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </div>
 
                         {/* Upload New Version Modal */}
