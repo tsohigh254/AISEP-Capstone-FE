@@ -25,9 +25,11 @@ const routeLabels: Record<string, string> = {
   notifications: "Thông báo",
   settings: "Cài đặt",
   availability: "Lịch rảnh",
+  edit: "Chỉnh sửa",
   reports: "Báo cáo tư vấn",
   wallet: "Ví",
   startups: "Hồ sơ Startup",
+  feedback: "Đánh giá",
 };
 
 // Các path không có trang listing — hiển thị text thay vì link

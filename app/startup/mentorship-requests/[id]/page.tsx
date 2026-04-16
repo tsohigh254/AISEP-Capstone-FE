@@ -16,6 +16,7 @@ import { isMentorshipPaymentCompleted } from "@/lib/mentorship-payment";
 import { IssueReportModal } from "@/components/shared/issue-report-modal";
 import {
   CancelMentorship,
+  ConfirmSessionConducted,
   GetAdvisorById,
   GetMentorshipById,
 } from "@/services/startup/startup-mentorship.api";
@@ -411,6 +412,13 @@ function buildProgressSteps(historyItems: HistoryItem[], currentStatus: string, 
   const terminalFailedEvent = rejectedEvent || cancelledEvent;
   const cancellationActorText = getCancellationActorText(request.cancelledBy);
 
+  // Session-level signals — mentorship timestamps alone are not enough in the new oversight flow
+  const sessions: any[] = (request as any).sessions || [];
+  const SESSION_SCHEDULED_PLUS = ["Scheduled", "InProgress", "Conducted", "Completed", "InDispute", "Resolved"];
+  const SESSION_CONDUCTED_PLUS = ["Conducted", "Completed", "InDispute", "Resolved"];
+  const scheduledSession = sessions.find((s: any) => SESSION_SCHEDULED_PLUS.includes(s.status || s.sessionStatus));
+  const conductedSession = sessions.find((s: any) => SESSION_CONDUCTED_PLUS.includes(s.status || s.sessionStatus));
+
   if (requestedEvent) {
     steps[0].done = true;
     steps[0].note = requestedEvent.note;
@@ -423,42 +431,45 @@ function buildProgressSteps(historyItems: HistoryItem[], currentStatus: string, 
     steps[1].time = acceptedEvent.time;
   }
 
-  if (inProgressEvent) {
+  // Step 2: "Lịch xác nhận" — done khi có session Scheduled+ hoặc mentorship đã InProgress
+  if (inProgressEvent || scheduledSession) {
     steps[2].done = true;
-    steps[2].note = inProgressEvent.note;
-    steps[2].time = inProgressEvent.time;
+    steps[2].note = inProgressEvent?.note || "Lịch tư vấn đã được xác nhận.";
+    steps[2].time = inProgressEvent?.time || formatDateTime(scheduledSession?.scheduledStartAt) || "";
   }
 
-  if (completedEvent) {
+  // Step 3: "Phiên diễn ra" — done khi session Conducted+ hoặc mentorship Completed
+  if (completedEvent || conductedSession) {
     steps[3].done = true;
-    steps[3].note = completedEvent.note;
-    steps[3].time = completedEvent.time;
-  } else if ((currentStatus === "Scheduled" || currentStatus === "InProgress") && inProgressEvent) {
+    steps[3].note = completedEvent?.note || "Phiên tư vấn đã diễn ra.";
+    steps[3].time = completedEvent?.time || formatDateTime(conductedSession?.scheduledStartAt) || "";
+  } else if ((currentStatus === "Scheduled" || currentStatus === "InProgress") && (inProgressEvent || scheduledSession)) {
     steps[3].current = true;
     steps[3].note = isPaid ? "Đang chờ phiên tư vấn diễn ra." : "Đang chờ hoàn tất thanh toán trước phiên tư vấn.";
   }
 
-  if (reportEvent) {
+  if (reportEvent || (request as any).reports?.length > 0) {
     steps[4].done = true;
-    steps[4].note = reportEvent.note;
-    steps[4].time = reportEvent.time;
-  } else if ((currentStatus === "Completed" || currentStatus === "Finalized") && completedEvent) {
+    steps[4].note = reportEvent?.note || "Cố vấn đã cung cấp báo cáo tư vấn.";
+    steps[4].time = reportEvent?.time || formatDateTime((request as any).reports?.[0]?.createdAt) || "";
+    steps[4].current = false;
+  } else if ((currentStatus === "Completed" || currentStatus === "Finalized") && (completedEvent || conductedSession)) {
     steps[4].current = true;
     steps[4].note = "Đang chờ báo cáo từ cố vấn.";
   }
 
-  if (feedbackEvent) {
+  if (feedbackEvent || (request as any).feedbacks?.length > 0) {
     steps[5].done = true;
-    steps[5].current = true;
-    steps[5].note = feedbackEvent.note;
-    steps[5].time = feedbackEvent.time;
+    steps[5].current = false;
+    steps[5].note = feedbackEvent?.note || "Startup đã gửi đánh giá cho phiên tư vấn.";
+    steps[5].time = feedbackEvent?.time || formatDateTime((request as any).feedbacks?.[0]?.createdAt) || "";
     steps[4].current = false;
   } else if (reportEvent) {
     steps[5].current = currentStatus !== "Finalized";
   }
 
   if (terminalFailedEvent) {
-    const failIndex = inProgressEvent ? 3 : acceptedEvent ? 2 : 1;
+    const failIndex = (inProgressEvent || scheduledSession) ? 3 : acceptedEvent ? 2 : 1;
     const failNote =
       terminalFailedEvent.type === "Rejected"
         ? "Cố vấn đã từ chối yêu cầu"
@@ -603,6 +614,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
   const [cancelReason, setCancelReason] = useState("");
   const [localStatus, setLocalStatus] = useState<MentorshipRequestStatus | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isConfirmingConducted, setIsConfirmingConducted] = useState(false);
 
   // Fetch data
   const fetchRequest = useCallback(async () => {
@@ -650,6 +662,25 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
   useEffect(() => {
     fetchRequest();
   }, [fetchRequest]);
+
+  // Confirm conducted handler
+  const handleConfirmConducted = async (sessionId: number) => {
+    if (!request) return;
+    setIsConfirmingConducted(true);
+    try {
+      const res = await ConfirmSessionConducted(request.mentorshipID, sessionId) as any;
+      if (res?.data?.success || res?.data?.isSuccess || res?.status === 200) {
+        toast.success("Đã xác nhận phiên tư vấn hoàn thành!");
+        fetchRequest();
+      } else {
+        toast.error(res?.data?.message || "Xác nhận thất bại.");
+      }
+    } catch {
+      toast.error("Có lỗi xảy ra khi xác nhận.");
+    } finally {
+      setIsConfirmingConducted(false);
+    }
+  };
 
   // Cancel handler (real API)
   const handleCancel = async () => {
@@ -748,6 +779,12 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
   const advisorProposedSessions = sessions.filter((s: any) =>
     (s.status === "ProposedByAdvisor" || s.sessionStatus === "ProposedByAdvisor") &&
     s.status !== "Cancelled" && s.sessionStatus !== "Cancelled"
+  );
+  const activeSessions = sessions.filter((s: any) =>
+    ["Scheduled", "InProgress"].includes(s.status || s.sessionStatus)
+  );
+  const hasConductedSession = sessions.some((s: any) =>
+    ["Conducted", "Completed", "InDispute", "Resolved"].includes(s.status || s.sessionStatus)
   );
 
   return (
@@ -854,9 +891,14 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
               </p>
               <div className="space-y-2 mb-3">
                 {advisorProposedSessions.map((s: any) => (
-                  <div key={s.sessionID} className="flex items-center gap-2 text-[12px] text-violet-700 bg-white border border-violet-100 rounded-xl px-3 py-2">
-                    <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="font-semibold">{new Date(s.scheduledStartAt).toLocaleString("vi-VN", { weekday: "short", day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                  <div key={s.sessionID} className="flex flex-col gap-1 text-[12px] text-violet-700 bg-white border border-violet-100 rounded-xl px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="font-semibold">{new Date(s.scheduledStartAt).toLocaleString("vi-VN", { weekday: "short", day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
+                    {s.note && (
+                      <p className="text-[11px] text-violet-600 pl-5">{s.note}</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -907,7 +949,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
         })()}
 
         {/* Scheduled Banner */}
-        {(currentStatus === "Scheduled" || currentStatus === "InProgress") && !isPaid && (
+        {(currentStatus === "Scheduled" || currentStatus === "InProgress") && !isPaid && !hasConductedSession && (
           <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 flex gap-4 items-start">
             <Calendar className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
@@ -927,7 +969,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
         )}
 
         {/* Paid Banner */}
-        {(currentStatus === "Scheduled" || currentStatus === "InProgress") && isPaid && (
+        {(currentStatus === "Scheduled" || currentStatus === "InProgress") && isPaid && !hasConductedSession && (
           <div className="bg-green-50 border border-green-200 rounded-2xl p-5 flex gap-4 items-start">
             <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
@@ -945,15 +987,47 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
 
                 if (finalLink && finalLink !== "undefined" && finalLink.trim() !== "") {
                   return (
-                    <a
-                      href={finalLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl text-[12px] font-semibold hover:bg-green-700 transition-all shadow-sm"
-                    >
-                      <Video className="w-3.5 h-3.5" />
-                      Tham gia vào cuộc họp
-                    </a>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <a
+                        href={finalLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl text-[12px] font-semibold hover:bg-green-700 transition-all shadow-sm"
+                      >
+                        <Video className="w-3.5 h-3.5" />
+                        Tham gia vào cuộc họp
+                      </a>
+                      {activeSessions.length === 1 && (
+                        <button
+                          onClick={() => handleConfirmConducted(activeSessions[0].sessionID)}
+                          disabled={isConfirmingConducted}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-[12px] font-semibold hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-50"
+                        >
+                          {isConfirmingConducted
+                            ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            : <CheckCircle2 className="w-3.5 h-3.5" />}
+                          Xác nhận đã tư vấn
+                        </button>
+                      )}
+                      {activeSessions.length > 1 && (
+                        <div className="w-full mt-2 space-y-2">
+                          <p className="text-[11px] text-green-700 font-semibold">Chọn phiên cần xác nhận:</p>
+                          {activeSessions.map((s: any) => (
+                            <button
+                              key={s.sessionID}
+                              onClick={() => handleConfirmConducted(s.sessionID)}
+                              disabled={isConfirmingConducted}
+                              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-[12px] font-semibold hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-50 w-full"
+                            >
+                              {isConfirmingConducted
+                                ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                : <CheckCircle2 className="w-3.5 h-3.5" />}
+                              Xác nhận phiên #{s.sessionID} — {formatDateTime(s.scheduledStartAt)}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   );
                 }
 
@@ -968,6 +1042,39 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
                   </button>
                 );
               })()}
+            </div>
+          </div>
+        )}
+
+        {/* Conducted Banner — session đã diễn ra, chờ advisor nộp báo cáo & staff duyệt */}
+        {(currentStatus === "Scheduled" || currentStatus === "InProgress") && hasConductedSession && !((request as any).reports?.length > 0) && (
+          <div className="bg-teal-50 border border-teal-200 rounded-2xl p-5 flex gap-4 items-start">
+            <CheckCircle2 className="w-5 h-5 text-teal-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-[13px] font-bold text-teal-800 mb-2">Phiên tư vấn đã diễn ra</p>
+              <p className="text-[12px] text-teal-700 leading-relaxed">
+                Bạn đã xác nhận phiên tư vấn hoàn thành. Đang chờ cố vấn nộp báo cáo và bộ phận Vận hành phê duyệt để hoàn tất quy trình.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Report Ready Banner — session conducted + báo cáo đã có nhưng status chưa Completed */}
+        {(currentStatus === "Scheduled" || currentStatus === "InProgress") && hasConductedSession && (request as any).reports?.length > 0 && (
+          <div className="bg-teal-50 border border-teal-200 rounded-2xl p-5 flex gap-4 items-start">
+            <CheckCircle2 className="w-5 h-5 text-teal-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-[13px] font-bold text-teal-800 mb-2">Phiên tư vấn đã diễn ra</p>
+              <p className="text-[12px] text-teal-700 leading-relaxed mb-3">
+                Bạn đã xác nhận phiên tư vấn hoàn thành. Đang chờ bộ phận Vận hành phê duyệt báo cáo để hoàn tất quy trình.
+              </p>
+              <button
+                onClick={() => router.push(`/startup/mentorship-requests/${request.mentorshipID}/report`)}
+                className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl text-[12px] font-semibold hover:bg-teal-700 transition-all shadow-sm"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Xem báo cáo
+              </button>
             </div>
           </div>
         )}

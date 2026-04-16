@@ -16,7 +16,12 @@ import { GetAdvisorMentorships } from "@/services/advisor/advisor.api";
 import { IssueReportModal, type IssueReportContext } from "@/components/shared/issue-report-modal";
 
 /* ─── Constants ──────────────────────────────────────────────── */
-
+const REVIEW_STATUS_CFG: Record<string, { label: string; badge: string }> = {
+  PendingReview: { label: "Chờ thẩm định", badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
+  Passed: { label: "Đã duyệt", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
+  Failed: { label: "Không đạt", badge: "bg-red-50 text-red-600 border-red-200/80" },
+  NeedsMoreInfo: { label: "Cần bổ sung", badge: "bg-blue-50 text-blue-600 border-blue-200/80" },
+};
 type TabKey = "all" | "pending" | ConsultationReportStatus;
 
 const TABS: { key: TabKey; label: string }[] = [
@@ -77,26 +82,45 @@ function ReportCard({ report, onReport }: { report: IConsultationReport; onRepor
   
   return (
     <Link 
-      href={`/advisor/reports/${report.id}`}
+      href={`/advisor/reports/${report.sessionId || report.id}`}
       className="group bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] hover:border-slate-300 transition-all duration-200"
     >
       <div className="px-6 py-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-1 items-start gap-4 min-w-0">
             {/* Avatar */}
-            <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[15px] font-bold shrink-0 shadow-sm transition-transform group-hover:scale-105", avatarGradient)}>
-              {report.startup.displayName.charAt(0).toUpperCase()}
-            </div>
+            {report.startup.logoUrl ? (
+              <img
+                src={report.startup.logoUrl}
+                alt={report.startup.displayName}
+                className="w-10 h-10 rounded-xl object-cover shrink-0 shadow-sm transition-transform group-hover:scale-105 border border-slate-100"
+              />
+            ) : (
+              <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[15px] font-bold shrink-0 shadow-sm transition-transform group-hover:scale-105", avatarGradient)}>
+                {report.startup.displayName.charAt(0).toUpperCase()}
+              </div>
+            )}
             
             <div className="flex-1 min-w-0 pt-0.5">
               <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                <span className={cn(
-                  "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-semibold border capitalize",
-                  cfg.badge
-                )}>
-                  <span className={cn("w-1.5 h-1.5 rounded-full", cfg.dot)} />
-                  {STATUS_LABEL[report.status]}
-                </span>
+                {/* Hide FE status badge when reviewStatus gives a more precise label */}
+                {!(report.reviewStatus === "Failed" || report.reviewStatus === "NeedsMoreInfo") && (
+                  <span className={cn(
+                    "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-semibold border capitalize",
+                    cfg.badge
+                  )}>
+                    <span className={cn("w-1.5 h-1.5 rounded-full", cfg.dot)} />
+                    {STATUS_LABEL[report.status]}
+                  </span>
+                )}
+                {report.reviewStatus && report.reviewStatus !== "PendingReview" && REVIEW_STATUS_CFG[report.reviewStatus] && (
+                  <span className={cn(
+                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border",
+                    REVIEW_STATUS_CFG[report.reviewStatus].badge
+                  )}>
+                    {REVIEW_STATUS_CFG[report.reviewStatus].label}
+                  </span>
+                )}
                 <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-tight">
                   Cập nhật {formatDate(report.lastEditedAt)}
                 </span>
@@ -183,7 +207,7 @@ export default function AdvisorReportsPage() {
       try {
         const [repData, sesRes] = await Promise.all([
           getAdvisorReports(),
-          GetAdvisorMentorships({ status: 'Completed', page: 1, pageSize: 100 }).catch(() => ({ data: { items: [], data: [] } }))
+          GetAdvisorMentorships({ status: 'InProgress', page: 1, pageSize: 100 }).catch(() => ({ data: { items: [], data: [] } }))
         ]);
         
         const rawItems = (sesRes as any).data?.items || (sesRes as any).data?.data || [];

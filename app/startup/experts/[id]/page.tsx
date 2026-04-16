@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { GetAdvisorById } from "@/services/startup/startup-mentorship.api";
-import type { IAdvisorDetail, IAdvisorSearchItem } from "@/types/startup-mentorship";
+import type { IAdvisorDetail, IAdvisorSearchItem, IAdvisorTimeSlot } from "@/types/startup-mentorship";
 
 const formatVND = (n: number) => n.toLocaleString('vi-VN') + '₫';
 
@@ -23,13 +23,35 @@ const EXPERTISE_DICT: Record<string, string> = {
   GO_TO_MARKET: "Go-to-market",
   FINANCE: "Tài chính",
   LEGAL_IP: "Pháp lý & SHTT",
+  LEGAL_COMPLIANCE: "Pháp lý & Tuân thủ",
   OPERATIONS: "Vận hành",
   TECHNOLOGY: "Công nghệ",
   MARKETING: "Marketing",
-  HR_OR_TEAM_BUILDING: "Nhân sự",
+  HR_OR_TEAM_BUILDING: "Nhân sự & Đội ngũ",
+  ENGINEERING: "Kỹ thuật",
+  AI_ML: "AI / ML",
+  AI: "AI",
+  GROWTH_HACKING: "Growth Hacking",
+  SAAS: "SaaS",
+  FINTECH: "FinTech",
+  E_COMMERCE: "E-commerce",
 };
 
 const formatExpertise = (val: string) => EXPERTISE_DICT[val] || val;
+
+const DAY_NAMES = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"];
+
+function groupSlotsByDay(slots: IAdvisorTimeSlot[]): { day: number; label: string; ranges: string[] }[] {
+  const map: Record<number, string[]> = {};
+  for (const s of slots) {
+    if (!map[s.dayOfWeek]) map[s.dayOfWeek] = [];
+    map[s.dayOfWeek].push(`${s.startTime}–${s.endTime}`);
+  }
+  return Object.keys(map)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map(day => ({ day, label: DAY_NAMES[day] ?? `Ngày ${day}`, ranges: map[day] }));
+}
 
 const isValidImageUrl = (url?: string | null) => {
   if (!url) return false;
@@ -399,27 +421,38 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
               <CardContent className="p-8 space-y-6">
                 <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Đánh giá từ Startup</h3>
                 <div className="space-y-4">
-                    {(advisor.reviews || []).map((review, idx) => (
-                    <div key={idx} className="p-5 bg-white border border-slate-100 rounded-2xl space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-[14px] font-bold text-slate-500">
-                            {review.author.charAt(0)}
+                  {(advisor.reviews || []).length === 0 ? (
+                    <p className="text-[13px] text-slate-400 italic">Chưa có đánh giá nào.</p>
+                  ) : (
+                    (advisor.reviews || []).map((review, idx) => (
+                      <div key={idx} className="p-5 bg-white border border-slate-100 rounded-2xl space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-[14px] font-bold text-slate-500">
+                              {review.author.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="text-[13px] font-bold text-slate-900 leading-none mb-0.5">{review.author}</p>
+                              {review.stage && <p className="text-[11px] text-slate-400">{review.stage}</p>}
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-[13px] font-bold text-slate-900 leading-none mb-0.5">{review.author}</p>
-                            <p className="text-[11px] text-slate-400">{review.stage}</p>
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="flex items-center gap-0.5">
+                              {[1, 2, 3, 4, 5].map(s => (
+                                <Star key={s} className={cn("w-3 h-3", s <= review.rating ? "text-amber-400 fill-amber-400" : "text-slate-200")} />
+                              ))}
+                            </div>
+                            {review.submittedAt && (
+                              <p className="text-[10px] text-slate-300">
+                                {new Date(review.submittedAt).toLocaleDateString("vi-VN", { day: "numeric", month: "long", year: "numeric" })}
+                              </p>
+                            )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-0.5">
-                          {[1, 2, 3, 4, 5].map(s => (
-                            <Star key={s} className={cn("w-3 h-3", s <= review.rating ? "text-amber-400 fill-amber-400" : "text-slate-200")} />
-                          ))}
-                        </div>
+                        <p className="text-[13px] text-slate-600 italic leading-relaxed">"{review.text}"</p>
                       </div>
-                      <p className="text-[13px] text-slate-600 italic leading-relaxed">"{review.text}"</p>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -484,16 +517,6 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center">
-                        <Calendar className="w-3.5 h-3.5 text-purple-500" />
-                      </div>
-                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Lịch rảnh</span>
-                    </div>
-                    <span className="text-[13px] font-bold text-slate-900">{advisor.availabilityHint}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center">
                         <Users className="w-3.5 h-3.5 text-blue-500" />
                       </div>
@@ -515,6 +538,42 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                   </div>
                 </div>
 
+              </CardContent>
+            </Card>
+
+            {/* Weekly Timeslots */}
+            <Card className="rounded-2xl border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+              <CardContent className="p-6 space-y-4">
+                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] pb-4 border-b border-slate-50 flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5 text-purple-400" />
+                  Lịch rảnh trong tuần
+                </h4>
+                {(() => {
+                  const grouped = groupSlotsByDay(advisor.timeSlots ?? []);
+                  if (grouped.length === 0) {
+                    return (
+                      <p className="text-[12px] text-slate-400 text-center py-2">Chưa thiết lập lịch rảnh.</p>
+                    );
+                  }
+                  return (
+                    <div className="space-y-3">
+                      {grouped.map(({ day, label, ranges }) => (
+                        <div key={day} className="flex items-start gap-3">
+                          <span className="min-w-[52px] text-[11px] font-bold text-purple-600 bg-purple-50 border border-purple-100 rounded-lg px-2 py-1 text-center leading-tight">
+                            {label}
+                          </span>
+                          <div className="flex flex-col gap-1">
+                            {ranges.map((r, i) => (
+                              <span key={i} className="text-[12px] font-semibold text-slate-700 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1 leading-tight">
+                                {r}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
 

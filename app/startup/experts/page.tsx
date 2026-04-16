@@ -2,7 +2,7 @@
 
 import {
   Star, Search, ChevronRight, ChevronLeft, ChevronDown, Users, Briefcase, FileText, X, ArrowUpDown, BadgeCheck,
-  CalendarCheck, Video, Loader2, Eye, CheckCircle
+  CalendarCheck, Video, Loader2, Eye, CheckCircle, CreditCard
 } from "lucide-react";
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { MentorshipRequestModal } from "@/components/startup/mentorship-request-modal";
@@ -16,6 +16,7 @@ import {
   GetMentorshipById,
   GetMentorshipSessions,
   CancelMentorship,
+  ConfirmSessionConducted,
 } from "@/services/startup/startup-mentorship.api";
 import type {
   IAdvisorSearchItem,
@@ -77,7 +78,10 @@ const SESSION_FILTER_DEFS = [
   { key: "advisor_proposed", label: "Cố vấn đề xuất lịch" },
   { key: "upcoming", label: "Sắp tới" },
   { key: "in_progress", label: "Đang diễn ra" },
+  { key: "conducted", label: "Đã tư vấn" },
   { key: "completed", label: "Đã hoàn thành" },
+  { key: "in_dispute", label: "Tranh chấp" },
+  { key: "resolved", label: "Đã giải quyết" },
   { key: "cancelled", label: "Đã hủy" },
 ] as const;
 
@@ -108,7 +112,10 @@ const SESSION_STATUS_DISPLAY_SAFE: Record<string, { label: string; color: string
   ProposedByAdvisor: { label: "Cố vấn đề xuất lịch mới", color: "text-violet-700 bg-violet-50 border-violet-200" },
   Scheduled: { label: SESSION_TEXT.upcoming, color: "text-indigo-600 bg-indigo-50 border-indigo-100" },
   InProgress: { label: SESSION_TEXT.inProgress, color: "text-teal-600 bg-teal-50 border-teal-100" },
+  Conducted: { label: "Đã tư vấn", color: "text-indigo-600 bg-indigo-50 border-indigo-100" },
   Completed: { label: SESSION_TEXT.completed, color: "text-green-600 bg-green-50 border-green-100" },
+  InDispute: { label: "Tranh chấp", color: "text-red-600 bg-red-50 border-red-100" },
+  Resolved: { label: "Đã giải quyết", color: "text-slate-600 bg-slate-50 border-slate-200" },
   Cancelled: { label: SESSION_TEXT.cancelled, color: "text-slate-500 bg-slate-50 border-slate-100" },
 };
 
@@ -118,7 +125,10 @@ const SESSION_FILTER_BUTTONS_SAFE = [
   { key: "advisor_proposed", label: "Cố vấn đề xuất lịch" },
   { key: "upcoming", label: SESSION_TEXT.upcoming },
   { key: "in_progress", label: SESSION_TEXT.inProgress },
+  { key: "conducted", label: "Đã tư vấn" },
   { key: "completed", label: SESSION_TEXT.completed },
+  { key: "in_dispute", label: "Tranh chấp" },
+  { key: "resolved", label: "Đã giải quyết" },
   { key: "cancelled", label: SESSION_TEXT.cancelled },
 ] as const;
 
@@ -128,7 +138,10 @@ const SESSION_FILTER_STATUS_PARAM: Record<SessionFilterKey, string | undefined> 
   advisor_proposed: "ProposedByAdvisor",
   upcoming: "Scheduled",
   in_progress: "InProgress",
+  conducted: "Conducted",
   completed: "Completed",
+  in_dispute: "InDispute",
+  resolved: "Resolved",
   cancelled: "Cancelled",
 };
 
@@ -152,20 +165,23 @@ const SESSION_FILTER_BUTTONS = [
 ] as const;
 
 const EXPERTISE_MAP: Record<string, string> = {
-  "PRODUCT_STRATEGY": "Product Strategy",
-  "FUNDRAISING": "Fundraising",
-  "ENGINEERING": "Engineering",
-  "AI_ML": "AI / ML",
-  "GROWTH_HACKING": "Growth Hacking",
+  "PRODUCT_STRATEGY": "Chiến lược SP",
+  "FUNDRAISING": "Gọi vốn",
+  "GO_TO_MARKET": "Go-to-market",
+  "FINANCE": "Tài chính",
+  "LEGAL_IP": "Pháp lý & SHTT",
+  "LEGAL_COMPLIANCE": "Pháp lý & Tuân thủ",
+  "OPERATIONS": "Vận hành",
+  "TECHNOLOGY": "Công nghệ",
   "MARKETING": "Marketing",
-  "LEGAL_COMPLIANCE": "Legal & Compliance",
-  "OPERATIONS": "Operations",
+  "HR_OR_TEAM_BUILDING": "Nhân sự & Đội ngũ",
+  "ENGINEERING": "Kỹ thuật",
+  "AI_ML": "AI / ML",
+  "AI": "AI",
+  "GROWTH_HACKING": "Growth Hacking",
   "SAAS": "SaaS",
   "FINTECH": "FinTech",
   "E_COMMERCE": "E-commerce",
-  "HR_OR_TEAM_BUILDING": "Nhân sự & Đội ngũ",
-  "FINANCE": "Tài chính",
-  "AI": "AI",
 };
 
 const mapMeetingFormat = (fmt?: MeetingFormat | string | null): string => {
@@ -202,8 +218,8 @@ const getMentorshipObjective = (item: IMentorshipRequest) => {
 
 const getMentorshipAdvisorDisplay = (item: IMentorshipRequest) => {
   const fullName = item.advisor?.fullName || item.advisorName || "Cố vấn";
-  const title = item.advisor?.title || "Cố vấn";
-  const profilePhotoURL = item.advisor?.profilePhotoURL || "";
+  const title = item.advisor?.title || (item as any).advisorTitle || "Cố vấn";
+  const profilePhotoURL = item.advisor?.profilePhotoURL || (item as any).advisorPhotoURL || "";
 
   return { fullName, title, profilePhotoURL };
 };
@@ -219,9 +235,13 @@ const matchesSessionFilter = (session: IMentorshipSession, filter: SessionFilter
 
   if (filter === "all") return true;
   if (filter === "pending_confirmation") return status === "ProposedByStartup";
+  if (filter === "advisor_proposed") return status === "ProposedByAdvisor";
   if (filter === "upcoming") return status === "Scheduled";
   if (filter === "in_progress") return status === "InProgress";
+  if (filter === "conducted") return status === "Conducted";
   if (filter === "completed") return status === "Completed";
+  if (filter === "in_dispute") return status === "InDispute";
+  if (filter === "resolved") return status === "Resolved";
   if (filter === "cancelled") return status === "Cancelled";
 
   return false;
@@ -229,6 +249,7 @@ const matchesSessionFilter = (session: IMentorshipSession, filter: SessionFilter
 
 const getSessionAdvisorDisplay = (session: IMentorshipSession) => ({
   fullName: session.advisorName || session.advisor?.fullName || SESSION_TEXT.advisorFallback,
+  title: session.advisor?.title || "",
   profilePhotoURL: session.advisorProfilePhotoURL || session.advisor?.profilePhotoURL || "",
 });
 
@@ -374,14 +395,14 @@ function StartupAdvisorsPageInner() {
       if (expertiseFilter !== "all") params.expertise = expertiseFilter;
       
       if (experienceFilter !== "all") {
-        if (experienceFilter === "1-3") { params.minYearsOfExperience = 1; params.maxYearsOfExperience = 3; }
-        else if (experienceFilter === "3-7") { params.minYearsOfExperience = 3; params.maxYearsOfExperience = 7; }
-        else if (experienceFilter === "7+") { params.minYearsOfExperience = 7; }
-        else if (experienceFilter === "10+") { params.minYearsOfExperience = 10; }
+        if (experienceFilter === "1-3") params.experience = 1;
+        else if (experienceFilter === "3-7") params.experience = 3;
+        else if (experienceFilter === "7+") params.experience = 7;
+        else if (experienceFilter === "10+") params.experience = 10;
       }
 
-      if (ratingFilter !== "all") params.minRating = parseFloat(ratingFilter);
-      if (sortBy !== "best_match") params.sortBy = sortBy;
+      if (ratingFilter !== "all") params.rating = parseFloat(ratingFilter);
+      if (sortBy !== "best_match") params.sort = sortBy;
 
       const res = await SearchAdvisors(params) as unknown as IBackendRes<IPagingData<IAdvisorSearchItem>>;
       if ((res.success || res.isSuccess) && res.data) {
@@ -409,7 +430,8 @@ function StartupAdvisorsPageInner() {
       if ((res.success || res.isSuccess) && res.data) {
         // Backend PagedData uses "data" for items, FE type uses "items" — handle both
         const rawData = res.data as any;
-        setRequests(rawData.items ?? rawData.data ?? []);
+        const items = rawData.items ?? rawData.data ?? [];
+        setRequests(items);
         if (rawData.paging) {
           setRequestsTotalPages(Math.max(1, Math.ceil(rawData.paging.totalItems / rawData.paging.pageSize)));
         } else if (rawData.total !== undefined) {
@@ -554,7 +576,9 @@ function StartupAdvisorsPageInner() {
 
   const filteredRequests = requests; // Now filtered server-side
 
-  const filteredSessions = sessions;
+  const filteredSessions = sessionStatusFilter === "all"
+    ? sessions.filter(s => getSessionStatusKey(s) !== "Cancelled")
+    : sessions;
 
   const filteredReports = reportStatusFilter === "all"
     ? completedMentorships
@@ -617,6 +641,27 @@ function StartupAdvisorsPageInner() {
       topic: getMentorshipObjective(item),
     });
     setShowReviewModal(true);
+  };
+
+  const [confirmingConductedId, setConfirmingConductedId] = useState<number | null>(null);
+  const handleConfirmConducted = async (mentorshipId: number, sessionId: number) => {
+    setConfirmingConductedId(sessionId);
+    try {
+      const res = await ConfirmSessionConducted(mentorshipId, sessionId) as any;
+      if (res?.success || res?.isSuccess) {
+        showToast("Đã xác nhận buổi tư vấn thành công");
+        fetchSessions();
+      } else {
+        showToast(res?.message || "Xác nhận thất bại");
+      }
+    } catch (err: any) {
+      const code = err?.response?.data?.code;
+      if (code === "ALREADY_CONFIRMED") showToast("Buổi tư vấn đã được xác nhận trước đó");
+      else if (code === "SESSION_NOT_FOUND") showToast("Không tìm thấy phiên tư vấn");
+      else showToast(err?.response?.data?.message || "Xác nhận thất bại");
+    } finally {
+      setConfirmingConductedId(null);
+    }
   };
 
   // ─── Tabs ─────────────────────────────────────────────────────────────────
@@ -781,8 +826,13 @@ function StartupAdvisorsPageInner() {
                           {advisor.isVerified && (
                             <BadgeCheck className="w-4 h-4 text-teal-500 flex-shrink-0" />
                           )}
-                          <span className="ml-auto flex-shrink-0 px-2 py-0.5 bg-slate-50 border border-slate-100 rounded-lg text-[11px] font-medium text-slate-500">
-                            {advisor.availabilityHint}
+                          <span className={cn(
+                            "ml-auto flex-shrink-0 px-2 py-0.5 rounded-lg text-[11px] font-medium border",
+                            advisor.availabilityHint === "Available"
+                              ? "bg-emerald-50 border-emerald-100 text-emerald-600"
+                              : "bg-slate-50 border-slate-100 text-slate-400"
+                          )}>
+                            {advisor.availabilityHint === "Available" ? "Đang nhận mentee" : advisor.availabilityHint === "Not available" ? "Tạm ngưng" : advisor.availabilityHint}
                           </span>
                         </div>
                         <p className="text-[12px] text-slate-400 mt-0.5">{advisor.title}</p>
@@ -900,10 +950,11 @@ function StartupAdvisorsPageInner() {
                 { key: "all", label: "Tất cả" },
                 { key: "Requested", label: "Chờ phản hồi" },
                 { key: "Accepted", label: "Đã chấp nhận" },
-                { key: "Scheduled",  label: "Đã lên lịch" },
-                { key: "Completed",   label: "Hoàn thành" },
-                { key: "Rejected",      label: "Từ chối" },
-                { key: "Cancelled",       label: "Đã hủy" },
+                { key: "Scheduled", label: "Đã lên lịch" },
+                { key: "InProgress", label: "Đang tư vấn" },
+                { key: "Completed", label: "Hoàn thành" },
+                { key: "Rejected", label: "Từ chối" },
+                { key: "Cancelled", label: "Đã hủy" },
               ] as const).map(s => (
                 <button
                   key={s.key}
@@ -945,27 +996,29 @@ function StartupAdvisorsPageInner() {
                       const requestStatusKey = (item.status || item.mentorshipStatus) as string;
                       const statusInfo = REQUEST_STATUS_MAP[requestStatusKey] ?? { label: requestStatusKey, color: "text-slate-500 bg-slate-50 border-slate-100" };
                       const meetingType = mapMeetingFormat(item.preferredFormat);
+                      const advisorDisplay = getMentorshipAdvisorDisplay(item);
+                      const hasAdvisorProposal = (item as any).hasAdvisorProposedSlot === true;
                       return (
                         <tr key={item.mentorshipID} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              {isValidImageUrl(item.advisor?.profilePhotoURL) ? (
-                                <img src={item.advisor?.profilePhotoURL as string} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-100" />
+                              {isValidImageUrl(advisorDisplay.profilePhotoURL) ? (
+                                <img src={advisorDisplay.profilePhotoURL} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-100" />
                               ) : (
                                 <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex-shrink-0 flex items-center justify-center">
                                   <span className="text-sm font-bold text-slate-400">
-                                    {(item.advisor?.fullName || "?")?.charAt(0)?.toUpperCase()}
+                                    {advisorDisplay.fullName.charAt(0).toUpperCase()}
                                   </span>
                                 </div>
                               )}
                               <div>
-                                <p className="text-[13px] font-semibold text-slate-900 leading-none mb-0.5">{item.advisor?.fullName || "Cố vấn"}</p>
-                                <p className="text-[11px] text-slate-400">{item.advisor?.title || ""}</p>
+                                <p className="text-[13px] font-semibold text-slate-900 leading-none mb-0.5">{advisorDisplay.fullName}</p>
+                                <p className="text-[11px] text-slate-400">{advisorDisplay.title !== "Cố vấn" ? advisorDisplay.title : ""}</p>
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-4 max-w-[260px]">
-                            <p className="text-[13px] font-semibold text-slate-800 truncate">{item.objective || "Không có tiêu đề"}</p>
+                            <p className="text-[13px] font-semibold text-slate-800 truncate">{getMentorshipObjective(item)}</p>
                             <p className="text-[11px] text-slate-400 mt-0.5 truncate">{item.problemContext ?? ""}</p>
                           </td>
                           <td className="px-6 py-4 text-[13px] text-slate-500">{formatDate(item.createdAt)}</td>
@@ -976,9 +1029,14 @@ function StartupAdvisorsPageInner() {
                             </div>
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <span className={cn("px-3 py-1 rounded-full text-[11px] font-bold border whitespace-nowrap", statusInfo.color)}>
-                              {statusInfo.label}
-                            </span>
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className={cn("px-3 py-1 rounded-full text-[11px] font-bold border whitespace-nowrap", statusInfo.color)}>
+                                {statusInfo.label}
+                              </span>
+                              {hasAdvisorProposal && (
+                                <span className="text-[10px] text-violet-600 font-medium whitespace-nowrap">Cố vấn đề xuất lịch mới</span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-center gap-1">
@@ -1126,9 +1184,11 @@ function StartupAdvisorsPageInner() {
                         sessionPreferredFormats[item.mentorshipID],
                       );
                       const meetingLink = item.meetingURL;
-                      const canJoin = (sessionStatusKey === "Scheduled" || sessionStatusKey === "InProgress") && !!meetingLink;
+                      const isActive = sessionStatusKey === "Scheduled" || sessionStatusKey === "InProgress";
+                      const needsPayment = isActive && !meetingLink;
+                      const canJoin = isActive && !!meetingLink;
                       const sessionTopic = getSessionTopic(item);
-                      const advisorSubtitle = item.advisor?.title || "";
+                      const advisorSubtitle = advisorDisplay.title || item.advisor?.title || "";
                       return (
                         <tr key={item.sessionID} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-6 py-4">
@@ -1166,6 +1226,16 @@ function StartupAdvisorsPageInner() {
                             <span className={cn("px-3 py-1 rounded-full text-[11px] font-bold border", sessionStatusInfo.color)}>
                               {sessionStatusInfo.label}
                             </span>
+                            {item.disputeReason && (
+                              <p className="text-[10px] text-red-500 mt-1 max-w-[160px] mx-auto truncate" title={item.disputeReason}>
+                                Lý do: {item.disputeReason}
+                              </p>
+                            )}
+                            {item.resolutionNote && (
+                              <p className="text-[10px] text-indigo-500 mt-0.5 max-w-[160px] mx-auto truncate" title={item.resolutionNote}>
+                                KQ: {item.resolutionNote}
+                              </p>
+                            )}
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-center gap-2">
@@ -1179,6 +1249,15 @@ function StartupAdvisorsPageInner() {
                                   Xác nhận lịch
                                 </button>
                               )}
+                              {needsPayment && (
+                                <button
+                                  onClick={() => router.push(`/startup/mentorship-requests/${item.mentorshipID}/checkout`)}
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[11px] font-semibold hover:bg-amber-600 transition-all"
+                                >
+                                  <CreditCard className="w-3.5 h-3.5" />
+                                  Thanh toán để nhận link
+                                </button>
+                              )}
                               {canJoin && (
                                 <a
                                   href={meetingLink!}
@@ -1188,6 +1267,21 @@ function StartupAdvisorsPageInner() {
                                 >
                                   Tham gia họp
                                 </a>
+                              )}
+                              {isActive && !!meetingLink && item.mentorshipID && item.sessionID && (
+                                <button
+                                  onClick={() => handleConfirmConducted(item.mentorshipID, item.sessionID!)}
+                                  disabled={confirmingConductedId === item.sessionID}
+                                  title="Xác nhận đã hoàn thành buổi tư vấn"
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] font-semibold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                >
+                                  {confirmingConductedId === item.sessionID ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <CheckCircle className="w-3.5 h-3.5" />
+                                  )}
+                                  Xác nhận đã tư vấn
+                                </button>
                               )}
                               <button
                                 onClick={() => router.push(`/startup/mentorship-requests/${item.mentorshipID}`)}

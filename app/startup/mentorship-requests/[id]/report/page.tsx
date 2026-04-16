@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
   FileText, Star, Download, CheckCircle2,
-  BadgeCheck, Calendar
+  BadgeCheck, Calendar, Paperclip, ExternalLink
 } from "lucide-react";
 import { GetMentorshipReport } from "@/services/startup/startup-mentorship.api";
 import type { IMentorshipReport } from "@/types/startup-mentorship";
@@ -19,6 +19,7 @@ export default function ConsultingReportPage({ params }: { params: Promise<{ id:
   const [report, setReport] = useState<IMentorshipReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [pendingReview, setPendingReview] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
 
   useEffect(() => {
@@ -30,8 +31,14 @@ export default function ConsultingReportPage({ params }: { params: Promise<{ id:
         } else {
           setNotFound(true);
         }
-      } catch {
-        setNotFound(true);
+      } catch (err: any) {
+        const status = err?.response?.status;
+        const code = err?.response?.data?.code;
+        if (status === 403 || code === "REPORT_NOT_AVAILABLE") {
+          setPendingReview(true);
+        } else {
+          setNotFound(true);
+        }
       } finally {
         setLoading(false);
       }
@@ -40,6 +47,9 @@ export default function ConsultingReportPage({ params }: { params: Promise<{ id:
   }, [id]);
 
   const handleDownload = () => {
+    if (report?.attachmentsURL) {
+      window.open(report.attachmentsURL, "_blank", "noopener,noreferrer");
+    }
     setDownloaded(true);
     setTimeout(() => setDownloaded(false), 2000);
   };
@@ -48,6 +58,26 @@ export default function ConsultingReportPage({ params }: { params: Promise<{ id:
     return (
       <StartupShell>
         <div className="max-w-[900px] mx-auto pt-20 text-center text-slate-400 text-[13px]">Đang tải báo cáo...</div>
+      </StartupShell>
+    );
+  }
+
+  if (pendingReview) {
+    return (
+      <StartupShell>
+        <div className="max-w-[900px] mx-auto pt-20 text-center space-y-4">
+          <div className="w-12 h-12 mx-auto bg-amber-50 rounded-full flex items-center justify-center mb-2">
+            <FileText className="w-6 h-6 text-amber-500" />
+          </div>
+          <p className="text-[15px] font-semibold text-slate-700">Báo cáo chưa sẵn sàng</p>
+          <p className="text-[13px] text-slate-400">Báo cáo đang chờ phê duyệt từ bộ phận vận hành. Vui lòng quay lại sau.</p>
+          <button
+            onClick={() => router.push(`/startup/mentorship-requests/${id}`)}
+            className="mt-2 text-[13px] font-medium text-slate-500 hover:text-slate-700 transition-colors"
+          >
+            ← Quay lại chi tiết yêu cầu
+          </button>
+        </div>
       </StartupShell>
     );
   }
@@ -97,13 +127,15 @@ export default function ConsultingReportPage({ params }: { params: Promise<{ id:
                   <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" />{createdDate}</span>
                 </div>
               </div>
-              <button
-                onClick={handleDownload}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-[12px] font-semibold text-white transition-all flex-shrink-0"
-              >
-                {downloaded ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Download className="w-4 h-4" />}
-                {downloaded ? "Đã tải" : "Tải xuống"}
-              </button>
+              {report.attachmentsURL && (
+                <button
+                  onClick={handleDownload}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-[12px] font-semibold text-white transition-all flex-shrink-0"
+                >
+                  {downloaded ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Download className="w-4 h-4" />}
+                  {downloaded ? "Đã mở" : "Tải xuống"}
+                </button>
+              )}
             </div>
 
             {/* Advisor */}
@@ -234,6 +266,30 @@ export default function ConsultingReportPage({ params }: { params: Promise<{ id:
           )}
         </div>
 
+        {/* Attachment */}
+        {report.attachmentsURL && (
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center">
+                <Paperclip className="w-4 h-4 text-slate-400" />
+              </div>
+              <h2 className="text-[15px] font-bold text-slate-900">Tài liệu đính kèm</h2>
+            </div>
+            <a
+              href={report.attachmentsURL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2.5 px-4 py-3 rounded-xl border border-slate-200 hover:border-[#eec54e]/50 hover:bg-amber-50/30 transition-all group"
+            >
+              <Download className="w-4 h-4 text-emerald-500" />
+              <span className="text-[13px] font-semibold text-slate-700 group-hover:text-slate-900 max-w-[400px] truncate">
+                {report.attachmentsURL.split("/").pop() || "Tải tài liệu đính kèm"}
+              </span>
+              <ExternalLink className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#eec54e]" />
+            </a>
+          </div>
+        )}
+
         {/* CTA Footer */}
         <div className="flex items-center justify-between px-6 py-5 bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
           <button
@@ -243,13 +299,15 @@ export default function ConsultingReportPage({ params }: { params: Promise<{ id:
             ← Quay lại chi tiết yêu cầu
           </button>
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleDownload}
-              className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 bg-white text-slate-700 rounded-xl text-[13px] font-semibold hover:bg-slate-50 transition-all"
-            >
-              <Download className="w-4 h-4" />
-              Tải báo cáo
-            </button>
+            {report.attachmentsURL && (
+              <button
+                onClick={handleDownload}
+                className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 bg-white text-slate-700 rounded-xl text-[13px] font-semibold hover:bg-slate-50 transition-all"
+              >
+                {downloaded ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Download className="w-4 h-4" />}
+                {downloaded ? "Đã mở" : "Tải tài liệu"}
+              </button>
+            )}
             <button
               onClick={() => router.push(`/startup/mentorship-requests/${id}/feedback`)}
               className="flex items-center gap-2 px-4 py-2.5 bg-[#0f172a] text-white rounded-xl text-[13px] font-semibold hover:bg-slate-700 transition-all shadow-sm"

@@ -861,7 +861,7 @@ export default function InvestorsPage() {
                           ) : hasPendingIncomingInvite ? (
                             <Button
                               onClick={() => router.push(`/startup/investors/${investor.investorID}`)}
-                              className="h-[44px] flex-1 gap-1.5 rounded-xl bg-sky-50 text-[13px] font-semibold text-sky-700 shadow-sm transition-colors hover:bg-sky-100"
+                              className="h-[44px] flex-1 gap-1.5 rounded-xl bg-amber-500 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-amber-600"
                             >
                               Xử lý lời mời
                             </Button>

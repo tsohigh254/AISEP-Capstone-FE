@@ -5,9 +5,12 @@ export type ConsultingRequestStatus =
   | 'ACCEPTED'
   | 'REJECTED'
   | 'SCHEDULED'
+  | 'IN_PROGRESS'
   | 'COMPLETED'
   | 'CANCELLED'
-  | 'FINALIZED';
+  | 'FINALIZED'
+  | 'IN_DISPUTE'
+  | 'RESOLVED';
 
 // Session statuses
 export type ConsultingSessionStatus =

@@ -64,7 +64,10 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
           .map((tag: string) => tag.trim())
           .filter(Boolean);
 
-  const sessions = (item as any).sessions || [];
+  const sessions = ((item as any).sessions || []).filter((s: any) => {
+    const st = (s.status || s.sessionStatus || "").toUpperCase();
+    return st !== "CANCELLED";
+  });
   const otherSlots: any[] =
     (item as any).requestedSlots ||
     (item as any).preferredSlots ||
@@ -87,7 +90,7 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
       statusVal = "PROPOSED";
     }
 
-    if (statusVal === "SCHEDULED") statusVal = "ACCEPTED";
+    if (["SCHEDULED", "INPROGRESS", "IN_PROGRESS", "CONDUCTED", "COMPLETED", "INDISPUTE", "RESOLVED"].includes(statusVal)) statusVal = "ACCEPTED";
 
     const start = slot.startAt || slot.scheduledStartAt;
     let end = slot.endAt;
@@ -113,7 +116,9 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
   const rawStatus = item.status?.toUpperCase() || (item as any).mentorshipStatus?.toUpperCase() || "PENDING";
   let normalizedStatus: ConsultingRequestStatus = "PENDING";
   if (rawStatus === "REQUESTED") normalizedStatus = "PENDING";
-  else if (rawStatus === "INPROGRESS" || rawStatus === "IN_PROGRESS") normalizedStatus = "SCHEDULED";
+  else if (rawStatus === "INPROGRESS" || rawStatus === "IN_PROGRESS") normalizedStatus = "IN_PROGRESS";
+  else if (rawStatus === "INDISPUTE" || rawStatus === "IN_DISPUTE") normalizedStatus = "IN_DISPUTE";
+  else if (rawStatus === "RESOLVED") normalizedStatus = "RESOLVED";
   else normalizedStatus = rawStatus as ConsultingRequestStatus;
 
   if (normalizedStatus === "COMPLETED") {

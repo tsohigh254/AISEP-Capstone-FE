@@ -275,9 +275,9 @@ export default function ConfirmSchedulePage({
 
   const advisor = advisorDetail || request?.advisor || {
     advisorID: request?.advisorID,
-    fullName: (request as any)?.advisorName,
-    title: "Cố vấn viên",
-    profilePhotoURL: "",
+    fullName: (request as any)?.advisorName ?? "—",
+    title: (request as any)?.advisorTitle ?? "Cố vấn viên",
+    profilePhotoURL: (request as any)?.advisorPhotoURL ?? "",
   };
   const durationMinutes = request?.durationMinutes || firstSession?.durationMinutes || 60;
   const durationLabel = `${durationMinutes} phút`;

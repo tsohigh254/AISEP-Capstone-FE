@@ -14,7 +14,10 @@ import type {
 
 export const SearchAdvisors = (params: {
   search?: string;
-  industryId?: number;
+  expertise?: string;
+  experience?: number;
+  rating?: number;
+  sort?: string;
   page?: number;
   pageSize?: number;
 }) => {
@@ -87,6 +90,17 @@ export const SubmitMentorshipFeedback = (
   );
 };
 
+// ── Startup Confirm Conducted ────────────────────────────────────────────────
+
+export const ConfirmSessionConducted = (
+  mentorshipId: number,
+  sessionId: number
+) => {
+  return axios.post<IBackendRes<any>>(
+    `/api/mentorships/${mentorshipId}/sessions/${sessionId}/confirm-conducted`
+  );
+};
+
 export const GetMentorshipReport = async (mentorshipId: number) => {
   const response = await axios.get(`/api/mentorships/${mentorshipId}`);
   const data = response.data as any;
@@ -104,11 +118,12 @@ export const GetMentorshipReport = async (mentorshipId: number) => {
          actualReport.detailedFindings,
          actualReport.recommendations
       ].filter(Boolean).join("\n\n"),
+      attachmentsURL: actualReport.attachmentsURL || null,
       advisor: {
         advisorID: mentorship.advisorID,
         fullName: mentorship.advisorName || "Cố vấn",
-        title: "Chuyên gia / Cố vấn",
-        profilePhotoURL: ""
+        title: mentorship.advisorTitle || "Chuyên gia / Cố vấn",
+        profilePhotoURL: mentorship.advisorPhotoURL || ""
       }
     };
     return {

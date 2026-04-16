@@ -62,7 +62,13 @@ export interface IConsultationReport {
   // Review (Staff side feedback)
   staffRemarks?: string;
   
+  // Oversight review (added by consulting-oversight flow)
+  reviewStatus?: "PendingReview" | "Passed" | "Failed" | "NeedsMoreInfo";
+  staffReviewNote?: string | null;
+  reviewedAt?: string | null;
+  
   // Attachments
+  attachmentsURL?: string | null;
   attachments: IConsultationReportAttachment[];
 
   // History

@@ -12,11 +12,11 @@ import {
   Clock,
   X,
   ChevronDown,
+  BadgeCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConnectStartupModal } from "@/components/investor/connect-startup-modal";
 import { SearchStartups, GetMasterIndustries, GetMasterStages } from "@/services/investor/investor.api";
-import { GetSentConnections, GetReceivedConnections } from "@/services/connection/connection.api";
 
 const AVATAR_COLORS = [
   "from-violet-500 to-violet-600",
@@ -43,6 +43,10 @@ type StartupCard = {
   activeDays: number | null;
   logo: string;
   isHot: boolean;
+  isVerified: boolean;
+  connectionStatus: string | null;
+  connectionId: number | null;
+  canRequestConnection: boolean;
 };
 
 function getAvatarColor(name: string): string {
@@ -64,11 +68,11 @@ const checkCls =
 export default function StartupDiscoveryPage() {
   const [startups, setStartups] = useState<StartupCard[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [myConnections, setMyConnections] = useState<IConnectionItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
   const [addingStartup, setAddingStartup] = useState<StartupCard | null>(null);
   const [showFilter, setShowFilter] = useState(false);
 
@@ -85,22 +89,6 @@ export default function StartupDiscoveryPage() {
     const t = setTimeout(() => setDebouncedSearch(search), 400);
     return () => clearTimeout(t);
   }, [search]);
-
-  const fetchConnections = async () => {
-    try {
-      const [sentRes, receivedRes] = await Promise.all([
-        GetSentConnections(1, 100) as any,
-        GetReceivedConnections(1, 100) as any,
-      ]);
-      const sentItems = (sentRes?.success || sentRes?.isSuccess) ? ((sentRes.data as any)?.data || sentRes.data?.items || []) : [];
-      const receivedItems = (receivedRes?.success || receivedRes?.isSuccess) ? ((receivedRes.data as any)?.data || receivedRes.data?.items || []) : [];
-      const map = new Map<number, IConnectionItem>();
-      [...sentItems, ...receivedItems].forEach((c: IConnectionItem) => map.set(c.connectionID, c));
-      setMyConnections(Array.from(map.values()));
-    } catch (error) {
-      console.error("Error fetching connections", error);
-    }
-  };
 
   // Fetch master data once
   useEffect(() => {
@@ -163,6 +151,10 @@ export default function StartupDiscoveryPage() {
               apiItem.logoURL ||
               (apiItem.companyName || "U").substring(0, 2).toUpperCase(),
             isHot: (apiItem.aiScore || 0) > 80,
+            isVerified: apiItem.profileStatus === "Approved",
+            connectionStatus: (apiItem.connectionStatus as string) ?? null,
+            connectionId: (apiItem.connectionId as number) ?? null,
+            canRequestConnection: (apiItem.canRequestConnection as boolean) ?? true,
           }));
           setStartups(mapped);
         }
@@ -174,9 +166,8 @@ export default function StartupDiscoveryPage() {
     };
 
     fetchStartups();
-  }, [debouncedSearch, selectedIndustryIds, selectedStages]);
+  }, [debouncedSearch, selectedIndustryIds, selectedStages, refreshKey]);
 
-  useEffect(() => { fetchConnections(); }, []);
 
   const toggleIndustry = (id: number) =>
     setSelectedIndustryIds((prev) =>
@@ -474,15 +465,9 @@ export default function StartupDiscoveryPage() {
         {!isLoading &&
           filtered.map((startup) => {
             const avatarGradient = getAvatarColor(startup.id);
-            const connection = myConnections.find(
-              (c: any) =>
-                String(c.receiverId) === startup.id ||
-                String(c.startupId) === startup.id ||
-                String(c.startupID) === startup.id,
-            );
-            const connStatus = connection?.connectionStatus?.toLowerCase();
-            const isAccepted = connStatus === "accepted" || connStatus === "indiscussion";
-            const isPending = connStatus === "requested";
+            const connStatus = (startup.connectionStatus || "").toUpperCase();
+            const isAccepted = connStatus === "ACCEPTED" || connStatus === "IN_DISCUSSION" || connStatus === "INDISCUSSION";
+            const isPending = connStatus === "REQUESTED";
             const hasActiveConnection = isAccepted || isPending;
 
             return (
@@ -516,6 +501,9 @@ export default function StartupDiscoveryPage() {
                       <span className="text-[15px] font-semibold text-slate-900">
                         {startup.name}
                       </span>
+                      {startup.isVerified && (
+                        <BadgeCheck className="w-4 h-4 text-teal-500 flex-shrink-0" />
+                      )}
                       {startup.isHot && (
                         <Sparkles className="w-4 h-4 text-amber-500 flex-shrink-0" />
                       )}
@@ -601,7 +589,7 @@ export default function StartupDiscoveryPage() {
                   </Link>
                   {isAccepted ? (
                     <Link
-                      href={`/investor/messaging?connectionId=${connection?.connectionID}`}
+                      href={`/investor/messaging?connectionId=${startup.connectionId}`}
                       className="flex-1 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-[13px] font-semibold hover:bg-emerald-100 transition-all text-center"
                     >
                       Đã kết nối · Nhắn tin
@@ -631,7 +619,7 @@ export default function StartupDiscoveryPage() {
         onOpenChange={(open) => !open && setAddingStartup(null)}
         startup={addingStartup}
         onSuccess={() => {
-          fetchConnections();
+          setRefreshKey((k) => k + 1);
           setAddingStartup(null);
         }}
       />

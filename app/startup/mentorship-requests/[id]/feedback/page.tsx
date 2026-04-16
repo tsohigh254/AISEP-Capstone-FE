@@ -85,11 +85,11 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
   const sessions = (request as any)?.sessions || [];
   const firstSession = sessions.slice().reverse().find((s: any) => s.meetingUrl || s.meetingURL || s.meetingLink) || sessions[sessions.length - 1] || null;
 
-  const advisor = request?.advisor || {
-    fullName: (request as any)?.advisorName,
-    title: "Cố vấn viên",
-    profilePhotoURL: "",
-    averageRating: null
+  const advisor = {
+    fullName: request?.advisor?.fullName ?? (request as any)?.advisorName ?? "—",
+    title: request?.advisor?.title ?? (request as any)?.advisorTitle ?? "Cố vấn viên",
+    profilePhotoURL: request?.advisor?.profilePhotoURL ?? (request as any)?.advisorPhotoURL ?? "",
+    averageRating: request?.advisor?.averageRating ?? null,
   };
 
   const actualDate = request?.scheduledAt || firstSession?.scheduledStartAt || firstSession?.actualStartTime;
@@ -97,7 +97,9 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
     ? new Date(actualDate).toLocaleDateString("vi-VN", { day: "numeric", month: "long", year: "numeric" })
     : "—";
 
-  const duration = request?.durationMinutes ? `${request.durationMinutes} phút` : "—";
+  const duration = request?.durationMinutes || firstSession?.durationMinutes
+    ? `${request?.durationMinutes || firstSession?.durationMinutes} phút`
+    : "—";
   const objective = request?.objective || (request as any)?.challengeDescription || "Tư vấn khởi nghiệp";
 
   return (

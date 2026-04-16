@@ -16,6 +16,7 @@ import {
 import {
   AlertCircle,
   AlertTriangle,
+  BadgeCheck,
   Bookmark,
   Building2,
   Calendar,
@@ -456,8 +457,8 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
       if (!Number.isFinite(startupId) || startupId <= 0) return;
       try {
         const [sentRes, receivedRes] = await Promise.all([
-          GetSentConnections(1, 100) as any,
-          GetReceivedConnections(1, 100) as any,
+          GetSentConnections(1, 20, undefined, startupId) as any,
+          GetReceivedConnections(1, 20, undefined, startupId) as any,
         ]);
         const getItems = (res: any) => {
           if (!res?.isSuccess && !res?.success) return [];
@@ -465,7 +466,7 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
           return Array.isArray(d) ? d : Array.isArray(d?.data) ? d.data : Array.isArray(d?.items) ? d.items : [];
         };
         const allConns = [...getItems(sentRes), ...getItems(receivedRes)];
-        const match = allConns.find((c: any) => Number(c?.startupID ?? c?.startupId ?? c?.StartupID ?? null) === startupId);
+        const match = allConns[0] ?? allConns.find((c: any) => Number(c?.startupID ?? c?.startupId ?? c?.StartupID ?? null) === startupId);
         if (match) {
           const status = (match.connectionStatus || "").toLowerCase();
           if (status === "accepted" || status === "indiscussion") {
@@ -585,8 +586,8 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <h1 className="text-[22px] font-semibold text-[#0f172a] tracking-[-0.02em]">{companyName}</h1>
-                {startup.enterpriseCode && (
-                  <span className="rounded-full border border-green-200 bg-green-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-green-700">Đã Verified</span>
+                {startup.profileStatus === "Approved" && (
+                  <BadgeCheck className="w-5 h-5 text-teal-500 flex-shrink-0" />
                 )}
               </div>
               <p className="text-[13px] text-slate-500">{startup.oneLiner || "Chưa có khẩu hiệu"}</p>
