@@ -4,12 +4,119 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Bookmark, Search, UserMinus, Sparkles, Building2, TrendingUp, Handshake, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { GetInvestorWatchlist, GetInvestorProfile, RemoveFromWatchlist } from "@/services/investor/investor.api";
+import { GetInvestorWatchlist, GetInvestorProfile, GetStartupById, RemoveFromWatchlist, SearchStartups } from "@/services/investor/investor.api";
+import { GetEvaluationHistory, GetEvaluationReport } from "@/services/ai/ai.api";
 import { toast } from "sonner";
+
+function normalizeScore(raw: any): number | null {
+  if (raw == null) return null;
+  let n: number;
+  if (typeof raw === "string") {
+    const matched = raw.match(/-?\d+(?:\.\d+)?/);
+    if (!matched) return null;
+    n = Number(matched[0]);
+  } else {
+    n = Number(raw);
+  }
+  if (!Number.isFinite(n)) return null;
+  if (n <= 1) return Math.round(n * 100);
+  if (n <= 10) return Math.round(n * 10);
+  return Math.round(n);
+}
+
+function extractAiScore(source: any): number | null {
+  if (!source) return null;
+  return normalizeScore(
+    source?.aiScore ??
+    source?.AiScore ??
+    source?.AIScore ??
+    source?.ai_score ??
+    source?.score ??
+    source?.Score ??
+    source?.overallScore ??
+    source?.OverallScore ??
+    source?.overall_score ??
+    source?.latestAiScore ??
+    source?.latestScore ??
+    source?.startupPotentialScore ??
+    source?.startupScore ??
+    source?.matchScore ??
+    source?.MatchScore ??
+    source?.startup?.aiScore ??
+    source?.startup?.AiScore ??
+    source?.startup?.score ??
+    source?.ai?.score ??
+    source?.ai?.aiScore ??
+    source?.ai?.overallScore ??
+    source?.aiEvaluation?.overallScore ??
+    source?.overall_result?.overall_score ??
+    source?.overall_result?.overallScore ??
+    source?.report?.overall_result?.overall_score ??
+    source?.report?.overall_result?.overallScore ??
+    source?.report?.overallScore ??
+    source?.report?.overall_score ??
+    source?.data?.overall_result?.overall_score ??
+    source?.data?.overall_result?.overallScore ??
+    source?.data?.report?.overall_result?.overall_score ??
+    source?.data?.report?.overall_result?.overallScore ??
+    source?.data?.report?.overallScore ??
+    source?.data?.report?.overall_score ??
+    source?.potentialScore ??
+    source?.PotentialScore ??
+    source?.latestEvaluation?.overallScore ??
+    source?.latestEvaluation?.overall_score ??
+    source?.latestEvaluation?.report?.overall_result?.overall_score ??
+    source?.startup?.potentialScore ??
+    source?.startup?.latestEvaluation?.overallScore ??
+    source?.startup?.latestEvaluation?.overall_score
+  );
+}
+
+function extractLatestHistoryScore(items: any[]): number | null {
+  if (!Array.isArray(items) || items.length === 0) return null;
+
+  const isCompleted = (item: any) => {
+    const s = String(item?.status ?? item?.Status ?? item?.statusName ?? item?.StatusName ?? "").toLowerCase();
+    return s === "completed" || s === "partial_completed";
+  };
+
+  const getTime = (item: any) => {
+    const t = new Date(item?.generatedAt ?? item?.calculatedAt ?? item?.createdAt ?? item?.updatedAt ?? item?.created_at ?? item?.updated_at ?? 0).getTime();
+    return Number.isFinite(t) ? t : 0;
+  };
+
+  const sorted = [...items].filter(isCompleted).sort((a, b) => getTime(b) - getTime(a));
+  for (const item of sorted) {
+    const score = extractAiScore(item);
+    if (score != null && score > 0) return score;
+  }
+  return null;
+}
+
+function extractLatestCompletedRunId(items: any[]): number {
+  if (!Array.isArray(items) || items.length === 0) return 0;
+
+  const isCompleted = (item: any) => {
+    const s = String(item?.status ?? item?.Status ?? item?.statusName ?? item?.StatusName ?? "").toLowerCase();
+    return s === "completed" || s === "partial_completed";
+  };
+
+  const getTime = (item: any) => {
+    const t = new Date(item?.generatedAt ?? item?.calculatedAt ?? item?.createdAt ?? item?.updatedAt ?? item?.created_at ?? item?.updated_at ?? 0).getTime();
+    return Number.isFinite(t) ? t : 0;
+  };
+
+  const sorted = [...items].filter(isCompleted).sort((a, b) => getTime(b) - getTime(a));
+  if (sorted.length === 0) return 0;
+  const latest = sorted[0];
+  return Number(latest?.evaluationId ?? latest?.runId ?? latest?.RunId ?? latest?.id ?? latest?.Id ?? latest?.run_id ?? 0) || 0;
+}
+
+type WatchlistRow = IWatchlistItem & { aiScore?: number | null };
 
 export default function WatchlistPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [watchlist, setWatchlist] = useState<IWatchlistItem[]>([]);
+  const [watchlist, setWatchlist] = useState<WatchlistRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isInvestor, setIsInvestor] = useState<boolean | null>(null);
   const [removingMap, setRemovingMap] = useState<Record<string, boolean>>({});
@@ -34,16 +141,108 @@ export default function WatchlistPage() {
           else if (Array.isArray((res as any)?.items)) items = (res as any).items;
           else items = [];
           // Normalize casing from backend DTOs to frontend-friendly camelCase
-          const normalized = (items as any[]).map((raw) => ({
+          let normalized: WatchlistRow[] = (items as any[]).map((raw) => ({
             watchlistId: raw?.watchlistID ?? raw?.watchlistId ?? null,
-            startupID: raw?.startupID ?? raw?.startupId ?? null,
-            startupName: raw?.companyName ?? raw?.startupName ?? null,
-            industry: raw?.industry ?? null,
-            stage: raw?.stage ?? null,
-            logoURL: raw?.logoURL ?? null,
+            startupID: raw?.startupID ?? raw?.startupId ?? raw?.startup?.startupID ?? raw?.startup?.startupId ?? null,
+            startupName: raw?.companyName ?? raw?.startupName ?? raw?.startup?.companyName ?? raw?.startup?.startupName ?? null,
+            industry: raw?.industry ?? raw?.startup?.industry ?? raw?.startup?.industryName ?? null,
+            stage: raw?.stage ?? raw?.startup?.stage ?? null,
+            logoURL: raw?.logoURL ?? raw?.startup?.logoURL ?? null,
             priority: raw?.priority ?? null,
-            addedAt: raw?.addedAt ?? null,
+            addedAt: raw?.addedAt ?? raw?.createdAt ?? raw?.startup?.addedAt ?? raw?.startup?.createdAt ?? null,
+            aiScore: extractAiScore(raw),
           }));
+
+          // Fallback: if watchlist payload doesn't include AI score, enrich by startup detail.
+          const missingScoreRows = normalized.filter((x) => (x.aiScore == null || x.aiScore <= 0) && Number(x.startupID) > 0);
+          if (missingScoreRows.length > 0) {
+            const scoreByStartupId = new Map<number, number>();
+            const details = await Promise.allSettled(
+              missingScoreRows.map((row) => GetStartupById(Number(row.startupID)) as any)
+            );
+
+            for (let i = 0; i < details.length; i++) {
+              const r = details[i];
+              const startupId = Number(missingScoreRows[i]?.startupID);
+              if (r.status !== "fulfilled") continue;
+              const payload = (r.value as any)?.data ?? r.value;
+              const score = extractAiScore(payload);
+              if (score != null) scoreByStartupId.set(startupId, score);
+            }
+
+            normalized = normalized.map((row) => {
+              const sid = Number(row.startupID);
+              if (row.aiScore != null && row.aiScore > 0) return row;
+              const enriched = scoreByStartupId.get(sid);
+              return { ...row, aiScore: enriched ?? row.aiScore };
+            });
+
+            const stillMissingBySearch = normalized.filter((x) => (x.aiScore == null || x.aiScore <= 0) && Number(x.startupID) > 0);
+            if (stillMissingBySearch.length > 0) {
+              const maxPages = 4;
+              for (let page = 1; page <= maxPages; page++) {
+                const r = await SearchStartups(undefined, page, 100) as any;
+                const isSuccess = r?.isSuccess || r?.success || r?.statusCode === 200;
+                if (!isSuccess) continue;
+
+                const items = r?.data?.items || r?.data?.data || r?.items || [];
+                if (!Array.isArray(items) || items.length === 0) continue;
+
+                for (const row of stillMissingBySearch) {
+                  const sid = Number(row?.startupID);
+                  if (!sid || scoreByStartupId.has(sid)) continue;
+                  const matched = items.find((x: any) => Number(x?.startupID ?? x?.startupId ?? x?.StartupID ?? 0) === sid);
+                  const score = extractAiScore(matched);
+                  if (score != null) scoreByStartupId.set(sid, score);
+                }
+              }
+
+              normalized = normalized.map((row) => {
+                const sid = Number(row.startupID);
+                if (row.aiScore != null && row.aiScore > 0) return row;
+                const enriched = scoreByStartupId.get(sid);
+                return { ...row, aiScore: enriched ?? row.aiScore };
+              });
+            }
+
+            const stillMissingRows = normalized.filter((x) => (x.aiScore == null || x.aiScore <= 0) && Number(x.startupID) > 0);
+            if (stillMissingRows.length > 0) {
+              const histories = await Promise.allSettled(
+                stillMissingRows.map((row) => GetEvaluationHistory(Number(row.startupID)) as any)
+              );
+
+              for (let i = 0; i < histories.length; i++) {
+                const r = histories[i];
+                const sid = Number(stillMissingRows[i]?.startupID);
+                if (r.status !== "fulfilled") continue;
+                const historyItems = (r.value as any)?.data ?? r.value ?? [];
+                const score = extractLatestHistoryScore(historyItems);
+                if (score != null) scoreByStartupId.set(sid, score);
+
+                if (score == null || score <= 0) {
+                  const latestRunId = extractLatestCompletedRunId(historyItems);
+                  if (latestRunId > 0) {
+                    try {
+                      const reportRes = await GetEvaluationReport(latestRunId) as any;
+                      const reportPayload = reportRes?.data?.report ?? reportRes?.data ?? reportRes;
+                      const reportScore = extractAiScore(reportPayload);
+                      if (reportScore != null) scoreByStartupId.set(sid, reportScore);
+                    } catch {
+                      // ignore report fallback failure
+                    }
+                  }
+                }
+              }
+
+              normalized = normalized.map((row) => {
+                const sid = Number(row.startupID);
+                if (row.aiScore != null && row.aiScore > 0) return row;
+                const enriched = scoreByStartupId.get(sid);
+                return { ...row, aiScore: enriched ?? row.aiScore };
+              });
+            }
+          }
+
           setWatchlist(normalized as any);
         } else {
           toast.error("Không thể tải danh sách theo dõi");
@@ -157,7 +356,7 @@ export default function WatchlistPage() {
             <tbody className="divide-y divide-neutral-surface">
               {(() => {
                 const filtered = watchlist.filter((w) =>
-                  searchTerm ? w.startupName.toLowerCase().includes(searchTerm.trim().toLowerCase()) : true,
+                  searchTerm ? (w.startupName ?? "").toLowerCase().includes(searchTerm.trim().toLowerCase()) : true,
                 );
 
                 if (isLoading) {
@@ -211,7 +410,7 @@ export default function WatchlistPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1.5 bg-[#e6cc4c]/10 text-[#C8A000] px-2.5 py-1.5 rounded-lg border border-[#e6cc4c]/20 w-fit">
                         <Sparkles className="w-3.5 h-3.5" />
-                        <span className="font-black leading-none">—</span>
+                        <span className="font-black leading-none">{item.aiScore != null ? item.aiScore : "N/A"}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 max-w-[240px]">

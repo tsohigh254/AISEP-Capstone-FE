@@ -36,10 +36,12 @@ import {
   AddToWatchlist,
   GetInvestorProfile,
   GetInvestorWatchlist,
+  SearchStartups,
   GetStartupById,
   RemoveFromWatchlist,
 } from "@/services/investor/investor.api";
 import { GetStartupDocuments, ViewDocument } from "@/services/document/document.api";
+import { GetEvaluationHistory, GetEvaluationReport } from "@/services/ai/ai.api";
 import { Download, Eye, FileText as FileTextIcon, FolderOpen, RefreshCcw } from "lucide-react";
 import { GetSentConnections, GetReceivedConnections } from "@/services/connection/connection.api";
 import { ConnectStartupModal } from "@/components/investor/connect-startup-modal";
@@ -75,6 +77,104 @@ function getErrorCode(source: any): string | undefined {
 
 function getErrorMessage(source: any): string | undefined {
   return source?.message ?? source?.error?.message ?? source?.data?.message ?? source?.response?.data?.message;
+}
+
+function normalizeScore(raw: any): number | null {
+  if (raw == null) return null;
+  let n: number;
+  if (typeof raw === "string") {
+    const matched = raw.match(/-?\d+(?:\.\d+)?/);
+    if (!matched) return null;
+    n = Number(matched[0]);
+  } else {
+    n = Number(raw);
+  }
+  if (!Number.isFinite(n)) return null;
+  if (n <= 1) return Math.round(n * 100);
+  if (n <= 10) return Math.round(n * 10);
+  return Math.round(n);
+}
+
+function extractAiScore(source: any): number | null {
+  if (!source) return null;
+  return normalizeScore(
+    source?.score ??
+    source?.Score ??
+    source?.aiScore ??
+    source?.AiScore ??
+    source?.AIScore ??
+    source?.ai_score ??
+    source?.overallScore ??
+    source?.OverallScore ??
+    source?.overall_score ??
+    source?.latestAiScore ??
+    source?.latestScore ??
+    source?.startupPotentialScore ??
+    source?.startupScore ??
+    source?.matchScore ??
+    source?.MatchScore ??
+    source?.ai?.score ??
+    source?.ai?.aiScore ??
+    source?.ai?.overallScore ??
+    source?.aiEvaluation?.overallScore ??
+    source?.overall_result?.overall_score ??
+    source?.overall_result?.overallScore ??
+    source?.report?.overall_result?.overall_score ??
+    source?.report?.overall_result?.overallScore ??
+    source?.report?.overallScore ??
+    source?.report?.overall_score ??
+    source?.data?.overall_result?.overall_score ??
+    source?.data?.overall_result?.overallScore ??
+    source?.data?.report?.overall_result?.overall_score ??
+    source?.data?.report?.overall_result?.overallScore ??
+    source?.data?.report?.overallScore ??
+    source?.data?.report?.overall_score ??
+    source?.potentialScore ??
+    source?.PotentialScore ??
+    source?.latestEvaluation?.overallScore ??
+    source?.latestEvaluation?.overall_score ??
+    source?.latestEvaluation?.report?.overall_result?.overall_score
+  );
+}
+
+function extractLatestHistoryScore(items: any[]): number | null {
+  if (!Array.isArray(items) || items.length === 0) return null;
+
+  const isCompleted = (item: any) => {
+    const s = String(item?.status ?? item?.Status ?? item?.statusName ?? item?.StatusName ?? "").toLowerCase();
+    return s === "completed" || s === "partial_completed";
+  };
+
+  const getTime = (item: any) => {
+    const t = new Date(item?.generatedAt ?? item?.calculatedAt ?? item?.createdAt ?? item?.updatedAt ?? item?.created_at ?? item?.updated_at ?? 0).getTime();
+    return Number.isFinite(t) ? t : 0;
+  };
+
+  const sorted = [...items].filter(isCompleted).sort((a, b) => getTime(b) - getTime(a));
+  for (const item of sorted) {
+    const score = extractAiScore(item);
+    if (score != null && score > 0) return score;
+  }
+  return null;
+}
+
+function extractLatestCompletedRunId(items: any[]): number {
+  if (!Array.isArray(items) || items.length === 0) return 0;
+
+  const isCompleted = (item: any) => {
+    const s = String(item?.status ?? item?.Status ?? item?.statusName ?? item?.StatusName ?? "").toLowerCase();
+    return s === "completed" || s === "partial_completed";
+  };
+
+  const getTime = (item: any) => {
+    const t = new Date(item?.generatedAt ?? item?.calculatedAt ?? item?.createdAt ?? item?.updatedAt ?? item?.created_at ?? item?.updated_at ?? 0).getTime();
+    return Number.isFinite(t) ? t : 0;
+  };
+
+  const sorted = [...items].filter(isCompleted).sort((a, b) => getTime(b) - getTime(a));
+  if (sorted.length === 0) return 0;
+  const latest = sorted[0];
+  return Number(latest?.evaluationId ?? latest?.runId ?? latest?.RunId ?? latest?.id ?? latest?.Id ?? latest?.run_id ?? 0) || 0;
 }
 
 // ─── Shared UI components ─────────────────────────────────────────────────────
@@ -537,6 +637,7 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<"none" | "pending" | "accepted">("none");
   const [connectionId, setConnectionId] = useState<number | null>(null);
+  const [resolvedAiScore, setResolvedAiScore] = useState<number | null>(null);
 
   const fetchStartup = useCallback(async () => {
     if (!Number.isFinite(startupId) || startupId <= 0) {
@@ -549,7 +650,57 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
     try {
       const res = await GetStartupById(startupId) as any;
       if ((res?.isSuccess || res?.success) && res.data) {
-        setStartup(res.data);
+        const data = res.data;
+        let score = extractAiScore(data);
+
+        // Fallback: detail endpoint sometimes omits AI score while search endpoint has it.
+        if ((score == null || score <= 0) && Number.isFinite(startupId) && startupId > 0) {
+          try {
+            const maxPages = 4;
+            for (let page = 1; page <= maxPages && (score == null || score <= 0); page++) {
+              const searchRes = await SearchStartups(undefined, page, 100) as any;
+              const isSuccess = searchRes?.isSuccess || searchRes?.success || searchRes?.statusCode === 200;
+              if (!isSuccess) continue;
+
+              const items = searchRes?.data?.items || searchRes?.data?.data || searchRes?.items || [];
+              if (!Array.isArray(items) || items.length === 0) continue;
+
+              const matched = items.find((x: any) => Number(x?.startupID ?? x?.startupId ?? x?.StartupID ?? 0) === startupId);
+              const fallbackScore = extractAiScore(matched);
+              if (fallbackScore != null) {
+                score = fallbackScore;
+                break;
+              }
+            }
+          } catch {
+            // non-blocking fallback
+          }
+        }
+
+        // Final fallback: resolve score from AI evaluation history by startupId.
+        if ((score == null || score <= 0) && Number.isFinite(startupId) && startupId > 0) {
+          try {
+            const historyRes = await GetEvaluationHistory(startupId) as any;
+            const historyItems = historyRes?.data ?? historyRes ?? [];
+            const historyScore = extractLatestHistoryScore(historyItems);
+            if (historyScore != null) score = historyScore;
+
+            if (score == null || score <= 0) {
+              const latestRunId = extractLatestCompletedRunId(historyItems);
+              if (latestRunId > 0) {
+                const reportRes = await GetEvaluationReport(latestRunId) as any;
+                const reportPayload = reportRes?.data?.report ?? reportRes?.data ?? reportRes;
+                const reportScore = extractAiScore(reportPayload);
+                if (reportScore != null) score = reportScore;
+              }
+            }
+          } catch {
+            // non-blocking fallback
+          }
+        }
+
+        setResolvedAiScore(score ?? 0);
+        setStartup(data);
       } else {
         const code = getErrorCode(res);
         setError(code === "STARTUP_NOT_FOUND" || res?.statusCode === 404
@@ -675,7 +826,7 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
     : (startup.industryName || startup.industry);
   const teamSizeValue = startup.teamSize ?? startup.TeamSize;
   const targetFunding = Number(startup.fundingAmountSought) || 0;
-  const aiScore = Number(startup.score ?? startup.aiScore ?? 0);
+  const aiScore = resolvedAiScore ?? extractAiScore(startup) ?? 0;
 
   const foundedDateDisplay = startup.foundedDate
     ? new Date(startup.foundedDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })

@@ -516,11 +516,13 @@ declare global {
     watchlistId: number;
     startupID: number;
     startupName: string;
+    companyName?: string;
     industry?: string | null;
     stage?: string | null;
     logoURL?: string | null;
     priority?: string | null;
     addedAt: string;
+    aiScore?: number | null;
   }
 
   interface ICreateWatchlistItem {

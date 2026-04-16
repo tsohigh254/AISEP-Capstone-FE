@@ -594,11 +594,11 @@ export default function AIDetailedReportPage() {
                   Xuất PDF
                 </button>
                 <button
-                  onClick={() => router.push("/startup/ai-evaluation/score")}
+                  onClick={() => router.push("/startup/ai-evaluation")}
                   className="w-full flex items-center gap-2 h-9 px-4 rounded-xl bg-slate-50 text-slate-700 text-[12px] font-semibold hover:bg-slate-100 transition-all"
                 >
                   <BarChart3 className="w-3.5 h-3.5" />
-                  Quay lại điểm tiềm năng
+                  Quay lại đánh giá AI
                 </button>
                 <button
                   onClick={() => router.push("/startup/ai-evaluation/history")}

@@ -443,9 +443,6 @@ function DashboardView({ latestCompleted, profile, documents }: { latestComplete
               ))}
             </div>
             <div className="flex items-center gap-2 pt-1">
-              <button onClick={() => router.push("/startup/ai-evaluation/score")} className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#eec54e] text-slate-900 text-[12px] font-bold hover:bg-[#e6b800] transition-all">
-                <BarChart3 className="w-3.5 h-3.5" />Xem điểm tiềm năng
-              </button>
               <button onClick={() => router.push(`/startup/ai-evaluation/${latestCompleted.evaluationId}`)} className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-slate-100 text-slate-700 text-[12px] font-semibold hover:bg-slate-200 transition-all">
                 <FileText className="w-3.5 h-3.5" />Xem báo cáo chi tiết
               </button>

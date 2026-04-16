@@ -274,10 +274,30 @@ export default function StartupDocumentsPage() {
                 {/* Stats */}
                 <div className="grid grid-cols-4 gap-4">
                     {[
-                        { Icon: FolderOpen,  label: "Tổng tài liệu", value: String(localDocs.length), sub: "—" },
-                        { Icon: ShieldCheck, label: "Đã bảo vệ IP",  value: String(protectedCount),   sub: localDocs.length ? `${Math.round(protectedCount / localDocs.length * 100)}% tổng số` : "—" },
-                        { Icon: Clock,       label: "Chờ xác nhận",  value: String(pendingCount),     sub: "—" },
-                        { Icon: HardDrive,   label: "Loại tài liệu", value: String(new Set(localDocs.map(d => d.type)).size), sub: [...new Set(localDocs.map(d => d.type))].slice(0, 2).join(", ") || "—" },
+                        {
+                            Icon: FolderOpen,
+                            label: "Tổng tài liệu",
+                            value: String(localDocs.length),
+                            sub: localDocs.length ? "Đang quản lý" : "Chưa có tài liệu",
+                        },
+                        {
+                            Icon: ShieldCheck,
+                            label: "Đã bảo vệ IP",
+                            value: String(protectedCount),
+                            sub: localDocs.length ? `${Math.round(protectedCount / localDocs.length * 100)}% tổng số` : "Chưa có tài liệu",
+                        },
+                        {
+                            Icon: Clock,
+                            label: "Chờ xác nhận",
+                            value: String(pendingCount),
+                            sub: localDocs.length ? `${Math.round(pendingCount / localDocs.length * 100)}% tổng số` : "Không có mục chờ",
+                        },
+                        {
+                            Icon: HardDrive,
+                            label: "Loại tài liệu",
+                            value: String(new Set(localDocs.map(d => d.type)).size),
+                            sub: [...new Set(localDocs.map(d => d.type))].slice(0, 2).join(", ") || "Chưa phân loại",
+                        },
                     ].map(({ Icon, label, value, sub }) => (
                         <div key={label} className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-5 py-4">
                             <div className="flex items-center gap-2 mb-3">
