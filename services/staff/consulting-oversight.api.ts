@@ -3,10 +3,12 @@ import type {
   IReportOversightItem,
   IReviewReportRequest,
   IReportReviewResult,
+  IReleasePayoutResult,
   ISessionOversightResult,
   IStaffMarkDisputeRequest,
   IResolveDisputeRequest,
   IStaffSessionNoteRequest,
+  IMentorshipRequest,
 } from "@/types/startup-mentorship";
 
 // ── Query params ─────────────────────────────────────────────────────────────
@@ -21,12 +23,37 @@ export interface IOversightReportParams {
   pageSize?: number;
 }
 
+export interface IPayoutEligibleMentorshipParams {
+  page?: number;
+  pageSize?: number;
+}
+
 // ── Staff Report Oversight ───────────────────────────────────────────────────
 
 export const GetOversightReports = (params: IOversightReportParams = {}) => {
   return axios.get<
     IBackendRes<IPagingData<IReportOversightItem>>
   >("/api/mentorships/oversight/reports", { params });
+};
+
+export const GetPayoutEligibleMentorships = (
+  params: IPayoutEligibleMentorshipParams = {}
+) => {
+  return axios.get<
+    IBackendRes<IPagingData<IMentorshipRequest>>
+  >("/api/mentorships", {
+    params: {
+      isPayoutEligible: true,
+      page: params.page ?? 1,
+      pageSize: params.pageSize ?? 100,
+    },
+  });
+};
+
+export const ReleasePayout = (mentorshipId: number | string) => {
+  return axios.post<IBackendRes<IReleasePayoutResult>>(
+    `/api/mentorships/${mentorshipId}/release-payout`
+  );
 };
 
 export const ReviewReport = (

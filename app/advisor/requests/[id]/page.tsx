@@ -61,7 +61,7 @@ const STATUS_LABEL: Record<ConsultingRequestStatus, string> = {
   ACCEPTED: "Đã nhận",
   SCHEDULED: "Đã lên lịch",
   IN_PROGRESS: "Đang tư vấn",
-  COMPLETED: "Đã diễn ra",
+  COMPLETED: "Đã hoàn thành",
   FINALIZED: "Đã hoàn thành",
   REJECTED: "Đã từ chối",
   CANCELLED: "Đã huỷ",
@@ -182,9 +182,12 @@ function formatDateTime(dateStr: string): string {
 }
 
 function formatSlotRange(startAt: string, endAt: string): string {
+  const tz = "Asia/Ho_Chi_Minh";
+  const timeOpts: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz };
   const s = new Date(startAt);
   const e = new Date(endAt);
-  return `${s.getDate()} Thg ${s.getMonth() + 1}, ${s.getFullYear()} \u2022 ${s.getHours().toString().padStart(2, "0")}:${s.getMinutes().toString().padStart(2, "0")} - ${e.getHours().toString().padStart(2, "0")}:${e.getMinutes().toString().padStart(2, "0")}`;
+  const datePart = s.toLocaleDateString("vi-VN", { day: "numeric", month: "numeric", year: "numeric", timeZone: tz });
+  return `${datePart} \u2022 ${s.toLocaleTimeString("vi-VN", timeOpts)} - ${e.toLocaleTimeString("vi-VN", timeOpts)}`;
 }
 
 function expiryCountdown(expiresAt: string): string {
@@ -440,8 +443,8 @@ const handleProposeConfirm = async () => {
 
     const requestDuration = Number(request.durationMinutes) || 60;
     const payloadSlots = validSlots.map(s => ({
-      startAt: `${s.date}T${s.startTime}:00`,
-      endAt: `${s.date}T${s.endTime}:00`,
+      startAt: `${s.date}T${s.startTime}:00+07:00`,
+      endAt: `${s.date}T${s.endTime}:00+07:00`,
       timezone: proposedTimezone,
       note: proposeNote.trim() || undefined,
       durationMinutes: requestDuration,
@@ -580,16 +583,21 @@ const handleCancelConfirm = async () => {
     request.slotProposals.find(s => s.status === "ACCEPTED");
   const hasStartupProposedSlots = request.preferredSlots.some(s => s.status === "PROPOSED");
   const hasAdvisorProposedSlots = request.slotProposals.some(s => s.status === "PROPOSED");
-  const hasConductedSession = rawApiSessions.some((s: any) =>
-    ["Conducted", "Completed", "InDispute", "Resolved"].includes(s.status || s.sessionStatus)
+  const canWriteReport = rawApiSessions.some((s: any) =>
+    ["Conducted", "Completed", "Resolved"].includes(s.status || s.sessionStatus)
   );
+  const scheduledSession = rawApiSessions.find((s: any) =>
+    (s.status || s.sessionStatus) === "Scheduled"
+  );
+  const sessionEndedButUnconfirmed = !!scheduledSession &&
+    !scheduledSession.startupConfirmedConductedAt &&
+    Date.now() > new Date(scheduledSession.scheduledStartAt).getTime() + (scheduledSession.durationMinutes ?? 60) * 60_000;
   const hasStartupAcceptedAdvisorProposal = request.slotProposals.some(s => s.status === "ACCEPTED");
   const hasAdvisorAcceptedStartupProposal = request.preferredSlots.some(s => s.status === "ACCEPTED");
   const hasConfirmedSchedule =
     request.status === "SCHEDULED" ||
     request.status === "IN_PROGRESS" ||
     request.status === "COMPLETED" ||
-    request.status === "FINALIZED" ||
     hasStartupAcceptedAdvisorProposal ||
     hasAdvisorAcceptedStartupProposal;
   const isStartupPaid = isMentorshipPaymentCompleted(
@@ -1051,14 +1059,14 @@ const handleCancelConfirm = async () => {
                         </div>
                       </div>
                     )
-                  ) : hasConductedSession ? (
+                  ) : canWriteReport ? (
                     <>
                       <div className="px-4 py-3 rounded-xl bg-teal-50 border border-teal-200">
                         <div className="flex items-start gap-2">
                           <CheckCircle2 className="w-4 h-4 text-teal-500 mt-0.5 shrink-0" />
                           <div>
                             <p className="text-[12px] font-medium text-teal-700 mb-0.5">Phiên tư vấn đã diễn ra</p>
-                            <p className="text-[12px] text-teal-600">Startup đã xác nhận hoàn thành. Vui lòng nộp báo cáo tư vấn để hoàn tất quy trình.</p>
+                            <p className="text-[12px] text-teal-600">Vui lòng nộp báo cáo tư vấn để hoàn tất quy trình.</p>
                           </div>
                         </div>
                       </div>
@@ -1071,6 +1079,16 @@ const handleCancelConfirm = async () => {
                         <ArrowRight className="w-4 h-4 ml-1 opacity-50" />
                       </Link>
                     </>
+                  ) : sessionEndedButUnconfirmed ? (
+                    <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
+                      <div className="flex items-start gap-2">
+                        <Clock className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-[12px] font-medium text-amber-700 mb-0.5">Startup chưa xác nhận buổi họp</p>
+                          <p className="text-[12px] text-amber-600">Hệ thống sẽ tự xác nhận sau 24h kể từ khi buổi kết thúc.</p>
+                        </div>
+                      </div>
+                    </div>
                   ) : (
                     <div className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200">
                       <div className="flex items-start gap-2">
@@ -1182,8 +1200,8 @@ const handleCancelConfirm = async () => {
                 </div>
               )}
 
-              {/* COMPLETED */}
-              {request.status === "COMPLETED" && (
+              {/* COMPLETED — chưa duyệt report */}
+              {request.status === "COMPLETED" && !(request.isPayoutEligible === true && report) && (
                 <div className="space-y-4">
                   <div className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200">
                     <div className="flex items-start gap-2">
@@ -1205,8 +1223,8 @@ const handleCancelConfirm = async () => {
                 </div>
               )}
 
-              {/* FINALIZED REPORT CONTENT */}
-              {request.status === "FINALIZED" && report && (
+              {/* COMPLETED + report approved */}
+              {request.status === "COMPLETED" && request.isPayoutEligible === true && report && (
                 <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
                   <div className="px-5 py-4 rounded-2xl bg-emerald-50/50 border border-emerald-100">
                     <div className="flex items-start gap-3">

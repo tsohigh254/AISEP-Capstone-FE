@@ -669,14 +669,24 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
     setIsConfirmingConducted(true);
     try {
       const res = await ConfirmSessionConducted(request.mentorshipID, sessionId) as any;
-      if (res?.data?.success || res?.data?.isSuccess || res?.status === 200) {
+      if (res?.isSuccess || res?.success) {
         toast.success("Đã xác nhận phiên tư vấn hoàn thành!");
+        // Update local session state immediately to hide the confirm button
+        setRequest(prev => {
+          if (!prev) return prev;
+          const updatedSessions = ((prev as any).sessions || []).map((s: any) =>
+            s.sessionID === sessionId ? { ...s, status: "Conducted", sessionStatus: "Conducted" } : s
+          );
+          return { ...prev, sessions: updatedSessions } as any;
+        });
         fetchRequest();
       } else {
-        toast.error(res?.data?.message || "Xác nhận thất bại.");
+        toast.error(res?.message || "Xác nhận thất bại.");
+        fetchRequest(); // Refresh to get latest session state
       }
     } catch {
       toast.error("Có lỗi xảy ra khi xác nhận.");
+      fetchRequest(); // Refresh to get latest session state
     } finally {
       setIsConfirmingConducted(false);
     }
@@ -1296,7 +1306,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
                     <Video className="w-3.5 h-3.5" />
                     Hình thức
                   </div>
-                  <span className="text-[12px] font-semibold text-slate-700">{mapMeetingFormat(request.preferredFormat)}</span>
+                  <span className="text-[12px] font-semibold text-slate-700">{mapMeetingFormat(firstSession?.sessionFormat ?? request.preferredFormat)}</span>
                 </div>
                 <div className="flex items-center justify-between py-2 border-b border-slate-50">
                   <div className="flex items-center gap-2 text-[12px] text-slate-500">

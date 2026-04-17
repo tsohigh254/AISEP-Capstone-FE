@@ -171,17 +171,28 @@ export default function ConfirmSchedulePage({
   const isAlreadyScheduled =
     normalizedRequestStatus === "SCHEDULED" ||
     normalizedRequestStatus === "INPROGRESS";
+  const activeSessions = sessions.filter((session: any) => {
+    const st = String(session.sessionStatus || session.status || "").toUpperCase();
+    return st !== "CANCELLED";
+  });
   const firstSession =
-    sessions
+    activeSessions
       .slice()
       .reverse()
       .find((session: any) =>
         Boolean(session.meetingUrl || session.meetingURL || session.meetingLink),
       ) ||
-    sessions[sessions.length - 1] ||
+    activeSessions.find((session: any) => {
+      const st = String(session.sessionStatus || session.status || "").toUpperCase();
+      return st === "SCHEDULED" || st === "INPROGRESS" || st === "IN_PROGRESS";
+    }) ||
+    activeSessions.find((session: any) => {
+      const st = String(session.sessionStatus || session.status || "").toUpperCase();
+      return st === "PROPOSEDBYADVISOR";
+    }) ||
+    activeSessions[activeSessions.length - 1] ||
     null;
-  const scheduledAt: string | null =
-    (request as any)?.scheduledAt || firstSession?.scheduledStartAt || null;
+  const scheduledAt: string | null = firstSession?.scheduledStartAt || null;
   const scheduledEndAt: string | null =
     (request as any)?.scheduledEndAt || firstSession?.scheduledEndAt || null;
   const meetingLink: string | null =

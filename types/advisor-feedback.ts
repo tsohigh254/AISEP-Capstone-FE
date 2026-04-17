@@ -29,6 +29,7 @@ export interface IAdvisorFeedbackItem {
   startup: {
     id: string;
     displayName: string;
+    logoUrl?: string | null;
   };
   session: {
     topic: string | null;

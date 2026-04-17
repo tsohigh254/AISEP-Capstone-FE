@@ -96,8 +96,11 @@ export interface IMentorshipRequest {
   cancelledAt?: string;
   completedAt: string;
   sessionAmount?: number | null;
+  actualAmount?: number | null;
   paymentStatus?: string | null;
   paidAt?: string | null;
+  isPayoutEligible?: boolean;
+  payoutReleasedAt?: string | null;
   hasReport?: boolean;
   reportCount?: number;
   latestReportSubmittedAt?: string | null;
@@ -179,6 +182,7 @@ export interface IMentorshipReport {
   detailedFindings: string;
   recommendations: string;
   attachmentsURL: string;
+  reportReviewStatus?: ReportReviewStatus | string | null;
   submittedAt: string;
   createdAt: string;
 }
@@ -301,6 +305,14 @@ export interface IReportReviewResult {
   staffReviewNote: string | null;
   reviewedByStaffID: number | null;
   reviewedAt: string | null;
+}
+
+export interface IReleasePayoutResult {
+  mentorshipID: number;
+  creditedAmount: number;
+  payoutReleasedAt: string;
+  isPayoutEligible: boolean;
+  releasedByStaffID: number;
 }
 
 export interface ISessionOversightResult {

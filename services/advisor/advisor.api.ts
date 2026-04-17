@@ -201,7 +201,6 @@ export const ScheduleMentorshipRequest = (id: string, payload: { startAt: string
   return axios.post<IBackendRes<any>>(`/api/mentorships/${id}/sessions`, {
     scheduledStartAt: payload.startAt,
     durationMinutes,
-    sessionFormat: payload.meetingLink && payload.meetingLink.includes("teams") ? "MicrosoftTeams" : "GoogleMeet",
     meetingUrl: payload.meetingLink || ""
   });
 };
@@ -227,7 +226,6 @@ export const ProposeMentorshipSlots = (id: string, payload: { requestedSlots: { 
   return axios.post<IBackendRes<any>>(`/api/mentorships/${id}/sessions`, {
     scheduledStartAt: slot.startAt,
     durationMinutes,
-    sessionFormat: "GoogleMeet",
     meetingUrl: "",
     note: slot.note || undefined,
   });

@@ -150,6 +150,8 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                 let errorMsg = res.message || "Gửi yêu cầu thất bại. Vui lòng thử lại.";
                 if (errorMsg === "An active or pending mentorship with this advisor already exists.") {
                     errorMsg = "Bạn đã có một yêu cầu đang chờ phản hồi hoặc đang hoạt động với Cố vấn này.";
+                } else if (errorMsg.includes("subscription plan") || errorMsg.includes("upgrade your plan") || errorMsg.includes("maximum of")) {
+                    errorMsg = "Gói hiện tại của bạn đã đạt giới hạn số lượng yêu cầu tư vấn. Vui lòng nâng cấp gói để tiếp tục.";
                 }
                 toast.error(errorMsg);
             }

@@ -7,8 +7,8 @@ export type ConsultingRequestStatus =
   | 'SCHEDULED'
   | 'IN_PROGRESS'
   | 'COMPLETED'
-  | 'CANCELLED'
   | 'FINALIZED'
+  | 'CANCELLED'
   | 'IN_DISPUTE'
   | 'RESOLVED';
 
@@ -97,6 +97,7 @@ export interface IConsultingRequest {
   preferredSlots: ITimeSlotProposal[];
   slotProposals: ITimeSlotProposal[];
   confirmation: IScheduleConfirmation;
+  isPayoutEligible?: boolean;
   paymentStatus?: string | null;
   paidAt?: string | null;
   rejectionReason?: string;

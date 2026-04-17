@@ -257,17 +257,9 @@ const getSessionTopic = (session: IMentorshipSession) => {
   return session.objective?.trim() || session.mentorshipChallengeDescription?.trim() || SESSION_TEXT.noTopic;
 };
 
-const getSessionMeetingType = (
-  session: IMentorshipSession,
-  fallbackPreferredFormat?: string | null,
-) => {
+const getSessionMeetingType = (session: IMentorshipSession) => {
   const rawFormat = String(
-    session.meetingFormat ||
-      session.sessionFormat ||
-      session.meetingMode ||
-      fallbackPreferredFormat ||
-      (session as any).preferredFormat ||
-      "",
+    session.sessionFormat || session.meetingFormat || session.meetingMode || ""
   ).toLowerCase();
   if (rawFormat.includes("google")) return "Google Meet";
   if (rawFormat.includes("teams")) return "Microsoft Teams";
@@ -348,7 +340,6 @@ function StartupAdvisorsPageInner() {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionsPage, setSessionsPage] = useState(1);
   const [sessionsTotalPages, setSessionsTotalPages] = useState(1);
-  const [sessionPreferredFormats, setSessionPreferredFormats] = useState<Record<number, string>>({});
 
   const [completedMentorships, setCompletedMentorships] = useState<IMentorshipRequest[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
@@ -459,43 +450,6 @@ function StartupAdvisorsPageInner() {
         const sessionItems = rawData.items ?? rawData.data ?? [];
         setSessions(sessionItems);
         setSessionsTotalPages(rawData.paging?.totalPages ?? 1);
-
-        const mentorshipIds: number[] = Array.from(
-          new Set(
-            sessionItems
-              .map((item: IMentorshipSession) => Number(item.mentorshipID))
-              .filter((id: number) => !Number.isNaN(id) && id > 0),
-          ),
-        );
-
-        if (mentorshipIds.length === 0) {
-          setSessionPreferredFormats({});
-          return;
-        }
-
-        const detailResults = await Promise.all(
-          mentorshipIds.map(async mentorshipId => {
-            try {
-              const detailRes = await GetMentorshipById(mentorshipId) as unknown as IBackendRes<IMentorshipRequest>;
-              if ((detailRes.success || detailRes.isSuccess) && detailRes.data?.preferredFormat) {
-                return [mentorshipId, detailRes.data.preferredFormat] as const;
-              }
-            } catch {
-              // ignore per-item lookup failures
-            }
-
-            return [mentorshipId, ""] as const;
-          }),
-        );
-
-        setSessionPreferredFormats(
-          detailResults.reduce<Record<number, string>>((acc, [mentorshipId, preferredFormat]) => {
-            if (preferredFormat) {
-              acc[mentorshipId] = preferredFormat;
-            }
-            return acc;
-          }, {}),
-        );
       }
     } catch {
       // silent
@@ -507,13 +461,13 @@ function StartupAdvisorsPageInner() {
   const fetchReports = useCallback(async () => {
     setReportsLoading(true);
     try {
-      const completedRes = await GetMentorships({ status: "Completed", page: 1, pageSize: 100 }) as unknown as IBackendRes<IPagingData<IMentorshipRequest>>;
-      const raw = (completedRes.data as any) ?? {};
-      const completedItems: IMentorshipRequest[] = (completedRes.success || completedRes.isSuccess)
+      const res = await GetMentorships({ page: 1, pageSize: 100 }) as unknown as IBackendRes<IPagingData<IMentorshipRequest>>;
+      const raw = (res.data as any) ?? {};
+      const allItems: IMentorshipRequest[] = (res.success || res.isSuccess)
         ? (raw.items ?? raw.data ?? [])
         : [];
 
-      const reportItems = completedItems.filter(item => item.hasReport);
+      const reportItems = allItems.filter(item => item.hasReport);
       const detailedReportItems = await Promise.all(
         reportItems.map(async (item) => {
           try {
@@ -1179,10 +1133,7 @@ function StartupAdvisorsPageInner() {
                       const sessionStatusKey = getSessionStatusKey(item);
                       const sessionStatusInfo = SESSION_STATUS_DISPLAY_SAFE[sessionStatusKey] ?? { label: SESSION_TEXT.unknownStatus, color: "text-slate-500 bg-slate-50 border-slate-100" };
                       const advisorDisplay = getSessionAdvisorDisplay(item);
-                      const meetingType = getSessionMeetingType(
-                        item,
-                        sessionPreferredFormats[item.mentorshipID],
-                      );
+                      const meetingType = getSessionMeetingType(item);
                       const meetingLink = item.meetingURL;
                       const isActive = sessionStatusKey === "Scheduled" || sessionStatusKey === "InProgress";
                       const needsPayment = isActive && !meetingLink;

@@ -121,11 +121,6 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
   else if (rawStatus === "RESOLVED") normalizedStatus = "RESOLVED";
   else normalizedStatus = rawStatus as ConsultingRequestStatus;
 
-  if (normalizedStatus === "COMPLETED") {
-    const hasReportFlag = (item as any).hasReport === true || ((item as any).reportCount ?? 0) > 0;
-    const hasReportInArray = Array.isArray((item as any).reports) && (item as any).reports.length > 0;
-    if (hasReportFlag || hasReportInArray) normalizedStatus = "FINALIZED";
-  }
 
   const fallbackTimeline = [
     {
@@ -206,6 +201,7 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
     })(),
     preferredSlots: preferredSlots as any,
     slotProposals: slotProposals as any,
+    isPayoutEligible: (item as any).isPayoutEligible ?? false,
     paymentStatus: item.paymentStatus ?? null,
     paidAt: item.paidAt ?? null,
     feedbacks: (item as any).feedbacks || [],

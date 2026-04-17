@@ -8,7 +8,7 @@ import {
   Check, Eye, Clock, ChevronLeft, ChevronRight,
   ShieldCheck, Brain, Star, AlertTriangle,
   Zap, MessageSquare, UserCircle, RefreshCcw,
-  Inbox, Mail, MailOpen, MoreHorizontal, ArrowRight
+  Inbox, Mail, MailOpen, MoreHorizontal, ArrowRight, CalendarCheck
 } from "lucide-react";
 import { 
   GetNotifications, 
@@ -27,6 +27,7 @@ const getNotificationIcon = (type: string) => {
     case "SYSTEM": return <Zap className="w-4 h-4 text-blue-500" />;
     case "AI_EVALUATION": return <Brain className="w-4 h-4 text-purple-500" />;
     case "CONSULTING": return <MessageSquare className="w-4 h-4 text-emerald-500" />;
+    case "CONFIRM_CONDUCTED_REMINDER": return <CalendarCheck className="w-4 h-4 text-amber-500" />;
     case "INVESTOR_INTERACTION": return <Star className="w-4 h-4 text-rose-500" />;
     case "MESSAGE": return <MessageSquare className="w-4 h-4 text-blue-500" />;
     default: return <Bell className="w-4 h-4 text-slate-400" />;

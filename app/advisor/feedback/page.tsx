@@ -257,10 +257,14 @@ export default function AdvisorFeedbackPage() {
                 <div key={review.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
                    <div className="px-6 py-5">
                       <div className="flex items-start gap-3">
-                         {/* Avatar uses Design System deterministic gradient pattern */}
-                         <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[15px] font-bold shrink-0", getAvatarColor(review.startup.displayName))}>
-                            {review.startup.displayName.charAt(0).toUpperCase()}
-                         </div>
+                         {/* Avatar */}
+                         {review.startup.logoUrl ? (
+                           <img src={review.startup.logoUrl} alt={review.startup.displayName} className="w-10 h-10 rounded-xl object-cover shrink-0 border border-slate-100" />
+                         ) : (
+                           <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[15px] font-bold shrink-0", getAvatarColor(review.startup.displayName))}>
+                             {review.startup.displayName.charAt(0).toUpperCase()}
+                           </div>
+                         )}
                          <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between flex-wrap gap-2">
                                <div className="flex items-center gap-2 flex-wrap">
