@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bell, ChevronDown, ChevronRight, User, LogOut, Trash2, Loader2, MessageSquare, LayoutGrid, CheckCheck, Settings, FileText, Brain, BrainCircuit, Users, Handshake, FileUp, CreditCard, ShieldCheck, ShieldAlert, BadgeCheck, ArrowRight, Inbox, Sparkles } from "lucide-react";
+import { Bell, ChevronDown, ChevronRight, User, LogOut, Trash2, Loader2, MessageSquare, LayoutGrid, Menu, CheckCheck, Settings, FileText, Brain, BrainCircuit, Users, Handshake, FileUp, CreditCard, ShieldCheck, ShieldAlert, BadgeCheck, ArrowRight, Inbox, Sparkles } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -364,8 +364,6 @@ export function StartupHeader({
             <div
               className="relative"
               ref={gridRef}
-              onMouseEnter={() => setIsGridOpen(true)}
-              onMouseLeave={() => setIsGridOpen(false)}
             >
               <button
                 className={cn(
@@ -374,7 +372,7 @@ export function StartupHeader({
                 )}
                 onClick={() => setIsGridOpen(!isGridOpen)}
               >
-                <LayoutGrid className="w-5 h-5" />
+                <Menu className="w-5 h-5" />
               </button>
 
               {isGridOpen && (

@@ -185,6 +185,10 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
 
       const data = advisorRes.data && (advisorRes.data as any).data ? (advisorRes.data as any).data : advisorRes.data;
       if ((advisorRes.success || advisorRes.isSuccess) && data) {
+        // Normalize linkedin field casing từ backend
+        if (!data.linkedInURL && (data as any).linkedinUrl) {
+          data.linkedInURL = (data as any).linkedinUrl;
+        }
         setAdvisor(data);
       } else {
         setError(true);
@@ -247,19 +251,11 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                 </div>
                   <div className="flex flex-col md:flex-row items-center gap-2 md:gap-4">
                     <p className="text-[15px] font-semibold text-slate-500">{advisor.title}</p>
-                    {(advisor.company || advisor.linkedInURL) && (
+                    {advisor.company && (
                       <div className="flex items-center gap-3 text-sm text-slate-400">
-                        {advisor.company && (
-                          <span className="flex items-center gap-1.5 before:hidden md:before:block before:content-['•'] before:mr-3 before:text-slate-300">
-                            <span className="font-medium text-slate-600">{advisor.company}</span>
-                          </span>
-                        )}
-                        {advisor.linkedInURL && (
-                            <a href={advisor.linkedInURL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 hover:underline transition-colors font-medium">
-                              <Image src="/linkedin.svg" alt="LinkedIn" width={16} height={16} unoptimized priority />
-                            LinkedIn
-                          </a>
-                        )}
+                        <span className="flex items-center gap-1.5 before:hidden md:before:block before:content-['•'] before:mr-3 before:text-slate-300">
+                          <span className="font-medium text-slate-600">{advisor.company}</span>
+                        </span>
                       </div>
                     )}
                   </div>
@@ -334,6 +330,17 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                     <Lock className="w-4 h-4 mr-2" />
                     Nhắn tin
                   </Button>
+                )}
+                {advisor.linkedInURL && (
+                  <a
+                    href={advisor.linkedInURL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 h-11 px-5 rounded-xl border border-[#0077B5]/30 bg-[#0077B5]/5 text-[#0077B5] font-semibold text-[13px] hover:bg-[#0077B5]/10 transition-all"
+                  >
+                    <Image src="/linkedin.svg" alt="LinkedIn" width={16} height={16} unoptimized />
+                    LinkedIn
+                  </a>
                 )}
               </div>
             </div>

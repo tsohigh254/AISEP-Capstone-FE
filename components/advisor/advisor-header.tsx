@@ -13,7 +13,7 @@ import {
   LogOut,
   MessageSquare,
   ClipboardList,
-  LayoutGrid,
+  Menu,
   Settings,
   FileText,
   Star,
@@ -343,8 +343,6 @@ export function AdvisorHeader({
             <div 
               className="relative" 
               ref={gridRef}
-              onMouseEnter={() => setIsGridOpen(true)}
-              onMouseLeave={() => setIsGridOpen(false)}
             >
               <button 
                 className={cn(
@@ -353,7 +351,7 @@ export function AdvisorHeader({
                 )}
                 onClick={() => setIsGridOpen(!isGridOpen)}
               >
-                <LayoutGrid className="w-5 h-5" />
+                <Menu className="w-5 h-5" />
               </button>
 
               {isGridOpen && (

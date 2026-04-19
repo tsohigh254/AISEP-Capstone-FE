@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { 
-  BadgeCheck, Bell, Bookmark, Bot, Building2, ChevronRight, CheckCheck, Compass, Handshake, LayoutGrid, Loader2, LogOut, MessageSquare, Settings, ShieldAlert, Trash2, Sparkles,
+  BadgeCheck, Bell, Bookmark, Bot, Building2, ChevronRight, CheckCheck, Compass, Handshake, Menu, Loader2, LogOut, MessageSquare, Settings, ShieldAlert, Trash2, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -355,8 +355,6 @@ export function InvestorHeader({
             <div
               className="relative"
               ref={gridRef}
-              onMouseEnter={() => setIsGridOpen(true)}
-              onMouseLeave={() => setIsGridOpen(false)}
             >
               <button
                 className={cn(
@@ -365,7 +363,7 @@ export function InvestorHeader({
                 )}
                 onClick={() => setIsGridOpen(!isGridOpen)}
               >
-                <LayoutGrid className="w-5 h-5" />
+                <Menu className="w-5 h-5" />
               </button>
 
               {isGridOpen && (
