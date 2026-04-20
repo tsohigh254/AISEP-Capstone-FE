@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
 import {
   Star, Search, ChevronRight, ChevronLeft, ChevronDown, Users, Briefcase, FileText, X, ArrowUpDown, BadgeCheck,
-  CalendarCheck, Video, Loader2, Eye, CheckCircle, CreditCard
+  CalendarCheck, Video, Loader2, Eye, CheckCircle, CreditCard, MessageSquare, Lock
 } from "lucide-react";
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { MentorshipRequestModal } from "@/components/startup/mentorship-request-modal";
@@ -1047,6 +1047,15 @@ function StartupAdvisorsPageInner() {
                                   <FileText className="w-4 h-4" />
                                 </button>
                               )}
+                              {["Accepted", "InProgress", "Completed"].includes(item.status as string) && (
+                                <button
+                                  onClick={() => router.push(`/startup/messaging?mentorshipId=${item.mentorshipID}`)}
+                                  className="p-2 text-slate-400 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 rounded-lg transition-all"
+                                  title="Nhắn tin"
+                                >
+                                  <MessageSquare className="w-4 h-4" />
+                                </button>
+                              )}
                               {item.status === "Rejected" && (
                                 <button
                                   onClick={() => router.push("/startup/experts")}
@@ -1277,6 +1286,15 @@ function StartupAdvisorsPageInner() {
                                   Xác nhận đã tư vấn
                                 </button>
                               )}
+                              {["Accepted", "InProgress", "Completed", "Scheduled", "Conducted"].includes(sessionStatusKey) && (
+                                <button
+                                  onClick={() => router.push(`/startup/messaging?mentorshipId=${item.mentorshipID}`)}
+                                  className="p-2 text-slate-400 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 rounded-lg transition-all"
+                                  title="Nhắn tin với cố vấn"
+                                >
+                                  <MessageSquare className="w-4 h-4" />
+                                </button>
+                              )}
                               <button
                                 onClick={() => router.push(`/startup/mentorship-requests/${item.mentorshipID}`)}
                                 title="Xem chi tiết yêu cầu"
@@ -1431,6 +1449,13 @@ function StartupAdvisorsPageInner() {
                                 Đánh giá
                               </button>
                             )}
+                            <button
+                              onClick={() => router.push(`/startup/messaging?mentorshipId=${item.mentorshipID}`)}
+                              className="p-2 text-slate-400 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 rounded-lg transition-all"
+                              title="Nhắn tin với cố vấn"
+                            >
+                              <MessageSquare className="w-4 h-4" />
+                            </button>
                             <button
                               onClick={() => router.push(`/startup/mentorship-requests/${item.mentorshipID}`)}
                               title="Xem chi tiết yêu cầu"

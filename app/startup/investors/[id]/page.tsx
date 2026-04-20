@@ -211,21 +211,9 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
         }
     };
 
-    const handleStartChat = async () => {
+    const handleStartChat = () => {
         if (!connection) return;
-        setChatLoading(true);
-        try {
-            const res = await CreateConversation({ connectionId: connection.connectionID });
-            if (res.isSuccess && res.data) {
-                router.push(`/startup/messaging?conversationId=${res.data.conversationId}`);
-            } else {
-                router.push("/startup/messaging");
-            }
-        } catch {
-            router.push("/startup/messaging");
-        } finally {
-            setChatLoading(false);
-        }
+        router.push(`/startup/messaging?connectionId=${connection.connectionID}`);
     };
 
     // -- Loading / Error states --
