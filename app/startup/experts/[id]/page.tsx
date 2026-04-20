@@ -5,15 +5,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Star, MessageSquare, Send, Calendar, Briefcase, Users,
-  BadgeCheck, CheckCircle2, Info, Lock, Loader2, Linkedin
+  BadgeCheck, CheckCircle2, Info, Lock, Loader2, Linkedin, ArrowRight, Activity
 } from "lucide-react";
 import { useState, useEffect, use } from "react";
 import { MentorshipRequestModal } from "@/components/startup/mentorship-request-modal";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
-import { GetAdvisorById } from "@/services/startup/startup-mentorship.api";
-import type { IAdvisorDetail, IAdvisorSearchItem } from "@/types/startup-mentorship";
+import { GetAdvisorById, GetMentorships } from "@/services/startup/startup-mentorship.api";
+import type { IAdvisorDetail, IAdvisorSearchItem, IAdvisorTimeSlot, IMentorshipRequest } from "@/types/startup-mentorship";
 
 const formatVND = (n: number) => n.toLocaleString('vi-VN') + '₫';
 
@@ -23,13 +23,35 @@ const EXPERTISE_DICT: Record<string, string> = {
   GO_TO_MARKET: "Go-to-market",
   FINANCE: "Tài chính",
   LEGAL_IP: "Pháp lý & SHTT",
+  LEGAL_COMPLIANCE: "Pháp lý & Tuân thủ",
   OPERATIONS: "Vận hành",
   TECHNOLOGY: "Công nghệ",
   MARKETING: "Marketing",
-  HR_OR_TEAM_BUILDING: "Nhân sự",
+  HR_OR_TEAM_BUILDING: "Nhân sự & Đội ngũ",
+  ENGINEERING: "Kỹ thuật",
+  AI_ML: "AI / ML",
+  AI: "AI",
+  GROWTH_HACKING: "Growth Hacking",
+  SAAS: "SaaS",
+  FINTECH: "FinTech",
+  E_COMMERCE: "E-commerce",
 };
 
 const formatExpertise = (val: string) => EXPERTISE_DICT[val] || val;
+
+const DAY_NAMES = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"];
+
+function groupSlotsByDay(slots: IAdvisorTimeSlot[]): { day: number; label: string; ranges: string[] }[] {
+  const map: Record<number, string[]> = {};
+  for (const s of slots) {
+    if (!map[s.dayOfWeek]) map[s.dayOfWeek] = [];
+    map[s.dayOfWeek].push(`${s.startTime}–${s.endTime}`);
+  }
+  return Object.keys(map)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map(day => ({ day, label: DAY_NAMES[day] ?? `Ngày ${day}`, ranges: map[day] }));
+}
 
 const isValidImageUrl = (url?: string | null) => {
   if (!url) return false;
@@ -146,22 +168,38 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
   const [toast, setToast] = useState<string | null>(null);
 
   const [advisor, setAdvisor] = useState<IAdvisorDetail | null>(null);
+  const [activeMentorship, setActiveMentorship] = useState<IMentorshipRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  const ACTIVE_STATUSES = ["Requested", "Pending", "Accepted", "InProgress"];
 
   const fetchAdvisor = async () => {
     setLoading(true);
     setError(false);
     try {
-      const res = await GetAdvisorById(parseInt(id)) as unknown as IBackendRes<IAdvisorDetail>;
-      console.log("Fetch Advisor Item Response:", res);
-      // Because we learned from the list API, backend might nest the object inside `res.data.data` or just `res.data`
-      const data = res.data && (res.data as any).data ? (res.data as any).data : res.data;
-      
-      if ((res.success || res.isSuccess) && data) {
+      const [advisorRes, mentorshipsRes] = await Promise.all([
+        GetAdvisorById(parseInt(id)) as unknown as Promise<IBackendRes<IAdvisorDetail>>,
+        GetMentorships({ pageSize: 100 }) as unknown as Promise<IBackendRes<IPagingData<IMentorshipRequest>>>,
+      ]);
+
+      const data = advisorRes.data && (advisorRes.data as any).data ? (advisorRes.data as any).data : advisorRes.data;
+      if ((advisorRes.success || advisorRes.isSuccess) && data) {
+        // Normalize linkedin field casing từ backend
+        if (!data.linkedInURL && (data as any).linkedinUrl) {
+          data.linkedInURL = (data as any).linkedinUrl;
+        }
         setAdvisor(data);
       } else {
         setError(true);
+      }
+
+      if (mentorshipsRes.isSuccess || mentorshipsRes.success) {
+        const items: IMentorshipRequest[] = (mentorshipsRes.data as any)?.items ?? (mentorshipsRes.data as any)?.data ?? [];
+        const found = items.find(
+          m => m.advisorID === parseInt(id) && ACTIVE_STATUSES.includes(m.status as string)
+        );
+        setActiveMentorship(found ?? null);
       }
     } catch {
       setError(true);
@@ -177,10 +215,7 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
   if (loading) return <ProfileSkeleton />;
   if (error || !advisor) return <ErrorState onRetry={fetchAdvisor} />;
 
-  // TODO: Determine hasActiveMentorship from a real API call (e.g. check if there is an active mentorship with this advisor)
-  const hasActiveMentorship = false;
-
-    // Check if advisor has configured their hourly rate and durations
+  // Check if advisor has configured their hourly rate and durations
     const isMissingRequiredInfo = typeof advisor.hourlyRate !== "number" || !advisor.supportedDurations || advisor.supportedDurations.length === 0;
 
   return (
@@ -216,19 +251,11 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                 </div>
                   <div className="flex flex-col md:flex-row items-center gap-2 md:gap-4">
                     <p className="text-[15px] font-semibold text-slate-500">{advisor.title}</p>
-                    {(advisor.company || advisor.linkedInURL) && (
+                    {advisor.company && (
                       <div className="flex items-center gap-3 text-sm text-slate-400">
-                        {advisor.company && (
-                          <span className="flex items-center gap-1.5 before:hidden md:before:block before:content-['•'] before:mr-3 before:text-slate-300">
-                            <span className="font-medium text-slate-600">{advisor.company}</span>
-                          </span>
-                        )}
-                        {advisor.linkedInURL && (
-                            <a href={advisor.linkedInURL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 hover:underline transition-colors font-medium">
-                              <Image src="/linkedin.svg" alt="LinkedIn" width={16} height={16} unoptimized priority />
-                            LinkedIn
-                          </a>
-                        )}
+                        <span className="flex items-center gap-1.5 before:hidden md:before:block before:content-['•'] before:mr-3 before:text-slate-300">
+                          <span className="font-medium text-slate-600">{advisor.company}</span>
+                        </span>
                       </div>
                     )}
                   </div>
@@ -284,7 +311,7 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                   <Send className="w-4 h-4 mr-2" />
                   Yêu cầu tư vấn ngay
                 </Button>
-                {hasActiveMentorship ? (
+                {!!activeMentorship ? (
                   <Button
                     variant="outline"
                     onClick={() => router.push("/startup/messaging")}
@@ -303,6 +330,17 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                     <Lock className="w-4 h-4 mr-2" />
                     Nhắn tin
                   </Button>
+                )}
+                {advisor.linkedInURL && (
+                  <a
+                    href={advisor.linkedInURL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 h-11 px-5 rounded-xl border border-[#0077B5]/30 bg-[#0077B5]/5 text-[#0077B5] font-semibold text-[13px] hover:bg-[#0077B5]/10 transition-all"
+                  >
+                    <Image src="/linkedin.svg" alt="LinkedIn" width={16} height={16} unoptimized />
+                    LinkedIn
+                  </a>
                 )}
               </div>
             </div>
@@ -399,27 +437,38 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
               <CardContent className="p-8 space-y-6">
                 <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Đánh giá từ Startup</h3>
                 <div className="space-y-4">
-                    {(advisor.reviews || []).map((review, idx) => (
-                    <div key={idx} className="p-5 bg-white border border-slate-100 rounded-2xl space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-[14px] font-bold text-slate-500">
-                            {review.author.charAt(0)}
+                  {(advisor.reviews || []).length === 0 ? (
+                    <p className="text-[13px] text-slate-400 italic">Chưa có đánh giá nào.</p>
+                  ) : (
+                    (advisor.reviews || []).map((review, idx) => (
+                      <div key={idx} className="p-5 bg-white border border-slate-100 rounded-2xl space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-[14px] font-bold text-slate-500">
+                              {review.author.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="text-[13px] font-bold text-slate-900 leading-none mb-0.5">{review.author}</p>
+                              {review.stage && <p className="text-[11px] text-slate-400">{review.stage}</p>}
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-[13px] font-bold text-slate-900 leading-none mb-0.5">{review.author}</p>
-                            <p className="text-[11px] text-slate-400">{review.stage}</p>
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="flex items-center gap-0.5">
+                              {[1, 2, 3, 4, 5].map(s => (
+                                <Star key={s} className={cn("w-3 h-3", s <= review.rating ? "text-amber-400 fill-amber-400" : "text-slate-200")} />
+                              ))}
+                            </div>
+                            {review.submittedAt && (
+                              <p className="text-[10px] text-slate-300">
+                                {new Date(review.submittedAt).toLocaleDateString("vi-VN", { day: "numeric", month: "long", year: "numeric" })}
+                              </p>
+                            )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-0.5">
-                          {[1, 2, 3, 4, 5].map(s => (
-                            <Star key={s} className={cn("w-3 h-3", s <= review.rating ? "text-amber-400 fill-amber-400" : "text-slate-200")} />
-                          ))}
-                        </div>
+                        <p className="text-[13px] text-slate-600 italic leading-relaxed">"{review.text}"</p>
                       </div>
-                      <p className="text-[13px] text-slate-600 italic leading-relaxed">"{review.text}"</p>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -428,43 +477,69 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
           {/* Right: Sidebar */}
           <div className="space-y-6">
             {/* Pricing Card */}
-            <Card className="rounded-2xl border-amber-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Phí tư vấn</h4>
-                  <span className="px-2 py-0.5 bg-emerald-50 border border-emerald-100 rounded-md text-[10px] font-bold text-emerald-600">Đã thanh toán</span>
-                </div>
+            {activeMentorship ? (
+              <Card className="rounded-2xl border-blue-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <Activity className="w-5 h-5 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-[13px] font-bold text-slate-900 leading-snug">Đang có phiên tư vấn</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">với cố vấn này</p>
+                    </div>
+                  </div>
+                  <p className="text-[12px] text-slate-500 leading-relaxed">
+                    Bạn đang trong một cuộc tư vấn với <span className="font-semibold text-slate-700">{advisor.fullName}</span>. Vui lòng hoàn thành phiên hiện tại trước khi đặt lịch mới.
+                  </p>
+                  <button
+                    onClick={() => router.push(`/startup/mentorship-requests/${activeMentorship.mentorshipID}`)}
+                    className="w-full h-11 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-slate-700 transition-all flex items-center justify-center gap-2"
+                  >
+                    Xem chi tiết phiên tư vấn
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="rounded-2xl border-amber-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Phí tư vấn</h4>
+                    <span className="px-2 py-0.5 bg-emerald-50 border border-emerald-100 rounded-md text-[10px] font-bold text-emerald-600">Đã thanh toán</span>
+                  </div>
 
-                <div className="flex items-end gap-1">
-                  <span className="text-[32px] font-black text-slate-900 leading-none">{formatVND(advisor.hourlyRate)}</span>
-                  <span className="text-[13px] text-slate-400 mb-1">/giờ</span>
-                </div>
+                  <div className="flex items-end gap-1">
+                    <span className="text-[32px] font-black text-slate-900 leading-none">{formatVND(advisor.hourlyRate)}</span>
+                    <span className="text-[13px] text-slate-400 mb-1">/giờ</span>
+                  </div>
 
-                <div className="space-y-2">
-                  {(advisor.supportedDurations || []).map(d => {
-                    const price = Math.round(advisor.hourlyRate * d / 60);
-                    return (
-                      <div key={d} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl">
-                        <span className="text-[12px] font-semibold text-slate-600">{d} phút</span>
-                        <span className="text-[13px] font-bold text-slate-900">{formatVND(price)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                  <div className="space-y-2">
+                    {(advisor.supportedDurations || []).map(d => {
+                      const price = Math.round(advisor.hourlyRate * d / 60);
+                      return (
+                        <div key={d} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl">
+                          <span className="text-[12px] font-semibold text-slate-600">{d} phút</span>
+                          <span className="text-[13px] font-bold text-slate-900">{formatVND(price)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
 
-                <div className="flex items-start gap-2 p-3 bg-amber-50/50 border border-amber-100/60 rounded-xl">
-                  <Info className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-amber-700 leading-relaxed">Bạn chỉ thanh toán sau khi lịch hẹn được xác nhận.</p>
-                </div>
+                  <div className="flex items-start gap-2 p-3 bg-amber-50/50 border border-amber-100/60 rounded-xl">
+                    <Info className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-[11px] text-amber-700 leading-relaxed">Bạn chỉ thanh toán sau khi lịch hẹn được xác nhận.</p>
+                  </div>
 
-                <button
-                  onClick={() => setIsRequestModalOpen(true)}
-                  className="w-full h-11 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-slate-700 transition-all"
-                >
-                  Đặt lịch tư vấn
-                </button>
-              </CardContent>
-            </Card>
+                  <button
+                    onClick={() => setIsRequestModalOpen(true)}
+                    className="w-full h-11 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-slate-700 transition-all"
+                  >
+                    Đặt lịch tư vấn
+                  </button>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Quick Facts */}
             <Card className="rounded-2xl border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
@@ -480,16 +555,6 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                       <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Phiên hoàn thành</span>
                     </div>
                     <span className="text-[13px] font-bold text-slate-900">{advisor.completedSessions}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center">
-                        <Calendar className="w-3.5 h-3.5 text-purple-500" />
-                      </div>
-                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Lịch rảnh</span>
-                    </div>
-                    <span className="text-[13px] font-bold text-slate-900">{advisor.availabilityHint}</span>
                   </div>
 
                   <div className="flex items-center justify-between">
@@ -515,6 +580,42 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                   </div>
                 </div>
 
+              </CardContent>
+            </Card>
+
+            {/* Weekly Timeslots */}
+            <Card className="rounded-2xl border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+              <CardContent className="p-6 space-y-4">
+                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] pb-4 border-b border-slate-50 flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5 text-purple-400" />
+                  Lịch rảnh trong tuần
+                </h4>
+                {(() => {
+                  const grouped = groupSlotsByDay(advisor.timeSlots ?? []);
+                  if (grouped.length === 0) {
+                    return (
+                      <p className="text-[12px] text-slate-400 text-center py-2">Chưa thiết lập lịch rảnh.</p>
+                    );
+                  }
+                  return (
+                    <div className="space-y-3">
+                      {grouped.map(({ day, label, ranges }) => (
+                        <div key={day} className="flex items-start gap-3">
+                          <span className="min-w-[52px] text-[11px] font-bold text-purple-600 bg-purple-50 border border-purple-100 rounded-lg px-2 py-1 text-center leading-tight">
+                            {label}
+                          </span>
+                          <div className="flex flex-col gap-1">
+                            {ranges.map((r, i) => (
+                              <span key={i} className="text-[12px] font-semibold text-slate-700 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1 leading-tight">
+                                {r}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
 

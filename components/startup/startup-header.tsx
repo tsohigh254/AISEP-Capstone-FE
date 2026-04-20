@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bell, ChevronDown, ChevronRight, User, LogOut, Trash2, Loader2, MessageSquare, LayoutGrid, CheckCheck, Settings, FileText, Brain, BrainCircuit, Users, Handshake, FileUp, CreditCard, ShieldCheck, ShieldAlert, BadgeCheck, ArrowRight, Inbox, Sparkles } from "lucide-react";
+import { Bell, ChevronDown, ChevronRight, User, LogOut, Trash2, Loader2, MessageSquare, LayoutGrid, Menu, CheckCheck, Settings, FileText, Brain, BrainCircuit, Users, Handshake, FileUp, CreditCard, ShieldCheck, ShieldAlert, BadgeCheck, ArrowRight, Inbox, Sparkles } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -14,6 +14,7 @@ import { NotificationDetailModal } from "@/components/shared/notification-detail
 import { GetStartupProfile } from "@/services/startup/startup.api";
 import { GetStartupKYCStatus } from "@/services/startup/startup-kyc.api";
 import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
+import { isIssueReportNotification, localizeIssueReportNotificationText } from "@/lib/notification";
 import type { StartupKycCase } from "@/services/startup/startup-kyc.api";
 import {
   GetNotifications,
@@ -29,12 +30,23 @@ const NOTI_TYPE_CFG: Record<string, { icon: React.ElementType; bg: string; iconC
   DOCUMENT: { icon: FileText, bg: "bg-violet-50", iconColor: "text-violet-500", label: "Tài liệu", accent: "bg-violet-400" },
   AI_EVALUATION: { icon: Brain, bg: "bg-amber-50", iconColor: "text-amber-500", label: "AI", accent: "bg-amber-400" },
   CONSULTING: { icon: Users, bg: "bg-emerald-50", iconColor: "text-emerald-600", label: "Tư vấn", accent: "bg-emerald-500" },
+  REPORT_AUTO_ACKNOWLEDGED: { icon: Users, bg: "bg-emerald-50", iconColor: "text-emerald-600", label: "Tư vấn", accent: "bg-emerald-500" },
   INVESTOR_INTERACTION: { icon: ShieldAlert, bg: "bg-rose-50", iconColor: "text-rose-500", label: "Nhà đầu tư", accent: "bg-rose-400" },
   MESSAGE: { icon: MessageSquare, bg: "bg-cyan-50", iconColor: "text-cyan-500", label: "Tin nhắn", accent: "bg-cyan-400" },
 };
 
-function getNotiTypeCfg(type: string) {
-  return NOTI_TYPE_CFG[type?.toUpperCase()] ?? NOTI_TYPE_CFG.SYSTEM;
+function getNotiTypeCfg(item: Pick<INotificationItem, "notificationType" | "actionUrl" | "relatedEntityType">) {
+  if (isIssueReportNotification(item)) {
+    return {
+      icon: ShieldAlert,
+      bg: "bg-amber-50",
+      iconColor: "text-amber-500",
+      label: "Báo cáo sự cố",
+      accent: "bg-amber-400",
+    };
+  }
+
+  return NOTI_TYPE_CFG[item.notificationType?.toUpperCase()] ?? NOTI_TYPE_CFG.SYSTEM;
 }
 
 function relativeNotiTime(dateStr: string): string {
@@ -286,7 +298,7 @@ export function StartupHeader({
                       </div>
                     ) : (
                       notifications.map((item) => {
-                        const cfg = getNotiTypeCfg(item.notificationType ?? "");
+                        const cfg = getNotiTypeCfg(item);
                         const Icon = cfg.icon;
                         return (
                           <div
@@ -313,10 +325,10 @@ export function StartupHeader({
                                 "text-[12.5px] leading-snug line-clamp-1",
                                 item.isRead ? "font-normal text-slate-700" : "font-semibold text-slate-900"
                               )}>
-                                {item.title}
+                                {localizeIssueReportNotificationText(item, item.title)}
                               </p>
                               <p className="text-[11.5px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
-                                {item.messagePreview}
+                                {localizeIssueReportNotificationText(item, item.messagePreview)}
                               </p>
                               <p className="text-[10px] text-slate-400 mt-1">
                                 {relativeNotiTime(item.createdAt)}
@@ -352,8 +364,6 @@ export function StartupHeader({
             <div
               className="relative"
               ref={gridRef}
-              onMouseEnter={() => setIsGridOpen(true)}
-              onMouseLeave={() => setIsGridOpen(false)}
             >
               <button
                 className={cn(
@@ -362,7 +372,7 @@ export function StartupHeader({
                 )}
                 onClick={() => setIsGridOpen(!isGridOpen)}
               >
-                <LayoutGrid className="w-5 h-5" />
+                <Menu className="w-5 h-5" />
               </button>
 
               {isGridOpen && (
@@ -376,6 +386,7 @@ export function StartupHeader({
                       { icon: Handshake, label: "Kết nối nhà ĐT", href: "/startup/investors" },
                       { icon: Sparkles, label: "Nâng cấp tài khoản", href: "/startup/subscription" },
                       { icon: CreditCard, label: "Thanh toán", href: "/startup/payments" },
+                      { icon: ShieldAlert, label: "Báo cáo của tôi", href: "/startup/issue-reports" },
                     ].map((item) => (
                       <Link
                         key={item.href}
@@ -451,6 +462,7 @@ export function StartupHeader({
                 <div className="p-1.5">
                   {[
                     { icon: User, label: "Hồ sơ Startup", href: "/startup/startup-profile", desc: "Thông tin doanh nghiệp" },
+                    { icon: ShieldAlert, label: "Báo cáo của tôi", href: "/startup/issue-reports", desc: "Theo dõi các báo cáo đã gửi" },
                     { icon: Settings, label: "Cài đặt tài khoản", href: "/startup/settings", desc: "Bảo mật & thông báo" },
                     { icon: ShieldAlert, label: "Báo cáo sự cố", onClick: () => setIsReportModalOpen(true), desc: "Gửi phản hồi cho AISEP" },
                   ].map((link, idx) => {

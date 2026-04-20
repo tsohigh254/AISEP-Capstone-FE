@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { 
-  ArrowLeft, Save, Send, Plus, X, FileText, 
+  ArrowLeft, Save, Send, Plus, X, FileText, Download,
   Info, AlertCircle, CheckCircle2, Paperclip, 
   ChevronDown, Layout, MessageSquare, Target, Lightbulb, TrendingUp,
   User, Clock, Check, ArrowRight
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import { getMockSessions } from "@/services/advisor/advisor-consulting.mock";
 import { getAdvisorReportById } from "@/services/advisor/advisor-report.api";
+import { UpdateMentorshipReport } from "@/services/advisor/advisor.api";
 import type { IConsultingSession } from "@/types/advisor-consulting";
 import type { IConsultationReport } from "@/types/advisor-report";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -106,6 +107,7 @@ function EditReportContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [existingAttachmentUrl, setExistingAttachmentUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [activeStep, setActiveStep] = useState(1);
@@ -141,6 +143,9 @@ function EditReportContent() {
           followUpRequired: fetchedReport.followUpRequired || false,
           followUpNotes: fetchedReport.followUpNotes || ""
         });
+        if (fetchedReport.attachmentsURL) {
+          setExistingAttachmentUrl(fetchedReport.attachmentsURL);
+        }
         
         const foundSes = getMockSessions().find(s => s.id === fetchedReport.sessionId);
         const ses = foundSes || {
@@ -165,35 +170,74 @@ function EditReportContent() {
     if (activeStep > 1) setActiveStep(activeStep - 1);
   };
 
-  const handleSave = (status: 'DRAFT' | 'SUBMITTED') => {
+  const handleSave = async (status: 'DRAFT' | 'SUBMITTED') => {
     if (status === 'SUBMITTED' && !formData.title) {
-        toast.error("Vui lòng nhập tiêu đề báo cáo ở Bước 1");
-        setActiveStep(1);
-        return;
+      toast.error("Vui lòng nhập tiêu đề báo cáo ở Bước 1");
+      setActiveStep(1);
+      return;
     }
-    
+    if (!report) return;
+
     setIsSubmitting(true);
-    setTimeout(() => {
-      toast.success(status === 'DRAFT' ? "Đã lưu bản nháp thành công" : "Đã gửi báo cáo chờ duyệt!");
+    try {
+      const isDraft = status === 'DRAFT';
+      const reportSummary = formData.summary.trim()
+        ? formData.title + "\n\n" + formData.summary
+        : formData.title;
+      const detailedFindings = [
+        formData.discussionOverview,
+        formData.keyFindings.trim() ? "\n\nKey Findings:\n" + formData.keyFindings : "",
+        formData.identifiedRisks.trim() ? "\n\nRisks:\n" + formData.identifiedRisks : "",
+      ].join("");
+      const recommendations = [
+        formData.advisorRecommendations,
+        formData.nextSteps.trim() ? "\n\nNext Steps:\n" + formData.nextSteps : "",
+        formData.deliverablesSummary.trim() ? "\n\nDeliverables:\n" + formData.deliverablesSummary : "",
+        formData.followUpRequired
+          ? "\n\nFollow-up Required:\n" + (formData.followUpNotes?.trim() || "Có")
+          : "",
+      ].join("");
+
+      // PATCH accepted for both Draft and NeedsMoreInfo — BE only blocks Passed/PendingReview
+      await UpdateMentorshipReport(id, report.id, {
+        reportSummary,
+        detailedFindings,
+        recommendations,
+        attachmentFile: attachments[0] ?? null,
+        isDraft,
+      });
+
+      toast.success(isDraft ? "Đã lưu bản nháp thành công" : "Đã gửi báo cáo thành công!");
+      if (!isDraft) router.push(`/advisor/reports/${id}`);
+    } catch (error) {
+      toast.error(status === 'DRAFT' ? "Có lỗi xảy ra khi lưu bản nháp" : "Có lỗi xảy ra khi nộp báo cáo");
+      console.error(error);
+    } finally {
       setIsSubmitting(false);
-      router.push(`/advisor/reports/${id}`);
-    }, 1000);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
     
-    if (attachments.length + selectedFiles.length > 3) {
-      toast.error("Chỉ được đính kèm tối đa 3 tài liệu");
+    if (attachments.length + selectedFiles.length > 1) {
+      toast.error("Chỉ được đính kèm tối đa 1 tài liệu");
       return;
     }
 
+    const ALLOWED_TYPES = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "image/png",
+      "image/jpeg",
+    ];
     const validFiles = selectedFiles.filter(file => {
       const isSizeOk = file.size <= 10 * 1024 * 1024;
-      const isTypeOk = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "image/png"].includes(file.type);
+      const isTypeOk = ALLOWED_TYPES.includes(file.type);
       
       if (!isSizeOk) toast.error(`File ${file.name} vượt quá 10MB`);
-      if (!isTypeOk) toast.error(`File ${file.name} không đúng định dạng (PDF, DOCX, PNG)`);
+      if (!isTypeOk) toast.error(`File ${file.name} không đúng định dạng (PDF, DOC, DOCX, PNG, JPG)`);
       
       return isSizeOk && isTypeOk;
     });
@@ -440,14 +484,13 @@ function EditReportContent() {
         {/* STEP 4: Xem trước & Đính kèm */}
         {activeStep === 4 && (
           <div className="space-y-6">
-            <FormSection title="Tài liệu đính kèm" icon={Paperclip} description="Gửi kèm các tệp tin hỗ trợ báo cáo cho Startup (Tối đa 3 tệp)">
+            <FormSection title="Tài liệu đính kèm" icon={Paperclip} description="Gửi kèm tệp tin hỗ trợ báo cáo cho Startup (Tối đa 1 tệp)">  
               <div className="space-y-4">
                 <input 
                   type="file"
                   ref={fileInputRef}
                   onChange={handleFileChange}
-                  multiple
-                  accept=".pdf,.docx,.png"
+                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
                   className="hidden"
                 />
                 
@@ -459,8 +502,32 @@ function EditReportContent() {
                     <Plus className="w-6 h-6" />
                   </div>
                   <p className="text-[13px] font-bold text-slate-700">Thêm tệp đính kèm (Tùy chọn)</p>
-                  <p className="text-[11px] text-slate-400 mt-1 uppercase font-black tracking-widest leading-none">PDF, DOCX, PNG (Max 10MB)</p>
+                  <p className="text-[11px] text-slate-400 mt-1 uppercase font-black tracking-widest leading-none">PDF, DOC, DOCX, PNG, JPG (Max 10MB)</p>
                 </div>
+
+                {existingAttachmentUrl && attachments.length === 0 && (
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-blue-50 border border-blue-200 animate-in fade-in">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-500 flex items-center justify-center shrink-0">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-bold text-blue-700 truncate">
+                          {existingAttachmentUrl.split("/").pop()?.split("?")[0] || "Tài liệu đính kèm"}
+                        </p>
+                        <p className="text-[10px] text-blue-500 font-medium">Đã lưu — tải lên file mới để thay thế</p>
+                      </div>
+                    </div>
+                    <a
+                      href={existingAttachmentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-blue-400 hover:bg-blue-100 transition-all"
+                    >
+                      <Download className="w-4 h-4" />
+                    </a>
+                  </div>
+                )}
 
                 {attachments.length > 0 && (
                   <div className="grid gap-2">

@@ -263,8 +263,7 @@ export default function AboutPage() {
                 <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-[#FACC15] text-slate-900 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
                   <LinkIcon className="w-5 h-5" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900">Nguyễn Văn An</h3>
-                <p className="text-[#FACC15] font-semibold text-sm mb-3">CEO & Co-Founder</p>
+                <h3 className="text-xl font-bold text-slate-900">Nguyễn Gia Luật</h3>
                 <p className="text-slate-500 text-sm line-clamp-3">15 năm kinh nghiệm trong lĩnh vực Fintech và quản lý quỹ đầu tư mạo hiểm tại Silicon Valley.</p>
               </div>
             </div>
@@ -282,8 +281,7 @@ export default function AboutPage() {
                 <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-[#FACC15] text-slate-900 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
                   <LinkIcon className="w-5 h-5" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900">Trần Thị Mai</h3>
-                <p className="text-[#FACC15] font-semibold text-sm mb-3">CTO & Co-Founder</p>
+                <h3 className="text-xl font-bold text-slate-900">Nguyễn Lê Hữu Huy</h3>
                 <p className="text-slate-500 text-sm line-clamp-3">Tiến sĩ AI từ Đại học Stanford, chuyên gia hàng đầu về Machine Learning và Big Data.</p>
               </div>
             </div>
@@ -301,8 +299,7 @@ export default function AboutPage() {
                 <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-[#FACC15] text-slate-900 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
                   <LinkIcon className="w-5 h-5" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900">Lê Hoàng Nam</h3>
-                <p className="text-[#FACC15] font-semibold text-sm mb-3">CPO & Co-Founder</p>
+                <h3 className="text-xl font-bold text-slate-900">Trần Minh Bảo</h3>
                 <p className="text-slate-500 text-sm line-clamp-3">Cựu Giám đốc Sản phẩm tại các tập đoàn công nghệ lớn, chuyên gia UX/UI.</p>
               </div>
             </div>
@@ -320,8 +317,7 @@ export default function AboutPage() {
                 <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-[#FACC15] text-slate-900 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
                   <LinkIcon className="w-5 h-5" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900">Phạm Thu Hà</h3>
-                <p className="text-[#FACC15] font-semibold text-sm mb-3">COO</p>
+                <h3 className="text-xl font-bold text-slate-900">Võ Công Trí</h3>
                 <p className="text-slate-500 text-sm line-clamp-3">Chuyên gia vận hành với 10 năm kinh nghiệm xây dựng quy trình cho các startup tăng trưởng nóng.</p>
               </div>
             </div>
@@ -339,8 +335,7 @@ export default function AboutPage() {
                 <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-[#FACC15] text-slate-900 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
                   <LinkIcon className="w-5 h-5" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900">Hoàng Đức Trung</h3>
-                <p className="text-[#FACC15] font-semibold text-sm mb-3">CFO</p>
+                <h3 className="text-xl font-bold text-slate-900">Nguyễn Đăng Nhân</h3>
                 <p className="text-slate-500 text-sm line-clamp-3">Chuyên gia tài chính với 12 năm kinh nghiệm tại các ngân hàng đầu tư và quỹ Venture Capital hàng đầu.</p>
               </div>
             </div>

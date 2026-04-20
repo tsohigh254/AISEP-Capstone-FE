@@ -52,12 +52,12 @@ const TEXT = {
   hideProfileDesc: "H\u1ed3 s\u01a1 s\u1ebd kh\u00f4ng xu\u1ea5t hi\u1ec7n trong t\u00ecm ki\u1ebfm.",
   awaitingProfileApprovalTitle: "Ch\u01b0a th\u1ec3 b\u1eadt hi\u1ec3n th\u1ecb",
   awaitingProfileApprovalDesc:
-    "Backend ch\u1ec9 cho b\u1eadt hi\u1ec3n th\u1ecb khi h\u1ed3 s\u01a1 startup c\u00f3 profileStatus = Approved. N\u1ebfu trang KYC \u0111\u00e3 b\u00e1o \u0111\u01b0\u1ee3c duy\u1ec7t nh\u01b0ng v\u1eabn b\u1ecb ch\u1eb7n t\u1ea1i \u0111\u00e2y, ngh\u0129a l\u00e0 profile startup hi\u1ec7n ch\u01b0a \u0111\u1ed3ng b\u1ed9 sang tr\u1ea1ng th\u00e1i Approved.",
-  profileStatusApproved: "Approved",
-  profileStatusDraft: "Draft",
-  profileStatusPending: "Pending",
-  profileStatusPendingKyc: "PendingKYC",
-  profileStatusRejected: "Rejected",
+    "H\u1ed3 s\u01a1 c\u1ee7a b\u1ea1n c\u1ea7n \u0111\u01b0\u1ee3c duy\u1ec7t tr\u01b0\u1edbc khi c\u00f3 th\u1ec3 hi\u1ec3n th\u1ecb v\u1edbi nh\u00e0 \u0111\u1ea7u t\u01b0 v\u00e0 c\u1ed1 v\u1ea5n. Vui l\u00f2ng ho\u00e0n t\u1ea5t x\u00e1c th\u1ef1c KYC v\u00e0 ch\u1edd ph\u00ea duy\u1ec7t.",
+  profileStatusApproved: "\u0110\u00e3 duy\u1ec7t",
+  profileStatusDraft: "B\u1ea3n nh\u00e1p",
+  profileStatusPending: "Ch\u1edd duy\u1ec7t",
+  profileStatusPendingKyc: "Ch\u1edd x\u00e1c th\u1ef1c KYC",
+  profileStatusRejected: "B\u1ecb t\u1eeb ch\u1ed1i",
   profileStatusUnknown: "Ch\u01b0a x\u00e1c \u0111\u1ecbnh",
   privacyProtected: "Quy\u1ec1n ri\u00eang t\u01b0 \u0111\u01b0\u1ee3c b\u1ea3o v\u1ec7",
   privacyProtectedDesc:

@@ -12,6 +12,7 @@ import { buildInvestorProfilePresentation } from "@/lib/investor-profile-present
 import { useInvestorEdit } from "@/context/investor-edit-context";
 import { GetInvestorProfile, UpdateInvestorProfile, UploadInvestorPhoto } from "@/services/investor/investor.api";
 import { GetInvestorKYCStatus } from "@/services/investor/investor-kyc";
+import { useAuth } from "@/context/context";
 import type { IInvestorKYCStatus } from "@/types/investor-kyc";
 
 const COUNTRIES = ["Viet Nam", ...getNames().filter((name) => name !== "Viet Nam").sort((a, b) => a.localeCompare(b))];
@@ -160,6 +161,7 @@ function ReadonlyField({
 
 export default function InfoEditPage() {
   const { setSaveHandler, setIsSaving } = useInvestorEdit();
+  const { setUser } = useAuth();
 
   const [isLoading, setIsLoading] = useState(true);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -212,23 +214,50 @@ export default function InfoEditPage() {
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
-      const tasks: Promise<unknown>[] = [UpdateInvestorProfile(form) as unknown as Promise<unknown>];
-      if (photoFile) {
-        tasks.push(UploadInvestorPhoto(photoFile) as unknown as Promise<unknown>);
+      // 1) update profile first
+      const profileRes = await UpdateInvestorProfile(form);
+      if (!profileRes?.isSuccess) {
+        toast.error(profileRes?.message || "Cập nhật hồ sơ thất bại");
+        return;
       }
 
-      const [profileRes] = await Promise.all(tasks);
-      const data = profileRes as IBackendRes<IInvestorProfile>;
-      if (data.isSuccess) {
-        if (data.data) {
-          setProfile(data.data);
-        }
-        toast.success("Đã cập nhật thông tin hồ sơ");
-        setPhotoFile(null);
-      } else {
-        toast.error(data.message || "Cập nhật thất bại");
+      if (profileRes.data) {
+        setProfile(profileRes.data);
       }
-    } catch {
+
+      // 2) upload photo (if any) and show explicit feedback
+      if (photoFile) {
+        const photoRes = await UploadInvestorPhoto(photoFile);
+        if (!photoRes?.isSuccess) {
+          toast.error(photoRes?.message || "Tải ảnh thất bại");
+        } else {
+          if (photoRes.data) {
+            setProfile(photoRes.data);
+            setPhotoPreview(photoRes.data.profilePhotoURL ?? null);
+            // Update global auth user + emit event so header and other components refresh immediately
+            try {
+              setUser((prev: any) => ({ ...(prev || {}), profilePhotoURL: photoRes.data?.profilePhotoURL }));
+            } catch (e) {
+              // ignore if context update fails
+            }
+            if (typeof window !== "undefined") {
+              try {
+                window.dispatchEvent(new CustomEvent("aisep:profile-updated", { detail: photoRes.data }));
+              } catch (e) {
+                // ignore event errors
+              }
+            }
+          }
+          setPhotoFile(null);
+          toast.success("Ảnh đã được lưu");
+        }
+      } else {
+        toast.success("Đã cập nhật thông tin hồ sơ");
+      }
+    } catch (err) {
+      // Log for debugging and show user-friendly message
+      // eslint-disable-next-line no-console
+      console.error("handleSave error:", err);
       toast.error("Gặp lỗi khi cập nhật");
     } finally {
       setIsSaving(false);
@@ -264,21 +293,36 @@ export default function InfoEditPage() {
             </div>
             <input
               type="file"
-              accept="image/png,image/jpeg"
+              accept="image/png,image/jpeg,image/gif"
               className="hidden"
               onChange={(event) => {
                 const file = event.target.files?.[0];
-                if (file) {
-                  setPhotoFile(file);
-                  setPhotoPreview(URL.createObjectURL(file));
+                if (!file) return;
+
+                const maxSize = 5 * 1024 * 1024; // 5MB
+                const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/gif"];
+                const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+                const allowedExts = ["png", "jpg", "jpeg", "gif"];
+
+                if (!allowedTypes.includes(file.type) && !allowedExts.includes(ext)) {
+                  toast.error("Định dạng không hợp lệ — chỉ hỗ trợ PNG/JPG/GIF");
+                  return;
                 }
+
+                if (file.size > maxSize) {
+                  toast.error("Ảnh quá lớn — tối đa 5MB");
+                  return;
+                }
+
+                setPhotoFile(file);
+                setPhotoPreview(URL.createObjectURL(file));
               }}
             />
           </label>
 
           <div>
             <p className="text-[13px] font-medium text-slate-700">{presentation?.avatarSectionDescription || "Ảnh hồ sơ công khai"}</p>
-            <p className="mt-1 text-[11px] text-slate-400">PNG, JPG · Tối đa 5MB</p>
+            <p className="mt-1 text-[11px] text-slate-400">PNG, JPG, GIF · Tối đa 5MB</p>
             {photoFile && <p className="mt-1.5 text-[11px] font-medium text-amber-600">Ảnh mới chờ lưu: {photoFile.name}</p>}
           </div>
         </div>

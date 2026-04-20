@@ -1,18 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Bell, Calendar, ExternalLink, Loader2, Trash2, Clock } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Bell, Calendar, ExternalLink, Loader2, Trash2, Clock, X } from "lucide-react";
 import { GetNotificationById, DeleteNotification } from "@/services/notification/notification.api";
 import { cn } from "@/lib/utils";
+import { localizeIssueReportNotificationText } from "@/lib/notification";
 
 interface NotificationDetailModalProps {
   notificationId: number | null;
@@ -30,6 +23,9 @@ export function NotificationDetailModal({
   const [noti, setNoti] = useState<INotificationDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     if (isOpen && notificationId) {
@@ -68,109 +64,128 @@ export function NotificationDetailModal({
     }
   };
 
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden border-none rounded-[32px] shadow-2xl">
-        <DialogHeader className="px-8 pt-8 pb-6 bg-[#fdfdfb]">
-          <div className="flex items-center gap-3 mb-4">
-             <div className="w-10 h-10 rounded-2xl bg-[#e6cc4c]/10 flex items-center justify-center text-[#e6cc4c]">
-                <Bell className="w-5 h-5" />
-             </div>
-             <div className="flex flex-col">
-                <span className="text-[10px] font-bold text-[#b0ad98] uppercase tracking-[0.15em] font-be-vietnam-pro">Thông báo hệ thống</span>
-                <span className="text-[11px] font-semibold text-slate-400 font-be-vietnam-pro flex items-center gap-1.5">
-                   <Clock className="w-3.5 h-3.5" /> {noti ? new Date(noti.createdAt).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' }) : "--:--"}
-                </span>
-             </div>
-          </div>
-          <DialogTitle className="text-[20px] font-bold text-[#171611] leading-tight font-be-vietnam-pro">
-            {loading ? "Đang tải..." : noti?.title || "Chi tiết thông báo"}
-          </DialogTitle>
-        </DialogHeader>
+  if (!mounted || !isOpen) return null;
 
-        <div className="px-8 pb-8 pt-2">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-3">
-              <Loader2 className="w-8 h-8 animate-spin text-[#e6cc4c]" />
-              <p className="text-sm font-medium text-slate-400 font-be-vietnam-pro">Vui lòng đợi trong giây lát...</p>
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 animate-in zoom-in-95 duration-200">
+
+        {/* Header */}
+        <div className="flex items-start justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#eec54e]/10 flex items-center justify-center shrink-0">
+              <Bell className="w-4 h-4 text-[#eec54e]" />
             </div>
-          ) : noti ? (
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="bg-slate-50/50 rounded-2xl p-5 border border-slate-100/50 mb-6">
-                <p className="text-[15px] text-[#3a3935] leading-relaxed font-be-vietnam-pro whitespace-pre-wrap">
-                  {noti.message}
-                </p>
+            <div>
+              <p className="text-[11px] text-slate-400 uppercase tracking-wide font-semibold">Thông báo hệ thống</p>
+              <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                <Clock className="w-3 h-3" />
+                {noti ? new Date(noti.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "--:--"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-lg hover:bg-slate-100 transition-colors shrink-0 ml-3 mt-0.5"
+          >
+            <X className="w-4 h-4 text-slate-400" />
+          </button>
+        </div>
+
+        {/* Title */}
+        <h3 className="text-[20px] font-bold text-slate-900 leading-tight mb-4">
+          {loading
+            ? "Đang tải..."
+            : localizeIssueReportNotificationText(noti ?? {}, noti?.title || "Chi tiết thông báo")}
+        </h3>
+
+        {/* Body */}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+          </div>
+        ) : noti ? (
+          <div className="animate-in fade-in duration-300 space-y-4">
+
+            {/* Message */}
+            <div className="px-4 py-3.5 bg-slate-50 rounded-xl border border-slate-100">
+              <p className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap">
+                {localizeIssueReportNotificationText(noti, noti.message)}
+              </p>
+            </div>
+
+            {/* Meta */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between text-[12px]">
+                <div className="flex items-center gap-1.5 text-slate-400">
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Ngày tạo:</span>
+                </div>
+                <span className="text-slate-700 font-semibold">
+                  {new Date(noti.createdAt).toLocaleDateString("vi-VN", {
+                    day: "2-digit",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </span>
               </div>
 
-              <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between text-[12px] font-medium text-slate-500 font-be-vietnam-pro border-b border-slate-50 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-slate-300" />
-                    <span>Ngày tạo:</span>
+              {noti.readAt && (
+                <div className="flex items-center justify-between text-[12px]">
+                  <div className="flex items-center gap-1.5 text-slate-400">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Đã xem lúc:</span>
                   </div>
-                  <span className="text-slate-900 font-bold">
-                    {new Date(noti.createdAt).toLocaleDateString("vi-VN", {
-                      day: "2-digit",
-                      month: "long",
-                      year: "numeric"
-                    })}
+                  <span className="text-slate-700 font-semibold">
+                    {new Date(noti.readAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                    {" — "}
+                    {new Date(noti.readAt).toLocaleDateString("vi-VN")}
                   </span>
                 </div>
+              )}
+            </div>
 
-                {noti.readAt && (
-                   <div className="flex items-center justify-between text-[12px] font-medium text-slate-500 font-be-vietnam-pro border-b border-slate-50 pb-3">
-                    <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-slate-300" />
-                        <span>Đã xem lúc:</span>
-                    </div>
-                    <span className="text-slate-900 font-bold">
-                        {new Date(noti.readAt).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' })} - {new Date(noti.readAt).toLocaleDateString("vi-VN")}
-                    </span>
-                   </div>
+            {/* Actions */}
+            <div className="flex items-center justify-between gap-3 pt-2">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-red-200 text-red-600 text-[13px] font-medium hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                Xóa thông báo
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onClose}
+                  className="inline-flex items-center px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-[13px] font-medium hover:bg-slate-50 transition-colors"
+                >
+                  Đóng
+                </button>
+                {noti.actionUrl && (
+                  <button
+                    onClick={() => { window.location.href = noti.actionUrl!; onClose(); }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0f172a] text-white text-[13px] font-medium hover:bg-[#1e293b] transition-colors shadow-sm"
+                  >
+                    Chi tiết
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
                 )}
               </div>
-
-              <div className="mt-8 flex items-center justify-between gap-3">
-                <Button
-                  variant="ghost"
-                  className="text-slate-400 hover:text-red-500 hover:bg-red-50 font-bold text-[12px] uppercase tracking-wide font-be-vietnam-pro gap-2"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                >
-                  {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                  Xóa thông báo
-                </Button>
-
-                <div className="flex items-center gap-3">
-                   <Button
-                    variant="outline"
-                    className="rounded-xl font-bold text-[13px] font-be-vietnam-pro border-slate-200"
-                    onClick={onClose}
-                    >
-                    Đóng
-                    </Button>
-                    {noti.actionUrl && (
-                    <Button
-                        className="bg-[#e6cc4c] hover:bg-[#d4ba3d] text-[#171611] font-bold rounded-xl text-[13px] font-be-vietnam-pro gap-2 shadow-lg shadow-[#e6cc4c]/20"
-                        onClick={() => {
-                        window.location.href = noti.actionUrl!;
-                        onClose();
-                        }}
-                    >
-                        Chi tiết <ExternalLink className="w-4 h-4" />
-                    </Button>
-                    )}
-                </div>
-              </div>
             </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-               <p className="text-sm font-medium text-slate-400 font-be-vietnam-pro">Không tìm thấy nội dung thông báo.</p>
-               <Button variant="link" onClick={onClose} className="mt-2 text-[#e6cc4c]">Quay lại</Button>
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-12 space-y-2">
+            <p className="text-[13px] text-slate-400 font-medium">Không tìm thấy nội dung thông báo.</p>
+            <button onClick={onClose} className="text-[13px] text-[#eec54e] font-medium hover:underline">
+              Quay lại
+            </button>
+          </div>
+        )}
+
+      </div>
+    </div>,
+    document.body
   );
 }

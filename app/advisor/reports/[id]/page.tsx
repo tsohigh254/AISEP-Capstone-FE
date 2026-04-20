@@ -13,26 +13,25 @@ import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getAdvisorReportById } from "@/services/advisor/advisor-report.api";
+import { UpdateMentorshipReport } from "@/services/advisor/advisor.api";
 import type { IConsultationReport, ConsultationReportStatus } from "@/types/advisor-report";
 
 /* ─── Constants ──────────────────────────────────────────────── */
 
 const STATUS_LABEL: Record<ConsultationReportStatus, string> = {
-  DRAFT: "Bản nháp",
-  SUBMITTED: "Đang chờ duyệt",
-  UNDER_REVIEW: "Đang thẩm định",
-  NEEDS_REVISION: "Cần chỉnh sửa",
-  FINALIZED: "Đã hoàn tất",
-  DELETED: "Đã xóa",
+  Draft: "Bản nháp",
+  Passed: "Đã hoàn tất",
+  Failed: "Không đạt",
+  NeedsMoreInfo: "Cần bổ sung",
+  PendingReview: "Đang xét duyệt",
 };
 
 const STATUS_CFG: Record<ConsultationReportStatus, { dot: string; badge: string }> = {
-  DRAFT: { dot: "bg-slate-400", badge: "bg-slate-50 text-slate-600 border-slate-200/80" },
-  SUBMITTED: { dot: "bg-amber-400", badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
-  UNDER_REVIEW: { dot: "bg-blue-400", badge: "bg-blue-50 text-blue-700 border-blue-200/80" },
-  NEEDS_REVISION: { dot: "bg-red-400", badge: "bg-red-50 text-red-600 border-red-200/80" },
-  FINALIZED: { dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
-  DELETED: { dot: "bg-gray-400", badge: "bg-gray-50 text-gray-500 border-gray-200/80" },
+  Draft: { dot: "bg-slate-400", badge: "bg-slate-50 text-slate-600 border-slate-200/80" },
+  Passed: { dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
+  Failed: { dot: "bg-red-400", badge: "bg-red-50 text-red-600 border-red-200/80" },
+  NeedsMoreInfo: { dot: "bg-blue-400", badge: "bg-blue-50 text-blue-600 border-blue-200/80" },
+  PendingReview: { dot: "bg-amber-400", badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
 };
 
 /* ─── Components ─────────────────────────────────────────────── */
@@ -109,13 +108,19 @@ export default function ReportDetailPage() {
     fetch();
   }, [id]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!report) return;
     setIsSubmitting(true);
-    setTimeout(() => {
-      toast.success("Đã gửi báo cáo chờ thẩm định");
-      setReport(prev => prev ? {...prev, status: 'SUBMITTED'} : null);
+    try {
+      await UpdateMentorshipReport(report.sessionId, report.id, { isDraft: false });
+      toast.success("Đã gửơi báo cáo thành công! Startup sẽ thấy báo cáo ngay bây giờ.");
+      // Auto-approve: report trở thành Passed ngay sau khi submit
+      setReport(prev => prev ? { ...prev, reviewStatus: 'Passed' } : null);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Có lỗi xảy ra khi nộp báo cáo.");
+    } finally {
       setIsSubmitting(false);
-    }, 1000);
+    }
   };
 
   if (isLoading) return (
@@ -135,7 +140,7 @@ export default function ReportDetailPage() {
     </AdvisorShell>
   );
 
-  const cfg = STATUS_CFG[report.status];
+  const cfg = STATUS_CFG[report.reviewStatus] ?? STATUS_CFG['Draft'];
   const avatarGradient = getAvatarColor(report.startup.displayName);
 
   return (
@@ -155,17 +160,17 @@ export default function ReportDetailPage() {
           </button>
           
           <div className="flex items-center gap-3">
-            {report.status === "FINALIZED" && (
+            {report.reviewStatus === "Passed" && (
               <button className="px-4 py-2 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-[#1e293b] transition-all shadow-sm flex items-center gap-2">
                 <Download className="w-4 h-4" />
                 Tải PDF
               </button>
             )}
             
-            {(report.status === "DRAFT" || report.status === "NEEDS_REVISION") && (
+            {report.reviewStatus === "Draft" && (
               <div className="flex items-center gap-3">
                 <button 
-                  onClick={() => router.push(`/advisor/reports/${report.id}/edit`)}
+                  onClick={() => router.push(`/advisor/reports/${report.sessionId}/edit`)}
                   className="px-5 py-2 rounded-xl border border-[#eec54e] bg-[#eec54e]/5 text-[#0f172a] text-[13px] font-bold hover:bg-[#eec54e] transition-all flex items-center gap-2"
                 >
                   <Edit3 className="w-4 h-4" />
@@ -181,15 +186,43 @@ export default function ReportDetailPage() {
                 </button>
               </div>
             )}
+
+            {report.reviewStatus === "NeedsMoreInfo" && (
+              <button
+                onClick={() => router.push(`/advisor/reports/${report.sessionId}/edit`)}
+                className="px-5 py-2 rounded-xl border border-blue-300 bg-blue-50 text-blue-700 text-[13px] font-bold hover:bg-blue-100 transition-all flex items-center gap-2"
+              >
+                <Edit3 className="w-4 h-4" />
+                Chỉnh sửa &amp; Nộp lại
+              </button>
+            )}
+
+            {report.reviewStatus === "Failed" && (
+              <button
+                onClick={() => router.push(`/advisor/reports/create?sessionId=${report.sessionId}`)}
+                className="px-5 py-2 rounded-xl bg-red-500 text-white text-[13px] font-bold hover:bg-red-600 transition-all shadow-[0_4px_12px_rgba(239,68,68,0.3)] flex items-center gap-2 hover:-translate-y-0.5"
+              >
+                <Send className="w-4 h-4" />
+                Nộp báo cáo lại
+              </button>
+            )}
           </div>
         </div>
 
         {/* Page Header Card (White Pattern) */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-6 py-5">
           <div className="flex items-start gap-4">
-            <div className={cn("w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[18px] font-bold shrink-0 shadow-sm", avatarGradient)}>
-              {report.startup.displayName.charAt(0).toUpperCase()}
-            </div>
+            {report.startup.logoUrl ? (
+              <img
+                src={report.startup.logoUrl}
+                alt={report.startup.displayName}
+                className="w-12 h-12 rounded-xl object-cover shrink-0 shadow-sm border border-slate-100"
+              />
+            ) : (
+              <div className={cn("w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[18px] font-bold shrink-0 shadow-sm", avatarGradient)}>
+                {report.startup.displayName.charAt(0).toUpperCase()}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="text-[20px] font-bold text-slate-900 leading-tight">
@@ -200,7 +233,7 @@ export default function ReportDetailPage() {
                   cfg.badge
                 )}>
                   <span className={cn("w-1.5 h-1.5 rounded-full", cfg.dot)} />
-                  {STATUS_LABEL[report.status]}
+                  {STATUS_LABEL[report.reviewStatus] ?? STATUS_LABEL['Draft']}
                 </span>
               </div>
               <p className="text-[13px] text-slate-500 mt-1 font-medium italic line-clamp-1">
@@ -315,18 +348,52 @@ export default function ReportDetailPage() {
 
           {/* Side Column */}
           <div className="space-y-6">
-            {/* Staff Feedback (if revision needed) */}
-          {report.status === "NEEDS_REVISION" && report.staffRemarks && (
-            <div className="rounded-2xl border-2 border-red-200 bg-red-50/40 px-6 py-5 animate-in shake-1 duration-500">
+            {/* Staff Feedback */}
+          {(report.reviewStatus === "NeedsMoreInfo" || report.reviewStatus === "Failed") &&
+            (report.staffRemarks || report.staffReviewNote) && (
+            <div className={cn(
+              "rounded-2xl border-2 px-6 py-5 animate-in duration-500",
+              report.reviewStatus === "Failed"
+                ? "border-red-300 bg-red-50/60"
+                : "border-red-200 bg-red-50/40"
+            )}>
               <div className="flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
                 <div>
-                  <h3 className="text-[13px] font-bold text-red-800 uppercase tracking-widest mb-1">Cần chỉnh sửa nội dung</h3>
-                  <p className="text-[13px] text-red-700 leading-relaxed font-medium">{report.staffRemarks}</p>
+                  <h3 className="text-[13px] font-bold text-red-800 uppercase tracking-widest mb-1">
+                    {report.reviewStatus === "Failed" ? "Báo cáo không đạt" : "Cần bổ sung nội dung"}
+                  </h3>
+                  <p className="text-[13px] text-red-700 leading-relaxed font-medium">
+                    {report.staffRemarks || report.staffReviewNote}
+                  </p>
                 </div>
               </div>
             </div>
           )}
+
+            {/* Startup Acknowledgement */}
+            {report.reviewStatus === "Passed" && (
+              <div className={cn(
+                "rounded-2xl border px-5 py-4",
+                report.startupAcknowledgedAt
+                  ? "border-emerald-200 bg-emerald-50/50"
+                  : "border-amber-200 bg-amber-50/40"
+              )}>
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className={cn("w-4 h-4 shrink-0 mt-0.5", report.startupAcknowledgedAt ? "text-emerald-500" : "text-amber-400")} />
+                  <div>
+                    <h3 className={cn("text-[12px] font-bold uppercase tracking-widest mb-1", report.startupAcknowledgedAt ? "text-emerald-700" : "text-amber-700")}>
+                      {report.startupAcknowledgedAt ? "Startup đã xác nhận" : "Chờ Startup xác nhận"}
+                    </h3>
+                    <p className="text-[12px] font-medium text-slate-500">
+                      {report.startupAcknowledgedAt
+                        ? `Đã đọc và xác nhận lúc ${new Date(report.startupAcknowledgedAt).toLocaleString("vi-VN")}`
+                        : "Startup có 24h để xác nhận, sau đó hệ thống tự động xác nhận."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Attachments */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
@@ -346,42 +413,17 @@ export default function ReportDetailPage() {
                             </div>
                             <div className="min-w-0">
                                 <p className="text-[12px] font-bold text-slate-700 truncate">{att.originalFileName}</p>
-                                <p className="text-[10px] text-slate-400">{(att.fileSizeBytes / 1024 / 1024).toFixed(1)} MB</p>
                             </div>
                         </div>
-                        <button className="text-slate-300 hover:text-blue-500 transition-colors">
+                        <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:text-blue-500 transition-colors">
                             <Download className="w-4 h-4" />
-                        </button>
+                        </a>
                    </div> 
                 ))}
                 {report.attachments.length === 0 && (
                     <p className="text-center py-6 text-[12px] text-slate-400 italic">Không có tệp đính kèm</p>
                 )}
               </div>
-            </div>
-
-            {/* Timeline Mini (Dynamic) */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-6 py-5">
-                <h2 className="text-[13px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-6 flex items-center gap-2">
-                  <History className="w-4 h-4" />
-                  Lịch sử hoạt động
-                </h2>
-                <div className="space-y-6 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-px before:bg-slate-100/60">
-                    {report.history.map((h, i) => (
-                      <div key={h.id} className="relative pl-8">
-                        <div className={cn(
-                          "absolute left-0 top-1 w-[22px] h-[22px] rounded-full ring-4 ring-white flex items-center justify-center transition-all shadow-sm",
-                          i === 0 ? "bg-[#eec54e]" : "bg-slate-200"
-                        )}>
-                          {h.eventType === 'FINALIZED' ? <CheckCircle2 className="w-3 h-3 text-white" /> : <Clock className="w-3 h-3 text-white" />}
-                        </div>
-                        <p className="text-[12px] font-bold text-slate-700">{h.summary}</p>
-                        <p className="text-[10px] text-slate-400 uppercase font-black tracking-tight mt-0.5">
-                          {formatDate(h.createdAt)}
-                        </p>
-                      </div>
-                    ))}
-                </div>
             </div>
 
           </div>
@@ -398,7 +440,7 @@ export default function ReportDetailPage() {
           </div>
           <div className="bg-white px-6 pt-5 pb-8 -mt-4 rounded-t-3xl shadow-[0_-4px_15px_rgba(0,0,0,0.05)] relative z-10">
             <DialogDescription className="text-slate-600 leading-relaxed text-[14px]">
-              Khi báo cáo được nộp, trạng thái sẽ chuyển sang <strong className="text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded">Chờ thẩm định</strong>. Bạn sẽ không thể tiếp tục chỉnh sửa nội dung này trừ khi nhận được yêu cầu bổ sung từ đội ngũ Operations.
+              Khi nộp báo cáo, hệ thống tự động duyệt và đánh dấu là <strong className="text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded">Đã hoàn tất</strong>. Startup sẽ thấy báo cáo của bạn <strong>ngay lập tức</strong>.
               <br /><br />
               Bạn đã chắc chắn muốn gửi chưa?
             </DialogDescription>

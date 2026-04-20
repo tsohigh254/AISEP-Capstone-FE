@@ -23,6 +23,7 @@ const routeLabels: Record<string, string> = {
   kyc: "Xác thực KYC",
   status: "Trạng thái",
   messaging: "Tin nhắn",
+  "issue-reports": "Báo cáo của tôi",
   notifications: "Thông báo",
   settings: "Cài đặt",
   connections: "Kết nối",

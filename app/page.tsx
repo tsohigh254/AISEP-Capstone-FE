@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import {
   ArrowRight,
@@ -88,18 +89,16 @@ export default function Home() {
             </div>
 
             <div className="relative">
-              <div className="aspect-video w-full rounded-2xl bg-gradient-to-br from-[#f0f04c]/30 to-slate-200 overflow-hidden shadow-2xl border-8 border-white">
-                <div
-                  className="absolute inset-0 bg-cover bg-center mix-blend-overlay opacity-60"
-                  style={{
-                    backgroundImage:
-                      "url('https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=1000')",
-                  }}
+              <div className="relative aspect-video w-full overflow-hidden rounded-2xl shadow-2xl">
+                <Image
+                  src="/anh1.jpg"
+                  alt="Đội ngũ AISEP đang trao đổi trước bảng điều khiển nền tảng"
+                  fill
+                  priority
+                  className="object-cover scale-[1.58]"
+                  sizes="(min-width: 1024px) 50vw, 100vw"
+                  style={{ objectPosition: "center 38%" }}
                 />
-                <div className="relative h-full w-full p-6 flex flex-col justify-end bg-gradient-to-t from-slate-900/40 to-transparent">
-                  <div className="w-1/2 h-4 bg-white/30 rounded mb-2" />
-                  <div className="w-1/3 h-4 bg-white/20 rounded" />
-                </div>
               </div>
               <div className="absolute -bottom-6 -left-6 hidden md:block w-48 h-48 bg-[#f0f04c] rounded-2xl -z-10 opacity-20 blur-2xl" />
             </div>

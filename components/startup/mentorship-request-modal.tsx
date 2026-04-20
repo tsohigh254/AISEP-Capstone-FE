@@ -112,8 +112,16 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
 
         const preferredFormat: MeetingFormat = platform === "meet" ? "GoogleMeet" : "MicrosoftTeams";
 
-        const requestedSlots = slots
-            .filter(s => s.date && s.time)
+        const filledSlots = slots.filter(s => s.date && s.time);
+        const now = new Date();
+        const hasPastSlot = filledSlots.some(s => new Date(`${s.date}T${s.time}:00`) <= now);
+        if (hasPastSlot) {
+            toast.error("Khung giờ đã chọn đã qua. Vui lòng chọn thời gian trong tương lai.");
+            setIsSubmitting(false);
+            return;
+        }
+
+        const requestedSlots = filledSlots
             .map(s => {
                 const startAt = new Date(`${s.date}T${s.time}:00`).toISOString();
                 const endDate = new Date(`${s.date}T${s.time}:00`);
@@ -150,6 +158,8 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                 let errorMsg = res.message || "Gửi yêu cầu thất bại. Vui lòng thử lại.";
                 if (errorMsg === "An active or pending mentorship with this advisor already exists.") {
                     errorMsg = "Bạn đã có một yêu cầu đang chờ phản hồi hoặc đang hoạt động với Cố vấn này.";
+                } else if (errorMsg.includes("subscription plan") || errorMsg.includes("upgrade your plan") || errorMsg.includes("maximum of")) {
+                    errorMsg = "Gói hiện tại của bạn đã đạt giới hạn số lượng yêu cầu tư vấn. Vui lòng nâng cấp gói để tiếp tục.";
                 }
                 toast.error(errorMsg);
             }
@@ -377,6 +387,7 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                                             <input
                                                 type="time"
                                                 value={slot.time}
+                                                min={slot.date === today ? new Date().toTimeString().slice(0, 5) : undefined}
                                                 onChange={e => updateSlot(i, "time", e.target.value)}
                                                 className="w-[110px] bg-white border border-slate-200 hover:border-slate-300 rounded-xl px-3 py-2 text-[12.5px] text-slate-700 outline-none focus:ring-2 focus:ring-amber-100 focus:border-amber-300 transition-all"
                                             />

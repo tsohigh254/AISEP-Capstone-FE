@@ -186,6 +186,9 @@ function AdminUsersContent() {
     // Dropdown visibility
     const [showRoleDD, setShowRoleDD] = useState(false);
     const [showSortDD, setShowSortDD] = useState(false);
+    const roleDDRef = useRef<HTMLDivElement>(null);
+    const sortDDRef = useRef<HTMLDivElement>(null);
+    const moreMenuRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
     const fetchUsers = useCallback(async () => {
         setLoading(true);
@@ -213,7 +216,16 @@ function AdminUsersContent() {
 
     // Close dropdowns on outside click
     useEffect(() => {
-        const handler = () => { setShowRoleDD(false); setShowSortDD(false); setMoreMenuId(null); };
+        const handler = (e: MouseEvent) => {
+            if (roleDDRef.current?.contains(e.target as Node)) return;
+            if (sortDDRef.current?.contains(e.target as Node)) return;
+            for (const el of moreMenuRefs.current.values()) {
+                if (el?.contains(e.target as Node)) return;
+            }
+            setShowRoleDD(false);
+            setShowSortDD(false);
+            setMoreMenuId(null);
+        };
         document.addEventListener("mousedown", handler);
         return () => document.removeEventListener("mousedown", handler);
     }, []);
@@ -351,7 +363,7 @@ function AdminUsersContent() {
 
                     <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 w-full lg:w-auto">
                         {/* Role filter */}
-                        <div className="relative" onMouseDown={e => e.stopPropagation()}>
+                        <div className="relative" ref={roleDDRef}>
                             <button
                                 onClick={() => { setShowRoleDD(!showRoleDD); setShowSortDD(false); }}
                                 className="h-10 px-3.5 bg-white border border-slate-200 rounded-xl flex items-center gap-2 text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-all min-w-[110px] justify-between"
@@ -372,7 +384,7 @@ function AdminUsersContent() {
                         </div>
 
                         {/* Sort */}
-                        <div className="relative" onMouseDown={e => e.stopPropagation()}>
+                        <div className="relative" ref={sortDDRef}>
                             <button
                                 onClick={() => { setShowSortDD(!showSortDD); setShowRoleDD(false); }}
                                 className="h-10 px-3.5 bg-white border border-slate-200 rounded-xl flex items-center gap-2 text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-all min-w-[160px] justify-between"
@@ -530,7 +542,7 @@ function AdminUsersContent() {
                                                         </button>
 
                                                         {/* More menu */}
-                                                        <div className="relative" onMouseDown={e => e.stopPropagation()}>
+                                                        <div className="relative" ref={el => { if (el) moreMenuRefs.current.set(user.userId, el); else moreMenuRefs.current.delete(user.userId); }}>
                                                             <button
                                                                 onClick={() => setMoreMenuId(moreMenuId === user.userId ? null : user.userId)}
                                                                 className="size-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all"

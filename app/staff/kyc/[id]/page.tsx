@@ -1205,10 +1205,16 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                         alt={activePreviewDoc.name}
                         className="w-full h-full object-contain bg-white"
                       />
-                    ) : (
+                    ) : /\.(pdf)(\?|$)/i.test(activePreviewDoc.url) || activePreviewDoc.fileType === "application/pdf" ? (
                       <iframe
                         title={activePreviewDoc.name}
                         src={activePreviewDoc.url}
+                        className="w-full h-full bg-white"
+                      />
+                    ) : (
+                      <iframe
+                        title={activePreviewDoc.name}
+                        src={`https://docs.google.com/viewer?url=${encodeURIComponent(activePreviewDoc.url)}&embedded=true`}
                         className="w-full h-full bg-white"
                       />
                     )

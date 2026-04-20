@@ -23,8 +23,16 @@ export type MentorshipSessionStatus =
   | "ProposedByAdvisor"
   | "Scheduled"
   | "InProgress"
+  | "Conducted"
   | "Completed"
-  | "Cancelled";
+  | "Cancelled"
+  | "InDispute"
+  | "Resolved";
+
+export type ReportReviewStatus =
+  | "Passed"
+  | "Failed"
+  | "NeedsMoreInfo";
 
 export type MeetingFormat = "GoogleMeet" | "MicrosoftTeams";
 
@@ -87,8 +95,14 @@ export interface IMentorshipRequest {
   cancelledAt?: string;
   completedAt: string;
   sessionAmount?: number | null;
+  actualAmount?: number | null;
   paymentStatus?: string | null;
   paidAt?: string | null;
+  advisorHourlyRate?: number | null;
+  advisorTitle?: string;
+  advisorPhotoURL?: string;
+  isPayoutEligible?: boolean;
+  payoutReleasedAt?: string | null;
   hasReport?: boolean;
   reportCount?: number;
   latestReportSubmittedAt?: string | null;
@@ -153,19 +167,12 @@ export interface IMentorshipSession {
   nextSteps?: string;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface IMentorshipReport {
-  reportID: number;
-  mentorshipID: number;
-  sessionID: number;
-  createdByAdvisorID: number;
-  reportSummary: string;
-  detailedFindings: string;
-  recommendations: string;
-  attachmentsURL: string;
-  submittedAt: string;
-  createdAt: string;
+  // Oversight fields
+  startupConfirmedConductedAt?: string;
+  disputeReason?: string;
+  resolutionNote?: string;
+  markedByStaffID?: number;
+  markedAt?: string;
 }
 
 export interface IMentorshipFeedback {
@@ -190,6 +197,11 @@ export interface ICreateMentorshipFeedback {
 export interface IMentorshipReport {
   reportID: number;
   mentorshipID: number;
+  reviewStatus?: ReportReviewStatus | string | null;
+  startupAcknowledgedAt?: string | null;
+  issueReportDeadlineAt?: string | null;
+  canSubmitIssueReport?: boolean;
+  attachmentsURL?: string | null;
   advisor: IMentorshipAdvisor;
   content: string; // Keep for backward compatibility
   title?: string;
@@ -200,6 +212,9 @@ export interface IMentorshipReport {
   advisorRecommendations?: string;
   nextSteps?: string;
   deliverablesSummary?: string;
+  followUpRequired?: boolean;
+  followUpNotes?: string;
+  submittedAt?: string;
   createdAt: string;
 }
 
@@ -241,9 +256,91 @@ export interface IAdvisorSkill {
 
 export interface IAdvisorReview {
   author: string;
-  stage: string;
+  stage: string | null;
   rating: number;
   text: string;
+  submittedAt?: string;
+}
+
+// ── Staff Consulting Oversight ───────────────────────────────────────────────
+
+export interface IReportOversightItem {
+  reportID: number;
+  mentorshipID: number;
+  sessionID: number;
+  advisorID: number;
+  advisorName: string;
+  startupID: number;
+  startupName: string;
+  reportSummary: string;
+  detailedFindings: string;
+  recommendations: string;
+  attachmentsURL: string | null;
+  submittedAt: string;
+  reviewStatus: ReportReviewStatus;
+  startupAcknowledgedAt: string | null;
+  reviewedByStaffID: number | null;
+  staffReviewNote: string | null;
+  reviewedAt: string | null;
+  supersededByReportID: number | null;
+  isLatestForSession: boolean;
+  sessionStatus: string;
+  startupConfirmedConductedAt: string | null;
+  mentorshipStatus: string;
+  challengeDescription: string;
+}
+
+export interface IReviewReportRequest {
+  reviewStatus: "Passed" | "Failed" | "NeedsMoreInfo";
+  note?: string;
+}
+
+export interface IReportReviewResult {
+  reportID: number;
+  mentorshipID: number;
+  reviewStatus: string;
+  staffReviewNote: string | null;
+  reviewedByStaffID: number | null;
+  reviewedAt: string | null;
+}
+
+export interface IReleasePayoutResult {
+  mentorshipID: number;
+  creditedAmount: number;
+  payoutReleasedAt: string;
+  isPayoutEligible: boolean;
+  releasedByStaffID: number;
+}
+
+export interface ISessionOversightResult {
+  sessionID: number;
+  sessionStatus: string;
+  disputeReason: string | null;
+  resolutionNote: string | null;
+  mentorshipID: number;
+  mentorshipStatus: string;
+  isPayoutEligible: boolean;
+  markedByStaffID: number | null;
+  markedAt: string | null;
+}
+
+export interface IStaffMarkDisputeRequest {
+  reason: string;
+}
+
+export interface IResolveDisputeRequest {
+  resolution: string;
+  restoreCompleted: boolean;
+}
+
+export interface IStaffSessionNoteRequest {
+  note?: string;
+}
+
+export interface IAdvisorTimeSlot {
+  dayOfWeek: number; // 0=Thứ 2 … 6=CN
+  startTime: string; // "HH:mm"
+  endTime: string;   // "HH:mm"
 }
 
 export interface IAdvisorDetail {
@@ -273,4 +370,5 @@ export interface IAdvisorDetail {
   experience: IAdvisorExperience[];
   skills: IAdvisorSkill[];
   reviews: IAdvisorReview[];
+  timeSlots?: IAdvisorTimeSlot[];
 }

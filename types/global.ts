@@ -342,6 +342,7 @@ declare global {
     messagePreview: string;
     isRead: boolean;
     actionUrl?: string;
+    relatedEntityType?: string | null;
     createdAt: string;
   }
 
@@ -352,6 +353,7 @@ declare global {
     message: string;
     isRead: boolean;
     actionUrl?: string;
+    relatedEntityType?: string | null;
     createdAt: string;
     readAt?: string;
   }

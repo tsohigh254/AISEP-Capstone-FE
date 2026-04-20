@@ -11,13 +11,19 @@ import {
   Dialog, DialogContent, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { SubmitIssueReport, IssueCategory } from "@/services/issue-report.api";
+import { toast } from "sonner";
+import {
+  SubmitIssueReport,
+  IssueCategory,
+  RelatedEntityType,
+  IssueReportSummaryDto,
+} from "@/services/issue-report.api";
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
 export interface IssueReportContext {
-  entityType: string;
-  entityId: string;
+  entityType: RelatedEntityType;
+  entityId: number;
   entityTitle: string;
   otherPartyName?: string;
 }
@@ -32,6 +38,8 @@ interface AttachedFile {
   file: File;
   error?: string;
 }
+
+const MAX_FILES = 5;
 
 /* ─── Constants ──────────────────────────────────────────────── */
 
@@ -96,7 +104,13 @@ export function IssueReportModal({ isOpen, onClose, context }: IssueReportModalP
 
   const addFiles = (incoming: FileList | File[]) => {
     const items: AttachedFile[] = Array.from(incoming).map(file => ({ file, error: validateFile(file) }));
-    setAttachments(prev => [...prev, ...items]);
+    setAttachments(prev => {
+      const combined = [...prev, ...items];
+      if (combined.length > MAX_FILES) {
+        toast.warning(`Chỉ chấp nhận tối đa ${MAX_FILES} file. Các file thừa đã bị bỏ.`);
+      }
+      return combined.slice(0, MAX_FILES);
+    });
   };
 
   const handleDrag = (e: React.DragEvent) => {
@@ -114,17 +128,43 @@ export function IssueReportModal({ isOpen, onClose, context }: IssueReportModalP
     if (!isValid) return;
     setIsSubmitting(true); setSubmitError("");
     try {
-      const res = await SubmitIssueReport({
+      const res = (await SubmitIssueReport({
         issueCategory: category as IssueCategory,
         description,
         attachments: validFiles.map(a => a.file),
-        relatedEntityType: context?.entityType,
-        relatedEntityId: context?.entityId,
-      });
-      if (res.success) setStep("success");
-      else { setSubmitError(res.message || "Gửi báo cáo thất bại."); setStep("error"); }
-    } catch {
-      setSubmitError("Lỗi kết nối. Vui lòng thử lại."); setStep("error");
+        relatedEntityType: context?.entityType ?? null,
+        relatedEntityID: context?.entityId ?? null,
+      })) as unknown as IBackendRes<IssueReportSummaryDto>;
+      if (res.success && res.data) {
+        setStep("success");
+      } else {
+        const rootErrorCode = (res as unknown as { errorCode?: string }).errorCode;
+        const nestedErrorCode = (res.error as { code?: string } | undefined)?.code;
+        const errorCode = rootErrorCode || nestedErrorCode;
+        setSubmitError(
+          errorCode === "ISSUE_REPORT_WINDOW_EXPIRED"
+            ? "Đã hết thời hạn 24 giờ để báo cáo vấn đề cho báo cáo tư vấn này."
+            : res.message || "Gửi báo cáo thất bại."
+        );
+        setStep("error");
+      }
+    } catch (err) {
+      const ax = err as {
+        response?: {
+          data?: {
+            message?: string;
+            errorCode?: string;
+            error?: { code?: string };
+          };
+        };
+      };
+      const errorCode = ax.response?.data?.errorCode || ax.response?.data?.error?.code;
+      setSubmitError(
+        errorCode === "ISSUE_REPORT_WINDOW_EXPIRED"
+          ? "Đã hết thời hạn 24 giờ để báo cáo vấn đề cho báo cáo tư vấn này."
+          : ax.response?.data?.message || "Lỗi kết nối. Vui lòng thử lại."
+      );
+      setStep("error");
     } finally {
       setIsSubmitting(false);
     }
@@ -230,7 +270,7 @@ export function IssueReportModal({ isOpen, onClose, context }: IssueReportModalP
                         {context.entityTitle}{context.otherPartyName ? ` · ${context.otherPartyName}` : ""}
                       </p>
                     </div>
-                    <span className="text-[10px] font-mono text-slate-300 shrink-0">{context.entityId}</span>
+                    <span className="text-[10px] font-mono text-slate-300 shrink-0">#{context.entityId}</span>
                   </div>
                 )}
 

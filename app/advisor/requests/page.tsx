@@ -31,7 +31,8 @@ const TABS: { key: TabKey; label: string }[] = [
 
 const STATUS_LABEL: Record<ConsultingRequestStatus, string> = {
   PENDING: "Chờ xử lý", REQUESTED: "Chờ xử lý", ACCEPTED: "Đã nhận", SCHEDULED: "Đã lên lịch",
-  COMPLETED: "Đã diễn ra", FINALIZED: "Đã hoàn thành", REJECTED: "Đã từ chối", CANCELLED: "Đã huỷ",
+  IN_PROGRESS: "Đang tư vấn", COMPLETED: "Đã diễn ra", FINALIZED: "Đã hoàn thành", REJECTED: "Đã từ chối", CANCELLED: "Đã huỷ",
+  IN_DISPUTE: "Đang tranh chấp", RESOLVED: "Đã giải quyết",
 };
 
 const STATUS_CFG: Record<ConsultingRequestStatus, { dot: string; badge: string }> = {
@@ -39,10 +40,13 @@ const STATUS_CFG: Record<ConsultingRequestStatus, { dot: string; badge: string }
   REQUESTED: { dot: "bg-amber-400", badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
   ACCEPTED:  { dot: "bg-blue-400",  badge: "bg-blue-50 text-blue-700 border-blue-200/80" },
   SCHEDULED: { dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
+  IN_PROGRESS: { dot: "bg-blue-400", badge: "bg-blue-50 text-blue-700 border-blue-200/80" },
   COMPLETED: { dot: "bg-slate-400", badge: "bg-slate-50 text-slate-600 border-slate-200/80" },
   FINALIZED: { dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
   REJECTED:  { dot: "bg-red-400",   badge: "bg-red-50 text-red-600 border-red-200/80" },
   CANCELLED: { dot: "bg-gray-400",  badge: "bg-gray-50 text-gray-500 border-gray-200/80" },
+  IN_DISPUTE: { dot: "bg-red-400", badge: "bg-red-50 text-red-600 border-red-200/80" },
+  RESOLVED: { dot: "bg-slate-400", badge: "bg-slate-50 text-slate-600 border-slate-200/80" },
 };
 
 
@@ -99,7 +103,7 @@ function RequestCard({
 }) {
   const initial = req.startup.displayName.charAt(0).toUpperCase();
   const firstSlot = req.preferredSlots[0] ?? null;
-  const cfg = STATUS_CFG[req.status];
+  const cfg = STATUS_CFG[req.status] ?? STATUS_CFG["PENDING"];
   const expiry = req.expiresAt ? expiryCountdown(req.expiresAt) : null;
   const isRequested = req.status === "PENDING";
 

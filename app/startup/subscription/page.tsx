@@ -22,19 +22,19 @@ type FeatureRow = {
 };
 
 const FEATURE_MATRIX: FeatureRow[] = [
-  { feature: "Create startup profile", free: true, pro: true, fundraising: true },
-  { feature: "Browse investors", free: true, pro: true, fundraising: true },
-  { feature: "Browse advisors", free: true, pro: true, fundraising: true },
-  { feature: "Book advisor session", free: true, pro: true, fundraising: true },
-  { feature: "Investor connection requests", free: "3", pro: "15", fundraising: "Unlimited" },
-  { feature: "Advisor consultation requests", free: "2", pro: "10", fundraising: "Unlimited" },
-  { feature: "Investor matching", free: false, pro: true, fundraising: true },
-  { feature: "Startup analytics", free: false, pro: true, fundraising: true },
-  { feature: "AI Score History", free: false, pro: true, fundraising: true },
-  { feature: "Blockchain verification", free: false, pro: true, fundraising: true },
-  { feature: "View interested investors", free: false, pro: false, fundraising: true },
-  { feature: "Featured startup", free: false, pro: false, fundraising: true },
-  { feature: "Priority support", free: false, pro: false, fundraising: true },
+  { feature: "Tạo hồ sơ startup", free: true, pro: true, fundraising: true },
+  { feature: "Duyệt danh sách nhà đầu tư", free: true, pro: true, fundraising: true },
+  { feature: "Duyệt danh sách cố vấn", free: true, pro: true, fundraising: true },
+  { feature: "Đặt lịch tư vấn với cố vấn", free: true, pro: true, fundraising: true },
+  { feature: "Yêu cầu kết nối nhà đầu tư", free: "3", pro: "15", fundraising: "Unlimited" },
+  { feature: "Yêu cầu tư vấn cố vấn", free: "2", pro: "10", fundraising: "Unlimited" },
+  { feature: "Kết nối nhà đầu tư phù hợp (AI Matching)", free: false, pro: true, fundraising: true },
+  { feature: "Phân tích dữ liệu startup", free: false, pro: true, fundraising: true },
+  { feature: "Lịch sử điểm AI Score", free: false, pro: true, fundraising: true },
+  { feature: "Xác thực Blockchain", free: false, pro: true, fundraising: true },
+  { feature: "Xem nhà đầu tư đang quan tâm", free: false, pro: false, fundraising: true },
+  { feature: "Startup nổi bật (Featured)", free: false, pro: false, fundraising: true },
+  { feature: "Hỗ trợ ưu tiên", free: false, pro: false, fundraising: true },
 ];
 
 const PLAN_META: Record<PlanKey, { label: string; desc: string; cta?: string; code?: StartupSubscriptionPlanCode }> = {
@@ -68,17 +68,33 @@ const PLAN_CHECKOUT_META: Record<StartupSubscriptionPlanCode, { targetPlan: Targ
 };
 
 function renderValue(value: string | boolean) {
-  if (value === true) return <Check className="h-4 w-4 text-emerald-600" />;
-  if (value === false) return <X className="h-4 w-4 text-slate-300" />;
+  if (value === true)
+    return (
+      <div className="flex justify-center">
+        <Check className="h-4 w-4 text-emerald-600" />
+      </div>
+    );
+  if (value === false)
+    return (
+      <div className="flex justify-center">
+        <X className="h-4 w-4 text-slate-300" />
+      </div>
+    );
   if (String(value).toLowerCase() === "unlimited") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
-        <Infinity className="h-3.5 w-3.5" />
-        Unlimited
-      </span>
+      <div className="flex justify-center">
+        <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 whitespace-nowrap">
+          <Infinity className="h-3.5 w-3.5 shrink-0" />
+          Unlimited
+        </span>
+      </div>
     );
   }
-  return <span className="text-sm font-semibold text-slate-700">{value}</span>;
+  return (
+    <div className="flex justify-center">
+      <span className="text-sm font-semibold text-slate-700">{value}</span>
+    </div>
+  );
 }
 
 export default function StartupSubscriptionPage() {
@@ -177,25 +193,25 @@ export default function StartupSubscriptionPage() {
         <Card className="border-slate-200/80">
           <CardHeader>
             <CardTitle className="text-lg text-slate-900">So sánh tính năng</CardTitle>
-            <CardDescription>Feature matrix theo đúng bộ tính năng bạn cung cấp.</CardDescription>
+            <CardDescription>Chi tiết các tính năng theo từng gói dịch vụ.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50 hover:bg-slate-50">
-                  <TableHead className="min-w-[240px] font-bold text-slate-700">Feature</TableHead>
-                  <TableHead className="text-center font-bold text-slate-700">Free</TableHead>
-                  <TableHead className="text-center font-bold text-slate-700">Pro</TableHead>
-                  <TableHead className="text-center font-bold text-slate-700">Fundraising</TableHead>
+                  <TableHead className="min-w-[240px] font-bold text-slate-700">Tính năng</TableHead>
+                  <TableHead className="text-center font-bold text-slate-700 w-32">Free</TableHead>
+                  <TableHead className="text-center font-bold text-slate-700 w-32">Pro</TableHead>
+                  <TableHead className="text-center font-bold text-slate-700 w-40">Fundraising</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {FEATURE_MATRIX.map((item) => (
                   <TableRow key={item.feature}>
                     <TableCell className="font-medium text-slate-700">{item.feature}</TableCell>
-                    <TableCell className="text-center">{renderValue(item.free)}</TableCell>
-                    <TableCell className="text-center">{renderValue(item.pro)}</TableCell>
-                    <TableCell className="text-center">{renderValue(item.fundraising)}</TableCell>
+                    <TableCell className="text-center align-middle">{renderValue(item.free)}</TableCell>
+                    <TableCell className="text-center align-middle">{renderValue(item.pro)}</TableCell>
+                    <TableCell className="text-center align-middle">{renderValue(item.fundraising)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

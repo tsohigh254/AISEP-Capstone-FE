@@ -1,4 +1,16 @@
 /**
+ * Proxy service for Advisor Settings
+ * - Attempts to call real backend endpoints (GetMe, GetAdvisorProfile, settings endpoints)
+ * - Normalizes backend envelope vs direct payload
+ * - Falls back to in-memory mockState when network/backend calls fail
+ */
+
+import axios from "../interceptor";
+import { GetMe } from "../user/user.api";
+import { GetAdvisorProfile } from "./advisor.api";
+import { ChangePassword } from "../auth/auth.api";
+
+/**
  * Mock Service for Advisor Settings
  * Following advisor-settings-implementation.md
  */
@@ -32,6 +44,17 @@ const mockSettings: IAdvisorSettings = {
     emailEnabled: false,
   },
 };
+
+function normalizeEnvelope<T>(maybeEnvelope: any): T | null {
+  if (!maybeEnvelope) return null;
+  // axios response shape: { data: ... }
+  const payload = maybeEnvelope.data ?? maybeEnvelope;
+  // backend envelope: IBackendRes<T>
+  if (payload && (payload.success || payload.isSuccess) && payload.data) return payload.data as T;
+  // direct payload
+  if (payload && typeof payload === "object") return payload as T;
+  return null;
+}
 
 export const getMockAdvisorSettings = async (): Promise<IAdvisorSettings> => {
   // Simulate API delay

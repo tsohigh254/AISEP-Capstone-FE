@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { 
-  ArrowLeft, Save, Send, Plus, X, FileText, 
+  ArrowLeft, Save, Send, Plus, X, FileText, Download,
   Info, AlertCircle, CheckCircle2, Paperclip, 
   ChevronDown, Layout, MessageSquare, Target, Lightbulb, TrendingUp,
   User, Clock, Check, ArrowRight
@@ -11,7 +11,8 @@ import {
 import { cn } from "@/lib/utils";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import { getMockSessions } from "@/services/advisor/advisor-consulting.mock";
-import { CreateMentorshipReport, GetAdvisorMentorshipById } from "@/services/advisor/advisor.api";
+import { CreateMentorshipReport, UpdateMentorshipReport, GetAdvisorMentorshipById } from "@/services/advisor/advisor.api";
+import { parseReportFields } from "@/lib/report-parser";
 import type { IConsultingSession } from "@/types/advisor-consulting";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -100,10 +101,15 @@ function CreateReportContent() {
   const sessionId = searchParams.get("sessionId");
   
   const [session, setSession] = useState<IConsultingSession | null>(null);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
+  const [warnExistingReport, setWarnExistingReport] = useState<{ reportId: string; status: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [existingAttachmentUrl, setExistingAttachmentUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [draftReportId, setDraftReportId] = useState<string | null>(null);
+  const [isDraftRestored, setIsDraftRestored] = useState(false);
   
   const [activeStep, setActiveStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -125,8 +131,25 @@ function CreateReportContent() {
           .then((res: any) => {
             const Object = res.data;
             if (Object) {
+              const sessions: any[] = Object.sessions || [];
+              const mentorshipStatus = String(Object.status || Object.mentorshipStatus || "").toLowerCase();
+
+              // Guard 1: Block nếu mentorship đã bị hủy / từ chối / hết hạn
+              if (["cancelled", "rejected", "expired"].includes(mentorshipStatus)) {
+                setBlockedReason(
+                  mentorshipStatus === "cancelled" ? "Yêu cầu tư vấn đã bị hủy."
+                  : mentorshipStatus === "rejected" ? "Yêu cầu tư vấn đã bị từ chối."
+                  : "Yêu cầu tư vấn đã hết hạn."
+                );
+                return;
+              }
+
+              // Pick session để lấy sessionID
+              const realSession = sessions[0] ?? null;
+              const realSessionId = realSession?.sessionID ?? realSession?.id ?? null;
+
               const mappedSes: any = {
-                id: null,
+                id: realSessionId?.toString() ?? null,
                 requestId: Object.mentorshipID?.toString() || Object.id?.toString(),
                 objective: Object.challengeDescription || Object.objective || "Buổi tư vấn",
                 scheduledStartAt: Object.scheduledStartAt || Object.updatedAt || new Date().toISOString(),
@@ -135,10 +158,35 @@ function CreateReportContent() {
                 }
               };
               setSession(mappedSes as any);
-              setFormData(prev => ({
-                ...prev,
-                title: `Báo cáo tư vấn ${mappedSes.startup.displayName}`
-              }));
+
+              const rawReports: any[] = Object.reports || [];
+              // Reports sorted DESC by BE — index 0 là mới nhất
+              const activeReport = rawReports.find((r: any) => r.isLatestForSession !== false && r.supersededByReportID == null);
+
+              if (activeReport) {
+                const rs: string = activeReport.reviewStatus || "Draft";
+                if (rs === "Draft") {
+                  // Restore bản nháp hiện có vào form
+                  const parsed = parseReportFields(
+                    activeReport.reportSummary || "",
+                    activeReport.detailedFindings || "",
+                    activeReport.recommendations || ""
+                  );
+                  setFormData(prev => ({ ...prev, ...parsed }));
+                  setDraftReportId(activeReport.reportID?.toString() || null);
+                  setIsDraftRestored(true);
+                  if (activeReport.attachmentsURL) setExistingAttachmentUrl(activeReport.attachmentsURL);
+                } else if (rs === "Passed") {
+                  // Warn: đã có report đã duyệt — bất thường nếu tạo thêm
+                  setWarnExistingReport({ reportId: activeReport.reportID?.toString(), status: rs });
+                  setFormData(prev => ({ ...prev, title: `Báo cáo tư vấn ${mappedSes.startup.displayName}` }));
+                } else {
+                  // NeedsMoreInfo / Failed → BE sẽ auto-supersede, vào thẳng
+                  setFormData(prev => ({ ...prev, title: `Báo cáo tư vấn ${mappedSes.startup.displayName}` }));
+                }
+              } else {
+                setFormData(prev => ({ ...prev, title: `Báo cáo tư vấn ${mappedSes.startup.displayName}` }));
+              }
             }
           })
           .catch(console.error);
@@ -156,29 +204,70 @@ function CreateReportContent() {
 
   const handleSave = async (status: 'DRAFT' | 'SUBMITTED') => {
     if (status === 'SUBMITTED' && !formData.title) {
-        toast.error("Vui lòng nhập tiêu đề báo cáo ở Bước 1");
-        setActiveStep(1);
-        return;
+      toast.error("Vui lòng nhập tiêu đề báo cáo ở Bước 1");
+      setActiveStep(1);
+      return;
     }
     if (!session) return;
-    
+
     setIsSubmitting(true);
     try {
-      if (status === 'SUBMITTED') {
-        const payload: any = {
-          reportSummary: formData.title + "\n\n" + formData.summary,
-          detailedFindings: formData.discussionOverview + "\n\nKey Findings:\n" + formData.keyFindings + "\n\nRisks:\n" + formData.identifiedRisks,
-          recommendations: formData.advisorRecommendations + "\n\nNext Steps:\n" + formData.nextSteps + "\n\nDeliverables:\n" + formData.deliverablesSummary
-        };
-        if (session.id) {
-            payload.sessionId = parseInt(session.id);
+      const isDraft = status === 'DRAFT';
+      const reportSummary = formData.summary.trim()
+        ? formData.title + "\n\n" + formData.summary
+        : formData.title;
+      const detailedFindings = [
+        formData.discussionOverview,
+        formData.keyFindings.trim() ? "\n\nKey Findings:\n" + formData.keyFindings : "",
+        formData.identifiedRisks.trim() ? "\n\nRisks:\n" + formData.identifiedRisks : "",
+      ].join("");
+      const recommendations = [
+        formData.advisorRecommendations,
+        formData.nextSteps.trim() ? "\n\nNext Steps:\n" + formData.nextSteps : "",
+        formData.deliverablesSummary.trim() ? "\n\nDeliverables:\n" + formData.deliverablesSummary : "",
+        formData.followUpRequired
+          ? "\n\nFollow-up Required:\n" + (formData.followUpNotes?.trim() || "Có")
+          : "",
+      ].join("");
+
+      if (draftReportId) {
+        await UpdateMentorshipReport(session.requestId, draftReportId, {
+          reportSummary,
+          detailedFindings,
+          recommendations,
+          attachmentFile: attachments[0] ?? null,
+          isDraft,
+        });
+      } else {
+        if (!session.id) {
+          toast.error("Không tìm thấy session ID. Vui lòng thử lại.");
+          setIsSubmitting(false);
+          return;
         }
-        await CreateMentorshipReport(session.requestId, payload);
+        const res = await CreateMentorshipReport(session.requestId, {
+          sessionId: parseInt(session.id),
+          reportSummary,
+          detailedFindings,
+          recommendations,
+          attachmentFile: attachments[0] ?? null,
+          isDraft,
+        });
+        if (isDraft) {
+          const newId = (res as any).data?.reportID?.toString()
+            || (res as any).data?.data?.reportID?.toString()
+            || null;
+          if (newId) setDraftReportId(newId);
+        }
       }
-      toast.success(status === 'DRAFT' ? "Đã lưu bản nháp thành công" : "Đã gửi báo cáo thành công!");
-      router.push("/advisor/reports");
+
+      if (isDraft) {
+        toast.success("Đã lưu bản nháp thành công");
+      } else {
+        toast.success("Đã gửi báo cáo thành công!");
+        router.push("/advisor/reports");
+      }
     } catch (error) {
-      toast.error("Có lỗi xảy ra khi nộp báo cáo");
+      toast.error(status === 'DRAFT' ? "Có lỗi xảy ra khi lưu bản nháp" : "Có lỗi xảy ra khi nộp báo cáo");
       console.error(error);
     } finally {
       setIsSubmitting(false);
@@ -188,18 +277,26 @@ function CreateReportContent() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
     
-    if (attachments.length + selectedFiles.length > 3) {
-      toast.error("Chỉ được đính kèm tối đa 3 tài liệu");
+    if (attachments.length + selectedFiles.length > 1) {
+      toast.error("Chỉ được đính kèm tối đa 1 tài liệu");
       return;
     }
 
+    const ALLOWED_TYPES = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "image/png",
+      "image/jpeg",
+    ];
+
     const validFiles = selectedFiles.filter(file => {
       const isSizeOk = file.size <= 10 * 1024 * 1024;
-      const isTypeOk = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "image/png"].includes(file.type);
-      
+      const isTypeOk = ALLOWED_TYPES.includes(file.type);
+
       if (!isSizeOk) toast.error(`File ${file.name} vượt quá 10MB`);
-      if (!isTypeOk) toast.error(`File ${file.name} không đúng định dạng (PDF, DOCX, PNG)`);
-      
+      if (!isTypeOk) toast.error(`File ${file.name} không đúng định dạng (PDF, DOC, DOCX, PNG, JPG)`);
+
       return isSizeOk && isTypeOk;
     });
 
@@ -224,6 +321,22 @@ function CreateReportContent() {
     }
     return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
   }
+
+  if (blockedReason) return (
+    <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+      <AlertCircle className="w-12 h-12 text-red-400 opacity-70" />
+      <div>
+        <p className="text-[15px] font-bold text-slate-800">Không thể tạo báo cáo</p>
+        <p className="text-[13px] text-slate-500 mt-1 max-w-sm">{blockedReason}</p>
+      </div>
+      <button
+        onClick={() => router.push("/advisor/reports")}
+        className="mt-2 px-5 py-2 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-[#1e293b] transition-all"
+      >
+        Quay lại danh sách báo cáo
+      </button>
+    </div>
+  );
 
   if (!session) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-400">
@@ -258,6 +371,26 @@ function CreateReportContent() {
         </button>
       </div>
 
+      {/* Warning: existing Passed report */}
+      {warnExistingReport && (
+        <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl px-6 py-4 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-[13px] font-bold text-amber-800">Buổi tư vấn này đã có báo cáo đã được duyệt</p>
+            <p className="text-[12px] text-amber-700 mt-0.5">
+              Báo cáo #{warnExistingReport.reportId} đang ở trạng thái <strong>Đã hoàn tất</strong>.
+              Bạn vẫn có thể tạo báo cáo mới, nhưng cả hai sẽ cùng tồn tại — báo cáo cũ sẽ không bị xóa.
+            </p>
+          </div>
+          <button
+            onClick={() => router.push(`/advisor/reports/${sessionId}`)}
+            className="shrink-0 text-[12px] font-bold text-amber-700 underline underline-offset-2 hover:text-amber-900 transition-colors"
+          >
+            Xem báo cáo cũ
+          </button>
+        </div>
+      )}
+
       {/* Header Info (White Card Pattern) */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-6 py-5">
         <div className="flex items-start gap-4">
@@ -285,6 +418,14 @@ function CreateReportContent() {
           </div>
         </div>
       </div>
+
+      {/* Draft restored banner */}
+      {isDraftRestored && (
+        <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2 text-[13px] text-amber-700 font-medium">
+          <Save className="w-4 h-4 shrink-0" />
+          Đã khôi phục bản nháp đã lưu trước đó. Tiếp tục soạn và bấm <strong className="mx-1">Lưu bản nháp</strong> để cập nhật hoặc <strong className="mx-1">Hoàn tất nộp báo cáo</strong> khi sẵn sàng.
+        </div>
+      )}
 
       {/* Stepper Header */}
       <StepperHeader activeStep={activeStep} />
@@ -439,14 +580,13 @@ function CreateReportContent() {
         {/* STEP 4: Xem trước & Đính kèm */}
         {activeStep === 4 && (
           <div className="space-y-6">
-            <FormSection title="Tài liệu đính kèm" icon={Paperclip} description="Gửi kèm các tệp tin hỗ trợ báo cáo cho Startup (Tối đa 3 tệp)">
+            <FormSection title="Tài liệu đính kèm" icon={Paperclip} description="Gửi kèm tệp tin hỗ trợ báo cáo cho Startup (Tối đa 1 tệp)">
               <div className="space-y-4">
                 <input 
                   type="file"
                   ref={fileInputRef}
                   onChange={handleFileChange}
-                  multiple
-                  accept=".pdf,.docx,.png"
+                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
                   className="hidden"
                 />
                 
@@ -458,8 +598,32 @@ function CreateReportContent() {
                     <Plus className="w-6 h-6" />
                   </div>
                   <p className="text-[13px] font-bold text-slate-700">Thêm tệp đính kèm (Tùy chọn)</p>
-                  <p className="text-[11px] text-slate-400 mt-1 uppercase font-black tracking-widest leading-none">PDF, DOCX, PNG (Max 10MB)</p>
+                  <p className="text-[11px] text-slate-400 mt-1 uppercase font-black tracking-widest leading-none">PDF, DOC, DOCX, PNG, JPG (Max 10MB)</p>
                 </div>
+
+                {existingAttachmentUrl && attachments.length === 0 && (
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-blue-50 border border-blue-200 animate-in fade-in">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-500 flex items-center justify-center shrink-0">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-bold text-blue-700 truncate">
+                          {existingAttachmentUrl.split("/").pop()?.split("?")[0] || "Tài liệu đính kèm"}
+                        </p>
+                        <p className="text-[10px] text-blue-500 font-medium">Đã lưu — tải lên file mới để thay thế</p>
+                      </div>
+                    </div>
+                    <a
+                      href={existingAttachmentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-blue-400 hover:bg-blue-100 transition-all"
+                    >
+                      <Download className="w-4 h-4" />
+                    </a>
+                  </div>
+                )}
 
                 {attachments.length > 0 && (
                   <div className="grid gap-2">

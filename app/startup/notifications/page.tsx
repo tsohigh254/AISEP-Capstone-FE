@@ -6,9 +6,9 @@ import { StartupShell } from "@/components/startup/startup-shell";
 import {
   Bell, CheckCheck, Trash2, Loader2,
   Check, Eye, Clock, ChevronLeft, ChevronRight,
-  ShieldCheck, Brain, Star, AlertTriangle,
+  ShieldAlert, ShieldCheck, Brain, Star, AlertTriangle,
   Zap, MessageSquare, UserCircle, RefreshCcw,
-  Inbox, Mail, MailOpen, MoreHorizontal, ArrowRight
+  Inbox, Mail, MailOpen, MoreHorizontal, ArrowRight, CalendarCheck
 } from "lucide-react";
 import { 
   GetNotifications, 
@@ -19,14 +19,22 @@ import {
 import { useNotifications } from "@/hooks/useNotifications";
 import { toast } from "sonner";
 import Link from "next/link";
+import { isIssueReportNotification, localizeIssueReportNotificationText } from "@/lib/notification";
 
 /* ─── Helper: Get Icon by Type ─────────────────────────────── */
-const getNotificationIcon = (type: string) => {
+const getNotificationIcon = (item: Pick<INotificationItem, "notificationType" | "actionUrl" | "relatedEntityType">) => {
+  if (isIssueReportNotification(item)) {
+    return <ShieldAlert className="w-4 h-4 text-amber-500" />;
+  }
+
+  const type = item.notificationType;
   switch (type?.toUpperCase()) {
     case "VERIFICATION": return <ShieldCheck className="w-4 h-4 text-[#eec54e]" />;
     case "SYSTEM": return <Zap className="w-4 h-4 text-blue-500" />;
     case "AI_EVALUATION": return <Brain className="w-4 h-4 text-purple-500" />;
     case "CONSULTING": return <MessageSquare className="w-4 h-4 text-emerald-500" />;
+    case "CONFIRM_CONDUCTED_REMINDER": return <CalendarCheck className="w-4 h-4 text-amber-500" />;
+    case "REPORT_AUTO_ACKNOWLEDGED": return <MessageSquare className="w-4 h-4 text-emerald-500" />;
     case "INVESTOR_INTERACTION": return <Star className="w-4 h-4 text-rose-500" />;
     case "MESSAGE": return <MessageSquare className="w-4 h-4 text-blue-500" />;
     default: return <Bell className="w-4 h-4 text-slate-400" />;
@@ -268,7 +276,7 @@ export default function StartupNotificationsPage() {
                       )}
                       
                       <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center flex-shrink-0 mt-0.5 border border-slate-100 shadow-sm">
-                        {getNotificationIcon(item.notificationType)}
+                        {getNotificationIcon(item)}
                       </div>
 
                       <div className="flex-1 min-w-0 pr-8">
@@ -277,14 +285,14 @@ export default function StartupNotificationsPage() {
                             "text-[14px] leading-snug",
                             item.isRead ? "text-slate-600" : "font-bold text-slate-900"
                           )}>
-                            {item.title}
+                            {localizeIssueReportNotificationText(item, item.title)}
                           </p>
                           <span className="text-[11px] text-slate-400 whitespace-nowrap ml-4">
                             {relativeTime(item.createdAt)}
                           </span>
                         </div>
                         <p className="text-[13px] text-slate-500 line-clamp-2">
-                          {item.messagePreview}
+                          {localizeIssueReportNotificationText(item, item.messagePreview)}
                         </p>
                       </div>
 

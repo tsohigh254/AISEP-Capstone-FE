@@ -5,7 +5,7 @@ import { Star, MessageSquare, Clock, ArrowRight, CornerDownRight } from "lucide-
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { getMockFeedbackList, getMockFeedbackSummary, submitMockFeedbackResponse } from "@/services/advisor/advisor-feedback.mock";
+import { GetAdvisorFeedbacks, GetAdvisorFeedbackSummary, SubmitFeedbackResponse } from "@/services/advisor/advisor-feedback.api";
 import type { IAdvisorFeedbackItem, IAdvisorFeedbackSummary, FeedbackSort } from "@/types/advisor-feedback";
 
 // Helper functions from Design System
@@ -52,15 +52,18 @@ export default function AdvisorFeedbackPage() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const summaryData = getMockFeedbackSummary("adv_1");
-      setSummary(summaryData);
-      
-      const listData = await getMockFeedbackList({
-        rating: ratingFilter || undefined,
-        sort: sortFilter,
-      });
-      setReviews(listData);
-    } catch (e) {
+      const [summaryRes, listRes] = await Promise.all([
+        GetAdvisorFeedbackSummary() as unknown as Promise<IBackendRes<IAdvisorFeedbackSummary>>,
+        GetAdvisorFeedbacks({
+          rating: ratingFilter || undefined,
+          sort: sortFilter,
+        }) as unknown as Promise<IBackendRes<IPagingData<IAdvisorFeedbackItem>>>,
+      ]);
+
+      if (summaryRes.data) setSummary(summaryRes.data);
+      const items = (listRes.data as any)?.items ?? (listRes.data as any)?.data ?? [];
+      setReviews(items);
+    } catch {
       toast.error("Không thể tải danh sách đánh giá");
     } finally {
       setIsLoading(false);
@@ -94,12 +97,17 @@ export default function AdvisorFeedbackPage() {
 
     setSubmittingReply(reviewId);
     try {
-      const success = await submitMockFeedbackResponse(reviewId, responseText);
-      if (success) {
-        toast.success("Đã gửi phản hồi thành công");
-        await loadData();
-        setIsResponding((prev) => ({ ...prev, [reviewId]: false }));
-        setResponseTexts((prev) => ({ ...prev, [reviewId]: "" }));
+      await SubmitFeedbackResponse(reviewId, responseText) as unknown as IBackendRes<null>;
+      toast.success("Đã gửi phản hồi thành công");
+      await loadData();
+      setIsResponding((prev) => ({ ...prev, [reviewId]: false }));
+      setResponseTexts((prev) => ({ ...prev, [reviewId]: "" }));
+    } catch (err: any) {
+      const code = err?.response?.data?.errorCode ?? err?.response?.data?.code;
+      if (code === "ALREADY_EXISTS") {
+        toast.error("Bạn đã phản hồi đánh giá này rồi.");
+      } else if (code === "FEEDBACK_NOT_OWNED") {
+        toast.error("Đánh giá này không thuộc về bạn.");
       } else {
         toast.error("Có lỗi xảy ra khi gửi phản hồi");
       }
@@ -249,10 +257,14 @@ export default function AdvisorFeedbackPage() {
                 <div key={review.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
                    <div className="px-6 py-5">
                       <div className="flex items-start gap-3">
-                         {/* Avatar uses Design System deterministic gradient pattern */}
-                         <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[15px] font-bold shrink-0", getAvatarColor(review.startup.displayName))}>
-                            {review.startup.displayName.charAt(0).toUpperCase()}
-                         </div>
+                         {/* Avatar */}
+                         {review.startup.logoUrl ? (
+                           <img src={review.startup.logoUrl} alt={review.startup.displayName} className="w-10 h-10 rounded-xl object-cover shrink-0 border border-slate-100" />
+                         ) : (
+                           <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[15px] font-bold shrink-0", getAvatarColor(review.startup.displayName))}>
+                             {review.startup.displayName.charAt(0).toUpperCase()}
+                           </div>
+                         )}
                          <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between flex-wrap gap-2">
                                <div className="flex items-center gap-2 flex-wrap">
@@ -264,7 +276,7 @@ export default function AdvisorFeedbackPage() {
                                   {relativeTime(review.createdAt)}
                                </span>
                             </div>
-                            <p className="text-[13px] text-slate-500 mt-0.5 line-clamp-1">{review.session.topic || "Buổi tư vấn chung"}</p>
+                            <p className="text-[13px] text-slate-500 mt-0.5 line-clamp-1">{review.session?.topic || "Buổi tư vấn chung"}</p>
                             
                             {/* Review Content */}
                             <div className="mt-3">

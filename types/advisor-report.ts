@@ -1,12 +1,14 @@
 import { IConsultingStartup, ConsultingFormat } from './advisor-consulting';
 
+// BE enum (auto-approve flow): Draft → Passed (ngay sau submit)
+// PendingReview giữ lại như fallback nhưng BE không bao giờ set nữa
+// Failed / NeedsMoreInfo chỉ Staff set được (giữ trong code để backward-compat)
 export type ConsultationReportStatus =
-  | 'DRAFT'
-  | 'SUBMITTED'
-  | 'UNDER_REVIEW'
-  | 'NEEDS_REVISION'
-  | 'FINALIZED'
-  | 'DELETED';
+  | 'Draft'
+  | 'Passed'
+  | 'Failed'
+  | 'NeedsMoreInfo'
+  | 'PendingReview';
 
 export type ReportAttachmentType = 'DELIVERABLE' | 'SUPPORTING_NOTE' | 'IMAGE' | 'OTHER';
 
@@ -53,16 +55,21 @@ export interface IConsultationReport {
   followUpNotes?: string;
   
   // Metadata
-  status: ConsultationReportStatus;
-  version: number;
   submittedAt?: string;
-  finalizedAt?: string;
   lastEditedAt: string;
+  version: number;
   
-  // Review (Staff side feedback)
+  // Review status — trường chính FE dùng để điều hướng UI
+  reviewStatus: ConsultationReportStatus;
+  staffReviewNote?: string | null;
+  reviewedAt?: string | null;
   staffRemarks?: string;
+
+  // Startup acknowledgement
+  startupAcknowledgedAt?: string | null;
   
   // Attachments
+  attachmentsURL?: string | null;
   attachments: IConsultationReportAttachment[];
 
   // History

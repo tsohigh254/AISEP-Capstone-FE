@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { 
-  BadgeCheck, Bell, Bookmark, Bot, Building2, ChevronRight, CheckCheck, Compass, Handshake, LayoutGrid, Loader2, LogOut, MessageSquare, Settings, ShieldAlert, Trash2, Sparkles,
+  BadgeCheck, Bell, Bookmark, Bot, Building2, ChevronRight, CheckCheck, Compass, Handshake, Menu, Loader2, LogOut, MessageSquare, Settings, ShieldAlert, Trash2, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -24,7 +24,16 @@ import {
   buildInvestorProfilePresentation,
   getInvestorKycUiState,
 } from "@/lib/investor-profile-presenter";
+import { isIssueReportNotification, localizeIssueReportNotificationText } from "@/lib/notification";
 import type { IInvestorKYCStatus } from "@/types/investor-kyc";
+
+function getNotificationIcon(item: Pick<INotificationItem, "notificationType" | "actionUrl" | "relatedEntityType">) {
+  if (isIssueReportNotification(item)) {
+    return ShieldAlert;
+  }
+
+  return Bell;
+}
 
 export function InvestorHeader({ 
   userName = "VinaCapital Ventures",
@@ -75,6 +84,31 @@ export function InvestorHeader({
         }
       })
       .catch(() => {});
+  }, []);
+
+  // Listen to global profile-updated events (fired after photo upload) and merge changes
+  useEffect(() => {
+    const handler = (e: any) => {
+      try {
+        const payload = e?.detail;
+        if (payload) {
+          setProfile((prev) => ({ ...(prev || {}), ...payload }));
+          if (payload.profilePhotoURL) setAvatarLoadFailed(false);
+        }
+      } catch (err) {
+        // ignore
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("aisep:profile-updated", handler as EventListener);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("aisep:profile-updated", handler as EventListener);
+      }
+    };
   }, []);
 
   // Notification Detail Modal State
@@ -265,7 +299,10 @@ export function InvestorHeader({
                             "w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-105 duration-300",
                             !item.isRead ? "bg-[#e6cc4c]/10 text-[#e6cc4c]" : "bg-slate-100 text-slate-400 group-hover:bg-slate-200"
                           )}>
-                            <Bell className="w-4.5 h-4.5" />
+                            {(() => {
+                              const Icon = getNotificationIcon(item);
+                              return <Icon className="w-4.5 h-4.5" />;
+                            })()}
                           </div>
 
                           <div className="flex-1 min-w-0 py-0.5">
@@ -274,11 +311,13 @@ export function InvestorHeader({
                                 "text-[13px] tracking-tight leading-snug break-words font-be-vietnam-pro",
                                 !item.isRead ? "font-bold text-[#171611]" : "font-medium text-slate-500"
                               )}>
-                                {item.title}
+                                {localizeIssueReportNotificationText(item, item.title)}
                               </p>
                               {!item.isRead && <span className="w-1.5 h-1.5 rounded-full bg-[#e6cc4c] shrink-0 translate-y-[-2px] pulse-subtle"></span>}
                             </div>
-                            <p className="text-[12px] text-[#878164] mt-1.5 leading-[1.6] line-clamp-2 font-medium font-be-vietnam-pro">{item.messagePreview}</p>
+                            <p className="text-[12px] text-[#878164] mt-1.5 leading-[1.6] line-clamp-2 font-medium font-be-vietnam-pro">
+                              {localizeIssueReportNotificationText(item, item.messagePreview)}
+                            </p>
                             <div className="flex items-center gap-2 mt-3.5">
                               <p className="text-[10px] font-bold text-[#B0AD98] uppercase tracking-[0.05em] font-be-vietnam-pro">{new Date(item.createdAt).toLocaleDateString("vi-VN")}</p>
                               <span className="w-1 h-1 rounded-full bg-slate-200"></span>
@@ -316,8 +355,6 @@ export function InvestorHeader({
             <div
               className="relative"
               ref={gridRef}
-              onMouseEnter={() => setIsGridOpen(true)}
-              onMouseLeave={() => setIsGridOpen(false)}
             >
               <button
                 className={cn(
@@ -326,7 +363,7 @@ export function InvestorHeader({
                 )}
                 onClick={() => setIsGridOpen(!isGridOpen)}
               >
-                <LayoutGrid className="w-5 h-5" />
+                <Menu className="w-5 h-5" />
               </button>
 
               {isGridOpen && (
@@ -336,9 +373,10 @@ export function InvestorHeader({
                       { icon: Compass, label: "Khám phá Startup", href: "/investor/startups" },
                       { icon: Bookmark, label: "Danh sách theo dõi", href: "/investor/watchlist" },
                       { icon: Bot, label: "Trợ lý đầu tư AI", href: "/investor/ai-chatbot" },
-                      { icon: Sparkles, label: "Gợi ý AI", href: "/investor/recommendations" },
-                      { icon: Handshake, label: "Kết nối đầu tư", href: "/investor/connections" },
-                      { icon: BadgeCheck, label: "Xác minh nhà đầu tư", href: "/investor/kyc" },
+                    { icon: Sparkles, label: "Gợi ý AI", href: "/investor/recommendations" },
+                    { icon: Handshake, label: "Kết nối đầu tư", href: "/investor/connections" },
+                    { icon: BadgeCheck, label: "Xác minh nhà đầu tư", href: "/investor/kyc" },
+                      { icon: ShieldAlert, label: "Báo cáo của tôi", href: "/investor/issue-reports" },
                     ].map((item) => (
                       <Link
                         key={item.href}
@@ -420,6 +458,7 @@ export function InvestorHeader({
                 <div className="p-2">
                   {[
                     { icon: Building2, label: "Hồ sơ investor", href: "/investor/profile", desc: "Thông tin & tài liệu" },
+                    { icon: ShieldAlert, label: "Báo cáo của tôi", href: "/investor/issue-reports", desc: "Theo dõi các báo cáo đã gửi" },
                     { icon: Settings, label: "Cài đặt tài khoản", href: "/investor/settings", desc: "Bảo mật & thông báo" },
                     { icon: ShieldAlert, label: "Báo cáo sự cố", onClick: () => setIsReportModalOpen(true), desc: "Gửi phản hồi cho AISEP" },
                   ].map((link, idx) => {

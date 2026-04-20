@@ -5,9 +5,12 @@ export type ConsultingRequestStatus =
   | 'ACCEPTED'
   | 'REJECTED'
   | 'SCHEDULED'
+  | 'IN_PROGRESS'
   | 'COMPLETED'
+  | 'FINALIZED'
   | 'CANCELLED'
-  | 'FINALIZED';
+  | 'IN_DISPUTE'
+  | 'RESOLVED';
 
 // Session statuses
 export type ConsultingSessionStatus =
@@ -94,6 +97,8 @@ export interface IConsultingRequest {
   preferredSlots: ITimeSlotProposal[];
   slotProposals: ITimeSlotProposal[];
   confirmation: IScheduleConfirmation;
+  isPayoutEligible?: boolean;
+  payoutReleasedAt?: string | null;
   paymentStatus?: string | null;
   paidAt?: string | null;
   rejectionReason?: string;

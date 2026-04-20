@@ -16,34 +16,30 @@ import { GetAdvisorMentorships } from "@/services/advisor/advisor.api";
 import { IssueReportModal, type IssueReportContext } from "@/components/shared/issue-report-modal";
 
 /* ─── Constants ──────────────────────────────────────────────── */
-
 type TabKey = "all" | "pending" | ConsultationReportStatus;
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "Tất cả" },
   { key: "pending", label: "Chờ báo cáo" },
-  { key: "DRAFT", label: "Bản nháp" },
-  { key: "SUBMITTED", label: "Đang chờ duyệt" },
-  { key: "NEEDS_REVISION", label: "Cần chỉnh sửa" },
-  { key: "FINALIZED", label: "Đã hoàn tất" },
+  { key: "Draft", label: "Bản nháp" },
+  { key: "NeedsMoreInfo", label: "Cần bổ sung" },
+  { key: "Passed", label: "Đã hoàn tất" },
 ];
 
 const STATUS_LABEL: Record<ConsultationReportStatus, string> = {
-  DRAFT: "Bản nháp",
-  SUBMITTED: "Đang chờ duyệt",
-  UNDER_REVIEW: "Đang thẩm định",
-  NEEDS_REVISION: "Cần chỉnh sửa",
-  FINALIZED: "Đã hoàn tất",
-  DELETED: "Đã xóa",
+  Draft: "Bản nháp",
+  Passed: "Đã hoàn tất",
+  Failed: "Không đạt",
+  NeedsMoreInfo: "Cần bổ sung",
+  PendingReview: "Đang xét duyệt",
 };
 
 const STATUS_CFG: Record<ConsultationReportStatus, { dot: string; badge: string }> = {
-  DRAFT: { dot: "bg-slate-400", badge: "bg-slate-50 text-slate-600 border-slate-200/80" },
-  SUBMITTED: { dot: "bg-amber-400", badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
-  UNDER_REVIEW: { dot: "bg-blue-400", badge: "bg-blue-50 text-blue-700 border-blue-200/80" },
-  NEEDS_REVISION: { dot: "bg-red-400", badge: "bg-red-50 text-red-600 border-red-200/80" },
-  FINALIZED: { dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
-  DELETED: { dot: "bg-gray-400", badge: "bg-gray-50 text-gray-500 border-gray-200/80" },
+  Draft: { dot: "bg-slate-400", badge: "bg-slate-50 text-slate-600 border-slate-200/80" },
+  Passed: { dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
+  Failed: { dot: "bg-red-400", badge: "bg-red-50 text-red-600 border-red-200/80" },
+  NeedsMoreInfo: { dot: "bg-blue-400", badge: "bg-blue-50 text-blue-600 border-blue-200/80" },
+  PendingReview: { dot: "bg-amber-400", badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
 };
 
 /* ─── Helpers ────────────────────────────────────────────────── */
@@ -72,30 +68,38 @@ function getAvatarColor(name: string): string {
 /* ─── Components ─────────────────────────────────────────────── */
 
 function ReportCard({ report, onReport }: { report: IConsultationReport; onReport: (report: IConsultationReport) => void }) {
-  const cfg = STATUS_CFG[report.status];
+  const cfg = STATUS_CFG[report.reviewStatus] ?? STATUS_CFG['Draft'];
   const avatarGradient = getAvatarColor(report.startup.displayName);
   
   return (
     <Link 
-      href={`/advisor/reports/${report.id}`}
+      href={`/advisor/reports/${report.sessionId || report.id}`}
       className="group bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] hover:border-slate-300 transition-all duration-200"
     >
       <div className="px-6 py-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-1 items-start gap-4 min-w-0">
             {/* Avatar */}
-            <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[15px] font-bold shrink-0 shadow-sm transition-transform group-hover:scale-105", avatarGradient)}>
-              {report.startup.displayName.charAt(0).toUpperCase()}
-            </div>
+            {report.startup.logoUrl ? (
+              <img
+                src={report.startup.logoUrl}
+                alt={report.startup.displayName}
+                className="w-10 h-10 rounded-xl object-cover shrink-0 shadow-sm transition-transform group-hover:scale-105 border border-slate-100"
+              />
+            ) : (
+              <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[15px] font-bold shrink-0 shadow-sm transition-transform group-hover:scale-105", avatarGradient)}>
+                {report.startup.displayName.charAt(0).toUpperCase()}
+              </div>
+            )}
             
             <div className="flex-1 min-w-0 pt-0.5">
               <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                 <span className={cn(
-                  "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-semibold border capitalize",
+                  "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-semibold border",
                   cfg.badge
                 )}>
                   <span className={cn("w-1.5 h-1.5 rounded-full", cfg.dot)} />
-                  {STATUS_LABEL[report.status]}
+                  {STATUS_LABEL[report.reviewStatus] ?? STATUS_LABEL['Draft']}
                 </span>
                 <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-tight">
                   Cập nhật {formatDate(report.lastEditedAt)}
@@ -110,7 +114,7 @@ function ReportCard({ report, onReport }: { report: IConsultationReport; onRepor
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            {(report.status === "FINALIZED" || report.status === "SUBMITTED") && (
+            {report.reviewStatus === "Passed" && (
               <button
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); onReport(report); }}
                 title="Báo cáo sự cố"
@@ -170,9 +174,11 @@ export default function AdvisorReportsPage() {
   const [issueContext, setIssueContext] = useState<IssueReportContext | null>(null);
 
   const openIssue = (report: IConsultationReport) => {
+    const rid = Number(report.id);
+    if (!Number.isFinite(rid) || rid <= 0) return;
     setIssueContext({
-      entityType: "CONSULTING_REPORT",
-      entityId: report.id,
+      entityType: "AdvisorReport",
+      entityId: rid,
       entityTitle: `Báo cáo · ${report.title}`,
       otherPartyName: report.startup.displayName,
     });
@@ -181,24 +187,51 @@ export default function AdvisorReportsPage() {
   useEffect(() => {
     async function init() {
       try {
-        const [repData, sesRes] = await Promise.all([
+        const [repData, completedRes, inProgressRes] = await Promise.all([
           getAdvisorReports(),
-          GetAdvisorMentorships({ status: 'Completed', page: 1, pageSize: 100 }).catch(() => ({ data: { items: [], data: [] } }))
+          GetAdvisorMentorships({ status: 'Completed', page: 1, pageSize: 100 }).catch(() => ({ data: {} })),
+          GetAdvisorMentorships({ status: 'InProgress', page: 1, pageSize: 100 }).catch(() => ({ data: {} })),
         ]);
-        
-        const rawItems = (sesRes as any).data?.items || (sesRes as any).data?.data || [];
-        const sesData: IConsultingSession[] = rawItems.map((s: any) => ({
-           id: s.mentorshipID?.toString() || s.id?.toString(),
-           requestId: s.mentorshipID?.toString() || s.id?.toString(),
-           objective: s.challengeDescription || s.topicsDiscussed || "Tư vấn khởi nghiệp",
-           startup: { displayName: s.startupName || s.startup?.name || "Startup" },
-           completedAt: s.completedAt || s.createdAt || new Date().toISOString()
-        }));
+
+        const extractItems = (res: any) =>
+          (res as any).data?.data?.items ||
+          (res as any).data?.data?.data ||
+          (res as any).data?.items ||
+          [];
+
+        const completedItems = extractItems(completedRes);
+        const inProgressItems = extractItems(inProgressRes);
+        const now = Date.now();
+
+        // InProgress nhưng thời gian họp đã qua → advisor được phép viết báo cáo
+        const pastInProgress = inProgressItems.filter((s: any) => {
+          const start = s.scheduledStartAt ? new Date(s.scheduledStartAt).getTime() : 0;
+          const duration = (s.durationMinutes || s.duration || 60) * 60 * 1000;
+          return start + duration <= now;
+        });
+
+        const allItems = [...completedItems, ...pastInProgress];
+
+        const mapSession = (s: any): IConsultingSession => ({
+          id: s.mentorshipID?.toString() || s.id?.toString(),
+          requestId: s.mentorshipID?.toString() || s.id?.toString(),
+          objective: s.challengeDescription || s.topicsDiscussed || "Tư vấn khởi nghiệp",
+          startup: { displayName: s.startupName || s.startup?.name || "Startup" } as any,
+          scheduledStartAt: s.scheduledStartAt || "",
+          scheduledEndAt: s.scheduledEndAt || "",
+          timezone: s.timezone || "Asia/Ho_Chi_Minh",
+          status: s.status || "COMPLETED",
+          meetingMode: s.meetingMode || "GOOGLE_MEET",
+          confirmation: s.confirmation || { startupConfirmedAt: null, advisorConfirmedAt: null, fullyConfirmed: false },
+          completedAt: s.completedAt || s.createdAt || new Date().toISOString(),
+        });
+
+        const sesData: IConsultingSession[] = allItems.map(mapSession);
 
         // Filter sessions that don't have reports yet
         const existingSessionIds = new Set(repData.map(r => r.sessionId));
         const pending = sesData.filter(s => !existingSessionIds.has(s.id));
-        
+
         setReports(repData);
         setPendingSessions(pending);
       } finally {
@@ -211,7 +244,7 @@ export default function AdvisorReportsPage() {
   const filteredReports = useMemo(() => {
     let list = reports;
     if (activeTab !== "all" && activeTab !== "pending") {
-      list = list.filter(r => r.status === activeTab);
+      list = list.filter(r => r.reviewStatus === activeTab);
     }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -253,7 +286,7 @@ export default function AdvisorReportsPage() {
             let count = 0;
             if (tab.key === "all") count = reports.length + pendingSessions.length;
             else if (tab.key === "pending") count = pendingSessions.length;
-            else count = reports.filter(r => r.status === tab.key).length;
+            else count = reports.filter(r => r.reviewStatus === tab.key).length;
 
             return (
               <button

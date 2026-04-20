@@ -1,287 +1,576 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import { 
-  Bug, 
-  Search, 
-  Filter, 
-  ChevronRight, 
-  Clock, 
-  AlertOctagon,
-  AlertTriangle,
-  Info,
-  User,
-  Cpu,
-  MoreVertical,
-  Activity,
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import {
+  Bug,
   ChevronDown,
-  ShieldCheck,
-  Zap
+  ChevronRight,
+  Filter,
+  Loader2,
+  Paperclip,
+  RefreshCw,
+  Search,
+  ShieldAlert,
 } from "lucide-react";
-import Link from "next/link";
-import { useState, useMemo } from "react";
+
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
-  DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  GetIssueReportsList,
+  type IssueCategory,
+  type IssueReportDetailDto,
+  type IssueReportStatus,
+  type RelatedEntityType,
+} from "@/services/issue-report.api";
+import {
+  formatIssueReporterIdentity,
+  formatIssueReportUpdatedAt,
+  getIssueReporterAvatarStyle,
+  getIssueReporterInitials,
+  ISSUE_REPORT_ENTITY_LABELS,
+  ISSUE_REPORT_CATEGORIES,
+  ISSUE_REPORT_STATUS_OPTIONS,
+  formatIssueReportDateTime,
+  getIssueCategoryOption,
+  getIssueStatusOption,
+} from "@/lib/issue-report";
 
-// Mock Data for Issue Reports
-const ISSUES_DATA = [
-  {
-    id: "IS-5001",
-    title: "Lỗi không tải được ảnh KYC mặt sau",
-    module: "KYC Service",
-    source: "USER",
-    reporter: "Startup Alpha",
-    severity: "HIGH",
-    status: "NEW",
-    createdAt: "2024-03-24T08:30:00Z",
-  },
-  {
-    id: "IS-5002",
-    title: "Latancy tăng cao tại khu vực Singapore",
-    module: "Core API",
-    source: "SYSTEM",
-    reporter: "CloudWatch Alert",
-    severity: "CRITICAL",
-    status: "UNDER_REVIEW",
-    createdAt: "2024-03-24T09:15:00Z",
-  },
-  {
-    id: "IS-5003",
-    title: "Nút 'Tiếp tục' bị ẩn trên Mobile",
-    module: "Frontend App",
-    source: "USER",
-    reporter: "Investor Nguyễn Văn A",
-    severity: "MEDIUM",
-    status: "NEW",
-    createdAt: "2024-03-24T10:00:00Z",
-  },
-  {
-    id: "IS-5004",
-    title: "Lỗi hiển thị font chữ tại Dashboard",
-    module: "UI Library",
-    source: "USER",
-    reporter: "Advisor Lê Thị K",
-    severity: "LOW",
-    status: "RESOLVED",
-    createdAt: "2024-03-23T14:20:00Z",
-  },
+const PAGE_SIZE = 20;
+
+type CategoryFilter = IssueCategory | "ALL";
+type StatusFilter = IssueReportStatus | "ALL";
+type EntityFilter = RelatedEntityType | "UNLINKED" | "ALL";
+
+const ENTITY_FILTER_OPTIONS: { value: EntityFilter; label: string }[] = [
+  { value: "ALL", label: "Mọi thực thể" },
+  ...Object.entries(ISSUE_REPORT_ENTITY_LABELS).map(([value, label]) => ({
+    value: value as RelatedEntityType,
+    label,
+  })),
+  { value: "UNLINKED", label: "Không gắn thực thể" },
 ];
 
-const SEVERITY_CFG: Record<string, { label: string; color: string; bg: string; icon: any }> = {
-  CRITICAL: { label: "Nghiêm trọng", color: "text-red-700", bg: "bg-red-50 border-red-200", icon: AlertOctagon },
-  HIGH: { label: "Cao", color: "text-amber-700", bg: "bg-amber-50 border-amber-200", icon: AlertTriangle },
-  MEDIUM: { label: "Trung bình", color: "text-blue-700", bg: "bg-blue-50 border-blue-200", icon: Activity },
-  LOW: { label: "Thấp", color: "text-slate-600", bg: "bg-slate-50 border-slate-200", icon: Info },
+type BackendRequestError = {
+  response?: {
+    status?: number;
+    data?: IBackendRes<unknown>;
+  };
 };
 
-const STATUS_CFG: Record<string, { label: string; dot: string; badge: string }> = {
-  NEW: { label: "Mới tạo", dot: "bg-blue-500", badge: "bg-blue-50 text-blue-700 border-blue-200" },
-  UNDER_REVIEW: { label: "Đang xử lý", dot: "bg-amber-500", badge: "bg-amber-50 text-amber-700 border-amber-200" },
-  RESOLVED: { label: "Đã xong", dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+const getItems = (payload?: IPaginatedRes<IssueReportDetailDto> | null) =>
+  payload?.items ?? payload?.data ?? [];
+
+const getTotalPages = (payload?: IPaginatedRes<IssueReportDetailDto> | null) => {
+  const totalItems = payload?.paging?.totalItems ?? getItems(payload).length;
+  const pageSize = payload?.paging?.pageSize ?? PAGE_SIZE;
+  return payload?.paging?.totalPages ?? Math.max(1, Math.ceil(totalItems / pageSize));
 };
 
-export default function IssueReportsPage() {
+export default function StaffIssueReportsPage() {
+  const router = useRouter();
+
   const [search, setSearch] = useState("");
-  const [severityFilter, setSeverityFilter] = useState("ALL");
-  const [sourceFilter, setSourceFilter] = useState("ALL");
-  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [page, setPage] = useState(1);
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [entityFilter, setEntityFilter] = useState<EntityFilter>("ALL");
+  const [items, setItems] = useState<IssueReportDetailDto[]>([]);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredData = useMemo(() => {
-    return ISSUES_DATA.filter(item => {
-      const matchesSearch = item.title.toLowerCase().includes(search.toLowerCase()) || item.id.toLowerCase().includes(search.toLowerCase());
-      const matchesSeverity = severityFilter === "ALL" || item.severity === severityFilter;
-      const matchesSource = sourceFilter === "ALL" || item.source === sourceFilter;
-      const matchesStatus = statusFilter === "ALL" || item.status === statusFilter;
-      return matchesSearch && matchesSeverity && matchesSource && matchesStatus;
+  const fetchReports = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = (await GetIssueReportsList({
+        page,
+        pageSize: PAGE_SIZE,
+        ...(statusFilter !== "ALL" && { status: statusFilter }),
+        ...(categoryFilter !== "ALL" && { category: categoryFilter }),
+      })) as unknown as IBackendRes<IPaginatedRes<IssueReportDetailDto>>;
+
+      if ((res.success || res.isSuccess) && res.data) {
+        const nextItems = getItems(res.data);
+        setItems(nextItems);
+        setTotalItems(res.data.paging?.totalItems ?? nextItems.length);
+        setTotalPages(getTotalPages(res.data));
+        return;
+      }
+
+      setItems([]);
+      setTotalItems(0);
+      setTotalPages(1);
+      setError(res.message || "Không thể tải danh sách báo cáo sự cố.");
+    } catch (fetchError) {
+      const backendError = fetchError as BackendRequestError;
+      setItems([]);
+      setTotalItems(0);
+      setTotalPages(1);
+      setError(
+        backendError.response?.data?.message || "Không thể tải danh sách báo cáo sự cố."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [page, statusFilter, categoryFilter]);
+
+  useEffect(() => {
+    fetchReports();
+  }, [fetchReports]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, categoryFilter]);
+
+  const displayedItems = useMemo(() => {
+    const searchQuery = search.trim().toLowerCase();
+
+    return items.filter((item) => {
+      const matchesSearch =
+        !searchQuery ||
+        String(item.issueReportID).includes(searchQuery) ||
+        item.description.toLowerCase().includes(searchQuery) ||
+        (item.reporterEmail ?? "").toLowerCase().includes(searchQuery);
+
+      const matchesEntity =
+        entityFilter === "ALL" ||
+        (entityFilter === "UNLINKED"
+          ? !item.relatedEntityType
+          : item.relatedEntityType === entityFilter);
+
+      return matchesSearch && matchesEntity;
     });
-  }, [search, severityFilter, sourceFilter, statusFilter]);
+  }, [entityFilter, items, search]);
+
+  const hasActiveFilters =
+    search.trim() !== "" ||
+    categoryFilter !== "ALL" ||
+    statusFilter !== "ALL" ||
+    entityFilter !== "ALL";
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
-          <h1 className="text-[20px] font-bold text-slate-900 tracking-tight font-plus-jakarta-sans flex items-center gap-2.5">
-            <Bug className="w-5 h-5 text-[#eec54e]" />
+          <h1 className="flex items-center gap-2.5 font-plus-jakarta-sans text-[20px] font-bold tracking-tight text-slate-900">
+            <Bug className="h-5 w-5 text-[#eec54e]" />
             Báo cáo sự cố
           </h1>
-          <p className="text-[13px] text-slate-500 mt-1">Theo dõi và tiếp nhận phản hồi lỗi từ người dùng và hệ thống monitoring.</p>
+          <p className="mt-1 text-[13px] text-slate-500">
+            Theo dõi báo cáo người dùng gửi lên, lọc theo trạng thái xử lý và mở
+            chi tiết để cập nhật phản hồi.
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-        </div>
+
+        <button
+          onClick={fetchReports}
+          disabled={loading}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[13px] font-bold text-slate-600 transition-all hover:bg-slate-50 active:scale-95 disabled:opacity-50"
+        >
+          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+          Làm mới
+        </button>
       </div>
 
-      {/* Filter Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 flex flex-col md:flex-row items-center gap-4">
-        <div className="relative flex-1 w-full font-plus-jakarta-sans">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] md:flex-row md:items-center">
+        <div className="relative w-full flex-1">
+          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Tìm theo Mã số, Tiêu đề hoặc Người báo cáo..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-[13px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20 focus:border-[#eec54e] transition-all bg-slate-50/30 font-plus-jakarta-sans"
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Tìm theo mã báo cáo, email hoặc mô tả trên trang hiện tại..."
+            className="w-full rounded-xl border border-slate-200 bg-slate-50/30 py-2.5 pl-10 pr-4 text-[13px] placeholder:text-slate-400 transition-all focus:border-[#eec54e] focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20"
           />
         </div>
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto font-plus-jakarta-sans">
-          {/* Severity Filter */}
+
+        <div className="flex flex-wrap items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className={cn(
-                "inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-[13px] font-bold transition-all shadow-sm active:scale-95",
-                severityFilter !== "ALL" 
-                  ? "border-[#eec54e] bg-amber-50 text-[#C8A000]" 
-                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-              )}>
-                <AlertTriangle className={cn("w-4 h-4", severityFilter !== "ALL" ? "text-[#eec54e]" : "text-slate-400")} />
-                <span>{severityFilter === "ALL" ? "Mọi mức độ" : SEVERITY_CFG[severityFilter].label}</span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+              <button
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-[13px] font-bold transition-all shadow-sm active:scale-95",
+                  categoryFilter !== "ALL"
+                    ? "border-[#eec54e] bg-amber-50 text-[#C8A000]"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                )}
+              >
+                <span>
+                  {categoryFilter === "ALL"
+                    ? "Mọi danh mục"
+                    : ISSUE_REPORT_CATEGORIES.find((item) => item.value === categoryFilter)?.label}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[180px] p-1.5 bg-white rounded-2xl shadow-xl border-slate-100 font-plus-jakarta-sans">
-              <DropdownMenuRadioGroup value={severityFilter} onValueChange={setSeverityFilter}>
-                <DropdownMenuRadioItem value="ALL" className="text-[12px] font-medium py-2 rounded-xl cursor-pointer focus:bg-slate-50">Mọi mức độ</DropdownMenuRadioItem>
-                {Object.entries(SEVERITY_CFG).map(([key, cfg]) => (
-                  <DropdownMenuRadioItem key={key} value={key} className="text-[12px] font-medium py-2 rounded-xl cursor-pointer focus:bg-slate-50">{cfg.label}</DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Source Filter */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className={cn(
-                "inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-[13px] font-bold transition-all shadow-sm active:scale-95",
-                sourceFilter !== "ALL" 
-                  ? "border-[#eec54e] bg-amber-50 text-[#C8A000]" 
-                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-              )}>
-                <Zap className={cn("w-4 h-4", sourceFilter !== "ALL" ? "text-[#eec54e]" : "text-slate-400")} />
-                <span>{sourceFilter === "ALL" ? "Nguồn báo cáo" : sourceFilter === "USER" ? "Người dùng" : "Hệ thống"}</span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[180px] p-1.5 bg-white rounded-2xl shadow-xl border-slate-100 font-plus-jakarta-sans">
-              <DropdownMenuRadioGroup value={sourceFilter} onValueChange={setSourceFilter}>
-                <DropdownMenuRadioItem value="ALL" className="text-[12px] font-medium py-2 rounded-xl cursor-pointer focus:bg-slate-50">Tất cả nguồn</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="USER" className="text-[12px] font-medium py-2 rounded-xl cursor-pointer focus:bg-slate-50">Người dùng</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="SYSTEM" className="text-[12px] font-medium py-2 rounded-xl cursor-pointer focus:bg-slate-50">Hệ thống</DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Status Filter */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className={cn(
-                "inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-[13px] font-bold transition-all shadow-sm active:scale-95",
-                statusFilter !== "ALL" 
-                  ? "border-[#eec54e] bg-amber-50 text-[#C8A000]" 
-                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-              )}>
-                <ShieldCheck className={cn("w-4 h-4", statusFilter !== "ALL" ? "text-[#eec54e]" : "text-slate-400")} />
-                <span>{statusFilter === "ALL" ? "Trạng thái xử lý" : STATUS_CFG[statusFilter].label}</span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-50" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[180px] p-1.5 bg-white rounded-2xl shadow-xl border-slate-100 font-plus-jakarta-sans">
-              <DropdownMenuRadioGroup value={statusFilter} onValueChange={setStatusFilter}>
-                <DropdownMenuRadioItem value="ALL" className="text-[12px] font-medium py-2 rounded-xl cursor-pointer focus:bg-slate-50">Tất cả trạng thái</DropdownMenuRadioItem>
-                {Object.entries(STATUS_CFG).map(([key, cfg]) => (
-                  <DropdownMenuRadioItem key={key} value={key} className="text-[12px] font-medium py-2 rounded-xl cursor-pointer focus:bg-slate-50">{cfg.label}</DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Reset Button */}
-          {(severityFilter !== "ALL" || sourceFilter !== "ALL" || statusFilter !== "ALL" || search !== "") && (
-            <button 
-              onClick={() => { setSeverityFilter("ALL"); setSourceFilter("ALL"); setStatusFilter("ALL"); setSearch(""); }}
-              className="p-2.5 rounded-xl border border-rose-100 bg-rose-50 text-rose-500 hover:bg-rose-100 transition-all active:scale-95"
-              title="Xóa tất cả bộ lọc"
+            <DropdownMenuContent
+              align="end"
+              className="w-[220px] rounded-2xl border-slate-100 bg-white p-1.5 font-plus-jakarta-sans shadow-xl"
             >
-              <Filter className="w-4 h-4" />
+              <DropdownMenuRadioGroup
+                value={categoryFilter}
+                onValueChange={(value) => setCategoryFilter(value as CategoryFilter)}
+              >
+                <DropdownMenuRadioItem
+                  value="ALL"
+                  className="cursor-pointer rounded-xl py-2 text-[12px] font-medium focus:bg-slate-50"
+                >
+                  Mọi danh mục
+                </DropdownMenuRadioItem>
+                {ISSUE_REPORT_CATEGORIES.map((category) => (
+                  <DropdownMenuRadioItem
+                    key={category.value}
+                    value={category.value}
+                    className="cursor-pointer rounded-xl py-2 text-[12px] font-medium focus:bg-slate-50"
+                  >
+                    {category.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-[13px] font-bold transition-all shadow-sm active:scale-95",
+                  statusFilter !== "ALL"
+                    ? "border-[#eec54e] bg-amber-50 text-[#C8A000]"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                )}
+              >
+                <span>
+                  {statusFilter === "ALL"
+                    ? "Mọi trạng thái"
+                    : ISSUE_REPORT_STATUS_OPTIONS.find((item) => item.value === statusFilter)?.label}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-[220px] rounded-2xl border-slate-100 bg-white p-1.5 font-plus-jakarta-sans shadow-xl"
+            >
+              <DropdownMenuRadioGroup
+                value={statusFilter}
+                onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+              >
+                <DropdownMenuRadioItem
+                  value="ALL"
+                  className="cursor-pointer rounded-xl py-2 text-[12px] font-medium focus:bg-slate-50"
+                >
+                  Mọi trạng thái
+                </DropdownMenuRadioItem>
+                {ISSUE_REPORT_STATUS_OPTIONS.map((status) => (
+                  <DropdownMenuRadioItem
+                    key={status.value}
+                    value={status.value}
+                    className="cursor-pointer rounded-xl py-2 text-[12px] font-medium focus:bg-slate-50"
+                  >
+                    {status.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-[13px] font-bold transition-all shadow-sm active:scale-95",
+                  entityFilter !== "ALL"
+                    ? "border-[#eec54e] bg-amber-50 text-[#C8A000]"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                )}
+              >
+                <span>
+                  {ENTITY_FILTER_OPTIONS.find((item) => item.value === entityFilter)?.label}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-[220px] rounded-2xl border-slate-100 bg-white p-1.5 font-plus-jakarta-sans shadow-xl"
+            >
+              <DropdownMenuRadioGroup
+                value={entityFilter}
+                onValueChange={(value) => setEntityFilter(value as EntityFilter)}
+              >
+                {ENTITY_FILTER_OPTIONS.map((entity) => (
+                  <DropdownMenuRadioItem
+                    key={entity.value}
+                    value={entity.value}
+                    className="cursor-pointer rounded-xl py-2 text-[12px] font-medium focus:bg-slate-50"
+                  >
+                    {entity.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {hasActiveFilters && (
+            <button
+              onClick={() => {
+                setSearch("");
+                setCategoryFilter("ALL");
+                setStatusFilter("ALL");
+                setEntityFilter("ALL");
+              }}
+              className="rounded-xl border border-rose-100 bg-rose-50 p-2.5 text-rose-500 transition-all hover:bg-rose-100 active:scale-95"
+              title="Xóa bộ lọc"
+            >
+              <Filter className="h-4 w-4" />
             </button>
           )}
         </div>
       </div>
 
-      {/* Table Section */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
-            <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-100 font-plus-jakarta-sans">
-                <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest w-24">Mã số</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Sự cố</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Nguồn</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Mức độ</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Trạng thái</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Thời gian</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {filteredData.map((item) => {
-                const SeverityIcon = SEVERITY_CFG[item.severity].icon;
-                return (
-                  <tr key={item.id} className="group hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-5">
-                      <span className="text-[12px] font-bold text-slate-900 font-mono tracking-tighter">{item.id}</span>
-                    </td>
-                    <td className="px-6 py-5">
-                      <p className="text-[13px] font-bold text-slate-900 font-plus-jakarta-sans">{item.title}</p>
-                      <p className="text-[11px] text-slate-400 mt-1 font-medium italic">Module: {item.module}</p>
-                    </td>
-                    <td className="px-6 py-5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center">
-                          {item.source === "USER" ? <User className="w-3.5 h-3.5 text-slate-400" /> : <Cpu className="w-3.5 h-3.5 text-slate-400" />}
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        {loading ? (
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+            <span className="ml-3 text-[13px] text-slate-500">
+              Đang tải danh sách báo cáo...
+            </span>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-24">
+            <ShieldAlert className="h-8 w-8 text-red-400" />
+            <p className="text-[13px] text-red-500">{error}</p>
+            <button
+              onClick={fetchReports}
+              className="text-[12px] font-bold text-[#eec54e] hover:underline"
+            >
+              Thử lại
+            </button>
+          </div>
+        ) : displayedItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-24">
+            <Bug className="h-8 w-8 text-slate-300" />
+            <p className="text-[14px] font-semibold text-slate-500">
+              {hasActiveFilters
+                ? "Không có báo cáo phù hợp với bộ lọc hiện tại."
+                : "Chưa có báo cáo sự cố nào."}
+            </p>
+            {hasActiveFilters && (
+              <button
+                onClick={() => {
+                  setSearch("");
+                  setEntityFilter("ALL");
+                }}
+                className="text-[12px] font-bold text-[#eec54e] hover:underline"
+              >
+                Xóa lọc cục bộ
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/50 font-plus-jakarta-sans">
+                  <th className="w-24 px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                    Mã số
+                  </th>
+                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                    Danh mục
+                  </th>
+                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                    Người báo cáo
+                  </th>
+                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                    Liên quan
+                  </th>
+                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                    Trạng thái
+                  </th>
+                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                    Thời gian
+                  </th>
+                  <th className="px-6 py-4 text-right text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                    Thao tác
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-50">
+                {displayedItems.map((item) => {
+                  const category = getIssueCategoryOption(item.category);
+                  const status = getIssueStatusOption(item.status);
+                  const entityLabel = item.relatedEntityType
+                    ? ISSUE_REPORT_ENTITY_LABELS[item.relatedEntityType as RelatedEntityType] ??
+                      item.relatedEntityType
+                    : "Không gắn thực thể";
+
+                  return (
+                    <tr
+                      key={item.issueReportID}
+                      className="group cursor-pointer transition-colors hover:bg-slate-50/60"
+                      onClick={() => router.push(`/staff/issue-reports/${item.issueReportID}`)}
+                    >
+                      <td className="px-6 py-5">
+                        <span className="font-mono text-[12px] font-bold tracking-tighter text-slate-900">
+                          #{item.issueReportID}
+                        </span>
+                      </td>
+
+                      <td className="px-6 py-5">
+                        {category ? (
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={cn(
+                                "flex h-9 w-9 items-center justify-center rounded-xl",
+                                category.bg
+                              )}
+                            >
+                              <category.icon className={cn("h-4 w-4", category.color)} />
+                            </div>
+                            <div>
+                              <p className="text-[13px] font-bold text-slate-900">
+                                {category.label}
+                              </p>
+                              <p className="text-[11px] text-slate-400">{item.category}</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-[13px] font-bold text-slate-900">{item.category}</p>
+                        )}
+                      </td>
+
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={cn(
+                              "flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br text-[12px] font-bold text-white shadow-sm",
+                              getIssueReporterAvatarStyle(item.reporterUserType)
+                            )}
+                          >
+                            {item.reporterAvatarUrl ? (
+                              <Image
+                                src={item.reporterAvatarUrl}
+                                alt={item.reporterEmail || "Reporter avatar"}
+                                width={36}
+                                height={36}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              getIssueReporterInitials(item.reporterEmail, item.reporterUserType)
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="max-w-[220px] truncate text-[13px] font-bold text-slate-900">
+                              {item.reporterEmail || "Không có email"}
+                            </p>
+                            <p className="text-[11px] text-slate-400">
+                              {formatIssueReporterIdentity(item.reporterUserType, item.reporterUserID)}
+                            </p>
+                          </div>
                         </div>
-                        <span className="text-[12px] font-bold text-slate-700 font-plus-jakarta-sans">{item.reporter}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-5">
-                      <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border font-plus-jakarta-sans", SEVERITY_CFG[item.severity].bg, SEVERITY_CFG[item.severity].color)}>
-                        <SeverityIcon className="w-3.5 h-3.5" />
-                        {SEVERITY_CFG[item.severity].label}
-                      </span>
-                    </td>
-                    <td className="px-6 py-5">
-                      <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border font-plus-jakarta-sans", STATUS_CFG[item.status].badge)}>
-                        <div className={cn("w-1.5 h-1.5 rounded-full", STATUS_CFG[item.status].dot)} />
-                        {STATUS_CFG[item.status].label}
-                      </span>
-                    </td>
-                    <td className="px-6 py-5">
-                      <div className="flex items-center gap-2 text-slate-400">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span className="text-[12px] font-medium">{new Date(item.createdAt).toLocaleDateString("vi-VN")}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-5 text-right">
-                      <Link 
-                        href={`/staff/issue-reports/${item.id}`}
-                        className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#eec54e] hover:text-[#e6cc4c] transition-colors group/btn"
-                      >
-                        Tiếp nhận
-                        <ChevronRight className="w-4 h-4 group-hover/btn:translate-x-0.5 transition-transform" />
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+
+                      <td className="px-6 py-5">
+                        <p className="text-[13px] font-bold text-slate-900">{entityLabel}</p>
+                        <div className="mt-1 flex items-center gap-3 text-[11px] text-slate-400">
+                          <span>
+                            {item.relatedEntityID != null
+                              ? `#${item.relatedEntityID}`
+                              : "Không có ID"}
+                          </span>
+                          {item.attachments.length > 0 && (
+                            <span className="inline-flex items-center gap-1">
+                              <Paperclip className="h-3.5 w-3.5" />
+                              {item.attachments.length} tệp
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-5">
+                        {status ? (
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-bold",
+                              status.badge
+                            )}
+                          >
+                            <span className={cn("h-1.5 w-1.5 rounded-full", status.dot)} />
+                            {status.label}
+                          </span>
+                        ) : (
+                          <span className="text-[12px] font-bold text-slate-500">
+                            {item.status}
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-6 py-5">
+                        <p className="text-[12px] font-bold text-slate-700">
+                          {formatIssueReportDateTime(item.submittedAt)}
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          Cập nhật: {formatIssueReportUpdatedAt(item.updatedAt)}
+                        </p>
+                      </td>
+
+                      <td className="px-6 py-5 text-right">
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            router.push(`/staff/issue-reports/${item.issueReportID}`);
+                          }}
+                          className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#eec54e] transition-colors hover:text-[#e6cc4c]"
+                        >
+                          Xem chi tiết
+                          <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {!loading && !error && (
+          <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4">
+            <p className="text-[12px] text-slate-400">
+              Trang {page} / {Math.max(totalPages, 1)} ({totalItems} báo cáo)
+            </p>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                disabled={page <= 1}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-bold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-40"
+              >
+                ← Trước
+              </button>
+              <button
+                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                disabled={page >= totalPages}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-bold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-40"
+              >
+                Sau →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import type { IConsultingRequest, ConsultingRequestStatus } from "@/types/advisor-consulting";
+import type { IConsultingRequest, ConsultingRequestStatus, ITimeSlotProposal } from "@/types/advisor-consulting";
 import type { IMentorshipRequest } from "@/types/startup-mentorship";
 
 const parseSpecificQuestions = (specificQuestions?: string | null) => {
@@ -64,16 +64,20 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
           .map((tag: string) => tag.trim())
           .filter(Boolean);
 
-  const sessions = (item as any).sessions || [];
+  const sessionSource = Array.isArray((item as any).sessions) ? (item as any).sessions : [];
+  const sessions = sessionSource.filter((s: any) => {
+    const st = (s.status || s.sessionStatus || "").toUpperCase();
+    return st !== "CANCELLED";
+  });
   const otherSlots: any[] =
     (item as any).requestedSlots ||
     (item as any).preferredSlots ||
     (item as any).mentorshipRequestedSlots ||
     (item as any).slots ||
     [];
-  const rawSlots = [...sessions, ...otherSlots];
+  const rawSlots = sessionSource.length > 0 ? sessions : otherSlots;
 
-  const mappedSlots = rawSlots.map((slot: any, idx) => {
+  const mappedSlots: ITimeSlotProposal[] = rawSlots.map((slot: any, idx: number) => {
     const rawState = slot.status || slot.sessionStatus;
     let statusVal = rawState ? (rawState.toUpperCase() === "PENDING" ? "PROPOSED" : rawState.toUpperCase()) : "PROPOSED";
 
@@ -87,7 +91,7 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
       statusVal = "PROPOSED";
     }
 
-    if (statusVal === "SCHEDULED") statusVal = "ACCEPTED";
+    if (["SCHEDULED", "INPROGRESS", "IN_PROGRESS", "CONDUCTED", "COMPLETED", "INDISPUTE", "RESOLVED"].includes(statusVal)) statusVal = "ACCEPTED";
 
     const start = slot.startAt || slot.scheduledStartAt;
     let end = slot.endAt;
@@ -107,20 +111,17 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
     };
   });
 
-  const preferredSlots = mappedSlots.filter(s => s.proposedBy === "STARTUP");
-  const slotProposals = mappedSlots.filter(s => s.proposedBy === "ADVISOR");
+  const preferredSlots = mappedSlots.filter((s: ITimeSlotProposal) => s.proposedBy === "STARTUP");
+  const slotProposals = mappedSlots.filter((s: ITimeSlotProposal) => s.proposedBy === "ADVISOR");
 
   const rawStatus = item.status?.toUpperCase() || (item as any).mentorshipStatus?.toUpperCase() || "PENDING";
   let normalizedStatus: ConsultingRequestStatus = "PENDING";
   if (rawStatus === "REQUESTED") normalizedStatus = "PENDING";
-  else if (rawStatus === "INPROGRESS" || rawStatus === "IN_PROGRESS") normalizedStatus = "SCHEDULED";
+  else if (rawStatus === "INPROGRESS" || rawStatus === "IN_PROGRESS") normalizedStatus = "IN_PROGRESS";
+  else if (rawStatus === "INDISPUTE" || rawStatus === "IN_DISPUTE") normalizedStatus = "IN_DISPUTE";
+  else if (rawStatus === "RESOLVED") normalizedStatus = "RESOLVED";
   else normalizedStatus = rawStatus as ConsultingRequestStatus;
 
-  if (normalizedStatus === "COMPLETED") {
-    const hasReportFlag = (item as any).hasReport === true || ((item as any).reportCount ?? 0) > 0;
-    const hasReportInArray = Array.isArray((item as any).reports) && (item as any).reports.length > 0;
-    if (hasReportFlag || hasReportInArray) normalizedStatus = "FINALIZED";
-  }
 
   const fallbackTimeline = [
     {
@@ -201,6 +202,8 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
     })(),
     preferredSlots: preferredSlots as any,
     slotProposals: slotProposals as any,
+    isPayoutEligible: (item as any).isPayoutEligible ?? false,
+    payoutReleasedAt: (item as any).payoutReleasedAt ?? null,
     paymentStatus: item.paymentStatus ?? null,
     paidAt: item.paidAt ?? null,
     feedbacks: (item as any).feedbacks || [],

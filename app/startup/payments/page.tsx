@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
@@ -9,7 +9,10 @@ import {
   BadgeCheck, Star, Search, Filter, Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { IssueReportModal, type IssueReportContext } from "@/components/shared/issue-report-modal";
+import { IssueReportModal } from "@/components/shared/issue-report-modal";
+import { GetMentorships } from "@/services/startup/startup-mentorship.api";
+import { isMentorshipPaymentCompleted, calculateMentorshipTotal } from "@/lib/mentorship-payment";
+import type { IMentorshipRequest } from "@/types/startup-mentorship";
 
 const formatVND = (n: number) => n.toLocaleString('vi-VN') + '₫';
 
@@ -41,71 +44,10 @@ interface PaymentRecord {
 // ─── Mock Data ─────────────────────────────────────────────────────────────────
 
 const AVATARS = {
-  1: "https://lh3.googleusercontent.com/aida-public/AB6AXuDhY2B_40T_b8ifCFhZYE9RUfdodTMIq4hkMeAvPfCxdek8AhcikuKD11XDhYpXmtyvdSlnne2UWZDbdEO4TMXf17yrSsltdyX2-bBHPjbzbTxFQNPTgQkflvmeFd6QdGRvx0WBDDS0vnBvv-defpdnEB2zPF8-sAiLMhhfWCHe6M2UpyMAwTRdjcu8xSEmKOJ3aGlWMMK40SM6ThVvCpVFz_jvRfcX6dDBi4rDUGiVvfrUIHpezyewWd_4dYD9EbKusdQxomMZQhk",
-  2: "https://lh3.googleusercontent.com/aida-public/AB6AXuCkeJpKLH89dtH6jy4p8OtegH6mL83JYobMLHvAQeMV-R-JV6ohyzLx5hQ2sZ387P-fztgR4sHa7EhmwJgbBTLxFVFskQsJI0Gohh4EB7LYt7pPNPIzVeMrNhIypAV8fJEz96dPqr4r8kUGO2XeJO1lDMfCEq0VHu2jl5963wBzE9lbl2WoMzmqdPjjGz-t_FAE1IFgbbvm8uMyf_V-UtsjIaqHKgVh5bF0DB5TQdrgyJ8kdtGF1397AobYsJYg8zAxOXwFyWtd32Q",
+  1: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png", // Male default
+  2: "https://cdn-icons-png.flaticon.com/512/3135/3135768.png", // Female default
   3: "https://lh3.googleusercontent.com/aida-public/AB6AXuBd7t5ciDWV2eTaJsfniBll5lOH1FpM75D-rNgvvVbqucB9qLvuvCqdD2n7NevngnBF0iNuRrvyppt6TSVePvhTgOoUFPXs3COh1SFpjFFfpRM7AvqpVQYWIKMeh8ZaAHBQXX7A9LfSgc9hJLF86zECFTAuBW7cVPKthlob2LHXSFNJoAt5LewaefZBVBDzh253xnffFoI4o3adtsf5g77DpJi4MsoGYiv14LMA-ivJZaM5n2tz_QhJaAEUCzsxPuiFm3f6b9lC-GA",
 };
-
-const MOCK_PAYMENTS: PaymentRecord[] = [
-  {
-    id: "p1",
-    requestId: "3",
-    requestNo: "REQ-0003",
-    advisor: { name: "Phạm Thành Long", title: "CTO & Co-founder · AI-Soft", avatar: AVATARS[3], isVerified: true, rating: 4.8 },
-    topic: "Xây dựng đội kỹ thuật cho giai đoạn scale",
-    amount: 3000000,
-    status: "CHECKOUT_PENDING",
-    createdAt: "20/03/2024",
-    updatedAt: "20/03/2024",
-  },
-  {
-    id: "p2",
-    requestId: "4",
-    requestNo: "REQ-0004",
-    advisor: { name: "Nguyễn Minh Quân", title: "Head of Product · TechGlobal", avatar: AVATARS[1], isVerified: true, rating: 4.9 },
-    topic: "Chiến lược tăng trưởng người dùng Q2/2024",
-    amount: 2000000,
-    status: "RELEASED",
-    reference: "PAY-20240315-0004",
-    createdAt: "20/03/2024",
-    updatedAt: "20/03/2024",
-  },
-  {
-    id: "p3",
-    requestId: "7",
-    requestNo: "REQ-0007",
-    advisor: { name: "Trần Thu Hà", title: "Investment Director · VCFund", avatar: AVATARS[2], isVerified: true, rating: 5.0 },
-    topic: "Gọi vốn Seed – Investor Targeting",
-    amount: 3750000,
-    status: "PAID_HELD",
-    reference: "PAY-20240312-0007",
-    createdAt: "12/03/2024",
-    updatedAt: "13/03/2024",
-  },
-  {
-    id: "p4",
-    requestId: "8",
-    requestNo: "REQ-0008",
-    advisor: { name: "Phạm Thành Long", title: "CTO & Co-founder · AI-Soft", avatar: AVATARS[3], isVerified: true, rating: 4.8 },
-    topic: "Code review kiến trúc microservices",
-    amount: 1500000,
-    status: "REFUNDED",
-    reference: "REF-20240310-0008",
-    createdAt: "08/03/2024",
-    updatedAt: "11/03/2024",
-  },
-  {
-    id: "p5",
-    requestId: "9",
-    requestNo: "REQ-0009",
-    advisor: { name: "Nguyễn Minh Quân", title: "Head of Product · TechGlobal", avatar: AVATARS[1], isVerified: true, rating: 4.9 },
-    topic: "Tối ưu hoá onboarding flow",
-    amount: 2000000,
-    status: "PAYMENT_FAILED",
-    createdAt: "05/03/2024",
-    updatedAt: "05/03/2024",
-  },
-];
 
 // ─── Status Config ─────────────────────────────────────────────────────────────
 
@@ -134,26 +76,104 @@ export default function PaymentHistoryPage() {
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<"all" | PaymentStatus>("all");
   const [search, setSearch] = useState("");
-  const [issueContext, setIssueContext] = useState<IssueReportContext | null>(null);
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const openIssue = (e: React.MouseEvent, payment: PaymentRecord) => {
+  useEffect(() => {
+    const fetchPayments = async () => {
+      try {
+        const response = await GetMentorships({ pageSize: 50 });
+        const items = response.data?.items || [];
+        
+        const mapped = items
+          .filter(m => {
+            const isPaid = isMentorshipPaymentCompleted(m.paymentStatus, m.paidAt);
+            const _mStatus = m.status || (m as any).Status || m.mentorshipStatus || (m as any).MentorshipStatus;
+            
+            // Only show if paid OR if it's in a state ready for payment
+            return isPaid || ["Accepted", "InProgress", "Scheduled"].includes(_mStatus);
+          })
+          .map(m => {
+            const isPaid = isMentorshipPaymentCompleted(m.paymentStatus, m.paidAt);
+            
+            let pStatus: PaymentStatus = "CHECKOUT_PENDING";
+            const pStatLow = (m.paymentStatus || (m as any).PaymentStatus)?.toLowerCase();
+            
+            // Robust status detection
+            const _mentorshipStatus = m.status || (m as any).Status || m.mentorshipStatus || (m as any).MentorshipStatus;
+            
+            if (pStatLow === "failed") pStatus = "PAYMENT_FAILED";
+            else if (_mentorshipStatus === "InDispute") pStatus = "DISPUTED";
+            else if (isPaid && _mentorshipStatus === "Completed") pStatus = "RELEASED";
+            else if (isPaid) pStatus = "PAID_HELD";
+            else if (pStatLow === "refunded") pStatus = "REFUNDED";
+            else if (pStatLow === "refund_pending") pStatus = "REFUND_PENDING";
+            else pStatus = "CHECKOUT_PENDING"; // Default for Accepted/InProgress/Scheduled if not paid
+
+          // Robust amount detection (handles PascalCase and camelCase)
+          let amountValue = m.sessionAmount || (m as any).SessionAmount || m.actualAmount || (m as any).ActualAmount || 0;
+          
+          // Fallback: calculate if amount is 0 (for unpaid sessions)
+          if (amountValue === 0) {
+            const hRate = m.advisorHourlyRate || (m as any).AdvisorHourlyRate;
+            const duration = m.expectedDuration || (m as any).ExpectedDuration;
+            if (hRate) {
+              amountValue = calculateMentorshipTotal(hRate, duration);
+            }
+          }
+
+          // Robust advisor info detection (handles flat fields from MentorshipListItemDto)
+          const advName = m.advisorName || (m as any).AdvisorName || m.advisor?.fullName || "Cố vấn";
+          const advTitle = m.advisorTitle || (m as any).AdvisorTitle || m.advisor?.title || "Chuyên gia / Cố vấn";
+          const advPhoto = m.advisorPhotoURL || (m as any).AdvisorPhotoURL || m.advisor?.profilePhotoURL || "";
+
+          return {
+            id: (m.mentorshipID || (m as any).MentorshipID || m.id || 0).toString(),
+            requestId: (m.mentorshipID || (m as any).MentorshipID || m.id || 0).toString(),
+            requestNo: `REQ-${(m.mentorshipID || (m as any).MentorshipID || m.id || 0).toString().padStart(4, "0")}`,
+            advisor: {
+              name: advName,
+              title: advTitle,
+              avatar: advPhoto || AVATARS[1],
+              isVerified: true,
+              rating: m.advisor?.averageRating || 5.0,
+            },
+            topic: m.challengeDescription || (m as any).ChallengeDescription || "Tư vấn chuyên môn",
+            amount: Number(amountValue),
+            status: pStatus,
+            reference: isPaid ? `PAY-${m.mentorshipID || (m as any).MentorshipID}` : undefined,
+            createdAt: m.requestedAt ? new Date(m.requestedAt).toLocaleDateString('vi-VN') : (m.createdAt ? new Date(m.createdAt).toLocaleDateString('vi-VN') : '---'),
+            updatedAt: m.updatedAt ? new Date(m.updatedAt).toLocaleDateString('vi-VN') : '---',
+          };
+        });
+
+        // Filter and only show items that have an amount or are in a relevant payment state
+        // For startup payments, we generally show all mentorships as they all have price implications
+        setPayments(mapped);
+      } catch (error) {
+        console.error("Failed to fetch payments", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPayments();
+  }, []);
+
+  const openIssue = (e: React.MouseEvent, _payment: PaymentRecord) => {
     e.stopPropagation();
-    setIssueContext({
-      entityType: "PAYMENT",
-      entityId: payment.reference ?? payment.requestNo,
-      entityTitle: `Thanh toán · ${payment.topic}`,
-      otherPartyName: payment.advisor.name,
-    });
+    setIsReportOpen(true);
   };
 
-  const filtered = MOCK_PAYMENTS.filter(p => {
+  const filtered = payments.filter(p => {
     if (activeFilter !== "all" && p.status !== activeFilter) return false;
     if (search && !p.requestNo.toLowerCase().includes(search.toLowerCase()) && !p.advisor.name.toLowerCase().includes(search.toLowerCase()) && !p.topic.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
-  const totalSpent = MOCK_PAYMENTS.filter(p => p.status === "RELEASED").reduce((acc, p) => acc + p.amount, 0);
-  const pendingAmount = MOCK_PAYMENTS.filter(p => p.status === "CHECKOUT_PENDING" || p.status === "PAID_HELD").reduce((acc, p) => acc + p.amount, 0);
+  const totalSpent = payments.filter(p => p.status === "RELEASED").reduce((acc, p) => acc + p.amount, 0);
+  const pendingAmount = payments.filter(p => p.status === "CHECKOUT_PENDING" || p.status === "PAID_HELD").reduce((acc, p) => acc + p.amount, 0);
 
   return (
     <StartupShell>
@@ -174,8 +194,8 @@ export default function PaymentHistoryPage() {
               </div>
               <span className="text-[12px] font-semibold text-slate-500">Đã chi tiêu</span>
             </div>
-            <p className="text-[26px] font-black text-slate-900 leading-none">{formatVND(totalSpent)}</p>
-            <p className="text-[11px] text-slate-400 mt-1">{MOCK_PAYMENTS.filter(p => p.status === "RELEASED").length} phiên hoàn thành</p>
+            {isLoading ? <div className="h-8 w-32 bg-slate-100 animate-pulse rounded-lg" /> : <p className="text-[26px] font-black text-slate-900 leading-none">{formatVND(totalSpent)}</p>}
+            <p className="text-[11px] text-slate-400 mt-1">{payments.filter(p => p.status === "RELEASED").length} phiên hoàn thành</p>
           </div>
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
             <div className="flex items-center gap-2 mb-3">
@@ -184,8 +204,8 @@ export default function PaymentHistoryPage() {
               </div>
               <span className="text-[12px] font-semibold text-slate-500">Đang xử lý</span>
             </div>
-            <p className="text-[26px] font-black text-amber-600 leading-none">{formatVND(pendingAmount)}</p>
-            <p className="text-[11px] text-slate-400 mt-1">{MOCK_PAYMENTS.filter(p => p.status === "CHECKOUT_PENDING" || p.status === "PAID_HELD").length} giao dịch</p>
+            {isLoading ? <div className="h-8 w-32 bg-slate-100 animate-pulse rounded-lg" /> : <p className="text-[26px] font-black text-amber-600 leading-none">{formatVND(pendingAmount)}</p>}
+            <p className="text-[11px] text-slate-400 mt-1">{payments.filter(p => p.status === "CHECKOUT_PENDING" || p.status === "PAID_HELD").length} giao dịch</p>
           </div>
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
             <div className="flex items-center gap-2 mb-3">
@@ -194,7 +214,7 @@ export default function PaymentHistoryPage() {
               </div>
               <span className="text-[12px] font-semibold text-slate-500">Tổng giao dịch</span>
             </div>
-            <p className="text-[26px] font-black text-slate-900 leading-none">{MOCK_PAYMENTS.length}</p>
+            {isLoading ? <div className="h-8 w-12 bg-slate-100 animate-pulse rounded-lg" /> : <p className="text-[26px] font-black text-slate-900 leading-none">{payments.length}</p>}
             <p className="text-[11px] text-slate-400 mt-1">Toàn thời gian</p>
           </div>
         </div>
@@ -235,7 +255,20 @@ export default function PaymentHistoryPage() {
 
         {/* Payment List */}
         <div className="space-y-3">
-          {filtered.length === 0 ? (
+          {isLoading ? (
+             Array.from({ length: 3 }).map((_, i) => (
+               <div key={i} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 animate-pulse">
+                 <div className="flex items-center gap-4">
+                   <div className="w-11 h-11 bg-slate-100 rounded-xl" />
+                   <div className="flex-1 space-y-2">
+                     <div className="h-4 bg-slate-100 w-1/4 rounded" />
+                     <div className="h-4 bg-slate-100 w-1/2 rounded" />
+                   </div>
+                   <div className="w-24 h-6 bg-slate-100 rounded" />
+                 </div>
+               </div>
+             ))
+          ) : filtered.length === 0 ? (
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-12 text-center">
               <Filter className="w-8 h-8 text-slate-200 mx-auto mb-3" />
               <p className="text-[14px] font-semibold text-slate-400">Không tìm thấy giao dịch nào</p>
@@ -336,9 +369,8 @@ export default function PaymentHistoryPage() {
       </div>
 
       <IssueReportModal
-        isOpen={!!issueContext}
-        onClose={() => setIssueContext(null)}
-        context={issueContext ?? undefined}
+        isOpen={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
       />
     </StartupShell>
   );

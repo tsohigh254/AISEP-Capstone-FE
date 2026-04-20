@@ -23,9 +23,8 @@ const mockReports: IConsultationReport[] = [
     deliverablesSummary: 'Bản checklist tiêu chí chọn đối tác chiến lược.',
     followUpRequired: true,
     followUpNotes: 'Cần kiểm tra lại tiến độ sau 2 tuần.',
-    status: 'FINALIZED',
+    reviewStatus: 'Passed',
     version: 1,
-    finalizedAt: '2026-03-20T10:00:00Z',
     lastEditedAt: '2026-03-20T10:00:00Z',
     history: [
       {
@@ -75,7 +74,7 @@ const mockReports: IConsultationReport[] = [
       stage: 'Series A',
     },
     title: 'Báo cáo tư vấn Vận hành - NovaAI',
-    staffRemarks: "Vui lòng bổ sung thêm nội dung chi tiết về phần khuyến nghị kỹ thuật cho Startup.",
+    staffReviewNote: "Vui lòng bổ sung thêm nội dung chi tiết về phần khuyến nghị kỹ thuật cho Startup.",
     summary: 'Đang soạn thảo dở nội dung buổi họp chiều nay.',
     discussionOverview: 'Trao đổi về hạ tầng GPU và tối ưu hóa chi phí cloud.',
     keyFindings: 'Chi phí AWS đang chiếm tỷ trọng quá lớn trong OPEX.',
@@ -84,7 +83,7 @@ const mockReports: IConsultationReport[] = [
     nextSteps: 'Họp với bên cung cấp hạ tầng vào thứ 6.',
     deliverablesSummary: 'Tài liệu so sánh bảng giá các Cloud Provider.',
     followUpRequired: false,
-    status: 'DRAFT',
+    reviewStatus: 'Draft',
     version: 1,
     lastEditedAt: '2026-03-22T15:00:00Z',
     history: [
@@ -124,9 +123,8 @@ const mockReports: IConsultationReport[] = [
     deliverablesSummary: 'File Excel mô hình tài chính dự báo 12 tháng tới.',
     followUpRequired: true,
     followUpNotes: 'Cần review lại sau khi Startup nộp audit kho bãi.',
-    status: 'FINALIZED',
+    reviewStatus: 'Passed',
     version: 1,
-    finalizedAt: '2026-03-10T09:00:00Z',
     lastEditedAt: '2026-03-10T09:00:00Z',
     history: [
       {

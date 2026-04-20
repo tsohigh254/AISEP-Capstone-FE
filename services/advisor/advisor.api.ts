@@ -201,7 +201,6 @@ export const ScheduleMentorshipRequest = (id: string, payload: { startAt: string
   return axios.post<IBackendRes<any>>(`/api/mentorships/${id}/sessions`, {
     scheduledStartAt: payload.startAt,
     durationMinutes,
-    sessionFormat: payload.meetingLink && payload.meetingLink.includes("teams") ? "MicrosoftTeams" : "GoogleMeet",
     meetingUrl: payload.meetingLink || ""
   });
 };
@@ -227,8 +226,8 @@ export const ProposeMentorshipSlots = (id: string, payload: { requestedSlots: { 
   return axios.post<IBackendRes<any>>(`/api/mentorships/${id}/sessions`, {
     scheduledStartAt: slot.startAt,
     durationMinutes,
-    sessionFormat: "GoogleMeet",
-    meetingUrl: ""
+    meetingUrl: "",
+    note: slot.note || undefined,
   });
 };
 
@@ -238,12 +237,47 @@ export const GetMentorshipReport = (id: string) => {
 };
 
 export const CreateMentorshipReport = (id: string, payload: {
-  sessionId?: number;
+  sessionId: number;
   reportSummary: string;
   detailedFindings?: string;
   recommendations?: string;
+  attachmentFile?: File | null;
+  isDraft?: boolean;
 }) => {
-  return axios.post<IBackendRes<any>>(`/api/mentorships/${id}/reports`, payload);
+  const formData = new FormData();
+  formData.append("sessionId", String(payload.sessionId));
+  formData.append("reportSummary", payload.reportSummary);
+  if (payload.detailedFindings) formData.append("detailedFindings", payload.detailedFindings);
+  if (payload.recommendations) formData.append("recommendations", payload.recommendations);
+  if (payload.attachmentFile) formData.append("attachmentFile", payload.attachmentFile);
+  if (payload.isDraft !== undefined) formData.append("isDraft", String(payload.isDraft));
+  return axios.post<IBackendRes<any>>(`/api/mentorships/${id}/reports`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+
+export const UpdateMentorshipReport = (
+  mentorshipId: string,
+  reportId: string | number,
+  payload: {
+    reportSummary?: string;
+    detailedFindings?: string;
+    recommendations?: string;
+    attachmentFile?: File | null;
+    isDraft?: boolean;
+  }
+) => {
+  const formData = new FormData();
+  if (payload.reportSummary !== undefined) formData.append("reportSummary", payload.reportSummary);
+  if (payload.detailedFindings !== undefined) formData.append("detailedFindings", payload.detailedFindings);
+  if (payload.recommendations !== undefined) formData.append("recommendations", payload.recommendations);
+  if (payload.attachmentFile) formData.append("attachmentFile", payload.attachmentFile);
+  if (payload.isDraft !== undefined) formData.append("isDraft", String(payload.isDraft));
+  return axios.patch<IBackendRes<any>>(
+    `/api/mentorships/${mentorshipId}/reports/${reportId}`,
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
 };
 
 // Lấy danh sách buổi tư vấn (advisor gọi)

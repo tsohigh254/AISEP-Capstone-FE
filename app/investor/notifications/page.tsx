@@ -7,7 +7,7 @@ import {
   Bell, CheckCheck, Trash2, Search,
   Filter, MoreVertical, Check, Eye, Clock,
   ChevronLeft, ChevronRight, AlertCircle,
-  MessageSquare, UserCircle, ShieldCheck, Brain, Star
+  MessageSquare, UserCircle, ShieldAlert, ShieldCheck, Brain, Star
 } from "lucide-react";
 import { 
   GetNotifications, 
@@ -17,9 +17,26 @@ import {
 } from "@/services/notification/notification.api";
 import { Loader2 } from "lucide-react";
 import { NotificationDetailModal } from "@/components/investor/notification-detail-modal";
+import { isIssueReportNotification, localizeIssueReportNotificationText } from "@/lib/notification";
 
 /* ─── Helper: Get Icon by Type ─────────────────────────────── */
-const getNotificationIcon = (type: string) => {
+const getNotificationIcon = (item: {
+  notificationType?: string | null;
+  actionUrl?: string | null;
+  relatedEntityType?: string | null;
+  type?: string | null;
+}) => {
+  if (
+    isIssueReportNotification({
+      notificationType: item.type ?? item.notificationType,
+      actionUrl: item.actionUrl,
+      relatedEntityType: item.relatedEntityType,
+    })
+  ) {
+    return <ShieldAlert className="w-4 h-4 text-amber-500" />;
+  }
+
+  const type = item.type ?? item.notificationType;
   switch (type?.toLowerCase()) {
     case "connection": return <UserCircle className="w-4 h-4 text-blue-500" />;
     case "message": return <MessageSquare className="w-4 h-4 text-emerald-500" />;
@@ -194,7 +211,7 @@ export default function InvestorNotificationsPage() {
                     "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all",
                     !item.isRead ? "bg-[#e6cc4c]/10 text-[#e6cc4c] shadow-sm" : "bg-slate-100 text-slate-400 opacity-60"
                   )}>
-                    {getNotificationIcon(item.type || item.notificationType)}
+                    {getNotificationIcon(item)}
                   </div>
                   
                   <div className="flex-1 min-w-0">
@@ -203,7 +220,7 @@ export default function InvestorNotificationsPage() {
                         "text-[15px] font-be-vietnam-pro",
                         !item.isRead ? "font-bold text-[#171611]" : "font-semibold text-slate-500"
                       )}>
-                        {item.title}
+                        {localizeIssueReportNotificationText(item, item.title)}
                       </h3>
                       <span className="text-[11px] font-medium text-slate-400 font-be-vietnam-pro">
                         {new Date(item.createdAt).toLocaleDateString("vi-VN")}
@@ -213,7 +230,10 @@ export default function InvestorNotificationsPage() {
                       "text-[13px] leading-relaxed font-be-vietnam-pro line-clamp-2",
                       !item.isRead ? "text-slate-700 font-medium" : "text-slate-500"
                     )}>
-                      {item.messagePreview || item.content || item.message}
+                      {localizeIssueReportNotificationText(
+                        item,
+                        item.messagePreview || item.content || item.message
+                      )}
                     </p>
                     <div className="flex items-center gap-3 mt-3.5">
                       {!item.isRead ? (

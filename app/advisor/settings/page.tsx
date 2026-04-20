@@ -1,17 +1,25 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  User, Shield, Bell, LogOut, 
-  CheckCircle2, AlertCircle, Loader2, 
+import {
+  User, Shield, LogOut,
+  CheckCircle2, AlertCircle, Loader2,
   Eye, EyeOff, ShieldCheck, Mail
 } from "lucide-react";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { Logout, RevokeAll } from "@/services/auth/auth.api";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { 
   getMockAdvisorSettings, 
-  updateMockNotificationPreferences, 
   changeMockPassword,
   IAdvisorSettings
 } from "@/services/advisor/advisor-settings.mock";
@@ -53,16 +61,19 @@ export default function AdvisorSettingsPage() {
   const [settings, setSettings] = useState<IAdvisorSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Confirm Modal
+  const [confirmModal, setConfirmModal] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  }>({ open: false, title: "", description: "", onConfirm: () => {} });
+
   // Password Form
   const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
   const [pwShow, setPwShow] = useState({ current: false, next: false, confirm: false });
   const [pwError, setPwError] = useState("");
   const [isChangingPw, setIsChangingPw] = useState(false);
-
-  // Notification Toggles
-  const [notifPrefs, setNotifPrefs] = useState({ inApp: true, email: false });
-  const [isSavingNotifs, setIsSavingNotifs] = useState(false);
-  const [hasNotifChanges, setHasNotifChanges] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -73,12 +84,31 @@ export default function AdvisorSettingsPage() {
     try {
       const data = await getMockAdvisorSettings();
       setSettings(data);
-      setNotifPrefs({
-        inApp: data.notificationPreferences.inAppEnabled,
-        email: data.notificationPreferences.emailEnabled,
-      });
-    } finally {
+} finally {
       setIsLoading(false);
+    }
+  };
+
+  const clearSessionAndRedirect = () => {
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("user");
+    window.location.href = "/auth/login";
+  };
+
+  const handleLogout = async () => {
+    try {
+      await Logout();
+    } finally {
+      clearSessionAndRedirect();
+    }
+  };
+
+  const handleRevokeAll = async () => {
+    try {
+      await RevokeAll();
+      toast.success("Đã đăng xuất khỏi tất cả các thiết bị");
+    } catch {
+      toast.error("Có lỗi xảy ra, vui lòng thử lại");
     }
   };
 
@@ -107,20 +137,6 @@ export default function AdvisorSettingsPage() {
     }
   };
 
-  const saveNotifPrefs = async () => {
-    setIsSavingNotifs(true);
-    try {
-      await updateMockNotificationPreferences({
-        inAppEnabled: notifPrefs.inApp,
-        emailEnabled: notifPrefs.email,
-      });
-      toast.success("Đã lưu tùy chọn thông báo");
-      setHasNotifChanges(false);
-    } finally {
-      setIsSavingNotifs(false);
-    }
-  };
-
   if (isLoading) {
     return (
       <AdvisorShell>
@@ -135,6 +151,31 @@ export default function AdvisorSettingsPage() {
 
   return (
     <AdvisorShell>
+      <Dialog open={confirmModal.open} onOpenChange={open => setConfirmModal(m => ({ ...m, open }))}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{confirmModal.title}</DialogTitle>
+            <DialogDescription>{confirmModal.description}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <button
+              onClick={() => setConfirmModal(m => ({ ...m, open: false }))}
+              className="px-4 h-9 rounded-xl border border-slate-200 text-slate-700 text-[13px] font-semibold hover:bg-slate-50 transition-all"
+            >
+              Hủy
+            </button>
+            <button
+              onClick={() => {
+                setConfirmModal(m => ({ ...m, open: false }));
+                confirmModal.onConfirm();
+              }}
+              className="px-4 h-9 rounded-xl bg-red-600 text-white text-[13px] font-semibold hover:bg-red-700 transition-all"
+            >
+              Xác nhận
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="max-w-3xl mx-auto py-10 px-4 space-y-8">
         
         {/* Page Header */}
@@ -240,92 +281,29 @@ export default function AdvisorSettingsPage() {
           description="Quản lý các kết nối hiện tại đến tài khoản này."
         >
           <div className="flex flex-col sm:flex-row gap-3">
-            <button 
-              onClick={() => {
-                if(confirm("Bạn có chắc chắn muốn đăng xuất khỏi phiên làm việc này?")) {
-                  window.location.href = "/login";
-                }
-              }}
+            <button
+              onClick={() => setConfirmModal({
+                open: true,
+                title: "Đăng xuất phiên hiện tại?",
+                description: "Bạn sẽ bị đăng xuất khỏi phiên làm việc này và cần đăng nhập lại để tiếp tục.",
+                onConfirm: handleLogout,
+              })}
               className="px-5 h-11 rounded-xl border border-red-100 text-red-600 bg-red-50/30 text-[13px] font-bold hover:bg-red-50 transition-all flex items-center justify-center gap-2"
             >
               <LogOut className="w-4 h-4" />
               Đăng xuất phiên hiện tại
             </button>
-            <button 
-              onClick={() => {
-                if(confirm("Hành động này sẽ ngắt kết nối trên TẤT CẢ các thiết bị khác. Click OK để tiếp tục.")) {
-                  toast.success("Đã đăng xuất khỏi tất cả các thiết bị");
-                }
-              }}
+            <button
+              onClick={() => setConfirmModal({
+                open: true,
+                title: "Đăng xuất khỏi tất cả thiết bị?",
+                description: "Hành động này sẽ ngắt kết nối trên TẤT CẢ các thiết bị khác. Bạn vẫn duy trì phiên hiện tại.",
+                onConfirm: handleRevokeAll,
+              })}
               className="px-5 h-11 rounded-xl border border-slate-200 text-slate-700 text-[13px] font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
             >
               Đăng xuất khỏi tất cả thiết bị
             </button>
-          </div>
-        </SectionCard>
-
-        {/* Section D: Thông báo */}
-        <SectionCard 
-          title="Tùy chọn thông báo" 
-          icon={Bell} 
-          description="Cấu hình cách bạn muốn nhận cập nhật từ nền tảng."
-        >
-          <div className="space-y-6">
-            <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all">
-              <div>
-                <p className="text-[14px] font-bold text-slate-800">Thông báo trong ứng dụng</p>
-                <p className="text-[12px] text-slate-500">Hiển thị thông báo mới ở biểu tượng quả chuông trên Header.</p>
-              </div>
-              <button 
-                type="button"
-                onClick={() => {
-                  setNotifPrefs(p => ({ ...p, inApp: !p.inApp }));
-                  setHasNotifChanges(true);
-                }}
-                className={cn(
-                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#eec54e] focus:ring-offset-2",
-                  notifPrefs.inApp ? "bg-[#eec54e]" : "bg-slate-200"
-                )}
-              >
-                <span className={cn(
-                  "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                  notifPrefs.inApp ? "translate-x-5" : "translate-x-0"
-                )} />
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all">
-              <div>
-                <p className="text-[14px] font-bold text-slate-800">Thông báo qua Email</p>
-                <p className="text-[12px] text-slate-500">Gửi cập nhật quan trọng về các buổi tư vấn tới hòm thư của bạn.</p>
-              </div>
-              <button 
-                type="button"
-                onClick={() => {
-                  setNotifPrefs(p => ({ ...p, email: !p.email }));
-                  setHasNotifChanges(true);
-                }}
-                className={cn(
-                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#eec54e] focus:ring-offset-2",
-                  notifPrefs.email ? "bg-[#eec54e]" : "bg-slate-200"
-                )}
-              >
-                <span className={cn(
-                  "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                  notifPrefs.email ? "translate-x-5" : "translate-x-0"
-                )} />
-              </button>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button 
-                onClick={saveNotifPrefs}
-                disabled={!hasNotifChanges || isSavingNotifs}
-                className="px-8 h-10 bg-[#171611] text-white text-[13px] font-bold rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2 disabled:opacity-30"
-              >
-                {isSavingNotifs ? <><Loader2 className="w-4 h-4 animate-spin" /> Đang lưu...</> : "Lưu thay đổi"}
-              </button>
-            </div>
           </div>
         </SectionCard>
 

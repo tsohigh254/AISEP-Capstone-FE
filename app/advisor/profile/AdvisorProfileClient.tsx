@@ -7,6 +7,7 @@ import {
   Camera, User, Briefcase, Globe, Linkedin, FileText,
   Sparkles, Check, ShieldCheck, KeyRound, AlertCircle,
   Loader2, CheckCircle2, Eye, EyeOff, CreditCard, Info,
+  BadgeCheck, Pencil, Star, Clock, ChevronRight,
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -84,7 +85,7 @@ const inputClass = (hasError = false) => cn(
 
 /* ─── Main Component ─────────────────────────────────────────── */
 
-function AdvisorProfileClientInner() {
+function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -122,6 +123,22 @@ function AdvisorProfileClientInner() {
   const [isChangingPw, setIsChangingPw] = useState(false);
 
   const completeness = calcCompleteness({ ...form, primaryExpertise });
+
+  const [isEditing, setIsEditing] = useState(initialEditing);
+  const [activeViewTab, setActiveViewTab] = useState<"Tổng quan" | "Chuyên môn & Dịch vụ" | "Liên hệ">("Tổng quan");
+
+  const EXPERTISE_LABEL: Record<string, string> = {
+    FUNDRAISING: "Gọi vốn",
+    PRODUCT_STRATEGY: "Chiến lược SP",
+    GO_TO_MARKET: "Go-to-market",
+    FINANCE: "Tài chính",
+    LEGAL_IP: "Pháp lý & SHTT",
+    OPERATIONS: "Vận hành",
+    TECHNOLOGY: "Công nghệ",
+    MARKETING: "Marketing",
+    HR_OR_TEAM_BUILDING: "Nhân sự",
+  };
+  const VIEW_TABS = ["Tổng quan", "Chuyên môn & Dịch vụ", "Liên hệ"] as const;
 
   /* ── Load profile ──────────────────────────────────────────── */
   useEffect(() => {
@@ -213,6 +230,9 @@ function AdvisorProfileClientInner() {
     if (form.googleMeetLink && !form.googleMeetLink.includes("meet.google.com/")) {
       toast.error("Đường dẫn Google Meet không hợp lệ!"); return;
     }
+    if (form.msTeamsLink && !form.msTeamsLink.includes("teams.microsoft.com/") && !form.msTeamsLink.includes("teams.live.com/")) {
+      toast.error("Đường dẫn MS Teams không hợp lệ!"); return;
+    }
 
     setIsSaving(true);
     const payload = {
@@ -257,6 +277,7 @@ function AdvisorProfileClientInner() {
 
       setHasProfile(true);
       toast.success("Lưu hồ sơ thành công");
+      router.push("/advisor/profile");
     } catch (error: any) {
       toast.error("Lưu hồ sơ thất bại. Vui lòng thử lại.");
     } finally {
@@ -377,13 +398,316 @@ function AdvisorProfileClientInner() {
     <AdvisorShell>
       <div className="max-w-[1100px] mx-auto pb-16 animate-in fade-in duration-400">
 
-        {/* Page header */}
-        <div className="mb-6">
-          <h1 className="text-[22px] font-bold text-slate-900">Hồ sơ Advisor</h1>
-          <p className="text-[13px] text-slate-400 mt-1">Thông tin hiển thị công khai trên nền tảng AISEP.</p>
-        </div>
+        {!isEditing ? (
+          /* ══ VIEW MODE ══════════════════════════════════════ */
+          <>
+            {/* Hero card */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden mb-5">
+              <div className="relative h-32 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700">
+                <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:32px_32px] rounded-t-2xl" />
+                <div className="absolute top-4 right-5">
+                  <button
+                    onClick={() => router.push("/advisor/profile/edit")}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/30 backdrop-blur-sm border border-white/10 text-white text-[11px] font-medium hover:bg-black/50 transition-colors"
+                    title="Bật/tắt nhận mentee trong cài đặt hồ sơ"
+                  >
+                    <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", form.isBookable ? "bg-emerald-400" : "bg-slate-400")} />
+                    {form.isBookable ? "Đang nhận mentee" : "Tạm ngưng nhận mentee"}
+                    <ChevronRight className="w-3 h-3 text-white/50" />
+                  </button>
+                </div>
+              </div>
+              <div className="px-7 pb-7">
+                <div className="-mt-10 mb-4 relative z-10">
+                  <div className="w-20 h-20 rounded-2xl border-[3px] border-white shadow-md overflow-hidden flex items-center justify-center bg-gradient-to-br from-amber-400 to-amber-600 text-white font-bold text-[20px]">
+                    {photoPreview
+                      ? <img src={photoPreview} alt="avatar" className="w-full h-full object-cover" />
+                      : <span>{form.name ? form.name.charAt(0).toUpperCase() : "?"}</span>
+                    }
+                  </div>
+                </div>
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <h1 className="text-[22px] font-semibold text-[#0f172a] tracking-[-0.02em]">{form.name || "Chưa có tên"}</h1>
+                      {profileStatus === "Approved" && <BadgeCheck className="w-5 h-5 text-teal-500 flex-shrink-0" />}
+                    </div>
+                    <p className="text-[13px] text-slate-500">
+                      {[form.title, form.company].filter(Boolean).join(" · ") || "Chưa cập nhật thông tin"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => router.push("/advisor/profile/edit")}
+                    className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-medium text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all flex-shrink-0"
+                  >
+                    <Pencil className="w-3.5 h-3.5" /> Chỉnh sửa hồ sơ
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 mb-5">
+                  {[primaryExpertise, ...secondaryExpertises].filter(Boolean).map((e, i) => (
+                    <span key={e} className={cn(
+                      "inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium border",
+                      i === 0 ? "bg-amber-50 text-amber-700 border-amber-100/60" : "bg-slate-50 text-slate-600 border-slate-100"
+                    )}>
+                      {i === 0 && <Star className="w-3 h-3" />}
+                      {EXPERTISE_LABEL[e] || e}
+                    </span>
+                  ))}
+                  {form.yearsOfExperience != null && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium border bg-slate-50 text-slate-600 border-slate-100">
+                      <Clock className="w-3 h-3" />{form.yearsOfExperience} năm KN
+                    </span>
+                  )}
+                  <span className={cn(
+                    "inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border",
+                    form.isBookable ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-slate-50 text-slate-500 border-slate-100"
+                  )}>
+                    <span className={cn("w-1.5 h-1.5 rounded-full", form.isBookable ? "bg-emerald-500 animate-pulse" : "bg-slate-300")} />
+                    {form.isBookable ? "Đang nhận mentee" : "Tạm ngưng nhận"}
+                  </span>
+                  <span className={cn(
+                    "ml-auto inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border",
+                    profileStatus === "Approved" ? "bg-teal-50 text-teal-700 border-teal-100"
+                      : profileStatus === "PendingReview" ? "bg-amber-50 text-amber-700 border-amber-100"
+                      : "bg-slate-50 text-slate-500 border-slate-100"
+                  )}>
+                    {profileStatus === "Approved" ? "Đã xét duyệt" : profileStatus === "PendingReview" ? "Đang chờ duyệt" : "Chưa gửi duyệt"}
+                  </span>
+                </div>
+                <div className="border-t border-slate-100 pt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[12px] font-medium text-slate-500">Độ hoàn thiện hồ sơ</span>
+                    <span className={cn("text-[12px] font-semibold", completeness === 100 ? "text-emerald-600" : "text-slate-700")}>{completeness}%</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={cn("h-full rounded-full transition-all", completeness === 100 ? "bg-emerald-500" : "bg-[#eec54e]")} style={{ width: `${completeness}%` }} />
+                  </div>
+                </div>
+              </div>
+            </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* Tab bar */}
+            <div className="flex w-fit items-center gap-1 rounded-xl border border-slate-200/80 bg-white p-1 shadow-[0_1px_3px_rgba(0,0,0,0.03)] mb-5">
+              {VIEW_TABS.map(tab => (
+                <button key={tab} onClick={() => setActiveViewTab(tab)}
+                  className={cn(
+                    "flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-[13px] font-medium transition-all",
+                    activeViewTab === tab ? "bg-[#0f172a] text-white shadow-sm" : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                  )}>
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab: Tổng quan */}
+            {activeViewTab === "Tổng quan" && (
+              <div className="grid grid-cols-12 gap-5">
+                <div className="col-span-12 lg:col-span-8 space-y-5">
+                  {form.bio ? (
+                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
+                      <div className="flex items-center gap-2 mb-3">
+                        <User className="w-4 h-4 text-slate-400" />
+                        <h3 className="text-[13px] font-semibold text-slate-700">Giới thiệu bản thân</h3>
+                      </div>
+                      <p className="text-[13px] leading-relaxed text-slate-500 whitespace-pre-line">{form.bio}</p>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-6 text-center">
+                      <p className="text-[13px] text-slate-400">Chưa có phần giới thiệu bản thân.</p>
+                      <button onClick={() => router.push("/advisor/profile/edit")} className="mt-2 text-[12px] text-amber-600 hover:underline">+ Thêm ngay</button>
+                    </div>
+                  )}
+                  {form.mentorshipPhilosophy && (
+                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Sparkles className="w-4 h-4 text-amber-500" />
+                        <h3 className="text-[13px] font-semibold text-slate-700">Triết lý cố vấn</h3>
+                      </div>
+                      <p className="text-[13px] leading-relaxed text-slate-500 whitespace-pre-line">{form.mentorshipPhilosophy}</p>
+                    </div>
+                  )}
+                </div>
+                <div className="col-span-12 lg:col-span-4 space-y-4">
+                  <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
+                    <h3 className="text-[12px] font-semibold uppercase tracking-widest text-slate-400 mb-4">Thông tin nhanh</h3>
+                    <div className="space-y-3">
+                      {form.title && (
+                        <div className="flex items-center gap-3">
+                          <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center shrink-0"><Briefcase className="w-3.5 h-3.5 text-slate-400" /></div>
+                          <div><p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Chức vụ</p><p className="text-[12px] font-medium text-slate-700">{form.title}</p></div>
+                        </div>
+                      )}
+                      {form.company && (
+                        <div className="flex items-center gap-3">
+                          <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center shrink-0"><Globe className="w-3.5 h-3.5 text-slate-400" /></div>
+                          <div><p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Công ty</p><p className="text-[12px] font-medium text-slate-700">{form.company}</p></div>
+                        </div>
+                      )}
+                      {form.yearsOfExperience != null && (
+                        <div className="flex items-center gap-3">
+                          <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center shrink-0"><Clock className="w-3.5 h-3.5 text-slate-400" /></div>
+                          <div><p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Kinh nghiệm</p><p className="text-[12px] font-medium text-slate-700">{form.yearsOfExperience} năm</p></div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <button onClick={() => router.push("/advisor/profile/edit")}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0f172a] px-4 py-2.5 text-[13px] font-medium text-white shadow-sm transition-colors hover:bg-slate-800">
+                    <Pencil className="w-3.5 h-3.5" /> Chỉnh sửa hồ sơ
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Tab: Chuyên môn & Dịch vụ */}
+            {activeViewTab === "Chuyên môn & Dịch vụ" && (
+              <div className="grid grid-cols-12 gap-5">
+                <div className="col-span-12 lg:col-span-8 space-y-5">
+                  <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Sparkles className="w-4 h-4 text-amber-500" />
+                      <h3 className="text-[13px] font-semibold text-slate-700">Chuyên môn</h3>
+                    </div>
+                    {[primaryExpertise, ...secondaryExpertises].filter(Boolean).length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {[primaryExpertise, ...secondaryExpertises].filter(Boolean).map((e, i) => (
+                          <span key={e} className={cn(
+                            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border",
+                            i === 0 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-50 text-slate-600 border-slate-200"
+                          )}>
+                            {i === 0 && <Star className="w-3 h-3" />}
+                            {EXPERTISE_LABEL[e] || e}
+                            {i === 0 && <span className="text-[9px] font-normal opacity-60 ml-0.5">(Chính)</span>}
+                          </span>
+                        ))}
+                      </div>
+                    ) : <p className="text-[13px] text-slate-400">Chưa chọn chuyên môn.</p>}
+                  </div>
+                  {form.hourlyRate && form.hourlyRate > 0 ? (
+                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <CreditCard className="w-4 h-4 text-slate-400" />
+                        <h3 className="text-[13px] font-semibold text-slate-700">Dịch vụ & Mức phí</h3>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 mb-4">
+                        <span className="text-[18px] font-bold text-slate-900">{form.hourlyRate.toLocaleString("vi-VN")}đ</span>
+                        <span className="text-[13px] text-slate-400">/ giờ</span>
+                        <div className="flex gap-2 ml-auto">
+                          {form.supportedDurations.map(d => (
+                            <span key={d} className="px-3 py-1 rounded-lg bg-slate-100 text-slate-600 text-[12px] font-bold">{d}m</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 overflow-hidden">
+                        <table className="w-full text-[12px]">
+                          <thead>
+                            <tr className="bg-slate-50 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-100">
+                              <th className="px-4 py-3 text-left font-bold">Thời lượng</th>
+                              <th className="px-4 py-3 text-right font-bold text-slate-500">Giá buổi</th>
+                              <th className="px-4 py-3 text-right font-bold text-emerald-600">Thực nhận dự kiến</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {form.supportedDurations.map(d => {
+                              const price = Math.round((form.hourlyRate! * d) / 60);
+                              const payout = price - Math.round(price * 0.15);
+                              return (
+                                <tr key={d} className="hover:bg-slate-50">
+                                  <td className="px-4 py-3 font-bold text-slate-700">{d} phút</td>
+                                  <td className="px-4 py-3 text-right font-semibold text-slate-900">{price.toLocaleString("vi-VN")} đ</td>
+                                  <td className="px-4 py-3 text-right"><span className="inline-flex items-center justify-center px-2 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-bold">{payout.toLocaleString("vi-VN")} đ</span></td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-6 text-center">
+                      <p className="text-[13px] text-slate-400">Chưa cài đặt mức phí tư vấn.</p>
+                      <button onClick={() => router.push("/advisor/profile/edit")} className="mt-2 text-[12px] text-amber-600 hover:underline">+ Thiết lập ngay</button>
+                    </div>
+                  )}
+                </div>
+                <div className="col-span-12 lg:col-span-4 space-y-4">
+                  <div className="bg-white rounded-2xl border border-slate-200/80 p-5">
+                    <h3 className="text-[12px] font-semibold uppercase tracking-widest text-slate-400 mb-4">Trạng thái nhận tư vấn</h3>
+                    <div className={cn("flex items-center gap-3 p-3 rounded-xl", form.isBookable ? "bg-emerald-50 border border-emerald-100" : "bg-slate-50 border border-slate-100")}>
+                      <span className={cn("w-2.5 h-2.5 rounded-full flex-shrink-0", form.isBookable ? "bg-emerald-500" : "bg-slate-300")} />
+                      <div>
+                        <p className={cn("text-[12px] font-semibold", form.isBookable ? "text-emerald-700" : "text-slate-600")}>{form.isBookable ? "Đang nhận yêu cầu" : "Tạm đóng yêu cầu"}</p>
+                        <p className="text-[11px] text-slate-400">{form.isBookable ? "Startup có thể gửi yêu cầu tư vấn" : "Không nhận yêu cầu mới"}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab: Liên hệ */}
+            {activeViewTab === "Liên hệ" && (
+              <div className="grid grid-cols-12 gap-5">
+                <div className="col-span-12 lg:col-span-8 space-y-5">
+                  <div className="bg-white rounded-2xl border border-slate-200/80 p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Globe className="w-4 h-4 text-slate-400" />
+                      <h3 className="text-[13px] font-semibold text-slate-700">Liên kết công khai</h3>
+                    </div>
+                    <div className="space-y-3">
+                      {form.website && <div><p className="text-[10px] font-medium uppercase tracking-wide text-slate-400 mb-0.5">Website</p><a href={form.website} target="_blank" rel="noopener noreferrer" className="text-[13px] font-medium text-blue-600 hover:underline">{form.website}</a></div>}
+                      {form.linkedInURL && <div><p className="text-[10px] font-medium uppercase tracking-wide text-slate-400 mb-0.5">LinkedIn</p><a href={form.linkedInURL} target="_blank" rel="noopener noreferrer" className="text-[13px] font-medium text-blue-600 hover:underline">{form.linkedInURL}</a></div>}
+                      {!form.website && !form.linkedInURL && <p className="text-[13px] text-slate-400">Chưa có liên kết công khai.</p>}
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-2xl border border-slate-200/80 p-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <ShieldCheck className="w-4 h-4 text-blue-500" />
+                      <h3 className="text-[13px] font-semibold text-slate-700">Link họp trực tuyến</h3>
+                    </div>
+                    <p className="text-[12px] text-slate-400 mb-3">Chỉ chia sẻ với Startup sau khi xác nhận lịch chính thức.</p>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
+                        <Image src="/google-meet.svg" alt="Google Meet" width={18} height={18} />
+                        <p className="text-[12px] font-medium text-slate-600">{form.googleMeetLink ? "Đã cài đặt" : "Chưa cài đặt"}</p>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
+                        <Image src="/ms-teams.svg" alt="MS Teams" width={18} height={18} />
+                        <p className="text-[12px] font-medium text-slate-600">{form.msTeamsLink ? "Đã cài đặt" : "Chưa cài đặt"}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-span-12 lg:col-span-4 space-y-4">
+                  <div className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-2">
+                    <h3 className="text-[12px] font-semibold uppercase tracking-widest text-slate-400 mb-3">Thao tác nhanh</h3>
+                    <button type="button" onClick={() => router.push("/advisor/kyc")}
+                      className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all text-left">
+                      <div className="w-8 h-8 rounded-lg bg-[#eec54e]/10 flex items-center justify-center shrink-0"><ShieldCheck className="w-4 h-4 text-[#eec54e]" /></div>
+                      <div><p className="text-[12px] font-semibold text-slate-700">Xác thực KYC</p><p className="text-[11px] text-slate-400">Nhận badge Verified Advisor</p></div>
+                    </button>
+                    <button type="button" onClick={() => setShowPwDialog(true)}
+                      className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all text-left">
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0"><KeyRound className="w-4 h-4 text-blue-500" /></div>
+                      <div><p className="text-[12px] font-semibold text-slate-700">Đổi mật khẩu</p><p className="text-[11px] text-slate-400">Cập nhật mật khẩu đăng nhập</p></div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          /* ══ EDIT MODE ══════════════════════════════════════ */
+          <>
+            {/* Page header */}
+            <div className="mb-6">
+              <div className="flex items-center gap-3 mb-1">
+                <h1 className="text-[22px] font-bold text-slate-900">Chỉnh sửa hồ sơ</h1>
+              </div>
+              <p className="text-[13px] text-slate-400 mt-1">Thông tin hiển thị công khai trên nền tảng AISEP.</p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
           {/* ── LEFT (2/3) ──────────────────────────────────── */}
           <div className="lg:col-span-2 space-y-5">
@@ -797,7 +1121,7 @@ function AdvisorProfileClientInner() {
             <div className="flex justify-end gap-3">
               <button
                 type="button"
-                onClick={(e) => { e.preventDefault(); router.push("/advisor"); }}
+                onClick={(e) => { e.preventDefault(); router.push("/advisor/profile"); }}
                 className="px-5 h-10 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-500 hover:bg-slate-50 transition-all"
               >
                 Hủy
@@ -903,6 +1227,8 @@ function AdvisorProfileClientInner() {
             </div>
           </div>
         </div>
+          </>
+        )}
       </div>
 
       {/* ── Password Dialog ──────────────────────────────────── */}
@@ -979,10 +1305,10 @@ function AdvisorProfileClientInner() {
   );
 }
 
-export default function AdvisorProfileClient() {
+export default function AdvisorProfileClient({ initialEditing }: { initialEditing?: boolean } = {}) {
   return (
     <Suspense>
-      <AdvisorProfileClientInner />
+      <AdvisorProfileClientInner initialEditing={initialEditing} />
     </Suspense>
   );
 }

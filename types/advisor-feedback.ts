@@ -29,11 +29,12 @@ export interface IAdvisorFeedbackItem {
   startup: {
     id: string;
     displayName: string;
+    logoUrl?: string | null;
   };
   session: {
     topic: string | null;
     completedAt: string;
-  };
+  } | null;
   rating: 1 | 2 | 3 | 4 | 5;
   comment: string | null;
   createdAt: string;

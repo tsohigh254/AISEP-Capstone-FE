@@ -13,7 +13,7 @@ import {
   LogOut,
   MessageSquare,
   ClipboardList,
-  LayoutGrid,
+  Menu,
   Settings,
   FileText,
   Star,
@@ -38,6 +38,15 @@ import {
 import { IssueReportModal } from "@/components/shared/issue-report-modal";
 import { NotificationDetailModal } from "@/components/shared/notification-detail-modal";
 import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
+import { isIssueReportNotification, localizeIssueReportNotificationText } from "@/lib/notification";
+
+function getNotificationIcon(item: Pick<INotificationItem, "notificationType" | "actionUrl" | "relatedEntityType">) {
+  if (isIssueReportNotification(item)) {
+    return ShieldAlert;
+  }
+
+  return Bell;
+}
 
 type AdvisorHeaderProps = {
   userName?: string;
@@ -272,17 +281,27 @@ export function AdvisorHeader({
                             "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5",
                             item.isRead ? "bg-slate-100" : "bg-[#e6cc4c]/15"
                           )}>
-                            <Bell className={cn("w-3.5 h-3.5", item.isRead ? "text-slate-400" : "text-[#C8A000]")} />
+                            {(() => {
+                              const Icon = getNotificationIcon(item);
+                              return (
+                                <Icon
+                                  className={cn(
+                                    "w-3.5 h-3.5",
+                                    item.isRead ? "text-slate-400" : "text-[#C8A000]"
+                                  )}
+                                />
+                              );
+                            })()}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className={cn(
                               "text-[12.5px] leading-snug line-clamp-1",
                               item.isRead ? "font-normal text-slate-700" : "font-semibold text-slate-900"
                             )}>
-                              {item.title}
+                              {localizeIssueReportNotificationText(item, item.title)}
                             </p>
                             <p className="text-[11.5px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
-                              {item.messagePreview}
+                              {localizeIssueReportNotificationText(item, item.messagePreview)}
                             </p>
                             <p className="text-[10px] text-slate-400 mt-1">
                               {(() => {
@@ -324,8 +343,6 @@ export function AdvisorHeader({
             <div 
               className="relative" 
               ref={gridRef}
-              onMouseEnter={() => setIsGridOpen(true)}
-              onMouseLeave={() => setIsGridOpen(false)}
             >
               <button 
                 className={cn(
@@ -334,7 +351,7 @@ export function AdvisorHeader({
                 )}
                 onClick={() => setIsGridOpen(!isGridOpen)}
               >
-                <LayoutGrid className="w-5 h-5" />
+                <Menu className="w-5 h-5" />
               </button>
 
               {isGridOpen && (
@@ -343,7 +360,8 @@ export function AdvisorHeader({
                     {[
                       { icon: ClipboardList, label: "Yêu cầu tư vấn", href: "/advisor/requests" },
                       { icon: Calendar, label: "Lịch của tôi", href: "/advisor/schedule" },
-                      { icon: FileText, label: "Báo cáo", href: "/advisor/reports" },
+                    { icon: FileText, label: "Báo cáo", href: "/advisor/reports" },
+                      { icon: ShieldAlert, label: "Báo cáo của tôi", href: "/advisor/issue-reports" },
                       { icon: Star, label: "Đánh giá & Phản hồi", href: "/advisor/feedback" },
                       { icon: Wallet, label: "Ví", href: "/advisor/wallet" },
                       { icon: Clock, label: "Cài lịch tư vấn", href: "/advisor/availability" },
@@ -423,6 +441,7 @@ export function AdvisorHeader({
                 <div className="p-1.5">
                   {[
                     { icon: User, label: "Hồ sơ cá nhân", href: "/advisor/profile", desc: "Thông tin của bạn" },
+                    { icon: ShieldAlert, label: "Báo cáo của tôi", href: "/advisor/issue-reports", desc: "Theo dõi các báo cáo đã gửi" },
                     { icon: Settings, label: "Cài đặt tài khoản", href: "/advisor/settings", desc: "Bảo mật & thông báo" },
                     { icon: ShieldAlert, label: "Báo cáo sự cố", onClick: () => setIsReportModalOpen(true), desc: "Gửi phản hồi cho AISEP" },
                   ].map((link, idx) => {

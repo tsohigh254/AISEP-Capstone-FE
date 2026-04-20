@@ -50,8 +50,6 @@ import {
   ScheduleMentorshipRequest,
   CancelMentorshipRequest,
   ProposeMentorshipSlots,
-  GetMentorshipReport,
-  CompleteMentorship,
   AcceptMentorshipSession,
 } from "@/services/advisor/advisor.api";
 import { mapMentorshipToConsultingRequest } from "@/services/advisor/advisor.mapper";
@@ -62,10 +60,13 @@ const STATUS_LABEL: Record<ConsultingRequestStatus, string> = {
   REQUESTED: "Chờ xử lý",
   ACCEPTED: "Đã nhận",
   SCHEDULED: "Đã lên lịch",
-  COMPLETED: "Đã diễn ra",
+  IN_PROGRESS: "Đang tư vấn",
+  COMPLETED: "Đã hoàn thành",
   FINALIZED: "Đã hoàn thành",
   REJECTED: "Đã từ chối",
   CANCELLED: "Đã huỷ",
+  IN_DISPUTE: "Đang tranh chấp",
+  RESOLVED: "Đã giải quyết",
 };
 
 const STATUS_CFG: Record<ConsultingRequestStatus, { dot: string; badge: string }> = {
@@ -73,10 +74,13 @@ const STATUS_CFG: Record<ConsultingRequestStatus, { dot: string; badge: string }
   REQUESTED: { dot: "bg-amber-400", badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
   ACCEPTED: { dot: "bg-blue-400", badge: "bg-blue-50 text-blue-700 border-blue-200/80" },
   SCHEDULED: { dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
+  IN_PROGRESS: { dot: "bg-blue-400", badge: "bg-blue-50 text-blue-700 border-blue-200/80" },
   COMPLETED: { dot: "bg-slate-400", badge: "bg-slate-50 text-slate-600 border-slate-200/80" },
   FINALIZED: { dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
   REJECTED: { dot: "bg-red-400", badge: "bg-red-50 text-red-600 border-red-200/80" },
   CANCELLED: { dot: "bg-gray-400", badge: "bg-gray-50 text-gray-500 border-gray-200/80" },
+  IN_DISPUTE: { dot: "bg-red-400", badge: "bg-red-50 text-red-600 border-red-200/80" },
+  RESOLVED: { dot: "bg-slate-400", badge: "bg-slate-50 text-slate-600 border-slate-200/80" },
 };
 
 
@@ -178,9 +182,12 @@ function formatDateTime(dateStr: string): string {
 }
 
 function formatSlotRange(startAt: string, endAt: string): string {
+  const tz = "Asia/Ho_Chi_Minh";
+  const timeOpts: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz };
   const s = new Date(startAt);
   const e = new Date(endAt);
-  return `${s.getDate()} Thg ${s.getMonth() + 1}, ${s.getFullYear()} \u2022 ${s.getHours().toString().padStart(2, "0")}:${s.getMinutes().toString().padStart(2, "0")} - ${e.getHours().toString().padStart(2, "0")}:${e.getMinutes().toString().padStart(2, "0")}`;
+  const datePart = s.toLocaleDateString("vi-VN", { day: "numeric", month: "numeric", year: "numeric", timeZone: tz });
+  return `${datePart} \u2022 ${s.toLocaleTimeString("vi-VN", timeOpts)} - ${e.toLocaleTimeString("vi-VN", timeOpts)}`;
 }
 
 function expiryCountdown(expiresAt: string): string {
@@ -225,6 +232,8 @@ export default function AdvisorRequestDetailPage() {
   const [loading, setLoading] = useState(true);
   const [request, setRequest] = useState<IConsultingRequest | null>(null);
   const [report, setReport] = useState<IMentorshipReport | null>(null);
+  const [sessionDispute, setSessionDispute] = useState<{ disputeReason?: string; resolutionNote?: string } | null>(null);
+  const [rawApiSessions, setRawApiSessions] = useState<any[]>([]);
 
   // Dialog states
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -236,7 +245,6 @@ export default function AdvisorRequestDetailPage() {
   const [proposeNote, setProposeNote] = useState("");
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
-  const [completeOpen, setCompleteOpen] = useState(false);
   const [acceptOpen, setAcceptOpen] = useState(false);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [proposedTimezone, setProposedTimezone] = useState("Asia/Ho_Chi_Minh");
@@ -253,43 +261,75 @@ export default function AdvisorRequestDetailPage() {
     { value: "America/Los_Angeles", label: "GMT-8 – Los Angeles" },
   ];
 
-  useEffect(() => {
-    const loadRequestDetail = async () => {
-      if (!requestId) {
-        setRequest(null);
-        setLoading(false);
-        return;
-      }
+  const loadRequestDetail = async (showLoading = true) => {
+    if (!requestId) {
+      setRequest(null);
+      setRawApiSessions([]);
+      setSessionDispute(null);
+      setReport(null);
+      setLoading(false);
+      return;
+    }
+
+    if (showLoading) {
       setLoading(true);
-      try {
-        const res = await GetAdvisorMentorshipById(requestId);
-        if (res.isSuccess && res.data) {
-          const mapped = mapMentorshipToConsultingRequest(res.data);
-          setRequest(mapped);
+    }
 
-          // Lấy report nếu trạng thái COMPLETED
-          if (mapped.status === "COMPLETED" || mapped.status === "FINALIZED") {
-            try {
-              const resReport = await GetMentorshipReport(requestId);
-              if (resReport.isSuccess && resReport.data) {
-                setReport(resReport.data);
+    try {
+      const res = await GetAdvisorMentorshipById(requestId);
+      if (res.isSuccess && res.data) {
+        const mapped = mapMentorshipToConsultingRequest(res.data);
+        setRequest(mapped);
+
+        const rawSessions = (res.data as any).sessions || [];
+        setRawApiSessions(rawSessions);
+
+        const disputeSession = rawSessions.find((s: any) =>
+          ["InDispute", "Resolved"].includes(s.status || s.sessionStatus)
+        );
+        setSessionDispute(
+          disputeSession
+            ? {
+                disputeReason: disputeSession.disputeReason || null,
+                resolutionNote: disputeSession.resolutionNote || null,
               }
-            } catch (err) {
-              console.error("Failed to load report", err);
-              setReport(null);
-            }
-          }
+            : null
+        );
+
+        const rawReports = (res.data as any).reports || [];
+        if (rawReports.length > 0) {
+          const r = rawReports[0];
+            setReport({
+              reportID: r.reportID,
+              mentorshipID: r.mentorshipID,
+              createdAt: r.submittedAt || r.createdAt || new Date().toISOString(),
+              content: [r.reportSummary, r.detailedFindings, r.recommendations].filter(Boolean).join("\n\n"),
+              reviewStatus: r.reviewStatus || "Passed",
+              staffReviewNote: r.staffReviewNote || null,
+            } as any);
         } else {
-          setRequest(null);
+          setReport(null);
         }
-      } catch (error) {
-        console.error("Failed to load request detail:", error);
+      } else {
         setRequest(null);
-      } finally {
+        setRawApiSessions([]);
+        setSessionDispute(null);
+        setReport(null);
+      }
+    } catch (error) {
+      console.error("Failed to load request detail:", error);
+      setRequest(null);
+      setRawApiSessions([]);
+      setSessionDispute(null);
+      setReport(null);
+    } finally {
+      if (showLoading) {
         setLoading(false);
       }
-    };
+    }
+  };
 
+  useEffect(() => {
     loadRequestDetail();
   }, [requestId]);
 
@@ -409,20 +449,16 @@ const handleAcceptConfirm = async () => {
     }
   };
 
-  // Fix #4 — Khi đề xuất giờ từ PENDING → ngầm accept request luôn
-  // Đồng thời vô hiệu hoá các slot cũ nếu có
 const handleProposeConfirm = async () => {
     if (!request) return;
     const validSlots = proposedSlots.filter(s => s.date && s.startTime && s.endTime);
     if (validSlots.length === 0) { toast.error("Vui lòng thêm ít nhất 1 khung giờ"); return; }
 
-    const wasRequested = request.status === "PENDING";
     const wasScheduled = request.status === "SCHEDULED";
-
     const requestDuration = Number(request.durationMinutes) || 60;
     const payloadSlots = validSlots.map(s => ({
-      startAt: `${s.date}T${s.startTime}:00`,
-      endAt: `${s.date}T${s.endTime}:00`,
+      startAt: `${s.date}T${s.startTime}:00+07:00`,
+      endAt: `${s.date}T${s.endTime}:00+07:00`,
       timezone: proposedTimezone,
       note: proposeNote.trim() || undefined,
       durationMinutes: requestDuration,
@@ -436,49 +472,15 @@ const handleProposeConfirm = async () => {
       const res = results[results.length - 1]; // lấy kết quả cuối để check
       
       if (res.isSuccess || (res as any).success) {
-        // Gắn lại date locally cho UI đỡ phải reload ngay:
-        const now = new Date().toISOString();
-        const newSlots: ITimeSlotProposal[] = payloadSlots.map((s, i) => ({
-          id: `slot-prop-${Date.now()}-${i}`,
-          proposedBy: "ADVISOR" as const,
-          startAt: s.startAt + "+07:00", // local UI mapping
-          endAt: s.endAt + "+07:00",
-          timezone: s.timezone,
-          status: "PROPOSED" as const,
-          note: s.note,
-          createdAt: now,
-        }));
-
-        const updatedPreferred = request.preferredSlots.map(s =>
-          s.status === "PROPOSED" || s.status === "ACCEPTED" ? { ...s, status: "DECLINED" as const } : s
-        );
-        const updatedProposals = request.slotProposals.map(s =>
-          s.status === "PROPOSED" || s.status === "ACCEPTED" ? { ...s, status: "SUPERSEDED" as const } : s
-        );
-
-        setRequest({
-          ...request,
-          status: wasRequested || wasScheduled ? "SCHEDULED" : request.status,
-          acceptedAt: wasRequested ? now : request.acceptedAt,
-          advisorRespondedAt: (wasRequested || wasScheduled) ? now : request.advisorRespondedAt,
-          preferredSlots: updatedPreferred,
-          slotProposals: [...updatedProposals, ...newSlots],
-          confirmation: {
-            startupConfirmedAt: null,
-            advisorConfirmedAt: null,
-            fullyConfirmed: false,
-          },
-          timeline: [
-            ...request.timeline,
-            ...(wasRequested ? [{ id: `act-${Date.now()}a`, actionType: "REQUEST_ACCEPTED" as const, actorType: "ADVISOR" as const, fromStatus: "PENDING", toStatus: "ACCEPTED", createdAt: now }] : []),
-            { id: `act-${Date.now()}b`, actionType: "ADVISOR_PROPOSED_TIME" as const, actorType: "ADVISOR" as const, metadata: { slotCount: newSlots.length, isReschedule: wasScheduled }, createdAt: now },
-          ],
-        });
-
+        await loadRequestDetail(false);
         setProposeOpen(false);
         setSelectedSlotId(null);
         setProposedSlots([{ date: "", startTime: "", endTime: "", note: "" }]);     
-        toast.success(wasScheduled ? "Đã gửi đề xuất dời lịch mới" : `Đã gửi ${newSlots.length} khung giờ đề xuất${wasRequested ? " — yêu cầu đã được chấp nhận" : ""}`);
+        toast.success(
+          wasScheduled
+            ? "Đã gửi đề xuất dời lịch mới"
+            : `Đã gửi ${payloadSlots.length} khung giờ đề xuất`
+        );
       } else {
         toast.error(res.message || "Lỗi khi đề xuất lịch");
       }
@@ -520,20 +522,6 @@ const handleCancelConfirm = async () => {
     }
   };
 
-  const handleCompleteConfirm = async () => {
-    try {
-      const res = await CompleteMentorship(requestId);
-      if (res.isSuccess || res.success || (res as any).status === 200 || !(res as any).error) {   
-        setRequest((prev: any) => ({ ...prev, status: "COMPLETED" }));
-        setCompleteOpen(false);
-        toast.success("Đã xác nhận hoàn thành buổi họp");
-      } else {
-        toast.error((res as any)?.message || "Lỗi khi xác nhận hoàn thành");    
-      }
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Đã xảy ra lỗi hệ thống");
-    }
-  };
   /* ─── Render ────────────────────────────────────────────────── */
 
   if (loading) {
@@ -575,14 +563,28 @@ const handleCancelConfirm = async () => {
     request.slotProposals.find(s => s.status === "ACCEPTED");
   const hasStartupProposedSlots = request.preferredSlots.some(s => s.status === "PROPOSED");
   const hasAdvisorProposedSlots = request.slotProposals.some(s => s.status === "PROPOSED");
+  const canWriteReport = rawApiSessions.some((s: any) =>
+    ["Conducted", "Completed", "Resolved"].includes(s.status || s.sessionStatus)
+  );
+  const scheduledSession = rawApiSessions.find((s: any) =>
+    ["Scheduled", "InProgress"].includes(s.status || s.sessionStatus)
+  );
+  const sessionEndedButUnconfirmed = !!scheduledSession &&
+    !scheduledSession.startupConfirmedConductedAt &&
+    Date.now() > new Date(scheduledSession.scheduledStartAt).getTime() + (scheduledSession.durationMinutes ?? 60) * 60_000;
   const hasStartupAcceptedAdvisorProposal = request.slotProposals.some(s => s.status === "ACCEPTED");
   const hasAdvisorAcceptedStartupProposal = request.preferredSlots.some(s => s.status === "ACCEPTED");
   const hasConfirmedSchedule =
     request.status === "SCHEDULED" ||
+    request.status === "IN_PROGRESS" ||
     request.status === "COMPLETED" ||
-    request.status === "FINALIZED" ||
     hasStartupAcceptedAdvisorProposal ||
     hasAdvisorAcceptedStartupProposal;
+  const isWaitingForStartupOnAdvisorProposal =
+    request.status === "PENDING" &&
+    hasAdvisorProposedSlots &&
+    !hasStartupProposedSlots &&
+    !hasConfirmedSchedule;
   const isStartupPaid = isMentorshipPaymentCompleted(
     request.paymentStatus,
     request.paidAt,
@@ -615,15 +617,6 @@ const handleCancelConfirm = async () => {
       ? new Date(new Date(confirmedSlotStartAt).getTime() + request.durationMinutes * 60000).toISOString()
       : null
   );
-  const completeGateReason = !isStartupPaid
-    ? "Startup chưa hoàn tất thanh toán cho buổi tư vấn này."
-    : !confirmedSlot
-      ? "Chưa xác định được khung giờ đã chốt cho buổi tư vấn."
-      : confirmedSlotEndAt && Date.now() < new Date(confirmedSlotEndAt).getTime()
-        ? `Bạn có thể xác nhận sau khi buổi tư vấn kết thúc dự kiến vào ${formatDateTime(confirmedSlotEndAt)}.`
-        : null;
-  const canCompleteSession = request.status === "SCHEDULED" && !completeGateReason;
-
   return (
     <AdvisorShell>
       <div className="max-w-[1100px] mx-auto space-y-6 animate-in fade-in duration-400">
@@ -771,7 +764,7 @@ const handleCancelConfirm = async () => {
                           <span className="text-[10px] text-slate-400">{slot.timezone}</span>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          {request.status === "PENDING" && slot.status === "PROPOSED" && (
+                          {request.status === "PENDING" && slot.status === "PROPOSED" && !hasAdvisorProposedSlots && (
                             <button
                               onClick={() => { setSelectedSlotId(slot.id); setAcceptOpen(true); }}
                               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#0f172a] text-white hover:bg-[#1e293b] transition-all"
@@ -837,41 +830,103 @@ const handleCancelConfirm = async () => {
               {/* PENDING */}
               {request.status === "PENDING" && (
                 <div className="flex-1 w-full">
-                  {!selectedSlotId && (
-                    <p className="text-[11px] text-amber-600 mb-2 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" />
-                      Vui lòng chọn một khung giờ đề xuất bên trên trước khi chấp nhận.
-                    </p>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={handleAccept}
-                      disabled={!selectedSlotId}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-medium transition-all shadow-sm",
-                        selectedSlotId
-                          ? "bg-[#0f172a] text-white hover:bg-[#1e293b]"
-                          : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                  {isWaitingForStartupOnAdvisorProposal ? (
+                    <div className="space-y-3">
+                      <div className="px-4 py-3 rounded-xl bg-blue-50 border border-blue-200">
+                        <div className="flex items-start gap-2">
+                          <Clock className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-[12px] font-medium text-blue-700 mb-0.5">Bạn đã đề xuất lịch mới</p>
+                            <p className="text-[12px] text-blue-600">
+                              Startup đang chờ xác nhận một trong các khung giờ bạn vừa đề xuất.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => setProposeOpen(true)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-[13px] font-medium hover:bg-slate-50 transition-colors"
+                        >
+                          <Clock className="w-4 h-4" />
+                          Đề xuất thêm thời gian
+                        </button>
+                        <button
+                          onClick={() => setRejectOpen(true)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 text-red-600 text-[13px] font-medium hover:bg-red-50 transition-colors"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          Từ chối
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {(() => {
+                        const isGoogleMeet = request.preferredFormat === "GOOGLE_MEET";
+                        const meetingLinkKey = isGoogleMeet ? "googleMeet" : "msTeams";
+                        const rawLink = advisorLinks?.[meetingLinkKey] ?? "";
+                        const isValidLink = isGoogleMeet
+                          ? rawLink.includes("meet.google.com/")
+                          : rawLink.includes("teams.microsoft.com/") || rawLink.includes("teams.live.com/");
+                        if (!isValidLink) return (
+                          <p className="text-[11px] text-red-500 mb-2 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            Link {isGoogleMeet ? "Google Meet" : "MS Teams"} trong hồ sơ chưa hợp lệ. Vui lòng{" "}
+                            <a href="/advisor/profile/edit" className="underline font-semibold">cập nhật hồ sơ</a>{" "}
+                            trước khi chấp nhận.
+                          </p>
+                        );
+                        return null;
+                      })()}
+                      {!selectedSlotId && (
+                        <p className="text-[11px] text-amber-600 mb-2 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          Vui lòng chọn một khung giờ đề xuất bên trên trước khi chấp nhận.
+                        </p>
                       )}
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      Chấp nhận
-                    </button>
-                    <button
-                      onClick={() => setRejectOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 text-red-600 text-[13px] font-medium hover:bg-red-50 transition-colors"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      Từ chối
-                    </button>
-                    <button
-                      onClick={() => setProposeOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-[13px] font-medium hover:bg-slate-50 transition-colors"
-                    >
-                      <Clock className="w-4 h-4" />
-                      Đề xuất thời gian khác
-                    </button>
-                  </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(() => {
+                          const isGoogleMeet = request.preferredFormat === "GOOGLE_MEET";
+                          const meetingLinkKey = isGoogleMeet ? "googleMeet" : "msTeams";
+                          const rawLink = advisorLinks?.[meetingLinkKey] ?? "";
+                          const isValidLink = isGoogleMeet
+                            ? rawLink.includes("meet.google.com/")
+                            : rawLink.includes("teams.microsoft.com/") || rawLink.includes("teams.live.com/");
+                          const canAccept = !!selectedSlotId && isValidLink;
+                          return (
+                            <button
+                              onClick={handleAccept}
+                              disabled={!canAccept}
+                              className={cn(
+                                "inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-medium transition-all shadow-sm",
+                                canAccept
+                                  ? "bg-[#0f172a] text-white hover:bg-[#1e293b]"
+                                  : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                              )}
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              Chấp nhận
+                            </button>
+                          );
+                        })()}
+                        <button
+                          onClick={() => setRejectOpen(true)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 text-red-600 text-[13px] font-medium hover:bg-red-50 transition-colors"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          Từ chối
+                        </button>
+                        <button
+                          onClick={() => setProposeOpen(true)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-[13px] font-medium hover:bg-slate-50 transition-colors"
+                        >
+                          <Clock className="w-4 h-4" />
+                          Đề xuất thời gian khác
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -935,35 +990,37 @@ const handleCancelConfirm = async () => {
                       Lưu ý: Link này chỉ hiển thị cho bạn và Startup đã xác nhận.
                     </p>
                   </div>
-                  {completeGateReason && (
-                    <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
-                      <p className="text-[11px] text-amber-600 uppercase tracking-wide font-medium mb-1">
-                        Chưa thể xác nhận hoàn thành
-                      </p>
-                      <p className="text-[12px] text-amber-700 leading-relaxed">
-                        {completeGateReason}
-                      </p>
-                    </div>
-                  )}
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={!canCompleteSession}
-                      title={completeGateReason || "Xác nhận buổi tư vấn đã hoàn thành"}
-                      onClick={() => {
-                        if (!canCompleteSession) return;
-                        setCompleteOpen(true);
-                      }}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-medium transition-colors",
-                        canCompleteSession
-                          ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
-                          : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-                      )}
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      Xác nhận đã họp xong
-                    </button>
+                    <div className="w-full p-3 rounded-xl bg-blue-50 border border-blue-100 text-[12px] text-blue-700 font-medium leading-relaxed">
+                      Việc xác nhận hoàn thành buổi tư vấn sẽ do bộ phận Vận hành xử lý sau khi Startup xác nhận và báo cáo được duyệt.
+                    </div>
+                    {(sessionEndedButUnconfirmed || canWriteReport) && !report && (
+                      <Link
+                        href={`/advisor/reports/create?sessionId=${request.mentorshipID}`}
+                        className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-[#1e293b] transition-all shadow-sm"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Viết báo cáo tư vấn
+                        <ArrowRight className="w-4 h-4 ml-1 opacity-50" />
+                      </Link>
+                    )}
+                    {(sessionEndedButUnconfirmed || canWriteReport) && !report && (
+                      <div className="w-full px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
+                        <div className="flex items-start gap-2">
+                          <Clock className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-[12px] font-medium text-amber-700 mb-0.5">Startup chưa xác nhận buổi họp</p>
+                            <p className="text-[12px] text-amber-600">Hệ thống sẽ tự xác nhận sau 24h kể từ khi buổi kết thúc. Bạn có thể viết báo cáo ngay bây giờ.</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {report && (
+                      <div className="w-full px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <p className="text-[12px] font-bold text-emerald-700">Báo cáo đã nộp thành công.</p>
+                      </div>
+                    )}
                     <button
                       onClick={() => setProposeOpen(true)}
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-[13px] font-medium hover:bg-slate-50 transition-colors"
@@ -983,6 +1040,186 @@ const handleCancelConfirm = async () => {
               )}
 
 
+
+              {/* IN_PROGRESS */}
+              {request.status === "IN_PROGRESS" && (
+                <div className="space-y-3">
+                  {confirmedSlot && (
+                    <div className="px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                      <p className="text-[11px] text-emerald-600 uppercase tracking-wide font-medium mb-1">Thời gian đã xác nhận</p>
+                      <p className="text-[13px] font-semibold text-emerald-700">
+                        {formatSlotRange(confirmedSlot.startAt, confirmedSlot.endAt)}
+                      </p>
+                    </div>
+                  )}
+                  <div className="px-4 py-3 rounded-xl bg-blue-50 border border-blue-200">
+                    <p className="text-[11px] text-blue-600 uppercase tracking-wide font-medium mb-1">
+                      Link họp ({request.preferredFormat === "GOOGLE_MEET" ? "Google Meet" : "MS Teams"})
+                    </p>
+                    {advisorLinks?.[request.preferredFormat === "GOOGLE_MEET" ? "googleMeet" : "msTeams"] ? (
+                      <a
+                        href={advisorLinks[request.preferredFormat === "GOOGLE_MEET" ? "googleMeet" : "msTeams"]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[13px] font-semibold text-blue-700 hover:underline break-all"
+                      >
+                        {advisorLinks[request.preferredFormat === "GOOGLE_MEET" ? "googleMeet" : "msTeams"]}
+                      </a>
+                    ) : (
+                      <p className="text-[12px] text-amber-600 italic">
+                        Bạn chưa cập nhật link phòng họp trong hồ sơ.
+                      </p>
+                    )}
+                  </div>
+                  {report ? (
+                    (report as any).reviewStatus === "NeedsMoreInfo" ? (
+                      <div className="space-y-2">
+                        <div className="px-4 py-3 rounded-xl bg-orange-50 border border-orange-200">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-orange-500 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-[12px] font-bold text-orange-700 mb-0.5">Bộ phận Vận hành yêu cầu bổ sung</p>
+                              {(report as any).staffReviewNote && (
+                                <p className="text-[12px] text-orange-600 mt-1 leading-relaxed">"{(report as any).staffReviewNote}"</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <Link
+                          href={`/advisor/reports/create?sessionId=${request.mentorshipID}`}
+                          className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-orange-500 text-white text-[13px] font-bold hover:bg-orange-600 transition-all shadow-sm w-fit"
+                        >
+                          <FileText className="w-4 h-4" />
+                          Cập nhật báo cáo
+                          <ArrowRight className="w-4 h-4 ml-1 opacity-70" />
+                        </Link>
+                      </div>
+                    ) : (
+                      <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-[12px] font-medium text-amber-700 mb-0.5">Báo cáo đã nộp thành công</p>
+                            <p className="text-[12px] text-amber-600">Báo cáo đã sẵn sàng cho Startup xem và session sẽ được hệ thống hoàn tất theo contract mới.</p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  ) : canWriteReport ? (
+                    <>
+                      <div className="px-4 py-3 rounded-xl bg-teal-50 border border-teal-200">
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-teal-500 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-[12px] font-medium text-teal-700 mb-0.5">Phiên tư vấn đã diễn ra</p>
+                            <p className="text-[12px] text-teal-600">Vui lòng nộp báo cáo tư vấn để hoàn tất quy trình.</p>
+                          </div>
+                        </div>
+                      </div>
+                      <Link
+                        href={`/advisor/reports/create?sessionId=${request.mentorshipID}`}
+                        className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-[#1e293b] transition-all shadow-sm w-fit"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Viết báo cáo tư vấn
+                        <ArrowRight className="w-4 h-4 ml-1 opacity-50" />
+                      </Link>
+                    </>
+                  ) : sessionEndedButUnconfirmed ? (
+                    <div className="space-y-3">
+                      <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
+                        <div className="flex items-start gap-2">
+                          <Clock className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-[12px] font-medium text-amber-700 mb-0.5">Startup chưa xác nhận buổi họp</p>
+                            <p className="text-[12px] text-amber-600">Hệ thống sẽ tự xác nhận sau 24h kể từ khi buổi kết thúc. Bạn có thể viết báo cáo ngay bây giờ.</p>
+                          </div>
+                        </div>
+                      </div>
+                      <Link
+                        href={`/advisor/reports/create?sessionId=${request.mentorshipID}`}
+                        className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-[#1e293b] transition-all shadow-sm w-fit"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Viết báo cáo tư vấn
+                        <ArrowRight className="w-4 h-4 ml-1 opacity-50" />
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="flex items-start gap-2">
+                        <Clock className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-[12px] font-medium text-slate-600 mb-0.5">Đang chờ phiên tư vấn diễn ra</p>
+                          <p className="text-[12px] text-slate-500">Lịch hẹn đã được xác nhận. Startup sẽ xác nhận sau khi buổi tư vấn kết thúc.</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* IN_DISPUTE */}
+              {request.status === "IN_DISPUTE" && (
+                <div className="px-4 py-4 rounded-xl bg-red-50 border border-red-200">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-[12px] font-bold text-red-700 mb-1">Phiên tư vấn đang trong tranh chấp</p>
+                      {sessionDispute?.disputeReason && (
+                        <p className="text-[12px] text-red-600 mb-1 leading-relaxed">Lý do: &ldquo;{sessionDispute.disputeReason}&rdquo;</p>
+                      )}
+                      <p className="text-[11px] text-red-500">Bộ phận Vận hành đang xử lý. Bạn sẽ được thông báo khi có kết quả.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* RESOLVED */}
+              {request.status === "RESOLVED" && (
+                <div className="space-y-3">
+                  <div className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-[12px] font-bold text-slate-700 mb-0.5">Tranh chấp đã được giải quyết</p>
+                        {sessionDispute?.resolutionNote && (
+                          <p className="text-[12px] text-slate-600 mt-1 leading-relaxed">&ldquo;{sessionDispute.resolutionNote}&rdquo;</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {(report as any)?.reviewStatus === "NeedsMoreInfo" ? (
+                    <Link
+                      href={`/advisor/reports/create?sessionId=${request.mentorshipID}`}
+                      className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-orange-500 text-white text-[13px] font-bold hover:bg-orange-600 transition-all shadow-sm w-fit"
+                    >
+                      <FileText className="w-4 h-4" />
+                      Cập nhật báo cáo
+                      <ArrowRight className="w-4 h-4 ml-1 opacity-70" />
+                    </Link>
+                  ) : (report as any)?.reviewStatus === "Passed" ? (
+                    <div className="px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <p className="text-[12px] font-bold text-emerald-700">Báo cáo đã hoàn tất và sẵn sàng cho Startup xem.</p>
+                    </div>
+                  ) : !report ? (
+                    <Link
+                      href={`/advisor/reports/create?sessionId=${request.mentorshipID}`}
+                      className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-[#1e293b] transition-all shadow-sm w-fit"
+                    >
+                      <FileText className="w-4 h-4" />
+                      Viết báo cáo tư vấn
+                      <ArrowRight className="w-4 h-4 ml-1 opacity-50" />
+                    </Link>
+                  ) : (
+                    <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-amber-500 shrink-0" />
+                      <p className="text-[12px] font-medium text-amber-700">Báo cáo đã nộp thành công.</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* REJECTED */}
               {request.status === "REJECTED" && (
@@ -1019,8 +1256,8 @@ const handleCancelConfirm = async () => {
                 </div>
               )}
 
-              {/* COMPLETED */}
-              {request.status === "COMPLETED" && (
+              {/* COMPLETED — chưa duyệt report */}
+              {request.status === "COMPLETED" && !(request.isPayoutEligible === true && report) && (
                 <div className="space-y-4">
                   <div className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200">
                     <div className="flex items-start gap-2">
@@ -1042,8 +1279,8 @@ const handleCancelConfirm = async () => {
                 </div>
               )}
 
-              {/* FINALIZED REPORT CONTENT */}
-              {request.status === "FINALIZED" && report && (
+              {/* COMPLETED + report approved */}
+              {request.status === "COMPLETED" && request.isPayoutEligible === true && report && (
                 <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
                   <div className="px-5 py-4 rounded-2xl bg-emerald-50/50 border border-emerald-100">
                     <div className="flex items-start gap-3">
@@ -1414,32 +1651,6 @@ const handleCancelConfirm = async () => {
         </div>
       )}
 
-      {/* Complete Dialog */}
-      {completeOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[15px] font-semibold text-slate-900">Xác nhận hoàn thành</h3>
-              <button onClick={() => setCompleteOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 transition-colors">
-                <X className="w-4 h-4 text-slate-400" />
-              </button>
-            </div>
-            <div className="text-[13px] text-slate-600 mb-6 leading-relaxed">
-              Bạn có chắc chắn muốn đánh dấu buổi tư vấn này đã hoàn thành? Một khi được đánh dấu hoàn thành, bạn sẽ có thể gửi báo cáo tư vấn.
-            </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setCompleteOpen(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-[13px] font-medium hover:bg-slate-50 transition-colors">
-                Huỷ đóng
-              </button>
-              <button onClick={handleCompleteConfirm} className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[13px] font-medium hover:bg-emerald-700 transition-colors shadow-sm inline-flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4" />
-                Xác nhận đã họp xong
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Accept Confirmation Dialog */}
       {acceptOpen && request && selectedSlotId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
@@ -1502,12 +1713,12 @@ const handleCancelConfirm = async () => {
       <IssueReportModal
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
-        context={{
-          entityType: "CONSULTING_REQUEST",
-          entityId: String(request.mentorshipID),
+        context={request.mentorshipID ? {
+          entityType: "Mentorship",
+          entityId: request.mentorshipID,
           entityTitle: `Yêu cầu tư vấn: ${request.objective}`,
           otherPartyName: request.startup.displayName
-        }}
+        } : undefined}
       />
     </AdvisorShell>
   );

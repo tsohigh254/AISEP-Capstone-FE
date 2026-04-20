@@ -7,7 +7,7 @@ import { StartupShell } from "@/components/startup/startup-shell";
 import {
   Edit3, Video, Clock, MessageSquare,
   CheckCircle2, AlertCircle, Calendar, CalendarCheck,
-  FileText, Star, Ban, X, 
+  FileText, Star, Ban, X, Lock,
   History as LucideHistory, Loader2, Info,
   ShieldAlert, ChevronRight
 } from "lucide-react";
@@ -16,6 +16,7 @@ import { isMentorshipPaymentCompleted } from "@/lib/mentorship-payment";
 import { IssueReportModal } from "@/components/shared/issue-report-modal";
 import {
   CancelMentorship,
+  ConfirmSessionConducted,
   GetAdvisorById,
   GetMentorshipById,
 } from "@/services/startup/startup-mentorship.api";
@@ -41,6 +42,29 @@ const formatDateTime = (iso?: string | null) => {
   } catch {
     return iso;
   }
+};
+
+const getSessionEndAt = (session: any, fallbackDurationMinutes?: number | null) => {
+  if (session?.scheduledEndAt) {
+    return session.scheduledEndAt as string;
+  }
+
+  if (!session?.scheduledStartAt) {
+    return null;
+  }
+
+  const durationMinutes =
+    Number(session?.durationMinutes) ||
+    Number(fallbackDurationMinutes) ||
+    0;
+
+  if (!durationMinutes) {
+    return null;
+  }
+
+  return new Date(
+    new Date(session.scheduledStartAt).getTime() + durationMinutes * 60_000
+  ).toISOString();
 };
 
 const mapMeetingFormat = (fmt?: MeetingFormat | string | null): string => {
@@ -180,6 +204,7 @@ interface TimelineStep {
   done: boolean;
   current?: boolean;
   failed?: boolean;
+  locked?: boolean;
 }
 
 interface HistoryItem {
@@ -411,6 +436,13 @@ function buildProgressSteps(historyItems: HistoryItem[], currentStatus: string, 
   const terminalFailedEvent = rejectedEvent || cancelledEvent;
   const cancellationActorText = getCancellationActorText(request.cancelledBy);
 
+  // Session-level signals — mentorship timestamps alone are not enough in the new oversight flow
+  const sessions: any[] = (request as any).sessions || [];
+  const SESSION_SCHEDULED_PLUS = ["Scheduled", "InProgress", "Conducted", "Completed", "InDispute", "Resolved"];
+  const SESSION_CONDUCTED_PLUS = ["Conducted", "Completed", "InDispute", "Resolved"];
+  const scheduledSession = sessions.find((s: any) => SESSION_SCHEDULED_PLUS.includes(s.status || s.sessionStatus));
+  const conductedSession = sessions.find((s: any) => SESSION_CONDUCTED_PLUS.includes(s.status || s.sessionStatus));
+
   if (requestedEvent) {
     steps[0].done = true;
     steps[0].note = requestedEvent.note;
@@ -423,42 +455,67 @@ function buildProgressSteps(historyItems: HistoryItem[], currentStatus: string, 
     steps[1].time = acceptedEvent.time;
   }
 
-  if (inProgressEvent) {
+  // Step 2: "Lịch xác nhận" — done khi có session Scheduled+ hoặc mentorship đã InProgress
+  if (inProgressEvent || scheduledSession) {
     steps[2].done = true;
-    steps[2].note = inProgressEvent.note;
-    steps[2].time = inProgressEvent.time;
+    steps[2].note = inProgressEvent?.note || "Lịch tư vấn đã được xác nhận.";
+    steps[2].time = inProgressEvent?.time || formatDateTime(scheduledSession?.scheduledStartAt) || "";
   }
 
-  if (completedEvent) {
+  // Step 3: "Phiên diễn ra" — done khi session Conducted+ hoặc mentorship Completed
+  if (completedEvent || conductedSession) {
     steps[3].done = true;
-    steps[3].note = completedEvent.note;
-    steps[3].time = completedEvent.time;
-  } else if ((currentStatus === "Scheduled" || currentStatus === "InProgress") && inProgressEvent) {
+    steps[3].note = completedEvent?.note || "Phiên tư vấn đã diễn ra.";
+    steps[3].time = completedEvent?.time || formatDateTime(conductedSession?.scheduledStartAt) || "";
+  } else if ((currentStatus === "Scheduled" || currentStatus === "InProgress") && (inProgressEvent || scheduledSession)) {
     steps[3].current = true;
-    steps[3].note = isPaid ? "Đang chờ phiên tư vấn diễn ra." : "Đang chờ hoàn tất thanh toán trước phiên tư vấn.";
+    const _sessionEndAt = scheduledSession
+      ? scheduledSession.scheduledEndAt ||
+        (scheduledSession.scheduledStartAt
+          ? new Date(new Date(scheduledSession.scheduledStartAt).getTime() + (Number(scheduledSession.durationMinutes) || 60) * 60_000).toISOString()
+          : null)
+      : null;
+    const _sessionEnded =
+      !!_sessionEndAt &&
+      Date.now() >= new Date(_sessionEndAt).getTime() + 5 * 60_000 &&
+      !scheduledSession?.startupConfirmedConductedAt;
+    if (!isPaid) {
+      steps[3].note = "Đang chờ hoàn tất thanh toán trước phiên tư vấn.";
+    } else if (_sessionEnded) {
+      steps[3].note = "Phiên đã kết thúc. Vui lòng xác nhận để tiếp tục.";
+    } else {
+      steps[3].note = "Đang chờ phiên tư vấn diễn ra.";
+    }
   }
 
-  if (reportEvent) {
+  const _passedReport = (request as any).reports?.find((r: any) => r.reviewStatus === "Passed");
+  const _startupConfirmed = sessions.some((s: any) => s.startupConfirmedConductedAt);
+  if (reportEvent || (_passedReport && _startupConfirmed)) {
     steps[4].done = true;
-    steps[4].note = reportEvent.note;
-    steps[4].time = reportEvent.time;
-  } else if ((currentStatus === "Completed" || currentStatus === "Finalized") && completedEvent) {
+    steps[4].note = reportEvent?.note || "Cố vấn đã cung cấp báo cáo tư vấn.";
+    steps[4].time = reportEvent?.time || formatDateTime(_passedReport?.createdAt) || "";
+    steps[4].current = false;
+  } else if (_passedReport && !_startupConfirmed) {
+    steps[4].current = true;
+    steps[4].locked = true;
+    steps[4].note = "Báo cáo đã có – xác nhận phiên để mở khóa.";
+  } else if ((currentStatus === "Completed" || currentStatus === "Finalized") && (completedEvent || conductedSession)) {
     steps[4].current = true;
     steps[4].note = "Đang chờ báo cáo từ cố vấn.";
   }
 
-  if (feedbackEvent) {
+  if (feedbackEvent || (request as any).feedbacks?.length > 0) {
     steps[5].done = true;
-    steps[5].current = true;
-    steps[5].note = feedbackEvent.note;
-    steps[5].time = feedbackEvent.time;
+    steps[5].current = false;
+    steps[5].note = feedbackEvent?.note || "Startup đã gửi đánh giá cho phiên tư vấn.";
+    steps[5].time = feedbackEvent?.time || formatDateTime((request as any).feedbacks?.[0]?.createdAt) || "";
     steps[4].current = false;
   } else if (reportEvent) {
     steps[5].current = currentStatus !== "Finalized";
   }
 
   if (terminalFailedEvent) {
-    const failIndex = inProgressEvent ? 3 : acceptedEvent ? 2 : 1;
+    const failIndex = (inProgressEvent || scheduledSession) ? 3 : acceptedEvent ? 2 : 1;
     const failNote =
       terminalFailedEvent.type === "Rejected"
         ? "Cố vấn đã từ chối yêu cầu"
@@ -525,17 +582,21 @@ function ProgressStepper({ steps }: { steps: TimelineStep[] }) {
                   "relative z-10 mx-auto flex h-10 w-10 items-center justify-center rounded-full border-[2.5px] transition-all",
                   step.failed
                     ? "border-red-300 bg-red-50 text-red-500 shadow-[0_0_0_4px_rgba(248,113,113,0.08)]"
-                    : step.done && step.current
-                      ? "border-[#eec54e] bg-[#eec54e] text-white shadow-[0_0_0_5px_rgba(238,197,78,0.15)]"
-                      : step.done
-                        ? "border-[#eec54e] bg-[#eec54e] text-white"
-                        : step.current
-                          ? "border-[#eec54e] bg-white text-[#d4a62e] shadow-[0_0_0_5px_rgba(238,197,78,0.12)]"
-                          : "border-slate-200 bg-white text-slate-300",
+                    : step.locked
+                      ? "border-amber-300 bg-amber-50 text-amber-500 shadow-[0_0_0_5px_rgba(245,158,11,0.10)]"
+                      : step.done && step.current
+                        ? "border-[#eec54e] bg-[#eec54e] text-white shadow-[0_0_0_5px_rgba(238,197,78,0.15)]"
+                        : step.done
+                          ? "border-[#eec54e] bg-[#eec54e] text-white"
+                          : step.current
+                            ? "border-[#eec54e] bg-white text-[#d4a62e] shadow-[0_0_0_5px_rgba(238,197,78,0.12)]"
+                            : "border-slate-200 bg-white text-slate-300",
                 )}
               >
                 {step.failed ? (
                   <X className="h-3.5 w-3.5" />
+                ) : step.locked ? (
+                  <Lock className="h-3.5 w-3.5" />
                 ) : step.done ? (
                   <CheckCircle2 className="h-3.5 w-3.5" />
                 ) : (
@@ -603,6 +664,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
   const [cancelReason, setCancelReason] = useState("");
   const [localStatus, setLocalStatus] = useState<MentorshipRequestStatus | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isConfirmingConducted, setIsConfirmingConducted] = useState(false);
 
   // Fetch data
   const fetchRequest = useCallback(async () => {
@@ -650,6 +712,35 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
   useEffect(() => {
     fetchRequest();
   }, [fetchRequest]);
+
+  // Confirm conducted handler
+  const handleConfirmConducted = async (sessionId: number) => {
+    if (!request) return;
+    setIsConfirmingConducted(true);
+    try {
+      const res = await ConfirmSessionConducted(request.mentorshipID, sessionId) as any;
+      if (res?.isSuccess || res?.success) {
+        toast.success("Đã xác nhận phiên tư vấn hoàn thành!");
+        // Update local session state immediately to hide the confirm button
+        setRequest(prev => {
+          if (!prev) return prev;
+          const updatedSessions = ((prev as any).sessions || []).map((s: any) =>
+            s.sessionID === sessionId ? { ...s, status: "Conducted", sessionStatus: "Conducted" } : s
+          );
+          return { ...prev, sessions: updatedSessions } as any;
+        });
+        fetchRequest();
+      } else {
+        toast.error(res?.message || "Xác nhận thất bại.");
+        fetchRequest(); // Refresh to get latest session state
+      }
+    } catch {
+      toast.error("Có lỗi xảy ra khi xác nhận.");
+      fetchRequest(); // Refresh to get latest session state
+    } finally {
+      setIsConfirmingConducted(false);
+    }
+  };
 
   // Cancel handler (real API)
   const handleCancel = async () => {
@@ -712,7 +803,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
 
   const currentStatus = localStatus || request.status || (request as any).mentorshipStatus;
   const isPaid = isMentorshipPaymentCompleted(request.paymentStatus, request.paidAt);
-  const cfg = STATUS_CONFIG[currentStatus] || STATUS_CONFIG["Requested"];
+  const _baseCfg = STATUS_CONFIG[currentStatus] || STATUS_CONFIG["Requested"];
   const historyItems = buildHistoryItems(request);
   const progressSteps = buildProgressSteps(historyItems, currentStatus, isPaid, request);
   const requestNo = `REQ-${String(request.mentorshipID || (request as any).id || 0).padStart(4, "0")}`;
@@ -738,6 +829,24 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
   );
 
   const sessions = (request as any).sessions || [];
+  // Override badge nếu session đã kết thúc nhưng chưa xác nhận
+  const _activeSessionForBadge = sessions.find((s: any) =>
+    ["Scheduled", "InProgress"].includes(s.status || s.sessionStatus)
+  );
+  const _sessionEndAtForBadge = _activeSessionForBadge
+    ? _activeSessionForBadge.scheduledEndAt ||
+      (_activeSessionForBadge.scheduledStartAt
+        ? new Date(new Date(_activeSessionForBadge.scheduledStartAt).getTime() + (Number(_activeSessionForBadge.durationMinutes) || Number(request.durationMinutes) || 60) * 60_000).toISOString()
+        : null)
+    : null;
+  const _sessionEndedForBadge =
+    !!_sessionEndAtForBadge &&
+    Date.now() >= new Date(_sessionEndAtForBadge).getTime() + 5 * 60_000 &&
+    !sessions.some((s: any) => s.startupConfirmedConductedAt);
+  const cfg =
+    (_sessionEndedForBadge && (currentStatus === "Scheduled" || currentStatus === "InProgress"))
+      ? { label: "Chờ xác nhận", color: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", icon: _baseCfg.icon }
+      : _baseCfg;
   const firstSession = sessions.slice().reverse().find((s: any) => s.meetingUrl || s.meetingURL || s.meetingLink) || sessions[sessions.length - 1] || null;
   const scheduledAtString = request.scheduledAt || firstSession?.scheduledStartAt || null;
   const durationMinutes =
@@ -749,6 +858,20 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
     (s.status === "ProposedByAdvisor" || s.sessionStatus === "ProposedByAdvisor") &&
     s.status !== "Cancelled" && s.sessionStatus !== "Cancelled"
   );
+  const activeSessions = sessions.filter((s: any) =>
+    ["Scheduled", "InProgress"].includes(s.status || s.sessionStatus)
+  );
+  const hasConductedSession = sessions.some((s: any) =>
+    ["Conducted", "Completed", "InDispute", "Resolved"].includes(s.status || s.sessionStatus)
+  );
+  const confirmableActiveSessions = activeSessions.filter((s: any) => {
+    if (s.startupConfirmedConductedAt) return false;
+    const sessionEndAt = getSessionEndAt(s, durationMinutes);
+    return !!sessionEndAt && Date.now() >= new Date(sessionEndAt).getTime();
+  });
+  const shouldWaitForSessionEnd =
+    activeSessions.length > 0 &&
+    confirmableActiveSessions.length === 0;
 
   return (
     <StartupShell>
@@ -854,9 +977,14 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
               </p>
               <div className="space-y-2 mb-3">
                 {advisorProposedSessions.map((s: any) => (
-                  <div key={s.sessionID} className="flex items-center gap-2 text-[12px] text-violet-700 bg-white border border-violet-100 rounded-xl px-3 py-2">
-                    <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="font-semibold">{new Date(s.scheduledStartAt).toLocaleString("vi-VN", { weekday: "short", day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                  <div key={s.sessionID} className="flex flex-col gap-1 text-[12px] text-violet-700 bg-white border border-violet-100 rounded-xl px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="font-semibold">{new Date(s.scheduledStartAt).toLocaleString("vi-VN", { weekday: "short", day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
+                    {s.note && (
+                      <p className="text-[11px] text-violet-600 pl-5">{s.note}</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -907,7 +1035,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
         })()}
 
         {/* Scheduled Banner */}
-        {(currentStatus === "Scheduled" || currentStatus === "InProgress") && !isPaid && (
+        {(currentStatus === "Scheduled" || currentStatus === "InProgress") && !isPaid && !hasConductedSession && (
           <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 flex gap-4 items-start">
             <Calendar className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
@@ -927,7 +1055,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
         )}
 
         {/* Paid Banner */}
-        {(currentStatus === "Scheduled" || currentStatus === "InProgress") && isPaid && (
+        {(currentStatus === "Scheduled" || currentStatus === "InProgress") && isPaid && !hasConductedSession && (
           <div className="bg-green-50 border border-green-200 rounded-2xl p-5 flex gap-4 items-start">
             <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
@@ -944,16 +1072,66 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
                   firstSession?.meetingURL;
 
                 if (finalLink && finalLink !== "undefined" && finalLink.trim() !== "") {
+                  const sessionEndAt = getSessionEndAt(firstSession, durationMinutes);
+                  const sessionHasEnded = !!sessionEndAt && Date.now() >= new Date(sessionEndAt).getTime() + 5 * 60_000;
                   return (
-                    <a
-                      href={finalLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl text-[12px] font-semibold hover:bg-green-700 transition-all shadow-sm"
-                    >
-                      <Video className="w-3.5 h-3.5" />
-                      Tham gia vào cuộc họp
-                    </a>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {!sessionHasEnded && (
+                        <a
+                          href={finalLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl text-[12px] font-semibold hover:bg-green-700 transition-all shadow-sm"
+                        >
+                          <Video className="w-3.5 h-3.5" />
+                          Tham gia vào cuộc họp
+                        </a>
+                      )}
+                      {activeSessions.length === 1 && (
+                        <button
+                          onClick={() => handleConfirmConducted(activeSessions[0].sessionID)}
+                          disabled={isConfirmingConducted || confirmableActiveSessions.length === 0}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-[12px] font-semibold hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isConfirmingConducted
+                            ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            : <CheckCircle2 className="w-3.5 h-3.5" />}
+                          Xác nhận đã tư vấn
+                        </button>
+                      )}
+                      {activeSessions.length > 1 && (
+                        <div className="w-full mt-2 space-y-2">
+                          <p className="text-[11px] text-green-700 font-semibold">Chọn phiên cần xác nhận:</p>
+                          {activeSessions.map((s: any) => (
+                            (() => {
+                              const sessionEndAt = getSessionEndAt(s, durationMinutes);
+                              const canConfirmSession =
+                                !!sessionEndAt &&
+                                !s.startupConfirmedConductedAt &&
+                                Date.now() >= new Date(sessionEndAt).getTime();
+                              return (
+                            <button
+                              key={s.sessionID}
+                              onClick={() => handleConfirmConducted(s.sessionID)}
+                              disabled={isConfirmingConducted || !canConfirmSession}
+                              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-[12px] font-semibold hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed w-full"
+                            >
+                              {isConfirmingConducted
+                                ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                : <CheckCircle2 className="w-3.5 h-3.5" />}
+                              Xác nhận phiên #{s.sessionID} — {formatDateTime(s.scheduledStartAt)}
+                            </button>
+                              );
+                            })()
+                          ))}
+                        </div>
+                      )}
+                      {shouldWaitForSessionEnd && (
+                        <p className="w-full text-[11px] text-green-700 font-medium">
+                          Bạn có thể xác nhận sau khi phiên tư vấn kết thúc.
+                        </p>
+                      )}
+                    </div>
                   );
                 }
 
@@ -968,6 +1146,39 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
                   </button>
                 );
               })()}
+            </div>
+          </div>
+        )}
+
+        {/* Conducted Banner — session đã diễn ra, chờ advisor nộp báo cáo */}
+        {(currentStatus === "Scheduled" || currentStatus === "InProgress") && hasConductedSession && !((request as any).reports?.length > 0) && (
+          <div className="bg-teal-50 border border-teal-200 rounded-2xl p-5 flex gap-4 items-start">
+            <CheckCircle2 className="w-5 h-5 text-teal-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-[13px] font-bold text-teal-800 mb-2">Phiên tư vấn đã diễn ra</p>
+              <p className="text-[12px] text-teal-700 leading-relaxed">
+                Bạn đã xác nhận phiên tư vấn hoàn thành. Đang chờ cố vấn nộp báo cáo để hoàn tất quy trình.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Report Ready Banner — session conducted + báo cáo đã sẵn sàng */}
+        {(currentStatus === "Scheduled" || currentStatus === "InProgress") && hasConductedSession && (request as any).reports?.length > 0 && (
+          <div className="bg-teal-50 border border-teal-200 rounded-2xl p-5 flex gap-4 items-start">
+            <CheckCircle2 className="w-5 h-5 text-teal-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-[13px] font-bold text-teal-800 mb-2">Báo cáo tư vấn đã sẵn sàng</p>
+              <p className="text-[12px] text-teal-700 leading-relaxed mb-3">
+                Cố vấn đã nộp báo cáo tư vấn. Bạn có thể xem báo cáo ngay và tiếp tục gửi đánh giá khi cần.
+              </p>
+              <button
+                onClick={() => router.push(`/startup/mentorship-requests/${request.mentorshipID}/report`)}
+                className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl text-[12px] font-semibold hover:bg-teal-700 transition-all shadow-sm"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Xem báo cáo
+              </button>
             </div>
           </div>
         )}
@@ -1189,7 +1400,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
                     <Video className="w-3.5 h-3.5" />
                     Hình thức
                   </div>
-                  <span className="text-[12px] font-semibold text-slate-700">{mapMeetingFormat(request.preferredFormat)}</span>
+                  <span className="text-[12px] font-semibold text-slate-700">{mapMeetingFormat(firstSession?.sessionFormat ?? request.preferredFormat)}</span>
                 </div>
                 <div className="flex items-center justify-between py-2 border-b border-slate-50">
                   <div className="flex items-center gap-2 text-[12px] text-slate-500">
@@ -1230,9 +1441,11 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
         context={{
-          entityType: "CONSULTING_REQUEST",
-          entityId: String(request.mentorshipID),
-          entityTitle: `Yêu cầu tư vấn: ${request.objective}`,
+          entityType: "Mentorship",
+          entityId: request.mentorshipID,
+          entityTitle: requestObjective
+            ? `Yêu cầu tư vấn: ${requestObjective}`
+            : `Yêu cầu tư vấn #${request.mentorshipID}`,
           otherPartyName: advisor?.fullName || "Cố vấn"
         }}
       />

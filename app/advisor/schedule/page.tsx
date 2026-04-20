@@ -21,17 +21,6 @@ function formatTime(iso: string) {
   return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-function isSameWeek(d: Date, ref: Date) {
-  const s = new Date(ref);
-  const day = s.getDay();
-  const diff = day === 0 ? 6 : day - 1;
-  s.setDate(s.getDate() - diff);
-  s.setHours(0, 0, 0, 0);
-  const e = new Date(s);
-  e.setDate(e.getDate() + 7);
-  return d >= s && d < e;
-}
-
 
 /* ─── Status config (BE values) ─────────────────────────────── */
 
@@ -53,10 +42,6 @@ const DATE_ACCENT: Record<string, string> = {
   Cancelled: "border-l-red-400 bg-red-50/30",
 };
 
-function mapMeetingFormat(fmt?: string): "GOOGLE_MEET" | "MICROSOFT_TEAMS" {
-  if (fmt === "MicrosoftTeams") return "MICROSOFT_TEAMS";
-  return "GOOGLE_MEET";
-}
 
 function getStartupName(session: any): string {
   return session.startupName || session.startup?.displayName || session.startup?.name || "Startup";
@@ -68,8 +53,36 @@ type TabKey = "upcoming" | "completed";
 
 /* ─── Page ───────────────────────────────────────────────────── */
 
+/* ─── Field accessor helpers (BE key mapping) ───────────────── */
+
+function getStatus(session: any): string {
+  return session.sessionStatus ?? session.status ?? "Scheduled";
+}
+
+function getObjective(session: any): string {
+  return session.topicsDiscussed ?? session.objective ?? "";
+}
+
+function getMeetingFormat(session: any): "GOOGLE_MEET" | "MICROSOFT_TEAMS" {
+  const fmt = session.sessionFormat ?? session.meetingFormat ?? session.meetingMode;
+  if (fmt === "MicrosoftTeams") return "MICROSOFT_TEAMS";
+  return "GOOGLE_MEET";
+}
+
+function calcEndTime(session: any): string {
+  if (session.scheduledEndAt) return session.scheduledEndAt;
+  const start = new Date(session.scheduledStartAt).getTime();
+  const duration = (session.durationMinutes ?? 60) * 60_000;
+  return new Date(start + duration).toISOString();
+}
+
+/* ─── Page ───────────────────────────────────────────────────── */
+
 export default function AdvisorSchedulePage() {
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [upcoming, setUpcoming] = useState<any[]>([]);
+  const [completed, setCompleted] = useState<any[]>([]);
+  const [upcomingTotal, setUpcomingTotal] = useState(0);
+  const [completedTotal, setCompletedTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>("upcoming");
   const [issueContext, setIssueContext] = useState<IssueReportContext | null>(null);
@@ -77,36 +90,50 @@ export default function AdvisorSchedulePage() {
   const openIssue = (e: React.MouseEvent, session: any) => {
     e.preventDefault();
     e.stopPropagation();
+    const sid = Number(session.sessionID ?? session.id ?? 0);
+    if (!sid) return;
     setIssueContext({
-      entityType: "CONSULTING_SESSION",
-      entityId: String(session.sessionID ?? session.id ?? ""),
-      entityTitle: `Buổi tư vấn · ${session.objective}`,
+      entityType: "Session",
+      entityId: sid,
+      entityTitle: `Buổi tư vấn · ${getObjective(session)}`,
       otherPartyName: getStartupName(session),
     });
   };
 
   useEffect(() => {
     setLoading(true);
-    GetAdvisorSessions({ pageSize: 100 })
-      .then((res: any) => {
-        const items = res?.data?.items ?? res?.items ?? [];
-        setSessions(Array.isArray(items) ? items : []);
+    Promise.all([
+      GetAdvisorSessions({ status: "Scheduled", page: 1, pageSize: 20 }),
+      GetAdvisorSessions({ status: "Completed", page: 1, pageSize: 20 }),
+    ])
+      .then(([upRes, compRes]: any[]) => {
+        const upItems: any[] = upRes?.data?.items ?? upRes?.data?.data ?? [];
+        const upTotal: number = upRes?.data?.paging?.totalItems ?? upItems.length;
+        const compItems: any[] = compRes?.data?.items ?? compRes?.data?.data ?? [];
+        const compTotal: number = compRes?.data?.paging?.totalItems ?? compItems.length;
+        setUpcoming(Array.isArray(upItems) ? upItems : []);
+        setUpcomingTotal(upTotal);
+        setCompleted(Array.isArray(compItems) ? compItems : []);
+        setCompletedTotal(compTotal);
       })
-      .catch(() => setSessions([]))
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  const upcoming = sessions.filter(s => s.status === "Scheduled" || s.status === "Pending" || s.status === "Requested");
-  const completed = sessions.filter(s => s.status === "Completed" || s.status === "Cancelled");
   const displayed = activeTab === "upcoming" ? upcoming : completed;
 
+  // "Tuần này" = sessions có scheduledStartAt trong 7 ngày tới (client-side)
   const now = new Date();
-  const thisWeek = upcoming.filter(s => isSameWeek(new Date(s.scheduledStartAt), now)).length;
+  const next7 = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const thisWeek = upcoming.filter(s => {
+    const d = new Date(s.scheduledStartAt);
+    return d >= now && d < next7;
+  }).length;
 
   const stats = [
-    { label: "Sắp tới", value: upcoming.length, icon: Calendar, color: "text-blue-600", bg: "bg-blue-50", ring: "ring-blue-100" },
+    { label: "Sắp tới", value: upcomingTotal, icon: Calendar, color: "text-blue-600", bg: "bg-blue-50", ring: "ring-blue-100" },
     { label: "Tuần này", value: thisWeek, icon: Clock, color: "text-amber-600", bg: "bg-amber-50", ring: "ring-amber-100" },
-    { label: "Đã hoàn thành", value: completed.length, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50", ring: "ring-emerald-100" },
+    { label: "Đã hoàn thành", value: completedTotal, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50", ring: "ring-emerald-100" },
   ];
 
   return (
@@ -138,7 +165,7 @@ export default function AdvisorSchedulePage() {
         <div className="bg-white rounded-xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-1 inline-flex gap-1">
           {(["upcoming", "completed"] as TabKey[]).map(key => {
             const label = key === "upcoming" ? "Sắp tới" : "Đã hoàn thành";
-            const count = key === "upcoming" ? upcoming.length : completed.length;
+            const count = key === "upcoming" ? upcomingTotal : completedTotal;
             return (
               <button
                 key={key}
@@ -181,7 +208,8 @@ export default function AdvisorSchedulePage() {
           <div className="space-y-2.5">
             {displayed.map(session => {
               const start = new Date(session.scheduledStartAt);
-              const cfg = STATUS_CFG[session.status] ?? STATUS_CFG["Scheduled"];
+              const status = getStatus(session);
+              const cfg = STATUS_CFG[status] ?? STATUS_CFG["Scheduled"];
 
               return (
                 <Link
@@ -193,7 +221,7 @@ export default function AdvisorSchedulePage() {
                     {/* Left date accent */}
                     <div className={cn(
                       "w-20 shrink-0 border-l-4 flex flex-col items-center justify-center py-4",
-                      DATE_ACCENT[session.status] ?? DATE_ACCENT["Scheduled"]
+                      DATE_ACCENT[status] ?? DATE_ACCENT["Scheduled"]
                     )}>
                       <span className="text-[10px] text-slate-400 font-semibold">{VN_DAYS[start.getDay()]}</span>
                       <span className="text-[24px] font-bold text-slate-900 leading-none mt-0.5">{start.getDate()}</span>
@@ -210,18 +238,18 @@ export default function AdvisorSchedulePage() {
                             {cfg.label}
                           </span>
                         </div>
-                        <p className="text-[13px] text-slate-500 truncate mt-0.5">{session.objective}</p>
+                        <p className="text-[13px] text-slate-500 truncate mt-0.5">{getObjective(session)}</p>
                         <div className="flex items-center gap-3 mt-2 flex-wrap">
                           <span className="text-[12px] text-slate-600 flex items-center gap-1 font-medium">
                             <Clock className="w-3.5 h-3.5 text-slate-400" />
-                            {formatTime(session.scheduledStartAt)} - {formatTime(session.scheduledEndAt)}
+                            {formatTime(session.scheduledStartAt)} - {formatTime(calcEndTime(session))}
                           </span>
-                          <FormatBadge format={mapMeetingFormat(session.meetingFormat ?? session.meetingMode)} size="sm" />
+                          <FormatBadge format={getMeetingFormat(session)} size="sm" />
                         </div>
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {session.status === "Completed" && (
+                        {status === "Completed" && (
                           <button
                             onClick={(e) => openIssue(e, session)}
                             title="Báo cáo sự cố"

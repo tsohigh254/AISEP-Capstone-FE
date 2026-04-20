@@ -17,6 +17,7 @@ import {
 } from "@/services/notification/notification.api";
 import { useNotifications } from "@/hooks/useNotifications";
 import { toast } from "sonner";
+import { localizeIssueReportNotificationText } from "@/lib/notification";
 
 /* ─── Helper: Get Icon by Type ─────────────────────────────── */
 const getNotificationIcon = (type: string) => {
@@ -225,7 +226,7 @@ export default function StaffNotificationsPage() {
                         "text-[15px] tracking-tight",
                         !item.isRead ? "font-bold text-[#171611]" : "font-semibold text-slate-500"
                       )}>
-                        {item.title}
+                        {localizeIssueReportNotificationText(item, item.title)}
                       </h3>
                       <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
                         {new Date(item.createdAt).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' })} {new Date(item.createdAt).toLocaleDateString("vi-VN")}
@@ -235,7 +236,7 @@ export default function StaffNotificationsPage() {
                       "text-[13px] leading-relaxed font-medium line-clamp-2",
                       !item.isRead ? "text-slate-600" : "text-slate-400"
                     )}>
-                      {item.messagePreview}
+                      {localizeIssueReportNotificationText(item, item.messagePreview)}
                     </p>
                     <div className="flex items-center gap-4 mt-3.5">
                       {!item.isRead ? (

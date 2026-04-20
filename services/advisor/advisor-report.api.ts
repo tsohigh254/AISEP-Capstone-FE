@@ -5,8 +5,13 @@ import { parseReportFields } from "@/lib/report-parser";
 
 export async function getAdvisorReports(): Promise<IConsultationReport[]> {
   try {
-    const res = await GetAdvisorMentorships({ status: 'Completed', page: 1, pageSize: 100 });
-    const items = (res as any).data?.data?.items || (res as any).data?.items || (res as any).data?.data || [];
+    const [completedRes, inProgressRes] = await Promise.all([
+      GetAdvisorMentorships({ status: 'Completed', page: 1, pageSize: 100 }),
+      GetAdvisorMentorships({ status: 'InProgress', page: 1, pageSize: 100 }),
+    ]);
+    const completedItems = (completedRes as any).data?.data?.items || (completedRes as any).data?.items || (completedRes as any).data?.data || [];
+    const inProgressItems = (inProgressRes as any).data?.data?.items || (inProgressRes as any).data?.items || (inProgressRes as any).data?.data || [];
+    const items = [...completedItems, ...inProgressItems];
     
     
     
@@ -24,9 +29,20 @@ export async function getAdvisorReports(): Promise<IConsultationReport[]> {
        if (result.status === 'fulfilled') {
            const data = (result.value as any).data?.data || (result.value as any).data;
            if (!data) return;
-           const actualReports = data.reports || [];
+           const rawReports: any[] = data.reports || [];
+           // Only show the latest (non-superseded) report per session
+           const latestReports = rawReports.filter(
+             // BE cung cấp isLatestForSession; fallback về supersededByReportID == null
+             (r: any) => r.isLatestForSession !== false && r.supersededByReportID == null
+           );
+           const actualReports = latestReports.length > 0 ? latestReports : rawReports.slice(-1);
            actualReports.forEach((r: any) => {
+           const normalizedReviewStatus: ConsultationReportStatus =
+                 r.reviewStatus === "Draft" || !r.reviewStatus
+                   ? "Draft"
+                   : (r.reviewStatus as ConsultationReportStatus);
                reports.push({
+                   ...parseReportFields(r.reportSummary, r.detailedFindings, r.recommendations),
                    id: r.reportID?.toString() || data.MentorshipID?.toString(),
                    sessionId: data.mentorshipID?.toString() || data.id?.toString(),
                    advisorId: data.advisorID?.toString(),
@@ -34,20 +50,31 @@ export async function getAdvisorReports(): Promise<IConsultationReport[]> {
                    startup: {
                        id: data.startupID,
                        displayName: data.startupName,
-                       logoUrl: null,
-                       industry: "Công nghệ",
-                       stage: "SEED"
+                       logoUrl: data.startupLogoUrl || null,
+                       industry: data.startupIndustry || "Ông nghệ",
+                       stage: data.startupStage || "SEED"
                    },
-                   ...parseReportFields(r.reportSummary, r.detailedFindings, r.recommendations),
-                   title: "Báo cáo tư vấn " + data.startupName,
-                   followUpRequired: false,
-                   status: (data.completionConfirmedByStartup || (data.feedbacks && data.feedbacks.some((f: any) => f.fromRole?.toUpperCase() === 'STARTUP'))) ? "FINALIZED" : "SUBMITTED",
+                   reviewStatus: normalizedReviewStatus,
                    version: 1,
                    submittedAt: r.submittedAt || r.createdAt || new Date().toISOString(),
                    lastEditedAt: r.updatedAt || r.createdAt || new Date().toISOString(),
                    sessionDate: data.scheduledStartAt || data.updatedAt || new Date().toISOString(),
                    sessionFormat: "GOOGLE_MEET",
-                   attachments: [],
+                   attachmentsURL: r.attachmentsURL || null,
+                   startupAcknowledgedAt: r.startupAcknowledgedAt || null,
+                   staffReviewNote: r.staffReviewNote || null,
+                   attachments: r.attachmentsURL
+                     ? [{
+                         id: r.reportID?.toString() || "att-1",
+                         reportId: r.reportID?.toString() || "",
+                         originalFileName: r.attachmentsURL.split("/").pop()?.split("?")[0] || "Tài liệu",
+                         mimeType: "application/octet-stream",
+                         fileSizeBytes: 0,
+                         attachmentType: "DOCUMENT" as any,
+                         uploadedAt: r.updatedAt || r.createdAt || new Date().toISOString(),
+                         url: r.attachmentsURL,
+                       }]
+                     : [],
                    history: []
                });
            });
@@ -62,13 +89,18 @@ export async function getAdvisorReports(): Promise<IConsultationReport[]> {
 
 export async function getAdvisorReportById(id: string): Promise<IConsultationReport | null> {
   try {
-     const reportRes = await GetMentorshipReport(id);
-     const actualReport = (reportRes as any).data?.data || (reportRes as any).data;
-     if (!actualReport) return getMockReportById(id) || null;
-
-     const detailRes = await GetAdvisorMentorshipById(actualReport.mentorshipID?.toString() || actualReport.MentorshipID?.toString());
+     // GET /api/mentorships/{id} includes reports[] — no separate endpoint needed
+     const detailRes = await GetAdvisorMentorshipById(id);
      const data = (detailRes as any).data?.data || (detailRes as any).data;
-     if (!data) return getMockReportById(id) || null;
+     if (!data) return null;
+
+     const actualReport = Array.isArray(data.reports) ? data.reports[0] : null;
+     if (!actualReport) return null;
+
+     const normalizedReviewStatus: ConsultationReportStatus =
+       actualReport.reviewStatus === "Draft" || !actualReport.reviewStatus
+         ? "Draft"
+         : (actualReport.reviewStatus as ConsultationReportStatus);
 
      return {
          ...parseReportFields(actualReport.reportSummary, actualReport.detailedFindings, actualReport.recommendations),
@@ -79,19 +111,31 @@ export async function getAdvisorReportById(id: string): Promise<IConsultationRep
          startup: {
              id: data.startupID,
              displayName: data.startupName,
-             logoUrl: null,
-             industry: "Công nghệ",
-             stage: "SEED"
+             logoUrl: data.startupLogoUrl || null,
+             industry: data.startupIndustry || "Công nghệ",
+             stage: data.startupStage || "SEED"
          },
-         title: "Báo cáo tư vấn " + data.startupName,
-         followUpRequired: false,
-         status: (data.completionConfirmedByStartup || (data.feedbacks && data.feedbacks.some((f: any) => f.fromRole?.toUpperCase() === 'STARTUP'))) ? "FINALIZED" : "SUBMITTED",
+         reviewStatus: normalizedReviewStatus,
          version: 1,
          submittedAt: actualReport.submittedAt || actualReport.createdAt || new Date().toISOString(),
          lastEditedAt: actualReport.updatedAt || actualReport.createdAt || new Date().toISOString(),
          sessionDate: data.scheduledStartAt || data.updatedAt || new Date().toISOString(),
          sessionFormat: "GOOGLE_MEET",
-         attachments: [],
+         attachmentsURL: actualReport.attachmentsURL || null,
+         startupAcknowledgedAt: actualReport.startupAcknowledgedAt || null,
+         staffReviewNote: actualReport.staffReviewNote || null,
+         attachments: actualReport.attachmentsURL
+           ? [{
+               id: actualReport.reportID?.toString() || "att-1",
+               reportId: actualReport.reportID?.toString() || "",
+               originalFileName: actualReport.attachmentsURL.split("/").pop()?.split("?")[0] || "Tài liệu",
+               mimeType: "application/octet-stream",
+               fileSizeBytes: 0,
+               attachmentType: "DOCUMENT" as any,
+               uploadedAt: actualReport.updatedAt || actualReport.createdAt || new Date().toISOString(),
+               url: actualReport.attachmentsURL,
+             }]
+           : [],
          history: []
      };
   } catch (e) {

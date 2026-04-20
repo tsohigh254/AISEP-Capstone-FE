@@ -35,6 +35,7 @@ const routeLabels: Record<string, string> = {
   feedback: "Gửi đánh giá",
   documents: "Tài liệu & IP",
   messaging: "Tin nhắn",
+  "issue-reports": "Báo cáo của tôi",
   notifications: "Thông báo",
   settings: "Cài đặt",
   info: "Thông tin cơ bản",

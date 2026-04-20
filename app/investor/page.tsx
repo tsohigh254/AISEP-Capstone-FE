@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useCountUp } from "@/lib/useCountUp";
 import { buildInvestorProfilePresentation, getInvestorKycUiState } from "@/lib/investor-profile-presenter";
-import { GetSentConnections } from "@/services/connection/connection.api";
+import { GetSentConnections, GetReceivedConnections } from "@/services/connection/connection.api";
 import { GetDocument } from "@/services/document/document.api";
 import { GetInvestorProfile, GetInvestorWatchlist } from "@/services/investor/investor.api";
 import { GetInvestorKYCStatus } from "@/services/investor/investor-kyc";
@@ -123,6 +123,162 @@ function extractWatchlistData(payload: WatchlistPayload) {
   };
 }
 
+function AIMarketAnalysis({ profile, watchlist }: { profile: IInvestorProfile | null; watchlist: IWatchlistItem[] }) {
+  const [loading, setLoading] = useState(true);
+  const [text, setText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const run = async () => {
+      setLoading(true);
+      setError(null);
+      setText("");
+
+      try {
+        const backendBase = (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_AI_SERVICE_URL || "").replace(/\/$/, "");
+        const endpoint = `${backendBase}/api/ai/investor-agent/chat/stream`;
+
+        const industries = (profile?.preferredIndustries ?? []).slice(0, 5).join(", ");
+        const watched = (watchlist ?? []).slice(0, 3).map(w => w.startupName).join(", ");
+
+        let query = "Bạn là AI Investment Assistant. Tóm tắt 2 xu hướng công nghệ ngắn gọn (1 câu mỗi) và 1 khuyến nghị hành động cho nhà đầu tư.";
+        if (industries) query += ` Ngành ưu tiên: ${industries}.`;
+        if (watched) query += ` Startup đang theo dõi: ${watched}.`;
+        query += " Trả lời bằng tiếng Việt dưới dạng các gạch đầu dòng, mỗi dòng ngắn gọn.";
+
+        const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const resp = await fetch(endpoint, {
+          method: "POST",
+          headers,
+          credentials: "include",
+          body: JSON.stringify({ query }),
+        });
+
+        if (!resp.ok) {
+          const body = await resp.text();
+          throw new Error(`HTTP ${resp.status} ${body}`);
+        }
+
+        const reader = resp.body?.getReader();
+        if (!reader) {
+          const body = await resp.text();
+          if (mounted) setText(body);
+          return;
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split(/\r?\n\r?\n/);
+          buffer = parts.pop() ?? "";
+          for (const part of parts) {
+            const lines = part.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+            for (const line of lines) {
+              if (!line.startsWith("data:")) continue;
+              const data = line.replace(/^data:\s?/, "").trim();
+              if (data === "[DONE]") continue;
+              let evt = null;
+              try {
+                evt = JSON.parse(data);
+              } catch {
+                if (mounted) setText(prev => prev + data);
+                continue;
+              }
+              if (evt?.type === "answer_chunk" && evt.content) {
+                if (mounted) setText(prev => prev + evt.content);
+              } else if (evt?.type === "final_answer" && evt.content) {
+                if (mounted) setText(prev => prev + evt.content);
+              } else if (evt?.content) {
+                if (mounted) setText(prev => prev + evt.content);
+              }
+            }
+          }
+        }
+      } catch (err: any) {
+        if (mounted) setError(err?.message ?? String(err));
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    // run once
+    run();
+    return () => { mounted = false; };
+  }, [profile, watchlist]);
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-green-100 bg-green-50 p-4">
+        <div className="flex items-center gap-3 text-green-700">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <p className="text-sm font-medium">Đang tạo phân tích AI...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !text) {
+    // fallback – simple static hints when AI not available
+    return (
+      <div className="space-y-3">
+        <div className="rounded-xl border border-green-100 bg-green-50 p-4">
+          <p className="mb-2 flex items-center gap-1 text-xs font-bold uppercase tracking-tight text-green-800">
+            <TrendingUp className="h-4 w-4" /> Xu hướng công nghệ
+          </p>
+          <ul className="ml-4 list-disc space-y-1.5 text-xs font-medium text-green-700">
+            <li>SaaS B2B tiếp tục thu hút vốn giai đoạn Seed – Series A.</li>
+            <li>Ứng dụng AI trong sản phẩm doanh nghiệp đang tăng trưởng mạnh.</li>
+          </ul>
+        </div>
+
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+          <p className="mb-2 flex items-center gap-1 text-xs font-bold uppercase tracking-tight text-blue-800">
+            <Brain className="h-4 w-4" /> Đề xuất chiến lược
+          </p>
+          <ul className="ml-4 list-disc space-y-1.5 text-xs font-medium text-blue-700">
+            <li>Ưu tiên đầu tư giai đoạn Seed cho mô hình có traction rõ ràng.</li>
+          </ul>
+        </div>
+      </div>
+    );
+  }
+
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-green-100 bg-green-50 p-4">
+        <p className="mb-2 flex items-center gap-1 text-xs font-bold uppercase tracking-tight text-green-800">
+          <TrendingUp className="h-4 w-4" /> Xu hướng công nghệ
+        </p>
+        <ul className="ml-4 list-disc space-y-1.5 text-xs font-medium text-green-700">
+          {lines.slice(0, 3).map((ln, idx) => (
+            <li key={idx}>{ln}</li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+        <p className="mb-2 flex items-center gap-1 text-xs font-bold uppercase tracking-tight text-blue-800">
+          <Brain className="h-4 w-4" /> Đề xuất chiến lược
+        </p>
+        <ul className="ml-4 list-disc space-y-1.5 text-xs font-medium text-blue-700">
+          {lines.slice(3, 6).length ? lines.slice(3, 6).map((ln, idx) => (
+            <li key={idx}>{ln}</li>
+          )) : <li>Không có đề xuất cụ thể.</li>}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 export default function InvestorDashboardPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<IInvestorProfile | null>(null);
@@ -142,17 +298,27 @@ export default function InvestorDashboardPage() {
         GetInvestorKYCStatus(),
         GetInvestorWatchlist(1, 5),
         GetDocument(),
-        GetSentConnections(1, 1),
+        // fetch sent & received accepted connections counts for dashboard total
+        GetSentConnections(1, 1, "Accepted"),
+        GetReceivedConnections(1, 1, "Accepted"),
       ]);
 
-      const [profileResult, kycResult, watchlistResult, docsResult, connectionsResult] = results;
+      const [
+        profileResult,
+        kycResult,
+        watchlistResult,
+        docsResult,
+        sentConnectionsResult,
+        receivedConnectionsResult,
+      ] = results;
 
       if (
         isUnauthorized(profileResult) ||
         isUnauthorized(kycResult) ||
         isUnauthorized(watchlistResult) ||
         isUnauthorized(docsResult) ||
-        isUnauthorized(connectionsResult)
+        isUnauthorized(sentConnectionsResult) ||
+        isUnauthorized(receivedConnectionsResult)
       ) {
         return;
       }
@@ -194,14 +360,37 @@ export default function InvestorDashboardPage() {
         }
       }
 
-      if (connectionsResult.status === "fulfilled") {
-        const connectionsRes = connectionsResult.value;
-        if (connectionsRes?.isSuccess) {
-          setConnectionTotal(
-            connectionsRes.data?.paging?.totalItems ?? connectionsRes.data?.items?.length ?? 0,
-          );
-        }
+      // Sum accepted connections initiated by me (sent) + accepted connections received
+      let sentTotal = 0;
+      let receivedTotal = 0;
+      if (sentConnectionsResult?.status === "fulfilled") {
+        const sentRes = sentConnectionsResult.value;
+        if (sentRes?.isSuccess) sentTotal = sentRes.data?.paging?.totalItems ?? sentRes.data?.items?.length ?? 0;
       }
+      if (receivedConnectionsResult?.status === "fulfilled") {
+        const recvRes = receivedConnectionsResult.value;
+        if (recvRes?.isSuccess) receivedTotal = recvRes.data?.paging?.totalItems ?? recvRes.data?.items?.length ?? 0;
+      }
+
+      // Fallback: if paging wasn't provided (or returned 0), try fetching a larger page to count items
+      try {
+        if ((sentTotal ?? 0) === 0) {
+          const fullSent = (await GetSentConnections(1, 200, "Accepted") as any) ?? null;
+          if (fullSent?.isSuccess) sentTotal = fullSent.data?.paging?.totalItems ?? fullSent.data?.items?.length ?? fullSent.data?.data?.length ?? sentTotal;
+        }
+      } catch (e) {
+        // ignore
+      }
+      try {
+        if ((receivedTotal ?? 0) === 0) {
+          const fullRecv = (await GetReceivedConnections(1, 200, "Accepted") as any) ?? null;
+          if (fullRecv?.isSuccess) receivedTotal = fullRecv.data?.paging?.totalItems ?? fullRecv.data?.items?.length ?? fullRecv.data?.data?.length ?? receivedTotal;
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      setConnectionTotal((sentTotal ?? 0) + (receivedTotal ?? 0));
     } catch (error) {
       console.error("fetchDashboardData error:", error);
       toast.error("Lỗi khi tải dữ liệu Dashboard");
@@ -440,17 +629,62 @@ export default function InvestorDashboardPage() {
           </div>
         </div>
 
-        <div className="col-span-12 flex items-center justify-between rounded-2xl border-2 border-[#e6cc4c]/30 bg-[#e6cc4c]/10 p-6 shadow-sm transition-all hover:bg-[#e6cc4c]/20 md:col-span-4 lg:col-span-4">
+        <div className="col-span-12 flex items-center justify-between rounded-2xl border-2 border-[#e6cc4c]/30 bg-white p-6 shadow-sm transition-all hover:bg-[#f8f8f6] md:col-span-4 lg:col-span-4">
           <div>
             <p className="mb-1 text-sm font-bold uppercase tracking-widest text-neutral-muted">
-              Tài liệu đã truy cập
+              Danh sách theo dõi
             </p>
-            <div className="flex items-baseline gap-3">
-              <span ref={docCount.ref} className="text-4xl font-bold text-[#171611]">
-                {docCount.count}
+
+            {/* Investor status */}
+            <div className="mb-3">
+              <span
+                className={cn(
+                  "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider",
+                  profile?.acceptingConnections ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-slate-100 text-slate-600 border border-slate-200",
+                )}
+              >
+                {profile?.acceptingConnections ? "Đang nhận kết nối" : "Tạm dừng nhận kết nối"}
               </span>
-              <span className="text-sm font-bold lowercase text-neutral-muted">Files</span>
             </div>
+
+            {docTotal > 0 ? (
+              <div className="flex items-baseline gap-3">
+                <span ref={docCount.ref} className="text-4xl font-bold text-[#171611]">
+                  {docCount.count}
+                </span>
+                <span className="text-sm font-bold lowercase text-neutral-muted">Files</span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {watchlist && watchlist.length > 0 ? (
+                  <>
+                    <div className="flex items-center gap-3">
+                      {watchlist.slice(0, 3).map((item) => (
+                        <Link
+                          key={`${item.watchlistId}-${item.startupID}`}
+                          href={`/investor/startups/${item.startupID}`}
+                          className="flex items-center gap-3 rounded-lg p-1 hover:bg-[#f8f8f6]"
+                        >
+                          <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-sm font-black text-slate-700">
+                            {(item.startupName ?? "?").charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-sm font-medium text-slate-700">{item.startupName}</span>
+                        </Link>
+                      ))}
+                    </div>
+                    {/* removed "Xem tất cả" per UX request */}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-slate-600">Chưa có startup trong danh sách theo dõi.</p>
+                    <div className="flex items-center gap-2">
+                      <Link href="/investor/startups" className="inline-flex items-center gap-2 rounded-xl bg-[#e6cc4c] px-4 py-2 text-sm font-bold text-white">Khám phá Startup</Link>
+                      <Link href="/investor/connections" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-[#171611]">Yêu cầu tài liệu</Link>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm transition-transform group-hover:scale-110">
             <FolderOpen className="h-7 w-7 text-[#e6cc4c]" />
@@ -481,39 +715,12 @@ export default function InvestorDashboardPage() {
             <h3 className="text-lg font-bold text-[#171611]">Phân tích thị trường bằng AI</h3>
           </div>
 
-          <div className="space-y-4">
-            <div className="rounded-xl border border-green-100 bg-green-50 p-4">
-              <p className="mb-2 flex items-center gap-1 text-xs font-bold uppercase tracking-tight text-green-800">
-                <TrendingUp className="h-4 w-4" /> Xu hướng công nghệ
-              </p>
-              <ul className="ml-4 list-disc space-y-1.5 text-xs font-medium text-green-700">
-                <li>SaaS B2B tăng 35% lượng gọi vốn trong Q2/2024.</li>
-                <li>GreenTech và ClimateTech đang là xu hướng mới tại Việt Nam.</li>
-              </ul>
-            </div>
-
-            <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-              <p className="mb-2 flex items-center gap-1 text-xs font-bold uppercase tracking-tight text-blue-800">
-                <Brain className="h-4 w-4" /> Đề xuất chiến lược
-              </p>
-              <ul className="ml-4 list-disc space-y-1.5 text-xs font-medium text-blue-700">
-                <li>Phân bổ vốn giai đoạn Seed đang mang lại tỷ suất ROI tốt nhất.</li>
-              </ul>
-            </div>
-          </div>
+          <AIMarketAnalysis profile={profile} watchlist={watchlist} />
         </div>
 
         <div className="col-span-12 overflow-hidden rounded-2xl border border-neutral-surface bg-white shadow-sm lg:col-span-8">
           <div className="flex items-center justify-between border-b border-neutral-surface p-6">
-            <h3 className="text-lg font-bold text-[#171611]">
-              Hoạt động gần đây trên Danh sách theo dõi
-            </h3>
-            <Link
-              href="/investor/watchlist"
-              className="text-sm font-bold tracking-tight text-[#e6cc4c] hover:underline"
-            >
-              Xem tất cả
-            </Link>
+            <h3 className="text-lg font-bold text-[#171611]">Hoạt động gần đây trên Danh sách theo dõi</h3>
           </div>
 
           <div className="overflow-x-auto">
