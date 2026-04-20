@@ -17,7 +17,10 @@ import {
   Building2,
   Trash2,
   History,
-  HelpCircle
+  HelpCircle,
+  ChevronDown,
+  ChevronUp,
+  BrainCircuit
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -33,6 +36,8 @@ interface Message {
   timestamp: Date;
   blocks?: any[];
   suggestions?: string[];
+  thought?: string;
+  isThinking?: boolean;
 }
 
 const QUICK_INTENTS = [
@@ -98,6 +103,99 @@ function StartupCard({ name, industry, stage, matchScore }: { name: string; indu
   );
 }
 
+function ThoughtBlock({ thought, isThinking }: { thought: string; isThinking?: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const [simulatedSteps, setSimulatedSteps] = useState<string[]>([]);
+  const [isVisible, setIsVisible] = useState(false);
+  
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    if (isThinking) {
+      // Delay showing the thinking block by 800ms to simulate "reading" the user's message
+      timeout = setTimeout(() => {
+        setIsVisible(true);
+        setExpanded(true); // Auto-expand when it finally appears
+      }, 800);
+    } else {
+      setIsVisible(false); // Instantly hide when thinking is done
+    }
+    return () => clearTimeout(timeout);
+  }, [isThinking]);
+
+  useEffect(() => {
+    if (isVisible && isThinking && !thought) {
+      const steps = [
+        "Đang phân tích ngữ nghĩa yêu cầu...",
+        "Tra cứu biểu đồ xu hướng thị trường...",
+        "Truy xuất dữ liệu dự án Startup...",
+        "Đối chiếu các tiêu chí đầu tư...",
+        "Định dạng kết quả đầu ra..."
+      ];
+      let currentStep = 0;
+      setSimulatedSteps([steps[0]]);
+      
+      const interval = setInterval(() => {
+        currentStep++;
+        if (currentStep < steps.length) {
+          setSimulatedSteps(prev => [...prev, steps[currentStep]]);
+        }
+      }, 4000); // Add a new step every 4s to simulate very deep pondering
+      
+      return () => clearInterval(interval);
+    } else if (!isThinking) {
+      setSimulatedSteps([]);
+    }
+  }, [isVisible, isThinking, thought]);
+
+  if (!isThinking || !isVisible) return null;
+
+  return (
+    <div className="w-full flex flex-col pl-1 mb-1 animate-in fade-in duration-500">
+      <button 
+        onClick={() => setExpanded(!expanded)} 
+        className="flex items-center gap-1.5 w-fit group py-1"
+      >
+        {isThinking ? (
+          <div className="relative flex items-center justify-center w-4 h-4">
+            <span className="absolute inline-flex h-3 w-3 animate-ping rounded-full bg-emerald-400 opacity-20"></span>
+            <Sparkles className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+          </div>
+        ) : (
+          <BrainCircuit className="w-3.5 h-3.5 text-slate-400" />
+        )}
+        <span className="text-[13px] font-semibold text-slate-500 group-hover:text-slate-700 transition-colors">
+          {isThinking ? "Đang phân tích và tổng hợp dữ liệu..." : "Quá trình tư duy của AI"}
+        </span>
+        {expanded ? <ChevronUp className="w-3.5 h-3.5 text-slate-400 ml-0.5" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-0.5" />}
+      </button>
+      
+      {expanded && (thought || isThinking) && (
+        <div className="mt-1.5 mb-1.5 pl-3.5 border-l-2 border-slate-200 text-[13px] text-slate-500 font-mono whitespace-pre-wrap leading-relaxed py-0.5 break-words">
+          {thought ? thought : (
+            <div className="flex flex-col gap-1.5">
+              {simulatedSteps.map((step, idx) => (
+                <div key={idx} className="flex items-center gap-2 animate-in fade-in slide-in-from-left-1 duration-300">
+                  <span className="w-1 h-1 rounded-full bg-slate-400" />
+                  {step}
+                </div>
+              ))}
+              {isThinking && (
+                 <div className="flex items-center gap-2 animate-pulse mt-0.5">
+                   <div className="flex items-center gap-1 ml-1.5">
+                      <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" />
+                      <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.2s]" />
+                      <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+                   </div>
+                 </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AIChatbotPage() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [inputValue, setInputValue] = useState("");
@@ -133,6 +231,7 @@ export default function AIChatbotPage() {
       id: aiId,
       type: "ai",
       content: "",
+      isThinking: true,
       timestamp: new Date(),
     };
 
@@ -206,10 +305,14 @@ export default function AIChatbotPage() {
             }
 
             const type = evt?.type;
-            if (type === "answer_chunk" && evt.content) {
+            if (type === "thought_chunk" && evt.content) {
+              setMessages(prev => prev.map(m => m.id === aiId ? { ...m, thought: (m.thought ?? "") + evt.content, isThinking: true } : m));
+            } else if (type === "answer_chunk" && evt.content) {
+              // Ensure we only set isThinking to false if it's the actual answer stream 
+              // Wait, deepseek streams <think> block as answer_chunk initially!
               setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: (m.content ?? "") + evt.content } : m));
             } else if (type === "final_answer" && evt.content) {
-              setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: (m.content ?? "") + evt.content } : m));
+              setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: (m.content ?? "") + evt.content, isThinking: false } : m));
             } else if (type === "final_metadata") {
               // attach simple suggestions from references (titles)
               const refs = evt.references ?? [];
@@ -237,7 +340,7 @@ export default function AIChatbotPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] max-w-[950px] mx-auto animate-in fade-in duration-500 overflow-hidden">
+    <div className="-mt-6 flex flex-col h-[calc(100vh-130px)] max-w-[1100px] w-full px-2 mx-auto animate-in fade-in duration-500 overflow-hidden">
       
       {/* Header - Compacted */}
       <div className="flex items-center justify-between mb-4 px-2">
@@ -260,35 +363,56 @@ export default function AIChatbotPage() {
           ref={scrollRef}
           className="flex-1 overflow-y-auto px-6 py-8 space-y-8 scroll-smooth no-scrollbar"
         >
-          {messages.map((msg) => (
-            <div 
-              key={msg.id}
-              className={cn(
-                "flex w-full",
-                msg.type === "user" ? "justify-end" : "justify-start"
-              )}
-            >
-              <div className={cn(
-                "max-w-[85%] flex flex-col",
-                msg.type === "user" ? "items-end" : "items-start"
-              )}>
-                {/* Bubble */}
+          {messages.map((msg) => {
+            // Tự động bóc tách thẻ <think> nếu có (đối với dòng model deepseek hoặc custom prompt)
+            let displayContent = msg.content || "";
+            let displayThought = msg.thought || "";
+            let isThinking = msg.isThinking;
+
+            if (msg.type === "ai" && !msg.thought && displayContent.includes("<think>")) {
+              const thinkStart = displayContent.indexOf("<think>");
+              const thinkEnd = displayContent.indexOf("</think>");
+              if (thinkEnd !== -1) {
+                displayThought = displayContent.substring(thinkStart + 7, thinkEnd).trim();
+                displayContent = (displayContent.substring(0, thinkStart) + displayContent.substring(thinkEnd + 8)).trim();
+                isThinking = false;
+              } else {
+                displayThought = displayContent.substring(thinkStart + 7).trim();
+                displayContent = displayContent.substring(0, thinkStart).trim();
+                isThinking = true;
+              }
+            }
+
+            return (
+              <div 
+                key={msg.id}
+                className={cn(
+                  "flex w-full",
+                  msg.type === "user" ? "justify-end" : "justify-start"
+                )}
+              >
                 <div className={cn(
-                  "px-5 py-4 rounded-3xl text-[14px] leading-relaxed shadow-sm",
-                  msg.type === "user" 
-                    ? "bg-[#0f172a] text-white rounded-tr-none" 
-                    : "bg-slate-50 text-slate-800 rounded-tl-none border border-slate-100"
+                  "max-w-[90%] flex flex-col",
+                  msg.type === "user" ? "items-end" : "items-start"
                 )}>
-                  {msg.type === "ai" && !msg.content ? (
-                    <div className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" />
-                      <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.2s]" />
-                      <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.4s]" />
-                    </div>
-                  ) : (
-                    msg.content
+                  {/* Thought Block MUST be outside the chat bubble to float completely seamlessly */}
+                  {msg.type === "ai" && (displayThought || isThinking) && (
+                    <ThoughtBlock thought={displayThought} isThinking={isThinking} />
                   )}
-                </div>
+
+                  {/* Bubble containing main completion text */}
+                  {(displayContent || (msg.content && !isThinking && msg.type === "user")) ? (
+                    <div className={cn(
+                      "rounded-3xl text-[15px] leading-relaxed shadow-sm w-fit max-w-full break-words mt-1",
+                      msg.type === "user" 
+                        ? "bg-[#0f172a] text-white rounded-tr-none px-6 py-4" 
+                        : "bg-white text-slate-800 rounded-tl-none border border-slate-200 px-6 py-4"
+                    )}>
+                      <div className="whitespace-pre-wrap">
+                        {displayContent || msg.content}
+                      </div>
+                    </div>
+                  ) : null}
 
                 {/* Rich Blocks (AI Only) */}
                 {msg.blocks && msg.blocks.length > 0 && (
@@ -318,26 +442,27 @@ export default function AIChatbotPage() {
                   </div>
                 )}
 
-                <span className="text-[10px] text-slate-400 mt-2 font-medium">
-                  {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
+                  <span className="text-[10px] text-slate-400 mt-2 font-medium">
+                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Loading is represented inside the AI placeholder bubble; no separate loading bubble here. */}
         </div>
 
         {/* Bottom UI (Intents + Input) */}
         <div className="bg-white border-t border-slate-100">
-          {/* Quick Intent Carousel - MOVED HERE */}
-          <div className="px-6 py-4 overflow-x-auto scrollbar-hide no-scrollbar whitespace-nowrap bg-slate-50/30">
-            <div className="flex gap-2">
+          {/* Quick Intent Carousel */}
+          <div className="px-6 py-3 bg-slate-50/30 border-b border-slate-100/50">
+            <div className="flex flex-wrap gap-2">
               {QUICK_INTENTS.map((intent) => (
                 <button
                   key={intent.id}
                   onClick={() => handleIntentClick(intent.label)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-700 hover:border-[#eec54e] hover:text-[#eec54e] hover:bg-[#eec54e]/5 transition-all shadow-sm"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-[12px] font-bold text-slate-600 hover:border-[#eec54e] hover:text-[#eec54e] hover:bg-[#eec54e]/5 transition-all shadow-sm"
                 >
                   <intent.icon className="w-3.5 h-3.5" />
                   {intent.label}
