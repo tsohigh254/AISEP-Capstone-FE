@@ -16,6 +16,13 @@ import {
     Loader2,
     ChevronUp,
     Lock,
+    Paperclip,
+    File as FileIcon,
+    Database,
+    Download,
+    RefreshCcw,
+    Check,
+    CheckCheck,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -27,6 +34,9 @@ import {
     GetMessages,
     MarkConversationRead,
 } from "@/services/messaging/messaging.api";
+import { UploadChatAttachment } from "@/services/files/files.api";
+import { PickDocumentModal } from "./pick-document-modal";
+import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -101,22 +111,92 @@ function getConversationCreationErrorMessage(payload: any) {
 /* ------------------------------------------------------------------ */
 
 function MessageBubble({ msg, onRetry }: { msg: IMessage & { _failed?: boolean }; onRetry?: () => void }) {
+    const getFileName = (url: string) => {
+        try {
+            const parts = url.split("/");
+            return decodeURIComponent(parts[parts.length - 1]);
+        } catch {
+            return "Attachment";
+        }
+    };
+
+    const isImage = (url: string) => {
+        return /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
+    };
+
     return (
-        <div className={`flex ${msg.isMine ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[70%] flex flex-col gap-1 ${msg.isMine ? "items-end" : "items-start"}`}>
-                <div className={`rounded-2xl px-4 py-3 ${
-                    msg.isMine
-                        ? msg._failed ? "bg-red-100 text-red-800" : "bg-[#e6cc4c] text-slate-900"
-                        : "bg-slate-100 text-slate-900"
-                }`}>
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
-                </div>
-                <div className="flex items-center gap-1.5 px-2">
-                    <span className="text-[10px] text-slate-400">{formatExact(msg.sentAt)}</span>
-                    {msg._failed && onRetry && (
-                        <button onClick={onRetry} className="flex items-center gap-1 text-[10px] text-red-500 hover:text-red-700 font-semibold">
-                            <RefreshCw className="w-3 h-3" /> Thử lại
+        <div className={cn("flex w-full mb-2", msg.isMine ? "justify-end" : "justify-start")}>
+            <div className={cn("flex flex-col max-w-[85%] md:max-w-[70%]", msg.isMine ? "items-end" : "items-start")}>
+                <div className={cn(
+                    "px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed relative group",
+                    msg.isMine 
+                        ? "bg-[#0f172a] text-white rounded-tr-none" 
+                        : "bg-white text-slate-700 border border-slate-100 rounded-tl-none shadow-sm"
+                )}>
+                    {msg.attachmentUrls && (
+                        <div className="mb-2 space-y-2">
+                            {isImage(msg.attachmentUrls) ? (
+                                <div className="relative rounded-lg overflow-hidden border border-slate-200/20 max-w-sm">
+                                    <img 
+                                        src={msg.attachmentUrls} 
+                                        alt="Attachment" 
+                                        className="max-h-60 w-auto object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                                        onClick={() => window.open(msg.attachmentUrls!, "_blank")}
+                                    />
+                                </div>
+                            ) : (
+                                <a 
+                                    href={msg.attachmentUrls} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className={cn(
+                                        "flex items-center gap-3 p-2.5 rounded-xl border transition-all",
+                                        msg.isMine 
+                                            ? "bg-white/10 border-white/20 hover:bg-white/20" 
+                                            : "bg-slate-50 border-slate-200 hover:bg-slate-100"
+                                    )}
+                                >
+                                    <div className={cn(
+                                        "size-9 rounded-lg flex items-center justify-center shrink-0",
+                                        msg.isMine ? "bg-white/20" : "bg-white shadow-sm border border-slate-200"
+                                    )}>
+                                        <FileIcon className={cn("size-4", msg.isMine ? "text-white" : "text-slate-500")} />
+                                    </div>
+                                    <div className="flex-1 min-w-0 pr-2">
+                                        <p className={cn("text-[13px] font-medium truncate", msg.isMine ? "text-white" : "text-slate-900")}>
+                                            {getFileName(msg.attachmentUrls)}
+                                        </p>
+                                        <p className={cn("text-[10px] mt-0.5", msg.isMine ? "text-white/60" : "text-slate-400")}>
+                                            Tài liệu đính kèm
+                                        </p>
+                                    </div>
+                                    <Download className={cn("size-4 shrink-0", msg.isMine ? "text-white/60" : "text-slate-400")} />
+                                </a>
+                            )}
+                        </div>
+                    )}
+                    <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                    {msg._failed && (
+                        <button 
+                            onClick={onRetry}
+                            className="absolute -left-12 top-1/2 -translate-y-1/2 p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                        >
+                            <RefreshCcw className="w-4 h-4" />
                         </button>
+                    )}
+                </div>
+                <div className="flex items-center gap-2 mt-1 px-1">
+                    <span className="text-[10px] text-slate-400">
+                        {new Date(msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {msg.isMine && (
+                        <div className="flex items-center">
+                            {msg.isRead ? (
+                                <CheckCheck className="w-3 h-3 text-emerald-500" />
+                            ) : (
+                                <Check className="w-3 h-3 text-slate-300" />
+                            )}
+                        </div>
                     )}
                 </div>
             </div>
@@ -247,12 +327,14 @@ export function MessagingContent() {
     const [selectedId,    setSelectedId]    = useState<number | null>(null);
     const [filter,        setFilter]        = useState<"all" | "unread">("all");
     const [search,        setSearch]        = useState("");
-    const [messageInput,  setMessageInput]  = useState("");
+    const [input,         setInput]         = useState("");
     const [loadingConvs,  setLoadingConvs]  = useState(true);
     const [convError,     setConvError]     = useState(false);
     const [loadingMsgs,   setLoadingMsgs]   = useState(false);
     const [msgError,      setMsgError]      = useState(false);
     const [sending,       setSending]       = useState(false);
+    const [uploading,     setUploading]     = useState(false);
+    const [showDocModal,  setShowDocModal]  = useState(false);
 
     // Pagination for older messages
     const [msgPage,       setMsgPage]       = useState(1);
@@ -261,6 +343,8 @@ export function MessagingContent() {
 
     const bottomRef    = useRef<HTMLDivElement>(null);
     const messagesRef  = useRef<HTMLDivElement>(null);
+    const textareaRef  = useRef<HTMLTextAreaElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const selected = (conversations ?? []).find(c => c.conversationId === selectedId) ?? null;
 
@@ -272,7 +356,6 @@ export function MessagingContent() {
             .then(res => {
                 if (res.success && res.data) {
                     const raw: IConversation[] = (res.data as any).data || res.data.items || [];
-                    // Deduplicate by participantId — keep the one with the most recent activity
                     const seen = new Map<number, IConversation>();
                     for (const conv of raw) {
                         const key = conv.participantId ?? conv.conversationId;
@@ -365,7 +448,6 @@ export function MessagingContent() {
                     setMessages(prev => [...older, ...prev]);
                     setMsgPage(nextPage);
                     setHasOlderMsgs(((res.data as any).total ? Math.ceil((res.data as any).total / 50) : (res.data.paging?.totalPages ?? 1)) > nextPage);
-                    // Keep scroll position stable
                     requestAnimationFrame(() => {
                         if (messagesRef.current) {
                             messagesRef.current.scrollTop = messagesRef.current.scrollHeight - prevScrollHeight;
@@ -388,15 +470,12 @@ export function MessagingContent() {
         onMessage: (incoming: IIncomingMessage) => {
             if (incoming.conversationId === selectedId) {
                 setMessages(prev => {
-                    // Check if there's a pending optimistic message matching this content
                     const tempIndex = prev.findIndex(m =>
                         m.isMine &&
                         m.content === incoming.content &&
-                        // messageId temporary > 1000000000000 (Date.now())
                         m.messageId > 1000000000000
                     );
 
-                    // It's mine if it matches a pending message OR if senderId matches the current user
                     const isMine = tempIndex !== -1 ||
                                    String(incoming.senderId) === String(user?.userId) ||
                                    String(incoming.senderId) === String((user as any)?.id) ||
@@ -412,7 +491,6 @@ export function MessagingContent() {
                         return newMsgs;
                     }
 
-                    // Otherwise add it as a new message
                     return [
                         ...prev,
                         {
@@ -442,50 +520,65 @@ export function MessagingContent() {
     });
 
     /* ── Send message ── */
-    const handleSend = useCallback(async () => {
-        const text = messageInput.trim();
-        if (!text || selectedId == null || sending) return;
-        if (text.length > MAX_MESSAGE_LENGTH) return;
+    const handleSend = async (content?: string, attachmentUrl?: string) => {
+        const finalContent = content ?? input;
+        if (!finalContent.trim() && !attachmentUrl) return;
 
         const tempId = Date.now();
         const optimisticMsg: IMessage & { _failed?: boolean } = {
             messageId:         tempId,
-            conversationId:    selectedId,
+            conversationId:    selectedId!,
             senderUserId:      user?.userId ?? 0,
             senderDisplayName: user?.email ?? "",
             isMine:            true,
-            content:           text,
-            attachmentUrls:    null,
+            content:           finalContent,
+            attachmentUrls:    attachmentUrl ?? null,
             isRead:            false,
             sentAt:            new Date().toISOString(),
             readAt:            null,
         };
 
         setMessages(prev => [...prev, optimisticMsg]);
-        setMessageInput("");
-        setSending(true);
+        setInput("");
+        if (textareaRef.current) textareaRef.current.style.height = "auto";
 
         try {
-            await sendMessage(text);
-            
-            // Only update preview if it actually sends successfully
+            await sendMessage(finalContent, attachmentUrl);
             setConversations(prev =>
                 prev.map(c => c.conversationId === selectedId
-                    ? { ...c, lastMessagePreview: text, lastMessageAt: new Date().toISOString() }
+                    ? { ...c, lastMessagePreview: finalContent, lastMessageAt: new Date().toISOString() }
                     : c
                 )
             );
         } catch {
             setMessages(prev => prev.map(m => m.messageId === tempId ? { ...m, _failed: true } : m));
-        } finally {
-            setSending(false);
         }
-    }, [messageInput, selectedId, sending, sendMessage, user]);
+    };
+
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        e.target.value = "";
+        setUploading(true);
+        try {
+            const res = await UploadChatAttachment(file);
+            if (res.isSuccess && res.data) {
+                handleSend(undefined, res.data);
+            } else {
+                toast.error(res.message || "Tải lên thất bại");
+            }
+        } catch (error) {
+            console.error("Upload error:", error);
+            toast.error("Lỗi khi tải lên file");
+        } finally {
+            setUploading(false);
+        }
+    };
 
     /* ── Retry failed message ── */
     const retryMessage = useCallback((msg: IMessage & { _failed?: boolean }) => {
         setMessages(prev => prev.filter(m => m.messageId !== msg.messageId));
-        setMessageInput(msg.content);
+        setInput(msg.content);
     }, []);
 
     /* ── Filter & sort ── */
@@ -501,7 +594,7 @@ export function MessagingContent() {
             return new Date(tb).getTime() - new Date(ta).getTime();
         });
 
-    const inputTooLong = messageInput.length > MAX_MESSAGE_LENGTH;
+    const inputTooLong = input.length > MAX_MESSAGE_LENGTH;
     const conversationClosed = selected?.status === "Closed";
 
     /* ---------------------------------------------------------------- */
@@ -513,7 +606,6 @@ export function MessagingContent() {
 
             {/* ===== Left — conversation list ===== */}
             <div className="w-full md:w-[360px] flex flex-col shrink-0">
-                {/* Search */}
                 <div className="mb-6">
                     <div className="relative mb-4">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
@@ -549,7 +641,6 @@ export function MessagingContent() {
                     </div>
                 </div>
 
-                {/* List */}
                 <div
                     className="flex-1 overflow-y-auto space-y-2 pr-1"
                     style={{ scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}
@@ -576,7 +667,6 @@ export function MessagingContent() {
                                             : "border border-transparent hover:bg-white hover:border-slate-200 hover:shadow-sm"
                                     }`}
                                 >
-                                    {/* Avatar */}
                                     <div className="relative shrink-0">
                                         {conv.participantAvatarUrl ? (
                                             <img
@@ -591,7 +681,6 @@ export function MessagingContent() {
                                         )}
                                     </div>
 
-                                    {/* Info */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex justify-between items-start mb-0.5">
                                             <h4 className="font-bold text-sm text-slate-900 truncate">{conv.participantName ?? ""}</h4>
@@ -612,7 +701,6 @@ export function MessagingContent() {
                                         </p>
                                     </div>
 
-                                    {/* Unread badge */}
                                     {(conv.unreadCount ?? 0) > 0 && (
                                         <div className="shrink-0 flex flex-col items-end justify-between">
                                             <span className="size-5 bg-[#e6cc4c] flex items-center justify-center text-[10px] font-bold text-slate-900 rounded-full">
@@ -630,7 +718,6 @@ export function MessagingContent() {
             {/* ===== Right — Chat / Empty state ===== */}
             {selected ? (
                 <div className="hidden md:flex flex-1 flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    {/* Chat header */}
                     <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             {selected.participantAvatarUrl ? (
@@ -652,7 +739,6 @@ export function MessagingContent() {
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            {/* Connection state indicator */}
                             {connectionState === "connected" && (
                                 <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-50">
                                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
@@ -671,13 +757,11 @@ export function MessagingContent() {
                         </div>
                     </div>
 
-                    {/* Messages */}
                     <div
                         ref={messagesRef}
                         className="flex-1 overflow-y-auto p-6 space-y-4"
                         style={{ scrollbarWidth: "thin", scrollbarColor: "#e2e8f0 transparent" }}
                     >
-                        {/* Load older messages */}
                         {hasOlderMsgs && (
                             <div className="flex justify-center mb-2">
                                 <button
@@ -713,7 +797,6 @@ export function MessagingContent() {
                         <div ref={bottomRef} />
                     </div>
 
-                    {/* Input */}
                     {conversationClosed ? (
                         <div className="px-6 py-4 border-t border-slate-200 bg-slate-50">
                             <div className="flex items-center justify-center gap-2 text-slate-400">
@@ -722,31 +805,71 @@ export function MessagingContent() {
                             </div>
                         </div>
                     ) : (
-                        <div className="px-6 py-4 border-t border-slate-200">
-                            {inputTooLong && (
-                                <p className="text-[11px] text-red-500 font-medium mb-2">
-                                    Tin nhắn quá dài ({messageInput.length}/{MAX_MESSAGE_LENGTH} ký tự)
-                                </p>
-                            )}
-                            <div className="flex items-center gap-2">
-                                <input
-                                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[#e6cc4c]/30 focus:border-[#e6cc4c]/30 transition-all"
-                                    placeholder="Nhập tin nhắn..."
-                                    type="text"
-                                    value={messageInput}
-                                    onChange={e => setMessageInput(e.target.value)}
-                                    onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                                    maxLength={MAX_MESSAGE_LENGTH + 100}
-                                />
-                                <button
-                                    onClick={handleSend}
-                                    disabled={!messageInput.trim() || inputTooLong || sending}
-                                    className="p-2.5 bg-[#e6cc4c] text-slate-900 rounded-xl hover:shadow-lg transition-all flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                        <>
+                            <div className="flex items-end gap-3 p-4 bg-white border-t border-slate-100">
+                                <div className="flex items-center gap-1 mb-1">
+                                    <input 
+                                        type="file" 
+                                        className="hidden" 
+                                        ref={fileInputRef} 
+                                        onChange={handleFileSelect}
+                                    />
+                                    <button 
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={uploading}
+                                        className={cn(
+                                            "p-2 text-slate-400 hover:text-[#0f172a] hover:bg-slate-50 rounded-xl transition-all",
+                                            uploading && "animate-pulse"
+                                        )}
+                                        title="Đính kèm file từ máy"
+                                    >
+                                        <Paperclip className="w-5 h-5" />
+                                    </button>
+
+                                    {user?.userType === "Startup" && (
+                                        <button 
+                                            onClick={() => setShowDocModal(true)}
+                                            className="p-2 text-slate-400 hover:text-[#0f172a] hover:bg-slate-50 rounded-xl transition-all"
+                                            title="Chọn tài liệu hệ thống"
+                                        >
+                                            <Database className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="flex-1 relative">
+                                    <textarea 
+                                        ref={textareaRef}
+                                        value={input}
+                                        onChange={(e) => setInput(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter" && !e.shiftKey) {
+                                                e.preventDefault();
+                                                handleSend();
+                                            }
+                                        }}
+                                        placeholder="Viết tin nhắn..."
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-[14px] focus:outline-none focus:ring-2 focus:ring-[#0f172a]/5 focus:border-[#0f172a]/20 transition-all resize-none max-h-32"
+                                        rows={1}
+                                    />
+                                </div>
+                                <button 
+                                    onClick={() => handleSend()}
+                                    disabled={!input.trim() || sending}
+                                    className="p-2.5 bg-[#0f172a] text-white rounded-xl hover:bg-slate-800 disabled:opacity-50 disabled:hover:bg-[#0f172a] transition-all shadow-sm mb-1"
                                 >
-                                    {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                                    {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                                 </button>
                             </div>
-                        </div>
+
+                            <PickDocumentModal 
+                                isOpen={showDocModal}
+                                onClose={() => setShowDocModal(false)}
+                                onSelect={(url, name) => {
+                                    setShowDocModal(false);
+                                    handleSend(`Tôi xin gửi file: ${name}`, url);
+                                }}
+                            />
+                        </>
                     )}
                 </div>
             ) : (

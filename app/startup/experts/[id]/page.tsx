@@ -311,10 +311,10 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                   <Send className="w-4 h-4 mr-2" />
                   Yêu cầu tư vấn ngay
                 </Button>
-                {!!activeMentorship ? (
+                {!!activeMentorship && ["Accepted", "InProgress", "Completed"].includes(activeMentorship.status as string) ? (
                   <Button
                     variant="outline"
-                    onClick={() => router.push("/startup/messaging")}
+                    onClick={() => router.push(`/startup/messaging?mentorshipId=${activeMentorship.mentorshipID}`)}
                     className="h-11 px-6 rounded-xl border-slate-200 text-slate-600 font-semibold text-[13px] hover:bg-slate-50 transition-all"
                   >
                     <MessageSquare className="w-4 h-4 mr-2" />
@@ -325,7 +325,11 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                     variant="outline"
                     disabled
                     className="h-11 px-6 rounded-xl border-slate-200 text-slate-400 font-semibold text-[13px] cursor-not-allowed opacity-60"
-                    title="Cần có phiên tư vấn được chấp nhận để nhắn tin"
+                    title={
+                      activeMentorship?.status === "Requested" || activeMentorship?.status === "Pending"
+                        ? "Yêu cầu tư vấn đang chờ xử lý"
+                        : "Cần có phiên tư vấn được chấp nhận để nhắn tin"
+                    }
                   >
                     <Lock className="w-4 h-4 mr-2" />
                     Nhắn tin
