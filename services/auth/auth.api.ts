@@ -1,7 +1,7 @@
 import axios from "../interceptor";
 
 export const Register = (email : string, password : string, confirmPassword : string , userType : string) => {
-    return axios.post<IBackendRes<null>>(`/api/auth/register`, {
+    return axios.post<IBackendRes<IValidationError[]>>(`/api/auth/register`, {
         email,
         password,
         confirmPassword,
@@ -29,7 +29,7 @@ export const RevokeAll = () => {
 }
 
 export const ChangePassword = (currentPassword: string, newPassword: string, confirmNewPassword: string) => {
-    return axios.put<IBackendRes<null>>(`/api/auth/change-password`, {
+    return axios.put<IBackendRes<IValidationError[]>>(`/api/auth/change-password`, {
         currentPassword,
         newPassword,
         confirmNewPassword
@@ -44,13 +44,13 @@ export const ResetAdminPassword = (userId : number, newPassword: string) => {
 }
 
 export const ForgotPassword = (email: string) => {
-    return axios.post<IBackendRes<null>>(`/api/auth/forgot-password`, {
+    return axios.post<IBackendRes<IValidationError[]>>(`/api/auth/forgot-password`, {
         email,
     });
 }  
 
 export const ResetPassword = (email : string, newPassword: string, confirmNewPassword: string) => {
-    return axios.post<IBackendRes<null>>(`/api/auth/reset-password`, {
+    return axios.post<IBackendRes<IValidationError[]>>(`/api/auth/reset-password`, {
         email,
         newPassword,
         confirmNewPassword

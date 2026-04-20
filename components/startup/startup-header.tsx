@@ -91,6 +91,7 @@ export function StartupHeader({
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profileLogo, setProfileLogo] = useState<string | null>(null);
   const [isKycVerified, setIsKycVerified] = useState(false);
+  const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null);
   const displayUserName = profileName || user?.email || userName;
 
   useEffect(() => {
@@ -100,6 +101,7 @@ export function StartupHeader({
         if ((envelope.success || envelope.isSuccess) && envelope.data) {
           if (envelope.data.companyName) setProfileName(envelope.data.companyName);
           if (envelope.data.logoURL) setProfileLogo(envelope.data.logoURL);
+          setSubscriptionPlan(envelope.data.subscriptionPlan ?? null);
         }
       })
       .catch(() => { });
@@ -448,7 +450,15 @@ export function StartupHeader({
                     <div className="min-w-0 flex-1">
                       <p className="text-[13px] font-black text-[#171611] tracking-tight truncate">{displayUserName}</p>
                       <div className="flex items-center gap-1.5 mt-1">
-                        <span className="inline-flex items-center text-[9px] font-black text-[#C8A000] bg-[#e6cc4c]/20 border border-[#e6cc4c]/40 px-1.5 py-0.5 rounded-md uppercase tracking-wider">PRO</span>
+                        {subscriptionPlan && subscriptionPlan !== "Free" && (
+                          <span className={`inline-flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider ${
+                            subscriptionPlan === "Fundraising"
+                              ? "text-orange-700 bg-orange-100 border border-orange-300"
+                              : "text-[#C8A000] bg-[#e6cc4c]/20 border border-[#e6cc4c]/50"
+                          }`}>
+                            {subscriptionPlan === "Fundraising" ? "🚀" : "✦"} {subscriptionPlan}
+                          </span>
+                        )}
                         <span className="inline-flex items-center gap-1 text-[10px] text-[#878164] font-medium">
                           Startup
                           {isKycVerified && <VerifiedRoleMark className="h-3.5 w-3.5" />}

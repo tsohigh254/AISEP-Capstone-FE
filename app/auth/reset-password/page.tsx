@@ -103,8 +103,20 @@ function ResetPasswordContent() {
       const res = await ResetPassword(email, newPassword, confirmPassword);
       if (res.success) {
         setIsSuccess(true);
+      } else if (!res.isSuccess && res.statusCode === 400 && Array.isArray(res.data) && res.data.length > 0) {
+        const newPwErrs: string[] = [];
+        const cfPwErrs: string[] = [];
+        const generalErrs: string[] = [];
+        for (const item of res.data) {
+          const f = item.field?.toLowerCase() ?? "";
+          const msgs = item.messages ?? [];
+          if (f === "newpassword" || f === "password") newPwErrs.push(...msgs);
+          else if (f === "confirmnewpassword" || f === "confirmpassword") cfPwErrs.push(...msgs);
+          else generalErrs.push(...msgs);
+        }
+        setErrors({ newPassword: newPwErrs.join(" "), confirmPassword: cfPwErrs.join(" ") });
+        if (generalErrs.length > 0) setApiError(generalErrs.join(" "));
       } else {
-        // Check for expired/invalid token
         const msg = res.message || "Đặt lại mật khẩu không thành công";
         if (msg.toLowerCase().includes("expired") || msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("hết hạn")) {
           setIsExpired(true);

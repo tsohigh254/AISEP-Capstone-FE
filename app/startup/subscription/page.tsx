@@ -1,18 +1,29 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StartupShell } from "@/components/startup/startup-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { ArrowRight, Check, Infinity, Sparkles, X } from "lucide-react";
+import { ArrowRight, Check, Infinity, Sparkles, X, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { CreatePaymentLinkForSubscription, TargetPlan } from "@/services/payment/payment.api";
+import { GetStartupProfile } from "@/services/startup/startup.api";
 
 type PlanKey = "FREE" | "PRO" | "FUNDRAISING";
 type StartupSubscriptionPlanCode = "PRO" | "FUNDRAISING";
+
+// Thứ tự ưu tiên để so sánh plan
+const PLAN_RANK: Record<PlanKey, number> = { FREE: 0, PRO: 1, FUNDRAISING: 2 };
+
+// Map từ chuỗi BE trả về → PlanKey
+function parsePlanKey(raw: string | null | undefined): PlanKey {
+  if (!raw) return "FREE";
+  const upper = raw.toUpperCase() as PlanKey;
+  return upper in PLAN_RANK ? upper : "FREE";
+}
 
 type FeatureRow = {
   feature: string;
@@ -99,6 +110,20 @@ function renderValue(value: string | boolean) {
 
 export default function StartupSubscriptionPage() {
   const [payingPlan, setPayingPlan] = useState<StartupSubscriptionPlanCode | null>(null);
+  const [currentPlan, setCurrentPlan] = useState<PlanKey>("FREE");
+  const [subscriptionEndDate, setSubscriptionEndDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    GetStartupProfile()
+      .then((res) => {
+        const envelope = res as unknown as IBackendRes<IStartupProfile>;
+        if ((envelope.success || envelope.isSuccess) && envelope.data) {
+          setCurrentPlan(parsePlanKey(envelope.data.subscriptionPlan));
+          setSubscriptionEndDate(envelope.data.subscriptionEndDate ?? null);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const planColumns = useMemo(() => (["FREE", "PRO", "FUNDRAISING"] as const), []);
 
@@ -140,6 +165,12 @@ export default function StartupSubscriptionPage() {
             <CardTitle className="text-2xl text-slate-900">Nâng cấp tài khoản Startup</CardTitle>
             <CardDescription className="max-w-3xl text-slate-600">
               Chọn gói phù hợp để mở rộng năng lực kết nối, phân tích và gọi vốn.
+              {currentPlan !== "FREE" && subscriptionEndDate && (
+                <span className="block mt-1 text-amber-700 font-medium">
+                  Gói {PLAN_META[currentPlan].label} của bạn có hiệu lực đến{" "}
+                  {new Date(subscriptionEndDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}.
+                </span>
+              )}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -149,15 +180,24 @@ export default function StartupSubscriptionPage() {
             const meta = PLAN_META[plan];
             const isHighlight = plan !== "FREE";
             const isLoading = meta.code && payingPlan === meta.code;
+            const isCurrent = plan === currentPlan;
+            const isLower = PLAN_RANK[plan] < PLAN_RANK[currentPlan];
             return (
               <Card
                 key={plan}
                 className={cn(
                   "border-slate-200/80",
-                  isHighlight && "relative overflow-hidden border-amber-300/70 shadow-[0_6px_24px_rgba(217,119,6,0.10)]",
+                  isCurrent && "ring-2 ring-amber-400 border-amber-300/70 shadow-[0_6px_24px_rgba(217,119,6,0.12)]",
+                  !isCurrent && isHighlight && "relative overflow-hidden border-amber-300/70 shadow-[0_6px_24px_rgba(217,119,6,0.10)]",
+                  isLower && "opacity-60",
                 )}
               >
-                {plan === "FUNDRAISING" && (
+                {isCurrent && (
+                  <div className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                    <CheckCircle2 className="h-3 w-3" /> Hiện tại
+                  </div>
+                )}
+                {!isCurrent && plan === "FUNDRAISING" && (
                   <div className="absolute right-3 top-3 rounded-full bg-amber-500 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
                     Recommended
                   </div>
@@ -167,13 +207,21 @@ export default function StartupSubscriptionPage() {
                   <CardDescription>{meta.desc}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {meta.code ? (
+                  {isCurrent ? (
+                    <Button className="w-full" disabled variant="secondary">
+                      <CheckCircle2 className="mr-2 h-4 w-4 text-amber-500" /> Gói hiện tại
+                    </Button>
+                  ) : isLower ? (
+                    <Button className="w-full" disabled variant="secondary" title="Không thể hạ cấp gói">
+                      Không khả dụng
+                    </Button>
+                  ) : meta.code ? (
                     <Button
                       className={cn(
                         "w-full",
                         plan === "FUNDRAISING" && "bg-amber-500 text-white hover:bg-amber-600",
                       )}
-                      disabled={isLoading}
+                      disabled={!!isLoading}
                       onClick={() => handleUpgrade(meta.code!)}
                     >
                       {isLoading ? "Đang chuyển thanh toán..." : meta.cta}
@@ -181,7 +229,7 @@ export default function StartupSubscriptionPage() {
                     </Button>
                   ) : (
                     <Button className="w-full" disabled variant="secondary">
-                      Gói hiện tại
+                      Gói miễn phí
                     </Button>
                   )}
                 </CardContent>

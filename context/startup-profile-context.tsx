@@ -345,6 +345,10 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                 setLogoFile(null);
                 setCertificateFile(null);
                 return true;
+            } else if (!res.isSuccess && res.statusCode === 400 && Array.isArray(res.data) && res.data.length > 0) {
+                const msgs = (res.data as IValidationError[]).flatMap((v) => v.messages ?? []);
+                setSaveError(msgs.join(" "));
+                return false;
             } else {
                 setSaveError(res.message || "Lưu thất bại");
                 return false;
@@ -367,10 +371,14 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
             const saved = await saveProfile();
             if (!saved) return false;
 
-            const res = await SubmitForApproval() as unknown as IBackendRes<null>;
+            const res = await SubmitForApproval() as unknown as IBackendRes<IValidationError[] | null>;
             if (res.success || res.isSuccess) {
                 await fetchProfile();
                 return true;
+            } else if (!res.isSuccess && res.statusCode === 400 && Array.isArray(res.data) && res.data.length > 0) {
+                const msgs = (res.data as IValidationError[]).flatMap((v) => v.messages ?? []);
+                setSaveError(msgs.join(" "));
+                return false;
             } else {
                 setSaveError(res.message || "Gửi duyệt thất bại");
                 return false;

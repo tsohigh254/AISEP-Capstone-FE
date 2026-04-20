@@ -69,6 +69,15 @@ export default function ForgotPasswordPage() {
       if (res.success) {
         setCooldown(60);
         setStep("otp-sent");
+      } else if (!res.isSuccess && res.statusCode === 400 && Array.isArray(res.data) && res.data.length > 0) {
+        let matched = false;
+        for (const item of res.data) {
+          if (item.field?.toLowerCase() === "email") {
+            setEmailError(item.messages?.join(" ") ?? "");
+            matched = true;
+          }
+        }
+        if (!matched) setError(res.data.flatMap((v) => v.messages ?? []).join(" "));
       } else {
         setError(res.message || "Không thể gửi mã xác nhận");
       }
@@ -114,6 +123,8 @@ export default function ForgotPasswordPage() {
       const res = await VerifyEmail(email, code);
       if (res.success) {
         router.push(`/auth/reset-password?email=${encodeURIComponent(email)}`);
+      } else if (!res.isSuccess && res.statusCode === 400 && Array.isArray(res.data) && res.data.length > 0) {
+        setError(res.data.flatMap((v) => v.messages ?? []).join(" "));
       } else {
         setError(res.message || "Mã OTP không hợp lệ");
       }
@@ -136,6 +147,15 @@ export default function ForgotPasswordPage() {
         setResendMsg("Đã gửi lại mã OTP vào email của bạn.");
         setOtp(["", "", "", "", "", ""]);
         setCooldown(60);
+      } else if (!res.isSuccess && res.statusCode === 400 && Array.isArray(res.data) && res.data.length > 0) {
+        let matched = false;
+        for (const item of res.data) {
+          if (item.field?.toLowerCase() === "email") {
+            setEmailError(item.messages?.join(" ") ?? "");
+            matched = true;
+          }
+        }
+        if (!matched) setError(res.data.flatMap((v) => v.messages ?? []).join(" "));
       } else {
         setError(res.message || "Không thể gửi lại mã");
       }

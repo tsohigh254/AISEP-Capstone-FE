@@ -323,6 +323,8 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
         toast.success("Đổi mật khẩu thành công");
         setShowPwDialog(false);
         setPwForm({ old: "", next: "", confirm: "" });
+      } else if (!res.isSuccess && res.statusCode === 400 && Array.isArray(res.data) && res.data.length > 0) {
+        setPwError(res.data.flatMap((v) => v.messages ?? []).join(" "));
       } else {
         setPwError(res.message || "Đổi mật khẩu không thành công");
       }

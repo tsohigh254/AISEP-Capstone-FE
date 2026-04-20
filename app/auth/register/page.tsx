@@ -39,6 +39,7 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   const validateEmail = (value: string) => {
     if (!value) {
@@ -95,6 +96,7 @@ export default function RegisterPage() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+    setPasswordError(null);
 
     if (!email.trim()) {
       setEmailError("Vui lòng nhập email");
@@ -125,6 +127,23 @@ export default function RegisterPage() {
 
       if (res.isSuccess && res.statusCode === 200) {
         router.push(`/auth/verify-email?email=${encodeURIComponent(email)}&purpose=register`);
+      } else if (!res.isSuccess && res.statusCode === 400 && Array.isArray(res.data) && res.data.length > 0) {
+        let hasFieldError = false;
+        for (const item of res.data) {
+          const fieldLower = item.field?.toLowerCase();
+          const msg = item.messages?.join(" ") ?? "";
+          if (fieldLower === "email") {
+            setEmailError(msg);
+            hasFieldError = true;
+          } else if (fieldLower === "password") {
+            setPasswordError(msg);
+            hasFieldError = true;
+          }
+        }
+        if (!hasFieldError) {
+          const allMessages = res.data.flatMap((item) => item.messages ?? []);
+          setError(allMessages.join(" "));
+        }
       } else {
         setError(res.message || "Đăng ký không thành công");
       }
@@ -274,13 +293,17 @@ export default function RegisterPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-900">Mật khẩu</label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                    <Lock className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${passwordError ? "text-red-500" : "text-slate-400"}`} />
                     <input
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-10 pr-12 py-3 bg-slate-50 border-none rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#f0f042]"
+                      onChange={(e) => { setPassword(e.target.value); setPasswordError(null); }}
+                      className={`w-full pl-10 pr-12 py-3 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 ${
+                        passwordError
+                          ? "border-2 border-red-400 bg-white focus:ring-red-300"
+                          : "border-none bg-slate-50 focus:ring-[#f0f042]"
+                      }`}
                     />
                     <button
                       type="button"
@@ -290,6 +313,12 @@ export default function RegisterPage() {
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
+                  {passwordError && (
+                    <p className="flex items-center gap-1.5 text-xs text-red-500 font-medium mt-1">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      {passwordError}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">

@@ -427,7 +427,6 @@ export function AdvisorHeader({
                     <div className="min-w-0 flex-1">
                       <p className="text-[13px] font-black text-[#171611] tracking-tight truncate">{displayUserName}</p>
                       <div className="flex items-center gap-1.5 mt-1">
-                        <span className="inline-flex items-center text-[9px] font-black text-[#C8A000] bg-[#e6cc4c]/20 border border-[#e6cc4c]/40 px-1.5 py-0.5 rounded-md uppercase tracking-wider">PRO</span>
                         <span className="inline-flex items-center gap-1 text-[10px] text-[#878164] font-medium">
                           Advisor
                           {isKycVerified && <VerifiedRoleMark className="h-3.5 w-3.5" />}

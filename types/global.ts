@@ -101,6 +101,10 @@ declare global {
     fileCertificateBusiness: string;
     linkedInURL: string;
     profileStatus: string;
+    /** Gói đăng ký hiện tại: "Free" | "Pro" | "Fundraising" */
+    subscriptionPlan?: string | null;
+    /** Ngày hết hạn gói (ISO 8601, nullable). */
+    subscriptionEndDate?: string | null;
     approvedAt: string;
     /** Tuỳ API (có thể không có). */
     approvedBy?: string | number;
@@ -549,6 +553,11 @@ declare global {
     fundingAmountSought?: number | null;
     currentFundingRaised?: number | null;
     createdAt?: string;
+  }
+
+  interface IValidationError {
+    field: string;
+    messages: string[];
   }
 
   interface IKYCStatus {
