@@ -17,7 +17,7 @@ export default function RootLayout({
   return (
     <html lang="vi">
       <head />
-      <body className="antialiased">
+      <body className="antialiased" spellCheck={false}>
         <Script
           src="https://cdn.payos.vn/payos-checkout/v1/stable/payos-initialize.js"
           strategy="beforeInteractive"

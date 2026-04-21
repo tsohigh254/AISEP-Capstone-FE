@@ -15,6 +15,7 @@ import {
   BadgeCheck,
 } from "lucide-react";
 import { cn, normalizeScore } from "@/lib/utils";
+import { normalizeInvestorPreferredStage, getInvestorPreferredStageLabel } from "@/lib/investor-preferred-stages";
 import { ConnectStartupModal } from "@/components/investor/connect-startup-modal";
 import { SearchStartups, GetMasterIndustries, GetMasterStages } from "@/services/investor/investor.api";
 
@@ -100,8 +101,13 @@ export default function StartupDiscoveryPage() {
     GetMasterStages().then((res: any) => {
       const data = res?.data ?? res;
       const raw = Array.isArray(data) ? data : [];
-      // BE may return string[] or object[] — normalise to string[]
-      setStageOptions(raw.map((s: any) => typeof s === "string" ? s : s.stageName || s.name || s.stage || ""));
+      // Chỉ lấy 4 giai đoạn trong scope: Idea, PreSeed, Seed, Growth
+      const normalized = Array.from(new Set(
+        raw
+          .map((s: any) => typeof s === "string" ? s : s.stageName || s.name || s.stage || "")
+          .filter((stageName: string) => normalizeInvestorPreferredStage(stageName) != null)
+      ));
+      setStageOptions(normalized);
     }).catch(() => {});
   }, []);
 
@@ -356,7 +362,7 @@ export default function StartupDiscoveryPage() {
                           className={checkCls}
                         />
                         <span className="text-[12px] text-slate-600 group-hover:text-slate-900 transition-colors">
-                          {stage}
+                          {getInvestorPreferredStageLabel(stage)}
                         </span>
                       </label>
                     ))}

@@ -131,7 +131,12 @@ function VerifyEmailClientInner() {
       const response = await VerifyEmail(email, otpCode);
 
       if (!response.success || !response.data) {
-        setError(response.message || "Xác thực OTP không thành công.");
+        const rawMessage = response.message ?? "";
+        const localizedMessage =
+          rawMessage === "Invalid email or OTP"
+            ? "Email hoặc mã OTP không hợp lệ."
+            : rawMessage || "Xác thực OTP không thành công.";
+        setError(localizedMessage);
         return;
       }
 

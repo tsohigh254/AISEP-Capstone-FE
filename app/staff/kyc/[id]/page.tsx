@@ -1482,7 +1482,20 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                         setIsSuccess(true);
                         setShowConfirm(false);
                     } catch (err: any) {
-                        toast.error("Lỗi khi xử lý hồ sơ: " + (err.response?.data?.message || err.message));
+                        const rawMsg: string = err.response?.data?.message || err.message || "";
+                        let toastMsg: string;
+                        if (rawMsg === "No active KYC submission found." || rawMsg === "No active KYC submission found for this investor.") {
+                            toastMsg = "Không tìm thấy hồ sơ KYC đang chờ duyệt.";
+                        } else if (rawMsg === "Profile not found") {
+                            toastMsg = "Không tìm thấy hồ sơ startup.";
+                        } else if (rawMsg === "Advisor profile does not exist") {
+                            toastMsg = "Không tìm thấy hồ sơ advisor.";
+                        } else if (rawMsg === "Investor profile does not exist") {
+                            toastMsg = "Không tìm thấy hồ sơ investor.";
+                        } else {
+                            toastMsg = rawMsg || "Có lỗi xảy ra khi xử lý hồ sơ. Vui lòng thử lại.";
+                        }
+                        toast.error(toastMsg);
                     }
                   }}
                >
