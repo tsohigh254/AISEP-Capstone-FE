@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { SupportModal } from "@/components/investor/support-modal";
 import { GetInvestorProfile, UpdateInvestorAcceptingConnections } from "@/services/investor/investor.api";
+import { GetInvestorKYCStatus } from "@/services/investor/investor-kyc";
 import { ChangePassword } from "@/services/auth/auth.api";
 
 /* ─── Sub-components ─────────────────────────────────────────── */
@@ -126,6 +127,7 @@ export default function InvestorSettingsPage() {
     const originalPrefs = useRef<Prefs>(DEFAULT_PREFS);
     const [saving, setSaving] = useState(false);
     const [profileStatus, setProfileStatus] = useState<string | null>(null);
+    const [kycWorkflowStatus, setKycWorkflowStatus] = useState<string | null>(null);
     const [acceptingConnections, setAcceptingConnections] = useState(false);
     const [isLoadingConnectionSetting, setIsLoadingConnectionSetting] = useState(true);
     const [isTogglingConnections, setIsTogglingConnections] = useState(false);
@@ -133,7 +135,7 @@ export default function InvestorSettingsPage() {
     const [blockedByApprovalError, setBlockedByApprovalError] = useState(false);
 
     const isDirty = JSON.stringify(prefs) !== JSON.stringify(originalPrefs.current);
-    const isApprovedProfile = profileStatus === APPROVED_PROFILE_STATUS && !blockedByApprovalError;
+    const isKycVerified = kycWorkflowStatus === "VERIFIED" && !blockedByApprovalError;
     const profileStatusLabel = profileStatus
         ? (PROFILE_STATUS_LABELS[profileStatus] ?? profileStatus)
         : "Unknown";
@@ -174,6 +176,16 @@ export default function InvestorSettingsPage() {
                 if (isDisposed) return;
                 setProfileStatus(profileRes.data.profileStatus ?? null);
                 setAcceptingConnections(Boolean(profileRes.data.acceptingConnections));
+
+                // Proactive KYC status fetch
+                try {
+                    const kycRes = await GetInvestorKYCStatus();
+                    if (!isDisposed && kycRes?.data?.workflowStatus) {
+                        setKycWorkflowStatus(kycRes.data.workflowStatus);
+                    }
+                } catch {
+                    // KYC fetch failure is non-critical; UI will show disabled state
+                }
             } catch (error) {
                 const status = getHttpStatusCode(error);
                 if (isDisposed) return;
@@ -364,7 +376,7 @@ export default function InvestorSettingsPage() {
     };
 
     const handleToggleAcceptingConnections = async (nextValue: boolean) => {
-        if (!isApprovedProfile || isTogglingConnections || isLoadingConnectionSetting) {
+        if (!isKycVerified || isTogglingConnections || isLoadingConnectionSetting) {
             return;
         }
 
@@ -528,15 +540,14 @@ export default function InvestorSettingsPage() {
                                 <Toggle
                                     checked={acceptingConnections}
                                     onChange={handleToggleAcceptingConnections}
-                                    disabled={!isApprovedProfile || isTogglingConnections}
+                                    disabled={!isKycVerified || isTogglingConnections}
                                 />
                             </div>
                         </div>
 
-                        {!isApprovedProfile && (
+                        {!isKycVerified && (
                             <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-[12px] text-amber-700">
-                                {"Tính năng này chỉ khả dụng sau khi hồ sơ được duyệt. Trạng thái hiện tại: "}
-                                <span className="font-semibold">{profileStatusLabel}</span>.
+                                {"Tính năng này chỉ khả dụng sau khi KYC được xác minh (VERIFIED). Vui lòng hoàn tất và chờ duyệt KYC."}
                             </div>
                         )}
 

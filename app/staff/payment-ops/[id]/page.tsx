@@ -184,7 +184,7 @@ export default function PaymentOpsDetailPage({ params }: { params: Promise<{ id:
   }
 
   return (
-    <div className="space-y-6 pb-12 font-plus-jakarta-sans animate-in fade-in duration-500">
+    <div className="px-8 py-7 pb-12 space-y-6 font-plus-jakarta-sans animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <Link
           href="/staff/payment-ops"

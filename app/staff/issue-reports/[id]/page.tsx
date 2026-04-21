@@ -318,7 +318,7 @@ export default function StaffIssueReportDetailPage({
         </DialogContent>
       </Dialog>
 
-      <div className="space-y-6 pb-12 animate-in fade-in duration-500">
+      <div className="px-8 py-7 pb-12 space-y-6 animate-in fade-in duration-500">
         <div className="flex items-center justify-between">
           <Link
             href={ISSUE_REPORT_LIST_URL}

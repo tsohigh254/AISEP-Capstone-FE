@@ -74,7 +74,7 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
   const SeverityIcon = SEVERITY_CFG[caseData.severity].icon;
 
   return (
-    <div className="space-y-6 pb-12 animate-in fade-in duration-500 font-plus-jakarta-sans">
+    <div className="px-8 py-7 pb-12 space-y-6 animate-in fade-in duration-500 font-plus-jakarta-sans">
       {/* Header Navigation */}
       <div className="flex items-center justify-between">
         <Link href="/staff/complaints" className="group flex items-center gap-2 text-[13px] font-bold text-slate-500 hover:text-slate-900 transition-colors">

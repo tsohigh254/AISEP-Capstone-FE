@@ -19,6 +19,7 @@ import {
   GetAdvisorProfile,
   UpdateAdvisorAvailability,
 } from "@/services/advisor/advisor.api";
+import { GetKYCStatus as GetAdvisorKYCStatus } from "@/services/advisor/advisor-kyc.api";
 
 /* ─── Constants ──────────────────────────────────────────────── */
 
@@ -100,6 +101,7 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const [profileStatus, setProfileStatus] = useState<string>("Draft");
+  const [kycWorkflowStatus, setKycWorkflowStatus] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "", title: "", company: "",
     yearsOfExperience: null as number | null,
@@ -196,6 +198,16 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
     if (searchParams.get("tab") === "password") setShowPwDialog(true);
   }, []);
 
+  // Proactive KYC status fetch for availability gate
+  useEffect(() => {
+    GetAdvisorKYCStatus()
+      .then((res: any) => {
+        const d = res?.data ?? res;
+        if (d?.workflowStatus) setKycWorkflowStatus(d.workflowStatus);
+      })
+      .catch(() => {});
+  }, []);
+
   /* ── Photo ─────────────────────────────────────────────────── */
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -287,8 +299,9 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
 
   /* ── Change Availability ───────────────────────────────────── */
   const [isTogglingAvail, setIsTogglingAvail] = useState(false);
+  const isKycVerified = kycWorkflowStatus === "VERIFIED";
   const handleToggleAvailability = async () => {
-    if (profileStatus !== "Approved") return;
+    if (!isKycVerified) return;
     
     // Optimistic UI
     const prev = form.isBookable;
@@ -299,14 +312,26 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
       const res: any = await UpdateAdvisorAvailability({ isAcceptingNewMentees: !prev });
       if (res && res.isSuccess === false) {
         setForm(p => ({ ...p, isBookable: prev }));
-        const errorMsg = res.message || res.data?.[0]?.messages?.[0] || "Không thể bật nhận tư vấn";
-        toast.error(`Lỗi: ${errorMsg}`);
+        const errorCode = res.error?.code ?? res.data?.[0]?.code ?? null;
+        if (errorCode === "ADVISOR_KYC_NOT_APPROVED") {
+          setKycWorkflowStatus(null); // invalidate local gate
+          toast.error("KYC chưa được duyệt — không thể thay đổi trạng thái nhận tư vấn.");
+        } else {
+          const errorMsg = res.message || res.data?.[0]?.messages?.[0] || "Không thể bật nhận tư vấn";
+          toast.error(`Lỗi: ${errorMsg}`);
+        }
       } else {
         toast.success(!prev ? "Đã BẬT nhận yêu cầu tư vấn" : "Đã TẮT nhận yêu cầu tư vấn");
       }
     } catch (e: any) {
       setForm(p => ({ ...p, isBookable: prev }));
-      toast.error(e?.response?.data?.message || "Có lỗi xảy ra khi thay đổi trạng thái khả dụng.");
+      const errorCode = e?.response?.data?.error?.code ?? null;
+      if (errorCode === "ADVISOR_KYC_NOT_APPROVED") {
+        setKycWorkflowStatus(null);
+        toast.error("KYC chưa được duyệt — không thể thay đổi trạng thái nhận tư vấn.");
+      } else {
+        toast.error(e?.response?.data?.message || "Có lỗi xảy ra khi thay đổi trạng thái khả dụng.");
+      }
     } finally {
       setIsTogglingAvail(false);
     }
@@ -969,8 +994,8 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
                       )}
                     </div>
                     <p className="text-[12px] text-slate-500 leading-relaxed">
-                      {profileStatus !== "Approved" 
-                        ? "Hồ sơ của bạn chưa được Admin phê duyệt. Tính năng nhận yêu cầu đang bị khóa." 
+                      {!isKycVerified 
+                        ? "KYC chưa được xác minh. Tính năng nhận yêu cầu tư vấn đang bị khóa." 
                         : "Khi bật, Startup có thể tìm thấy bạn và gửi yêu cầu đặt lịch tư vấn trực tiếp."}
                     </p>
                   </div>
@@ -978,11 +1003,11 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
                   {/* Custom Toggle Switch */}
                   <button
                     type="button"
-                    disabled={profileStatus !== "Approved" || isTogglingAvail}
+                    disabled={!isKycVerified || isTogglingAvail}
                     onClick={handleToggleAvailability}
                     className={cn(
                       "relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#eec54e] focus:ring-offset-2",
-                      profileStatus !== "Approved" ? "bg-slate-300 opacity-50 cursor-not-allowed" : (form.isBookable ? "bg-[#eec54e]" : "bg-slate-200")
+                      !isKycVerified ? "bg-slate-300 opacity-50 cursor-not-allowed" : (form.isBookable ? "bg-[#eec54e]" : "bg-slate-200")
                     )}
                   >
                     {isTogglingAvail ? (

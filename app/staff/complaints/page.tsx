@@ -108,7 +108,7 @@ export default function ComplaintsPage() {
   }, [search, activeTab, severityFilter, statusFilter]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="px-8 py-7 pb-16 space-y-6 animate-in fade-in duration-500">
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

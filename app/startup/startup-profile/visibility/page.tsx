@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 import { useStartupProfile } from "@/context/startup-profile-context";
 import { DisableVisibility, EnableVisibility } from "@/services/startup/startup.api";
+import { GetStartupKYCStatus, KycWorkflowStatus } from "@/services/startup/startup-kyc.api";
 import { cn } from "@/lib/utils";
 
 type Status = "Visible" | "Hidden" | "PendingApproval";
@@ -96,6 +97,7 @@ const PROFILE_STATUS_LABELS: Record<string, string> = {
   DRAFT: TEXT.profileStatusDraft,
   PENDING: TEXT.profileStatusPending,
   PENDINGKYC: TEXT.profileStatusPendingKyc,
+  PENDING_KYC: TEXT.profileStatusPendingKyc,
   REJECTED: TEXT.profileStatusRejected,
 };
 
@@ -141,6 +143,7 @@ export default function StartupVisibilityPage() {
     normalizeStatus(profile?.visibilityStatus ?? profile?.isVisible),
   );
   const [isUpdating, setIsUpdating] = useState(false);
+  const [kycWorkflowStatus, setKycWorkflowStatus] = useState<KycWorkflowStatus | null>(null);
 
   useEffect(() => {
     if (!profile) return;
@@ -148,13 +151,22 @@ export default function StartupVisibilityPage() {
     setStatus(normalizeStatus(raw));
   }, [profile]);
 
+  useEffect(() => {
+    (GetStartupKYCStatus() as any)
+      .then((res: any) => {
+        const d = res?.data ?? res;
+        if (d?.workflowStatus) setKycWorkflowStatus(d.workflowStatus);
+      })
+      .catch(() => {});
+  }, []);
+
   const cfg = STATUS_MAP[status];
   const Icon = cfg.icon;
   const isPending = status === "PendingApproval";
+  const isKycApproved = kycWorkflowStatus === "APPROVED";
   const normalizedProfileStatus = String(profile?.profileStatus ?? "")
     .trim()
     .toUpperCase();
-  const isProfileApproved = normalizedProfileStatus === "APPROVED";
   const profileStatusLabel = PROFILE_STATUS_LABELS[normalizedProfileStatus] ?? profile?.profileStatus ?? TEXT.profileStatusUnknown;
 
   const showVisibilityNotAllowedToast = () => {
@@ -274,7 +286,7 @@ export default function StartupVisibilityPage() {
             <h3 className="text-[13px] font-semibold text-slate-700">{TEXT.changeVisibility}</h3>
             <p className="mt-0.5 text-[12px] text-slate-400">{TEXT.changeVisibilityDesc}</p>
           </div>
-          {!isProfileApproved && (
+          {!isKycApproved && (
             <div className="mx-4 mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
@@ -301,7 +313,7 @@ export default function StartupVisibilityPage() {
                   key={itemStatus}
                   type="button"
                   onClick={() => void handleSetStatus(itemStatus)}
-                  disabled={active || isUpdating || (itemStatus === "Visible" && !isProfileApproved)}
+                  disabled={active || isUpdating || (itemStatus === "Visible" && !isKycApproved)}
                   className={cn(
                     "flex w-full items-center gap-4 rounded-xl border p-4 text-left transition-all",
                     active
@@ -334,7 +346,7 @@ export default function StartupVisibilityPage() {
       )}
 
       <div className="flex items-start gap-3 rounded-xl border border-slate-200/60 bg-white px-5 py-4">
-        <div className={cn("mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full", isProfileApproved ? "bg-emerald-500" : "bg-amber-400")} />
+        <div className={cn("mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full", isKycApproved ? "bg-emerald-500" : "bg-amber-400")} />
         <div>
           <p className="text-[12px] font-medium text-slate-600">{TEXT.profileApprovalStatus}</p>
           <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">{profileStatusLabel}</p>
