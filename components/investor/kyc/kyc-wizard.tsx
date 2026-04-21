@@ -330,14 +330,14 @@ export function KYCWizard({ initialStatus, isResubmit = false, profileInvestorTy
                   <button
                     key={opt.value}
                     type="button"
-                    disabled={isResubmit}
+                    disabled={isResubmit || !!profileInvestorType}
                     onClick={() => { set("investorCategory", opt.value); clearErr("investorCategory"); }}
                     className={cn(
                       "flex flex-col items-start px-4 py-3.5 rounded-xl border-2 text-left transition-all",
                       formData.investorCategory === opt.value
                         ? "border-[#171611] bg-[#171611]/5 ring-1 ring-[#171611]/10"
                         : "border-slate-200 bg-white hover:border-slate-300",
-                      isResubmit && "cursor-not-allowed opacity-70"
+                      (isResubmit || !!profileInvestorType) && "cursor-not-allowed opacity-70"
                     )}
                   >
                     <span className={cn("text-[13px] font-bold", formData.investorCategory === opt.value ? "text-slate-900" : "text-slate-600")}>
@@ -347,8 +347,8 @@ export function KYCWizard({ initialStatus, isResubmit = false, profileInvestorTy
                   </button>
                 ))}
               </div>
-              {isResubmit && (
-                <p className="text-[11px] text-slate-400 mt-1.5">Loại nhà đầu tư không thể thay đổi khi gửi lại hồ sơ.</p>
+              {(isResubmit || !!profileInvestorType) && (
+                <p className="text-[11px] text-slate-400 mt-1.5">Loại nhà đầu tư được xác định từ hồ sơ đã tạo và không thể thay đổi.</p>
               )}
               <ErrNote name="investorCategory" />
             </div>

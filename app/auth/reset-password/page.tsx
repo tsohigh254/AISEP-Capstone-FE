@@ -117,8 +117,16 @@ function ResetPasswordContent() {
         setErrors({ newPassword: newPwErrs.join(" "), confirmPassword: cfPwErrs.join(" ") });
         if (generalErrs.length > 0) setApiError(generalErrs.join(" "));
       } else {
-        const msg = res.message || "Đặt lại mật khẩu không thành công";
-        if (msg.toLowerCase().includes("expired") || msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("hết hạn")) {
+        const rawMsg = res.message || "";
+        let msg: string;
+        if (rawMsg === "User does not exists") {
+          msg = "Email không tồn tại trong hệ thống.";
+        } else if (rawMsg === "Passwords do not match") {
+          msg = "Mật khẩu xác nhận không khớp.";
+        } else {
+          msg = rawMsg || "Đặt lại mật khẩu không thành công";
+        }
+        if (rawMsg.toLowerCase().includes("expired") || rawMsg.toLowerCase().includes("invalid") || rawMsg.toLowerCase().includes("hết hạn")) {
           setIsExpired(true);
         }
         setApiError(msg);

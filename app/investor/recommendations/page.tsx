@@ -46,7 +46,7 @@ export default function RecommendationsPage() {
       })
       .catch((err) => {
         if (mounted) {
-          setError(err?.response?.data?.message || err.message || "Unable to load recommendations");
+          setError(err?.response?.data?.message || err.message || "Không thể tải danh sách gợi ý. Vui lòng thử lại.");
           setLoading(false);
         }
       });

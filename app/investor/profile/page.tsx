@@ -193,7 +193,9 @@ export default function InvestorProfileViewPage() {
   const websiteDisplay = profile.website || profile.linkedInURL;
   const thesisSummary = presentation.shortSummary;
   const isKycVerified = isInvestorKycVerified(profile, kycStatus);
-  const connectionLabel = profile.acceptingConnections
+  // Chỉ trust acceptingConnections khi đã KYC VERIFIED (BE default bug: true cho tài khoản mới)
+  const effectiveAcceptingConnections = isKycVerified && profile.acceptingConnections;
+  const connectionLabel = effectiveAcceptingConnections
     ? "Đang tìm kiếm dự án"
     : "Tạm đóng kết nối";
 
@@ -211,7 +213,7 @@ export default function InvestorProfileViewPage() {
               <span
                 className={cn(
                   "h-1.5 w-1.5 flex-shrink-0 rounded-full",
-                  profile.acceptingConnections ? "bg-emerald-400" : "bg-slate-400",
+                  effectiveAcceptingConnections ? "bg-emerald-400" : "bg-slate-400",
                 )}
               />
               {connectionLabel}
@@ -340,8 +342,7 @@ export default function InvestorProfileViewPage() {
             {(presentation.heroIdentityLine ||
               presentation.organizationName ||
               presentation.representativeName) && (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
                   <div className="mb-3 flex items-center gap-2">
                     <Brain className="h-4 w-4 text-[#C8A000]" />
                     <h3 className="text-[13px] font-semibold text-slate-700">
@@ -356,6 +357,7 @@ export default function InvestorProfileViewPage() {
                       : presentation.heroIdentityLine}
                   </p>
                 </div>
+            )}
 
                 {profile.supportOffered?.length > 0 && (
                   <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
@@ -370,8 +372,6 @@ export default function InvestorProfileViewPage() {
                     </p>
                   </div>
                 )}
-              </div>
-            )}
 
             {thesisSummary && (
               <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">

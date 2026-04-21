@@ -563,7 +563,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                 }
             } catch (e: any) {
                 if (cancelled) return;
-                setError(e?.message ?? "Failed to load document");
+                setError(e?.message ?? "Không thể tải tài liệu. Vui lòng thử lại.");
             } finally {
                 if (!cancelled) setLoading(false);
             }

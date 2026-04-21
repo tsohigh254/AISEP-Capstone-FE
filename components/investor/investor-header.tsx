@@ -455,7 +455,7 @@ export function InvestorHeader({
                   </div>
                 </div>
 
-                <div className="p-2">
+                <div className="p-1.5">
                   {[
                     { icon: Building2, label: "Hồ sơ investor", href: "/investor/profile", desc: "Thông tin & tài liệu" },
                     { icon: ShieldAlert, label: "Báo cáo của tôi", href: "/investor/issue-reports", desc: "Theo dõi các báo cáo đã gửi" },
@@ -467,17 +467,17 @@ export function InvestorHeader({
                         <Link
                           key={link.href}
                           href={link.href as string}
-                          className="flex items-center gap-3.5 px-3 py-3 rounded-2xl hover:bg-slate-50 transition-colors group/item"
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#f8f7f2] transition-colors group/item"
                           onClick={() => setIsDropdownOpen(false)}
                         >
-                          <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center group-hover/item:border-slate-200 transition-colors flex-shrink-0">
-                            <link.icon className="w-4.5 h-4.5 text-slate-500 transition-colors" />
+                          <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover/item:bg-[#e6cc4c]/15 transition-colors flex-shrink-0">
+                            <link.icon className="w-4 h-4 text-[#171611]/50 group-hover/item:text-[#C8A000] transition-colors" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[14px] font-bold text-[#171611] transition-colors leading-none tracking-tight">{link.label}</p>
-                            <p className="text-[11px] text-slate-400 font-medium mt-1.5">{link.desc}</p>
+                            <p className="text-[12.5px] font-bold text-[#171611]/80 group-hover/item:text-[#171611] transition-colors leading-none">{link.label}</p>
+                            <p className="text-[10px] text-[#878164]/70 font-medium mt-0.5">{link.desc}</p>
                           </div>
-                          <ChevronRight className="w-4 h-4 text-slate-300 transition-colors flex-shrink-0" />
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover/item:text-slate-400 transition-colors flex-shrink-0" />
                         </Link>
                       );
                     } else {
@@ -488,33 +488,33 @@ export function InvestorHeader({
                             link.onClick?.();
                             setIsDropdownOpen(false);
                           }}
-                          className="w-full flex items-center gap-3.5 px-3 py-3 rounded-2xl hover:bg-slate-50 transition-colors group/item"
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#f8f7f2] transition-colors group/item"
                         >
-                          <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center group-hover/item:border-slate-200 transition-colors flex-shrink-0">
-                            <link.icon className="w-4.5 h-4.5 text-slate-500 transition-colors" />
+                          <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center group-hover/item:bg-[#e6cc4c]/15 transition-colors flex-shrink-0">
+                            <link.icon className="w-4 h-4 text-[#171611]/50 group-hover/item:text-[#C8A000] transition-colors" />
                           </div>
                           <div className="flex-1 min-w-0 text-left">
-                            <p className="text-[14px] font-bold text-[#171611] transition-colors leading-none tracking-tight">{link.label}</p>
-                            <p className="text-[11px] text-slate-400 font-medium mt-1.5">{link.desc}</p>
+                            <p className="text-[12.5px] font-bold text-[#171611]/80 group-hover/item:text-[#171611] transition-colors leading-none">{link.label}</p>
+                            <p className="text-[10px] text-[#878164]/70 font-medium mt-0.5">{link.desc}</p>
                           </div>
-                          <ChevronRight className="w-4 h-4 text-slate-300 transition-colors flex-shrink-0" />
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover/item:text-slate-400 transition-colors flex-shrink-0" />
                         </button>
                       );
                     }
                   })}
                 </div>
 
-                <div className="h-px bg-slate-100 mx-5" />
+                <div className="h-px bg-slate-100 mx-3" />
 
-                <div className="p-2">
+                <div className="p-1.5">
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-3.5 px-3 py-3 rounded-2xl hover:bg-red-50 transition-colors group/item"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-50/70 transition-colors group/item"
                   >
-                    <div className="w-9 h-9 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center flex-shrink-0 group-hover/item:border-red-200 transition-colors">
-                      <LogOut className="w-4.5 h-4.5 text-red-500" />
+                    <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
+                      <LogOut className="w-4 h-4 text-red-400" />
                     </div>
-                    <span className="text-[14px] font-bold text-red-500 text-left">Đăng xuất</span>
+                    <span className="text-[12.5px] font-bold text-red-500 text-left">Đăng xuất</span>
                   </button>
                 </div>
               </div>

@@ -113,7 +113,7 @@ export default function AIDetailedReportPage() {
     const runId = parseInt(String(idStr), 10);
     if (isNaN(runId)) {
       setIsLoading(false);
-      setLoadError("Invalid evaluation id");
+      setLoadError("ID đánh giá không hợp lệ.");
       return;
     }
 

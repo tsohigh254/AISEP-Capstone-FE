@@ -181,7 +181,7 @@ export default function StartupDocumentsPage() {
                 setLocalDocs(items.map(mapBackendDocToUi));
             } catch (e: any) {
                 if (cancelled) return;
-                setError(e?.message ?? "Failed to load documents");
+                setError(e?.message ?? "Không thể tải danh sách tài liệu. Vui lòng thử lại.");
                 setLocalDocs([]);
             } finally {
                 if (!cancelled) setLoading(false);

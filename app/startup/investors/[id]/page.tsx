@@ -177,13 +177,13 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
         try {
             const res = await AcceptConnection(connection.connectionID);
             if (res?.success || res?.isSuccess) {
-                toast.success("Da chap nhan ket noi.");
+                toast.success("Đã chấp nhận kết nối.");
                 await loadConnection();
             } else {
-                toast.error(res?.message || "Khong the chap nhan ket noi.");
+                toast.error(res?.message || "Không thể chấp nhận kết nối.");
             }
         } catch {
-            toast.error("Co loi khi chap nhan ket noi.");
+            toast.error("Có lỗi khi chấp nhận kết nối.");
         } finally {
             setRespondingAction(null);
         }
@@ -194,18 +194,18 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
         setRespondingAction("reject");
         try {
             const res = await RejectConnection(connection.connectionID, {
-                reason: "Khong phu hop o thoi diem hien tai",
+                reason: "Không phù hợp ở thời điểm hiện tại",
             });
             if (res?.success || res?.isSuccess) {
-                toast.success("Da tu choi loi moi ket noi.");
+                toast.success("Đã từ chối lời mời kết nối.");
                 setConnection(null);
                 setHasPendingIncomingInvite(false);
                 await loadConnection();
             } else {
-                toast.error(res?.message || "Khong the tu choi ket noi.");
+                toast.error(res?.message || "Không thể từ chối kết nối.");
             }
         } catch {
-            toast.error("Co loi khi tu choi ket noi.");
+            toast.error("Có lỗi khi từ chối kết nối.");
         } finally {
             setRespondingAction(null);
         }

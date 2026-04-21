@@ -129,6 +129,7 @@ export default function InvestorSettingsPage() {
     const [profileStatus, setProfileStatus] = useState<string | null>(null);
     const [kycWorkflowStatus, setKycWorkflowStatus] = useState<string | null>(null);
     const [acceptingConnections, setAcceptingConnections] = useState(false);
+    const [hasInvestorProfile, setHasInvestorProfile] = useState<boolean | null>(null);
     const [isLoadingConnectionSetting, setIsLoadingConnectionSetting] = useState(true);
     const [isTogglingConnections, setIsTogglingConnections] = useState(false);
     const [connectionSettingError, setConnectionSettingError] = useState<string | null>(null);
@@ -136,6 +137,8 @@ export default function InvestorSettingsPage() {
 
     const isDirty = JSON.stringify(prefs) !== JSON.stringify(originalPrefs.current);
     const isKycVerified = kycWorkflowStatus === "VERIFIED" && !blockedByApprovalError;
+    // Khi chưa VERIFIED, toggle luôn hiện false dù BE trả về true (BE default bug)
+    const effectiveAcceptingConnections = isKycVerified ? acceptingConnections : false;
     const profileStatusLabel = profileStatus
         ? (PROFILE_STATUS_LABELS[profileStatus] ?? profileStatus)
         : "Unknown";
@@ -150,14 +153,14 @@ export default function InvestorSettingsPage() {
 
             try {
                 const profileRes = await GetInvestorProfile();
+                const profileResMsg = profileRes.message;
 
-                if (!isSuccessResponse(profileRes) || !profileRes.data) {
+                if (!isSuccessResponse(profileRes)) {
+                    // Lỗi thực sự từ API (4xx/5xx)
                     const errorCode = getBackendErrorCode(profileRes);
 
                     if (!isDisposed) {
-                        if (errorCode === "INVESTOR_PROFILE_NOT_FOUND") {
-                            setConnectionSettingError("Kh\u00f4ng t\u00ecm th\u1ea5y h\u1ed3 s\u01a1 investor.");
-                        } else if (errorCode === "INVESTOR_ACCOUNT_INACTIVE") {
+                        if (errorCode === "INVESTOR_ACCOUNT_INACTIVE") {
                             setBlockedByApprovalError(true);
                             setConnectionSettingError("T\u00e0i kho\u1ea3n \u0111ang b\u1ecb kh\u00f3a ho\u1eb7c ng\u01b0ng ho\u1ea1t \u0111\u1ed9ng.");
                         } else if (errorCode === "INVESTOR_PROFILE_NOT_APPROVED") {
@@ -167,24 +170,29 @@ export default function InvestorSettingsPage() {
                             setBlockedByApprovalError(true);
                             setConnectionSettingError("KYC ch\u01b0a \u0111\u01b0\u1ee3c duy\u1ec7t ho\u1eb7c kh\u00f4ng c\u00f2n h\u1ee3p l\u1ec7.");
                         } else {
-                            setConnectionSettingError(profileRes?.message || "Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c c\u00e0i \u0111\u1eb7t nh\u1eadn k\u1ebft n\u1ed1i.");
+                            setConnectionSettingError(profileResMsg || "Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c c\u00e0i \u0111\u1eb7t nh\u1eadn k\u1ebft n\u1ed1i.");
                         }
+                        setHasInvestorProfile(false);
                     }
                     return;
                 }
 
                 if (isDisposed) return;
+
+                // data: null → chưa tạo investor profile → ẩn section
+                if (!profileRes.data) {
+                    setHasInvestorProfile(false);
+                    return;
+                }
+
+                setHasInvestorProfile(true);
                 setProfileStatus(profileRes.data.profileStatus ?? null);
                 setAcceptingConnections(Boolean(profileRes.data.acceptingConnections));
 
-                // Proactive KYC status fetch
-                try {
-                    const kycRes = await GetInvestorKYCStatus();
-                    if (!isDisposed && kycRes?.data?.workflowStatus) {
-                        setKycWorkflowStatus(kycRes.data.workflowStatus);
-                    }
-                } catch {
-                    // KYC fetch failure is non-critical; UI will show disabled state
+                // KYC luôn trả 200 với workflowStatus (NOT_STARTED / VERIFIED / ...)
+                const kycRes = await GetInvestorKYCStatus();
+                if (!isDisposed && kycRes?.data?.workflowStatus) {
+                    setKycWorkflowStatus(kycRes.data.workflowStatus);
                 }
             } catch (error) {
                 const status = getHttpStatusCode(error);
@@ -511,7 +519,8 @@ export default function InvestorSettingsPage() {
                 </div>
             </SectionCard>
 
-            <SectionCard
+            {/* Chỉ hiển thị section khi đã tạo investor profile */}
+            {hasInvestorProfile !== false && <SectionCard
                 id="connection-availability"
                 title={"Nh\u1eadn y\u00eau c\u1ea7u k\u1ebft n\u1ed1i"}
                 icon={Users}
@@ -530,7 +539,7 @@ export default function InvestorSettingsPage() {
                                     {"Cho ph\u00e9p startup g\u1eedi y\u00eau c\u1ea7u k\u1ebft n\u1ed1i m\u1edbi"}
                                 </p>
                                 <p className="mt-1 text-[12px] text-slate-500">
-                                    {acceptingConnections
+                                    {effectiveAcceptingConnections
                                         ? "Hi\u1ec7n \u0111ang nh\u1eadn y\u00eau c\u1ea7u m\u1edbi."
                                         : "Hi\u1ec7n \u0111ang t\u1ea1m d\u1eebng nh\u1eadn y\u00eau c\u1ea7u m\u1edbi."}
                                 </p>
@@ -538,7 +547,7 @@ export default function InvestorSettingsPage() {
                             <div className="flex items-center gap-2 pt-0.5">
                                 {isTogglingConnections && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
                                 <Toggle
-                                    checked={acceptingConnections}
+                                    checked={effectiveAcceptingConnections}
                                     onChange={handleToggleAcceptingConnections}
                                     disabled={!isKycVerified || isTogglingConnections}
                                 />
@@ -566,7 +575,7 @@ export default function InvestorSettingsPage() {
                         </div>
                     </div>
                 )}
-            </SectionCard>
+            </SectionCard>}
 
             {/* Section B: Bảo mật & Đổi mật khẩu */}
             <SectionCard 
@@ -646,69 +655,6 @@ export default function InvestorSettingsPage() {
                     >
                         Đăng xuất khỏi tất cả thiết bị
                     </button>
-                </div>
-            </SectionCard>
-
-            {/* Section D: Thông báo */}
-            <SectionCard 
-                title="Tùy chọn thông báo" 
-                icon={Bell} 
-                description="Cấu hình cách bạn muốn nhận cập nhật từ nền tảng."
-            >
-                <div className="space-y-6">
-                    <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all">
-                        <div>
-                            <p className="text-[14px] font-bold text-slate-800">Thông báo trong ứng dụng</p>
-                            <p className="text-[12px] text-slate-500">Hiển thị thông báo mới ở biểu tượng quả chuông trên Header.</p>
-                        </div>
-                        <button 
-                            type="button"
-                            onClick={() => {
-                                setPrefs(p => ({ ...p, inApp: !p.inApp }));
-                            }}
-                            className={cn(
-                                "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#eec54e] focus:ring-offset-2",
-                                prefs.inApp ? "bg-[#eec54e]" : "bg-slate-200"
-                            )}
-                        >
-                            <span className={cn(
-                                "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                                prefs.inApp ? "translate-x-5" : "translate-x-0"
-                            )} />
-                        </button>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all">
-                        <div>
-                            <p className="text-[14px] font-bold text-slate-800">Thông báo qua Email</p>
-                            <p className="text-[12px] text-slate-500">Gửi cập nhật quan trọng về các cơ hội đầu tư tới hòm thư của bạn.</p>
-                        </div>
-                        <button 
-                            type="button"
-                            onClick={() => {
-                                setPrefs(p => ({ ...p, email: !p.email }));
-                            }}
-                            className={cn(
-                                "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#eec54e] focus:ring-offset-2",
-                                prefs.email ? "bg-[#eec54e]" : "bg-slate-200"
-                            )}
-                        >
-                            <span className={cn(
-                                "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                                prefs.email ? "translate-x-5" : "translate-x-0"
-                            )} />
-                        </button>
-                    </div>
-
-                    <div className="flex justify-end pt-2">
-                        <button 
-                            onClick={handleSavePrefs}
-                            disabled={!isDirty || saving}
-                            className="px-8 h-10 bg-[#171611] text-white text-[13px] font-bold rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2 disabled:opacity-30"
-                        >
-                            {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Đang lưu...</> : "Lưu thay đổi"}
-                        </button>
-                    </div>
                 </div>
             </SectionCard>
 

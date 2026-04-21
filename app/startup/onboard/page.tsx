@@ -140,7 +140,12 @@ export default function OnboardingPage() {
           apiError.response?.data?.message &&
           apiError.response.data.message !== "Validation failed"
         ) {
-          msg = apiError.response.data.message;
+          const rawMsg = apiError.response.data.message;
+          if (/Industry with ID \d+ does not exist/i.test(rawMsg)) {
+            msg = "Ngành nghề được chọn không hợp lệ. Vui lòng chọn lại.";
+          } else {
+            msg = rawMsg;
+          }
         } else if (
           apiError.response?.data?.title &&
           apiError.response.data.title !== "Validation failed"
@@ -150,7 +155,7 @@ export default function OnboardingPage() {
           msg = apiError.response.data.detail;
         }
 
-        toast.error(`Chi tiết lỗi: ${msg}`);
+        toast.error(msg);
       }
     } finally {
       setLoading(false);
