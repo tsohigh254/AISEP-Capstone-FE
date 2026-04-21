@@ -30,8 +30,9 @@ export default function RegisterPage() {
   const router = useRouter();
 
   const [showPassword, setShowPassword] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<Role>("startup");
-  const [fullName, setFullName] = useState("");
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -114,6 +115,11 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!selectedRole) {
+      setError("Vui lòng chọn vai trò của bạn");
+      return;
+    }
+
     if (!agreedTerms) {
       setError("Vui lòng đồng ý với Điều khoản sử dụng và Chính sách bảo mật");
       return;
@@ -122,7 +128,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const userType = mapRoleToUserType(selectedRole);
+      const userType = mapRoleToUserType(selectedRole!);
       const res = await Register(email, password, confirmPassword, userType);
 
       if (res.isSuccess && res.statusCode === 200) {
@@ -230,7 +236,7 @@ export default function RegisterPage() {
                         name="role"
                         value={role.id}
                         checked={selectedRole === role.id}
-                        onChange={() => setSelectedRole(role.id)}
+                        onChange={() => setSelectedRole(role.id as Role)}
                         className="sr-only peer"
                       />
                       <div className={`h-full border-2 rounded-xl p-4 transition-all text-center flex flex-col items-center ${
@@ -251,21 +257,7 @@ export default function RegisterPage() {
 
               {/* Form Inputs */}
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-900">Họ và tên</label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                      <input
-                        type="text"
-                        placeholder="Nguyễn Văn A"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border-none rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#f0f042]"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
+                <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-900">Email</label>
                     <div className="relative">
                       <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${emailError ? "text-red-500" : "text-slate-400"}`} />
@@ -288,7 +280,6 @@ export default function RegisterPage() {
                       </p>
                     )}
                   </div>
-                </div>
 
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-900">Mật khẩu</label>
@@ -326,12 +317,19 @@ export default function RegisterPage() {
                   <div className="relative">
                     <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
                     <input
-                      type="password"
+                      type={showConfirmPassword ? "text" : "password"}
                       placeholder="••••••••"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border-none rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#f0f042]"
+                      className="w-full pl-10 pr-12 py-3 bg-slate-50 border-none rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#f0f042]"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
                   </div>
                 </div>
               </div>

@@ -408,9 +408,6 @@ function StartupInfoPageInner() {
                                     <option value={StartupStage.Idea.toString()}>Hạt giống (Idea)</option>
                                     <option value={StartupStage.PreSeed.toString()}>Tiền ươm mầm (Pre-Seed)</option>
                                     <option value={StartupStage.Seed.toString()}>Ươm mầm (Seed)</option>
-                                    <option value={StartupStage.SeriesA.toString()}>Series A</option>
-                                    <option value={StartupStage.SeriesB.toString()}>Series B</option>
-                                    <option value={StartupStage.SeriesC.toString()}>Series C+</option>
                                     <option value={StartupStage.Growth.toString()}>Tăng trưởng (Growth)</option>
                                 </select>
                             </div>

@@ -2,9 +2,6 @@ export type InvestorPreferredStageValue =
     | "Idea"
     | "PreSeed"
     | "Seed"
-    | "SeriesA"
-    | "SeriesB"
-    | "SeriesC"
     | "Growth";
 
 export const INVESTOR_PREFERRED_STAGE_OPTIONS: Array<{
@@ -14,9 +11,6 @@ export const INVESTOR_PREFERRED_STAGE_OPTIONS: Array<{
     { value: "Idea", label: "Idea" },
     { value: "PreSeed", label: "Pre-Seed" },
     { value: "Seed", label: "Seed" },
-    { value: "SeriesA", label: "Series A" },
-    { value: "SeriesB", label: "Series B" },
-    { value: "SeriesC", label: "Series C+" },
     { value: "Growth", label: "Growth" },
 ];
 
@@ -25,12 +19,6 @@ const STAGE_VALUE_BY_INPUT: Record<string, InvestorPreferredStageValue> = {
     PreSeed: "PreSeed",
     "Pre-Seed": "PreSeed",
     Seed: "Seed",
-    SeriesA: "SeriesA",
-    "Series A": "SeriesA",
-    SeriesB: "SeriesB",
-    "Series B": "SeriesB",
-    SeriesC: "SeriesC",
-    "Series C+": "SeriesC",
     Growth: "Growth",
     "IPO Ready": "Growth",
 };

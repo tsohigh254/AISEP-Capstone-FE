@@ -146,9 +146,6 @@ export function Step1({ data, update, onNext }: Step1Props) {
                 <option value={StartupStage.Idea.toString()}>Ý tưởng (Idea)</option>
                 <option value={StartupStage.PreSeed.toString()}>Tiền ươm mầm (Pre-Seed)</option>
                 <option value={StartupStage.Seed.toString()}>Ươm mầm (Seed)</option>
-                <option value={StartupStage.SeriesA.toString()}>Series A</option>
-                <option value={StartupStage.SeriesB.toString()}>Series B</option>
-                <option value={StartupStage.SeriesC.toString()}>Series C+</option>
                 <option value={StartupStage.Growth.toString()}>Tăng trưởng (Growth)</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
