@@ -49,12 +49,12 @@ function formatUploadedAt(uploadedAt?: string | null): string {
     return `${dd}/${mm}/${yyyy}`;
 }
 
-type DocType = "Pitch Deck" | "Bussiness Plan" | "Không xác định";
+type DocType = "Pitch Deck" | "Bussiness Plan" | "Khác" | "Không xác định";
 function mapBackendTypeToUiType(documentType?: string | null): DocType {
     const t = String(documentType ?? "").toLowerCase();
-    // Chỉ cho phép 2 loại: Pitch Deck và Bussiness Plan
     if (t === "0" || t === "pitch_deck" || t === "pitchdeck" || t.includes("pitch")) return "Pitch Deck";
     if (t === "1" || t === "business_plan" || t === "bussiness_plan" || t === "businessplan" || t.includes("business") || t.includes("plan")) return "Bussiness Plan";
+    if (t === "2" || t === "other" || t === "khác") return "Khác";
     return "Không xác định";
 }
 
@@ -239,7 +239,10 @@ export default function StartupDocumentsPage() {
             const payload: { title?: string; documentType?: DocumentType } = {};
             if (editName.trim() !== editState.currentName) payload.title = editName.trim();
             if (editType !== editState.currentType) {
-                payload.documentType = editType === "Pitch_Deck" ? DocumentType.Pitch_Deck : DocumentType.Bussiness_Plan;
+                payload.documentType =
+                    editType === "Pitch_Deck" ? DocumentType.Pitch_Deck :
+                    editType === "Bussiness_Plan" ? DocumentType.Bussiness_Plan :
+                    DocumentType.Other;
             }
             if (Object.keys(payload).length === 0) { setEditState(null); return; }
             await AddMetaData(Number(editState.docId), payload);
@@ -494,6 +497,7 @@ export default function StartupDocumentsPage() {
                                 >
                                     <option value="Pitch_Deck">Pitch Deck</option>
                                     <option value="Bussiness_Plan">Business Plan</option>
+                                    <option value="Other">Khác</option>
                                 </select>
                                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                             </div>

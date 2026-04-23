@@ -36,7 +36,7 @@ const COMPLAINTS_DATA = [
     against: "Advisor Nguyễn Văn M",
     severity: "HIGH",
     status: "NEW",
-    submittedAt: "2024-03-24T08:30:00Z",
+    submittedAt: "2026-03-24T08:30:00Z",
   },
   {
     id: "DS-9902",
@@ -46,7 +46,7 @@ const COMPLAINTS_DATA = [
     against: "Advisor Lê Thị K",
     severity: "CRITICAL",
     status: "UNDER_REVIEW",
-    submittedAt: "2024-03-24T09:15:00Z",
+    submittedAt: "2026-03-24T09:15:00Z",
   },
   {
     id: "FF-7703",
@@ -56,7 +56,7 @@ const COMPLAINTS_DATA = [
     against: "User Trần Văn X",
     severity: "MEDIUM",
     status: "NEW",
-    submittedAt: "2024-03-24T10:00:00Z",
+    submittedAt: "2026-03-24T10:00:00Z",
   },
   {
     id: "CP-8804",
@@ -66,7 +66,7 @@ const COMPLAINTS_DATA = [
     against: "Advisor Phạm Hoàng N",
     severity: "LOW",
     status: "RESOLVED",
-    submittedAt: "2024-03-23T14:20:00Z",
+    submittedAt: "2026-03-23T14:20:00Z",
   },
 ];
 

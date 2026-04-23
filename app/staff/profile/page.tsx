@@ -105,9 +105,9 @@ export default function StaffProfilePage() {
 
                     {/* Quick Info Tags */}
                     <div className="flex flex-wrap items-center gap-2 mb-6">
-                        <Tag variant="violet"><ShieldCheck className="w-3 h-3" />ID: #ST-2024-001</Tag>
+                        <Tag variant="violet"><ShieldCheck className="w-3 h-3" />ID: #ST-2026-001</Tag>
                         <Tag variant="blue"><Mail className="w-3 h-3" />{userEmail}</Tag>
-                        <Tag variant="amber"><Clock className="w-3 h-3" />Gia nhập: 22/03/2024</Tag>
+                        <Tag variant="amber"><Clock className="w-3 h-3" />Gia nhập: 22/03/2026</Tag>
                         <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-md text-[11px] text-slate-400 border border-slate-100 font-medium">
                             <MapPin className="w-3 h-3" />
                             Hà Nội, Việt Nam
@@ -198,8 +198,8 @@ export default function StaffProfilePage() {
                             <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Chứng chỉ & Quyền hạn</h3>
                             <div className="space-y-3">
                                 {[
-                                    { icon: ShieldCheck, label: "KYC Checker", date: "Cấp ngày 01/01/2024" },
-                                    { icon: Briefcase, label: "Platform Auditor", date: "Cấp ngày 15/02/2024" },
+                                    { icon: ShieldCheck, label: "KYC Checker", date: "Cấp ngày 01/01/2026" },
+                                    { icon: Briefcase, label: "Platform Auditor", date: "Cấp ngày 15/02/2026" },
                                 ].map((badge, i) => (
                                     <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100/50">
                                         <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center shadow-sm">

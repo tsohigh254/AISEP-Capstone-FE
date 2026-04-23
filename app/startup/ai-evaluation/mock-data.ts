@@ -21,8 +21,8 @@ export const mockReadiness: ReadinessSummary = {
       { label: "Tài liệu thuộc quyền sở hữu của startup", ready: true },
     ],
     eligibleDocs: [
-      { id: "doc-1", name: "Pitch Deck Q1 2024 — EcoTrack.pdf", type: "PITCH_DECK", updatedAt: "20/03/2024", recommended: true },
-      { id: "doc-2", name: "Business Plan — EcoTrack v2.1.pdf", type: "BUSINESS_PLAN", updatedAt: "18/03/2024", recommended: true },
+      { id: "doc-1", name: "Pitch Deck Q1 2026 — EcoTrack.pdf", type: "PITCH_DECK", updatedAt: "20/03/2026", recommended: true },
+      { id: "doc-2", name: "Business Plan — EcoTrack v2.1.pdf", type: "BUSINESS_PLAN", updatedAt: "18/03/2026", recommended: true },
     ],
   },
 };
@@ -33,7 +33,7 @@ export const mockProfile: ProfileSnapshot = {
   industry: "CleanTech / SaaS",
   foundedYear: 2023,
   teamSize: 8,
-  lastUpdated: "20/03/2024",
+  lastUpdated: "20/03/2026",
 };
 
 /* ─── Mock Reports ────────────────────────────────────────── */
@@ -51,13 +51,13 @@ export const mockReports: AIEvaluationReport[] = [
     productScore: 80,
     tractionScore: 65,
     financialScore: 70,
-    calculatedAt: "20/03/2024 14:30",
-    generatedAt: "20/03/2024 14:32",
+    calculatedAt: "20/03/2026 14:30",
+    generatedAt: "20/03/2026 14:32",
     isCurrent: true,
     configVersion: "v2.1.0",
     modelVersion: "claude-sonnet-4-20250514",
     promptVersion: "eval-prompt-v3.2",
-    snapshotLabel: "Đánh giá Q1 2024",
+    snapshotLabel: "Đánh giá Q1 2026",
     warningMessages: [
       "Dữ liệu tài chính chỉ cập nhật đến Q4/2023, một số chỉ số có thể không phản ánh tình hình hiện tại.",
     ],
@@ -140,8 +140,8 @@ export const mockReports: AIEvaluationReport[] = [
     productScore: 62,
     tractionScore: 50,
     financialScore: 55,
-    calculatedAt: "15/02/2024 10:00",
-    generatedAt: "15/02/2024 10:03",
+    calculatedAt: "15/02/2026 10:00",
+    generatedAt: "15/02/2026 10:03",
     isCurrent: false,
     configVersion: "v2.0.0",
     modelVersion: "claude-sonnet-4-20250514",
@@ -224,7 +224,7 @@ export const mockReports: AIEvaluationReport[] = [
     productScore: 0,
     tractionScore: 0,
     financialScore: 0,
-    calculatedAt: "01/01/2024 09:00",
+    calculatedAt: "01/01/2026 09:00",
     generatedAt: "",
     isCurrent: false,
     configVersion: "v1.8.0",

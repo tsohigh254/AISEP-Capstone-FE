@@ -384,7 +384,7 @@ export default function AboutPage() {
         </div>
 
         <div className="max-w-7xl mx-auto mt-12 sm:mt-20 pt-8 sm:pt-10 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 sm:gap-6">
-          <p className="text-sm font-bold text-slate-500">© 2024 AISEP. Tất cả quyền được bảo lưu.</p>
+          <p className="text-sm font-bold text-slate-500">© 2026 AISEP. Tất cả quyền được bảo lưu.</p>
           <div className="flex gap-8">
             <button className="text-slate-500 hover:text-[#FACC15] transition-colors">
               <BarChart className="h-5 w-5" />

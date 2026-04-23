@@ -54,12 +54,12 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
     status: "UNDER_REVIEW",
     submittedBy: "Startup Alpha (Nguyễn Văn A)",
     against: "Advisor Lê Thị K",
-    submittedAt: "2024-03-24T09:15:00Z",
+    submittedAt: "2026-03-24T09:15:00Z",
     description: "Tôi yêu cầu hoàn tiền cho buổi tư vấn #SS-8821. Cố vấn vắng mặt 20 phút và không cung cấp đủ tài liệu như đã cam kết trong phần mô tả slot. Tôi đã cố gắng liên hệ nhưng không nhận được phản hồi thỏa đáng.",
     relatedSession: {
       id: "SS-8821",
       title: "Tư vấn lộ trình gọi vốn Series A",
-      date: "2024-03-22",
+      date: "2026-03-22",
       amount: "2,500,000đ"
     }
   };

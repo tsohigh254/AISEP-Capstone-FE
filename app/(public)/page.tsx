@@ -643,7 +643,7 @@ export default function PublicHomePage() {
                       <label className="block text-xs font-black text-slate-400 uppercase tracking-widest">Nội dung thảo luận</label>
                       <textarea
                         className="w-full bg-slate-50 border-slate-200 border rounded-xl py-4 px-5 text-base font-bold focus:ring-[#FACC15] focus:border-[#FACC15]"
-                        placeholder="Ví dụ: Review kế hoạch tài chính năm 2024..."
+                        placeholder="Ví dụ: Review kế hoạch tài chính năm 2026..."
                         rows={3}
                       ></textarea>
                     </div>

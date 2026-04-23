@@ -2,7 +2,8 @@ import axios from "../interceptor";
 
 export enum DocumentType {
     Pitch_Deck = 0,
-    Bussiness_Plan = 1
+    Bussiness_Plan = 1,
+    Other = 2
 }
 
 interface IDocumentRequest{

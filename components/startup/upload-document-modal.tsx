@@ -79,7 +79,9 @@ export function UploadDocumentModal({ isOpen, onClose, onUploaded }: UploadDocum
         setSubmitError(null);
         try {
             const documentType =
-                formData.category === "Pitch Deck" ? DocumentType.Pitch_Deck : DocumentType.Bussiness_Plan;
+                formData.category === "Pitch Deck" ? DocumentType.Pitch_Deck :
+                formData.category === "Bussiness Plan" ? DocumentType.Bussiness_Plan :
+                DocumentType.Other;
 
             const res = await UploadDocument({
                 file: selectedFile,
@@ -195,7 +197,7 @@ export function UploadDocumentModal({ isOpen, onClose, onUploaded }: UploadDocum
                                     value={formData.category}
                                     onChange={e => setFormData(p => ({ ...p, category: e.target.value }))}
                                 >
-                                    {["Pitch Deck","Bussiness Plan"].map(t => <option key={t}>{t}</option>)}
+                                    {["Pitch Deck","Bussiness Plan","Khác"].map(t => <option key={t} value={t === "Khác" ? "Other" : t}>{t}</option>)}
                                 </select>
                                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                             </div>

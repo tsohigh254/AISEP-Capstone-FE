@@ -125,7 +125,7 @@ export default function NotFound() {
       {/* Footer Muted Info */}
       <footer className="py-8 px-6 text-center lg:text-left mx-auto w-full max-w-[1280px]">
         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-          © 2024 AISEP • AI powered startup ecosystem
+          © 2026 AISEP • AI powered startup ecosystem
         </p>
       </footer>
     </div>

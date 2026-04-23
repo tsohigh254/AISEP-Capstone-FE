@@ -469,7 +469,7 @@ export default function ForgotPasswordPage() {
       {/* ===== FOOTER ===== */}
       <footer className="w-full py-8 border-t border-slate-200 bg-white mt-auto">
         <div className="max-w-[1440px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-slate-400 text-xs">© 2024 AISEP Platform. All rights reserved.</p>
+          <p className="text-slate-400 text-xs">© 2026 AISEP Platform. All rights reserved.</p>
           <div className="flex items-center gap-6">
             <button className="text-slate-400 hover:text-[#f0f042] transition-colors">
               <Globe className="w-5 h-5" />

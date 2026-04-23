@@ -21,9 +21,9 @@ interface Document {
 }
 
 const mockDocuments: Document[] = [
-  { id: "doc_1", name: "TechAlpha_PitchDeck_V2.pdf", type: "PITCH_DECK", updatedAt: "2024-03-10" },
-  { id: "doc_2", name: "TechAlpha_PitchDeck_Final.pdf", type: "PITCH_DECK", updatedAt: "2024-03-15" },
-  { id: "doc_3", name: "TechAlpha_BusinessPlan_2024.pdf", type: "BUSINESS_PLAN", updatedAt: "2024-02-28" },
+  { id: "doc_1", name: "TechAlpha_PitchDeck_V2.pdf", type: "PITCH_DECK", updatedAt: "2026-03-10" },
+  { id: "doc_2", name: "TechAlpha_PitchDeck_Final.pdf", type: "PITCH_DECK", updatedAt: "2026-03-15" },
+  { id: "doc_3", name: "TechAlpha_BusinessPlan_2026.pdf", type: "BUSINESS_PLAN", updatedAt: "2026-02-28" },
 ];
 
 interface AIEvaluationRequestModalProps {

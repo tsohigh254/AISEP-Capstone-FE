@@ -623,7 +623,7 @@ export default function Home() {
                       Nội dung thảo luận
                     </label>
                     <div className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-5 text-base font-bold text-slate-400">
-                      Ví dụ: Review kế hoạch tài chính năm 2024...
+                      Ví dụ: Review kế hoạch tài chính năm 2026...
                     </div>
                   </div>
                   <button className="w-full bg-[#e6e64c] text-slate-900 font-black py-5 rounded-2xl hover:scale-[1.02] transition-all shadow-xl shadow-[#e6e64c]/20 text-lg">
@@ -767,7 +767,7 @@ export default function Home() {
 
         <div className="max-w-7xl mx-auto mt-20 pt-10 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
           <p className="text-sm font-bold text-slate-500">
-            © 2024 AISEP. Tất cả quyền được bảo lưu.
+            © 2026 AISEP. Tất cả quyền được bảo lưu.
           </p>
           <div className="flex gap-8">
             <a

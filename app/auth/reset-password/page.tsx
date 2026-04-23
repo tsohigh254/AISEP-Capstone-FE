@@ -199,7 +199,7 @@ function ResetPasswordContent() {
             <button className="text-slate-600 text-sm hover:text-[#f0f042] transition-colors">Liên hệ</button>
           </div>
           <p className="text-slate-500 text-xs">
-            © 2024 AISEP - Nền tảng Hệ sinh thái Startup AI. All rights reserved.
+            © 2026 AISEP - Nền tảng Hệ sinh thái Startup AI. All rights reserved.
           </p>
         </footer>
       </div>
@@ -364,7 +364,7 @@ function ResetPasswordContent() {
 
           {/* Copyright */}
           <p className="mt-8 text-center text-sm text-slate-500">
-            © 2024 AISEP Platform. Bản quyền thuộc về AISEP.
+            © 2026 AISEP Platform. Bản quyền thuộc về AISEP.
           </p>
         </div>
       </main>

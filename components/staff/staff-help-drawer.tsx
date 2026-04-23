@@ -227,7 +227,7 @@ export function StaffHelpDrawer({ isOpen, onClose }: StaffHelpDrawerProps) {
           <div className="pt-6 border-t border-slate-100 pb-4">
             <div className="flex items-center justify-center gap-2 text-slate-400 text-[11px] font-bold uppercase tracking-widest">
               <CheckCircle2 className="w-4 h-4" />
-              AISEP Compliance Team 2024
+              AISEP Compliance Team 2026
             </div>
           </div>
         </div>

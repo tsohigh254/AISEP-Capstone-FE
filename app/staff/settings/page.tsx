@@ -132,7 +132,7 @@ export default function StaffSettingsPage() {
                     </div>
                     <div className="space-y-1.5">
                         <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">ID Nhân sự</p>
-                        <p className="text-[14px] font-bold text-slate-900 font-mono tracking-tighter">ST-2024-001</p>
+                        <p className="text-[14px] font-bold text-slate-900 font-mono tracking-tighter">ST-2026-001</p>
                     </div>
                     <div className="space-y-1.5">
                         <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Trạng thái làm việc</p>
