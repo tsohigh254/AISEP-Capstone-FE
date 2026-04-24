@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { usePathname, useRouter } from "next/navigation";
 import { Bell, Calendar, ExternalLink, Loader2, Trash2, Clock, X } from "lucide-react";
 import { GetNotificationById, DeleteNotification } from "@/services/notification/notification.api";
 import { cn } from "@/lib/utils";
 import { localizeIssueReportNotificationText } from "@/lib/notification";
+import { inferNotificationRouteRole, resolveNotificationActionUrl } from "@/lib/notification-routing";
 
 interface NotificationDetailModalProps {
   notificationId: number | null;
@@ -24,6 +26,12 @@ export function NotificationDetailModal({
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const resolvedActionUrl = resolveNotificationActionUrl(
+    noti?.actionUrl,
+    inferNotificationRouteRole(pathname),
+  );
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -163,9 +171,9 @@ export function NotificationDetailModal({
                 >
                   Đóng
                 </button>
-                {noti.actionUrl && (
+                {resolvedActionUrl && (
                   <button
-                    onClick={() => { window.location.href = noti.actionUrl!; onClose(); }}
+                    onClick={() => { router.push(resolvedActionUrl); onClose(); }}
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0f172a] text-white text-[13px] font-medium hover:bg-[#1e293b] transition-colors shadow-sm"
                   >
                     Chi tiết

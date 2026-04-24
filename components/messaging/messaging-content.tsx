@@ -126,15 +126,15 @@ function MessageBubble({ msg, onRetry }: { msg: IMessage & { _failed?: boolean }
 
     return (
         <div className={cn("flex w-full mb-2", msg.isMine ? "justify-end" : "justify-start")}>
-            <div className={cn("flex flex-col max-w-[85%] md:max-w-[70%]", msg.isMine ? "items-end" : "items-start")}>
+            <div className={cn("flex flex-col max-w-[85%] md:max-w-[70%] min-w-0", msg.isMine ? "items-end" : "items-start")}>
                 <div className={cn(
-                    "px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed relative group",
+                    "px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed relative group max-w-full min-w-0",
                     msg.isMine 
                         ? "bg-[#0f172a] text-white rounded-tr-none" 
                         : "bg-white text-slate-700 border border-slate-100 rounded-tl-none shadow-sm"
                 )}>
                     {msg.attachmentUrls && (
-                        <div className="mb-2 space-y-2">
+                        <div className="mb-2 space-y-2 max-w-full min-w-0">
                             {isImage(msg.attachmentUrls) ? (
                                 <div className="relative rounded-lg overflow-hidden border border-slate-200/20 max-w-sm">
                                     <img 
@@ -150,7 +150,7 @@ function MessageBubble({ msg, onRetry }: { msg: IMessage & { _failed?: boolean }
                                     target="_blank" 
                                     rel="noopener noreferrer"
                                     className={cn(
-                                        "flex items-center gap-3 p-2.5 rounded-xl border transition-all",
+                                        "flex w-full max-w-full min-w-0 items-center gap-3 p-2.5 rounded-xl border transition-all overflow-hidden",
                                         msg.isMine 
                                             ? "bg-white/10 border-white/20 hover:bg-white/20" 
                                             : "bg-slate-50 border-slate-200 hover:bg-slate-100"
@@ -163,7 +163,7 @@ function MessageBubble({ msg, onRetry }: { msg: IMessage & { _failed?: boolean }
                                         <FileIcon className={cn("size-4", msg.isMine ? "text-white" : "text-slate-500")} />
                                     </div>
                                     <div className="flex-1 min-w-0 pr-2">
-                                        <p className={cn("text-[13px] font-medium truncate", msg.isMine ? "text-white" : "text-slate-900")}>
+                                        <p className={cn("block max-w-full text-[13px] font-medium truncate", msg.isMine ? "text-white" : "text-slate-900")}>
                                             {getFileName(msg.attachmentUrls)}
                                         </p>
                                         <p className={cn("text-[10px] mt-0.5", msg.isMine ? "text-white/60" : "text-slate-400")}>
@@ -175,7 +175,7 @@ function MessageBubble({ msg, onRetry }: { msg: IMessage & { _failed?: boolean }
                             )}
                         </div>
                     )}
-                    <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                    <div className="w-full max-w-full whitespace-pre-wrap break-all">{msg.content}</div>
                     {msg._failed && (
                         <button 
                             onClick={onRetry}

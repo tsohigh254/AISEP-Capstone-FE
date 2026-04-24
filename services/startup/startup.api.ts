@@ -236,10 +236,23 @@ export type SearchInvestorsParams = {
     sortBy?: "latest" | "ticketSizeAsc" | "ticketSizeDesc" | "connectionsDesc";
 };
 
+export type GetInterestedInvestorsParams = {
+    page?: number;
+    pageSize?: number;
+    keyword?: string;
+    sortBy?: "latest" | "oldest" | "name";
+    fromDate?: string;
+    toDate?: string;
+};
+
 export const SearchInvestors = (params: SearchInvestorsParams = {}) => {
     return axios.get<IBackendRes<IPaginatedRes<IInvestorSearchItem>>>(`/api/startups/investors`, { params });
 }
 
+export const GetInterestedInvestors = (params: GetInterestedInvestorsParams = {}) => {
+    return axios.get<IBackendRes<IInterestedInvestorsList>>(`/api/startups/me/interested-investors`, { params });
+}
+
 export const GetInvestorById = (id: number) => {
-    return axios.get<IBackendRes<IInvestorProfile>>(`/api/staff/investors/${id}`);
+    return axios.get<IBackendRes<IInvestorProfile>>(`/api/startups/investors/${id}`);
 }

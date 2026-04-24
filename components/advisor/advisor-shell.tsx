@@ -122,8 +122,6 @@ export function AdvisorShell({ children }: AdvisorShellProps) {
   useEffect(() => {
     const isOnboardingRoute = pathname === "/advisor/onboard";
 
-    const skipped = localStorage.getItem("aisep_advisor_onboarding_skipped") === "true";
-
     GetAdvisorProfile()
       .then((res: any) => {
         const data = res as unknown as IBackendRes<any>;
@@ -139,7 +137,7 @@ export function AdvisorShell({ children }: AdvisorShellProps) {
           return;
         }
 
-        if (hasProfile || skipped) {
+        if (hasProfile) {
           setChecking(false);
           return;
         }
@@ -150,11 +148,6 @@ export function AdvisorShell({ children }: AdvisorShellProps) {
         const status = err?.response?.status;
 
         if (isOnboardingRoute) {
-          setChecking(false);
-          return;
-        }
-
-        if (skipped) {
           setChecking(false);
           return;
         }

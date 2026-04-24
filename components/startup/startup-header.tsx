@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bell, ChevronDown, ChevronRight, User, LogOut, Trash2, Loader2, MessageSquare, LayoutGrid, Menu, CheckCheck, Settings, FileText, Brain, BrainCircuit, Users, Handshake, FileUp, CreditCard, ShieldCheck, ShieldAlert, BadgeCheck, ArrowRight, Inbox, Sparkles } from "lucide-react";
+import { Bell, Bookmark, ChevronDown, ChevronRight, User, LogOut, Trash2, Loader2, MessageSquare, LayoutGrid, Menu, CheckCheck, Settings, FileText, Brain, BrainCircuit, Users, Handshake, FileUp, CreditCard, ShieldCheck, ShieldAlert, BadgeCheck, ArrowRight, Inbox, Sparkles } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -385,6 +385,7 @@ export function StartupHeader({
                       { icon: BrainCircuit, label: "Đánh giá tiềm năng", href: "/startup/ai-evaluation" },
                       { icon: BadgeCheck, label: "Xác minh startup", href: "/startup/verification" },
                       { icon: Users, label: "Tìm cố vấn", href: "/startup/experts" },
+                      { icon: Bookmark, label: "Cố vấn đã lưu", href: "/startup/experts?tab=saved" },
                       { icon: Handshake, label: "Kết nối nhà ĐT", href: "/startup/investors" },
                       { icon: Sparkles, label: "Nâng cấp tài khoản", href: "/startup/subscription" },
                       { icon: CreditCard, label: "Thanh toán", href: "/startup/payments" },

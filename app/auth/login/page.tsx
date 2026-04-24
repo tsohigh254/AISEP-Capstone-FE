@@ -147,9 +147,6 @@ export default function LoginPage() {
 
     try {
       const res = await Login(email, password);
-      console.log("API_RESPONSE:", res);
-      console.log("TOKEN_EXTRACT:", res?.data?.accessToken, (res as any)?.accessToken);
-
       // Check for success safely (either boolean success, text message, or token presence)
       const payload = res?.data ? res.data : (res as any);
       const token = payload?.accessToken || (res as any)?.accessToken;
@@ -257,7 +254,7 @@ export default function LoginPage() {
 
       {/* ===== MAIN ===== */}
       <main className="flex-1 flex items-center justify-center py-12 px-4">
-        <div className="max-w-[1000px] w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <div className="max-w-[1100px] w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
 
           {/* Left Side: Welcome Info */}
           <div className="lg:col-span-5 space-y-8 hidden lg:block">
@@ -459,4 +456,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

@@ -27,7 +27,6 @@ export function AddToWatchlistModal({
 
   const handleAdd = () => {
     // In a real app, this would call an API
-    console.log(`Adding ${startup.name} to watchlist with reason: ${reason}`);
     onOpenChange(false);
     setReason("");
   };

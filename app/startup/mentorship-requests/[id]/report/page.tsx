@@ -292,14 +292,16 @@ export default function ConsultingReportPage({ params }: { params: Promise<{ id:
 
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
           <div className="px-6 py-5 border-b border-slate-100">
-            <h2 className="text-[18px] font-bold text-slate-900">{report.title || "Tóm tắt"}</h2>
+            <h2 className="text-[18px] font-bold text-slate-900 break-words [overflow-wrap:anywhere]">
+              {report.title || "Tóm tắt"}
+            </h2>
           </div>
 
           <div className="p-6 space-y-6">
             {(report.summary || report.title) && (
               <section className="space-y-3">
                 <h3 className="text-[12px] font-bold uppercase tracking-widest text-slate-400">Tóm tắt</h3>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 text-[14px] leading-relaxed text-slate-700">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 text-[14px] leading-relaxed text-slate-700 break-words [overflow-wrap:anywhere]">
                   {report.summary}
                 </div>
               </section>
@@ -312,19 +314,25 @@ export default function ConsultingReportPage({ params }: { params: Promise<{ id:
                   {report.discussionOverview && (
                     <div className="rounded-2xl border border-slate-100 bg-white p-5">
                       <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Tổng quan</p>
-                      <p className="text-[14px] leading-relaxed text-slate-700">{report.discussionOverview}</p>
+                      <p className="text-[14px] leading-relaxed text-slate-700 break-words [overflow-wrap:anywhere]">
+                        {report.discussionOverview}
+                      </p>
                     </div>
                   )}
                   {report.keyFindings && (
                     <div className="rounded-2xl border border-slate-100 bg-white p-5">
                       <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Phát hiện chính</p>
-                      <p className="text-[14px] leading-relaxed text-slate-700">{report.keyFindings}</p>
+                      <p className="text-[14px] leading-relaxed text-slate-700 break-words [overflow-wrap:anywhere]">
+                        {report.keyFindings}
+                      </p>
                     </div>
                   )}
                   {report.identifiedRisks && (
                     <div className="rounded-2xl border border-slate-100 bg-white p-5 md:col-span-2">
                       <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Rủi ro nhận diện</p>
-                      <p className="text-[14px] leading-relaxed text-slate-700">{report.identifiedRisks}</p>
+                      <p className="text-[14px] leading-relaxed text-slate-700 break-words [overflow-wrap:anywhere]">
+                        {report.identifiedRisks}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -338,19 +346,25 @@ export default function ConsultingReportPage({ params }: { params: Promise<{ id:
                   {report.advisorRecommendations && (
                     <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-5">
                       <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-700 mb-2">Khuyến nghị</p>
-                      <p className="text-[14px] leading-relaxed text-slate-700">{report.advisorRecommendations}</p>
+                      <p className="text-[14px] leading-relaxed text-slate-700 break-words [overflow-wrap:anywhere]">
+                        {report.advisorRecommendations}
+                      </p>
                     </div>
                   )}
                   {report.nextSteps && (
                     <div className="rounded-2xl border border-slate-100 bg-white p-5">
                       <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Bước tiếp theo</p>
-                      <p className="text-[14px] leading-relaxed text-slate-700">{report.nextSteps}</p>
+                      <p className="text-[14px] leading-relaxed text-slate-700 break-words [overflow-wrap:anywhere]">
+                        {report.nextSteps}
+                      </p>
                     </div>
                   )}
                   {report.deliverablesSummary && (
                     <div className="rounded-2xl border border-slate-100 bg-white p-5 md:col-span-2">
                       <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">Kết quả bàn giao</p>
-                      <p className="text-[14px] leading-relaxed text-slate-700">{report.deliverablesSummary}</p>
+                      <p className="text-[14px] leading-relaxed text-slate-700 break-words [overflow-wrap:anywhere]">
+                        {report.deliverablesSummary}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -360,7 +374,7 @@ export default function ConsultingReportPage({ params }: { params: Promise<{ id:
             {(!report.summary && !report.discussionOverview && !report.advisorRecommendations) && (
               <section className="space-y-3">
                 <h3 className="text-[12px] font-bold uppercase tracking-widest text-slate-400">Nội dung</h3>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 text-[14px] leading-relaxed text-slate-700 whitespace-pre-wrap">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 text-[14px] leading-relaxed text-slate-700 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                   {report.content}
                 </div>
               </section>
@@ -377,7 +391,9 @@ export default function ConsultingReportPage({ params }: { params: Promise<{ id:
                     <div>
                       <p className="text-[13px] font-bold text-amber-800 mb-1">Cố vấn yêu cầu theo dõi thêm</p>
                       {report.followUpNotes && (
-                        <p className="text-[13px] leading-relaxed text-amber-700 whitespace-pre-wrap">{report.followUpNotes}</p>
+                        <p className="text-[13px] leading-relaxed text-amber-700 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                          {report.followUpNotes}
+                        </p>
                       )}
                     </div>
                   </div>

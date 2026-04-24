@@ -222,7 +222,7 @@ export default function ForgotPasswordPage() {
 
       {/* ===== MAIN ===== */}
       <main className="flex-1 flex items-center justify-center py-12 px-4">
-        <div className="max-w-[1000px] w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <div className="max-w-[1100px] w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
 
           {/* ── LEFT PANEL ── */}
           <div className="lg:col-span-5 space-y-8 hidden lg:block">

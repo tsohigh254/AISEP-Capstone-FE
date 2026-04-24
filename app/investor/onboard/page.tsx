@@ -27,6 +27,33 @@ const TIMELINE_STEPS = [
   { n: 2, label: "Hồ sơ chuyên sâu" },
 ];
 
+function mapBackendValidationField(field?: string) {
+  const normalized = String(field ?? "").trim().toLowerCase();
+
+  switch (normalized) {
+    case "linkedinurl":
+      return "linkedInURL";
+    case "website":
+      return "website";
+    case "fullname":
+      return "fullName";
+    case "firmname":
+    case "displayname":
+      return "displayName";
+    case "title":
+    case "currentroletitle":
+      return "currentRoleTitle";
+    case "bio":
+    case "investmentthesis":
+    case "shortthesissummary":
+      return "shortThesisSummary";
+    case "location":
+      return "location";
+    default:
+      return field ?? "";
+  }
+}
+
 export default function InvestorOnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -157,7 +184,26 @@ export default function InvestorOnboardingPage() {
 
       const res = await CreateInvestorProfile(requestData);
       if (!res.isSuccess) {
-        toast.error(res.message || "Gặp lỗi khi tạo hồ sơ");
+        if (res.statusCode === 400 && Array.isArray(res.data) && res.data.length > 0) {
+          const nextErrors: Record<string, string> = {};
+
+          for (const item of res.data) {
+            const key = mapBackendValidationField(item.field);
+            const message = item.messages?.join(" ") ?? "";
+            if (!key || !message) continue;
+            nextErrors[key] = message;
+          }
+
+          if (Object.keys(nextErrors).length > 0) {
+            setErrors((prev) => ({ ...prev, ...nextErrors }));
+            toast.error(Object.values(nextErrors)[0]);
+          } else {
+            const allMessages = res.data.flatMap((item) => item.messages ?? []);
+            toast.error(allMessages[0] || res.message || "Thông tin chưa hợp lệ.");
+          }
+        } else {
+          toast.error(res.message || "Gặp lỗi khi tạo hồ sơ");
+        }
         return;
       }
 
@@ -175,8 +221,27 @@ export default function InvestorOnboardingPage() {
       setIsCompleted(true);
       setStep(4);
       toast.success("Hồ sơ cơ bản đã được thiết lập thành công!");
-    } catch {
-      toast.error("Gặp lỗi khi xử lý hồ sơ");
+    } catch (error: any) {
+      const validationItems = error?.response?.data?.data;
+
+      if (Array.isArray(validationItems) && validationItems.length > 0) {
+        const nextErrors: Record<string, string> = {};
+
+        for (const item of validationItems) {
+          const key = mapBackendValidationField(item.field);
+          const message = item.messages?.join(" ") ?? "";
+          if (!key || !message) continue;
+          nextErrors[key] = message;
+        }
+
+        if (Object.keys(nextErrors).length > 0) {
+          setErrors((prev) => ({ ...prev, ...nextErrors }));
+          toast.error(Object.values(nextErrors)[0]);
+          return;
+        }
+      }
+
+      toast.error(error?.response?.data?.message || "Gặp lỗi khi xử lý hồ sơ");
     } finally {
       setIsSubmitting(false);
     }

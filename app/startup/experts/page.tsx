@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Star, Search, ChevronRight, ChevronLeft, ChevronDown, Users, Briefcase, FileText, X, ArrowUpDown, BadgeCheck,
+  Star, Bookmark, Search, ChevronRight, ChevronLeft, ChevronDown, Users, Briefcase, FileText, X, ArrowUpDown, BadgeCheck,
   CalendarCheck, Video, Loader2, Eye, CheckCircle, CreditCard, MessageSquare, Lock
 } from "lucide-react";
 import { useState, useEffect, useCallback, Suspense } from "react";
@@ -10,6 +10,8 @@ import { SessionReviewModal } from "@/components/startup/session-review-modal";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { StartupShell } from "@/components/startup/startup-shell";
+import { AdvisorDiscoveryCard } from "@/components/startup/advisor-discovery-card";
+import { useStartupAdvisorBookmarks } from "@/hooks/use-startup-advisor-bookmarks";
 import {
   SearchAdvisors,
   GetMentorships,
@@ -18,12 +20,17 @@ import {
   CancelMentorship,
   ConfirmSessionConducted,
 } from "@/services/startup/startup-mentorship.api";
+import {
+  GetStartupAdvisorBookmarks,
+  normalizeStartupBookmarkedAdvisor,
+} from "@/services/startup/startup-advisor-bookmark.api";
 import type {
   IAdvisorSearchItem,
   IMentorshipRequest,
   IMentorshipSession,
   MeetingFormat,
 } from "@/types/startup-mentorship";
+import type { IStartupBookmarkedAdvisor } from "@/types/startup-advisor-bookmark";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -198,6 +205,23 @@ const EXPERTISE_MAP: Record<string, string> = {
   "E_COMMERCE": "E-commerce",
 };
 
+const EXPERTISE_FILTER_OPTIONS = [
+  "FUNDRAISING",
+  "PRODUCT_STRATEGY",
+  "GO_TO_MARKET",
+  "FINANCE",
+  "LEGAL_IP",
+  "OPERATIONS",
+  "TECHNOLOGY",
+  "MARKETING",
+  "HR_OR_TEAM_BUILDING",
+] as const;
+
+const EXPERTISE_FILTER_LABELS = [
+  "Tất cả chuyên môn",
+  ...EXPERTISE_FILTER_OPTIONS.map((option) => EXPERTISE_MAP[option] || option),
+];
+
 const mapMeetingFormat = (fmt?: MeetingFormat | string | null): string => {
   if (fmt === "GoogleMeet") return "Google Meet";
   if (fmt === "MicrosoftTeams") return "Microsoft Teams";
@@ -342,10 +366,15 @@ function StartupAdvisorsPageInner() {
   const [advisorPage, setAdvisorPage] = useState(1);
   const [advisorTotalPages, setAdvisorTotalPages] = useState(1);
   const [advisorTotalItems, setAdvisorTotalItems] = useState(0);
+  const [savedAdvisorPage, setSavedAdvisorPage] = useState(1);
+  const [savedAdvisorTotalPages, setSavedAdvisorTotalPages] = useState(1);
+  const [savedAdvisorTotalItems, setSavedAdvisorTotalItems] = useState(0);
 
   // Data states
   const [advisors, setAdvisors] = useState<IAdvisorSearchItem[]>([]);
   const [advisorsLoading, setAdvisorsLoading] = useState(false);
+  const [savedAdvisors, setSavedAdvisors] = useState<IStartupBookmarkedAdvisor[]>([]);
+  const [savedAdvisorsLoading, setSavedAdvisorsLoading] = useState(false);
 
   const [requests, setRequests] = useState<IMentorshipRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
@@ -361,7 +390,7 @@ function StartupAdvisorsPageInner() {
   const [reportsLoading, setReportsLoading] = useState(false);
 
   // Tab derived from URL
-  const VALID_TABS = ["find", "requests", "sessions", "reports"] as const;
+  const VALID_TABS = ["find", "saved", "requests", "sessions", "reports"] as const;
   type TabKey = typeof VALID_TABS[number];
   const tabParam = searchParams.get("tab") as TabKey | null;
   const activeTab: TabKey = tabParam && VALID_TABS.includes(tabParam) ? tabParam : "find";
@@ -388,6 +417,12 @@ function StartupAdvisorsPageInner() {
   // Toast
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (msg: string) => setToast(msg);
+  const {
+    bookmarkedIds,
+    isBookmarked,
+    isBookmarkPending,
+    toggleBookmark,
+  } = useStartupAdvisorBookmarks();
 
   // ─── Data Fetching ─────────────────────────────────────────────────────────
 
@@ -513,6 +548,54 @@ function StartupAdvisorsPageInner() {
     }
   }, []);
 
+  const fetchSavedAdvisors = useCallback(async () => {
+    setSavedAdvisorsLoading(true);
+    try {
+      const res = await GetStartupAdvisorBookmarks({
+        page: savedAdvisorPage,
+        pageSize: PAGE_SIZE,
+      }) as unknown as IBackendRes<IPagingData<Record<string, unknown>> | Record<string, unknown> | Record<string, unknown>[]>;
+
+      if (res.success || res.isSuccess) {
+        const payload: any = res.data ?? {};
+        const rawItems = Array.isArray(payload)
+          ? payload
+          : payload?.items ??
+            payload?.data ??
+            payload?.bookmarks ??
+            payload?.advisorBookmarks ??
+            [];
+
+        const normalized = (Array.isArray(rawItems) ? rawItems : [])
+          .map((item) => normalizeStartupBookmarkedAdvisor(item))
+          .filter((item): item is IStartupBookmarkedAdvisor => Boolean(item));
+
+        setSavedAdvisors(normalized);
+
+        if (payload?.paging) {
+          const totalPages = payload.paging.totalPages ??
+            Math.ceil(payload.paging.totalItems / payload.paging.pageSize);
+
+          setSavedAdvisorTotalPages(Math.max(1, totalPages || 1));
+          setSavedAdvisorTotalItems(payload.paging.totalItems ?? normalized.length);
+        } else {
+          setSavedAdvisorTotalPages(1);
+          setSavedAdvisorTotalItems(normalized.length);
+        }
+      } else {
+        setSavedAdvisors([]);
+        setSavedAdvisorTotalPages(1);
+        setSavedAdvisorTotalItems(0);
+      }
+    } catch {
+      setSavedAdvisors([]);
+      setSavedAdvisorTotalPages(1);
+      setSavedAdvisorTotalItems(0);
+    } finally {
+      setSavedAdvisorsLoading(false);
+    }
+  }, [savedAdvisorPage]);
+
   // Fetch advisors on mount + when filters change (debounced for search)
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -524,9 +607,16 @@ function StartupAdvisorsPageInner() {
   // Fetch tab data when tab becomes active
   useEffect(() => {
     if (activeTab === "requests") fetchRequests();
+    if (activeTab === "saved") fetchSavedAdvisors();
     if (activeTab === "sessions") fetchSessions();
     if (activeTab === "reports") fetchReports();
-  }, [activeTab, fetchRequests, fetchSessions, fetchReports]);
+  }, [activeTab, fetchRequests, fetchReports, fetchSavedAdvisors, fetchSessions]);
+
+  useEffect(() => {
+    if (activeTab === "saved") {
+      void fetchSavedAdvisors();
+    }
+  }, [activeTab, bookmarkedIds, fetchSavedAdvisors]);
 
   const totalPages = advisorTotalPages;
   const paginatedAdvisors = advisors;
@@ -540,6 +630,10 @@ function StartupAdvisorsPageInner() {
     setRatingFilter("all");
     setSortBy("best_match");
     setAdvisorPage(1);
+  };
+
+  const handleToggleBookmark = async (advisorId: number) => {
+    await toggleBookmark(advisorId);
   };
 
   // ─── Filtered Sub-lists ───────────────────────────────────────────────────
@@ -642,6 +736,7 @@ function StartupAdvisorsPageInner() {
 
   const tabs = [
     { key: "find" as const, label: "Tìm cố vấn" },
+    { key: "saved" as const, label: "Đã lưu" },
     { key: "requests" as const, label: "Yêu cầu của tôi" },
     { key: "sessions" as const, label: "Các phiên hướng dẫn" },
     { key: "reports" as const, label: "Báo cáo & Đánh giá" },
@@ -704,8 +799,8 @@ function StartupAdvisorsPageInner() {
               <FSelect
                 value={expertiseFilter}
                 onChange={v => { setExpertiseFilter(v); setAdvisorPage(1); }}
-                options={["all", "PRODUCT_STRATEGY", "FUNDRAISING", "ENGINEERING", "AI_ML", "GROWTH_HACKING", "MARKETING", "LEGAL_COMPLIANCE", "OPERATIONS", "SAAS", "FINTECH", "E_COMMERCE", "HR_OR_TEAM_BUILDING", "FINANCE"]}
-                labels={["Tất cả chuyên môn", "Product Strategy", "Fundraising", "Engineering", "AI/ML", "Growth Hacking", "Marketing", "Legal & Compliance", "Operations", "SaaS", "FinTech", "E-commerce", "Nhân sự & Đội ngũ", "Tài chính"]}
+                options={["all", ...EXPERTISE_FILTER_OPTIONS]}
+                labels={EXPERTISE_FILTER_LABELS}
               />
 
               <FSelect
@@ -779,6 +874,27 @@ function StartupAdvisorsPageInner() {
 
                 {paginatedAdvisors.map(advisor => (
                   <div key={advisor.advisorID} className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all duration-200 p-6">
+                    <div className="mb-3 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleBookmark(advisor.advisorID)}
+                        disabled={isBookmarkPending(advisor.advisorID)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-60",
+                          isBookmarked(advisor.advisorID)
+                            ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                            : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                        )}
+                        title={isBookmarked(advisor.advisorID) ? "Bỏ lưu cố vấn" : "Lưu cố vấn"}
+                      >
+                        {isBookmarkPending(advisor.advisorID) ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Bookmark className={cn("w-3.5 h-3.5", isBookmarked(advisor.advisorID) && "fill-current")} />
+                        )}
+                        {isBookmarked(advisor.advisorID) ? "Đã lưu" : "Lưu"}
+                      </button>
+                    </div>
                     {/* Top row */}
                     <div className="flex items-start gap-4 mb-4">
                       {isValidImageUrl(advisor.profilePhotoURL) ? (
@@ -914,6 +1030,89 @@ function StartupAdvisorsPageInner() {
                 <button
                   onClick={() => setAdvisorPage(p => Math.min(totalPages, p + 1))}
                   disabled={advisorPage === totalPages}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "saved" && (
+          <div className="space-y-5 animate-in fade-in duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-[20px] font-bold text-slate-900">Cố vấn đã lưu</h2>
+                <p className="text-[13px] text-slate-500 mt-1">
+                  Bạn có <span className="font-semibold text-[#0f172a]">{savedAdvisorTotalItems}</span> cố vấn trong danh sách tham khảo sau.
+                </p>
+              </div>
+              <button
+                onClick={() => setTab("find")}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-[13px] font-semibold text-slate-600 hover:bg-slate-50 transition-all"
+              >
+                Quay lại tìm cố vấn
+              </button>
+            </div>
+
+            {savedAdvisorsLoading ? (
+              <LoadingSpinner />
+            ) : savedAdvisors.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] py-20 text-center">
+                <Users className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                <p className="text-[15px] font-semibold text-slate-500">Danh sách đã lưu đang trống</p>
+                <p className="text-[13px] text-slate-400 mt-1">Lưu advisor để quay lại so sánh hoặc xem tiếp sau.</p>
+                <button
+                  onClick={() => setTab("find")}
+                  className="mt-5 px-4 py-2.5 rounded-xl bg-[#fdf8e6] text-slate-800 border border-[#eec54e]/30 text-[13px] font-semibold hover:bg-[#eec54e] transition-all"
+                >
+                  Khám phá advisor
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+                {savedAdvisors.map((advisor) => (
+                  <AdvisorDiscoveryCard
+                    key={`saved-${advisor.bookmarkId ?? advisor.advisorID}`}
+                    advisor={advisor}
+                    bookmarked={isBookmarked(advisor.advisorID)}
+                    bookmarkLoading={isBookmarkPending(advisor.advisorID)}
+                    onToggleBookmark={() => handleToggleBookmark(advisor.advisorID)}
+                    onViewProfile={() => router.push(`/startup/experts/${advisor.advisorID}`)}
+                    onRequest={() => handleOpenRequest(advisor)}
+                    savedAt={advisor.createdAt}
+                  />
+                ))}
+              </div>
+            )}
+
+            {savedAdvisorTotalPages > 1 && !savedAdvisorsLoading && (
+              <div className="flex items-center justify-center gap-2 pt-4">
+                <button
+                  onClick={() => setSavedAdvisorPage((page) => Math.max(1, page - 1))}
+                  disabled={savedAdvisorPage === 1}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                {Array.from({ length: savedAdvisorTotalPages }, (_, index) => index + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => setSavedAdvisorPage(page)}
+                    className={cn(
+                      "w-9 h-9 flex items-center justify-center rounded-xl text-[13px] font-semibold transition-all",
+                      savedAdvisorPage === page
+                        ? "bg-[#eec54e] text-white shadow-sm"
+                        : "border border-slate-200 text-slate-500 hover:bg-slate-50"
+                    )}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setSavedAdvisorPage((page) => Math.min(savedAdvisorTotalPages, page + 1))}
+                  disabled={savedAdvisorPage === savedAdvisorTotalPages}
                   className="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 >
                   <ChevronRight className="w-4 h-4" />

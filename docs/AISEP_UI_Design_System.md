@@ -100,7 +100,7 @@ Use literal pixel sizes via Tailwind's bracket notation. **Never** use named siz
 
 ### Page Layout
 - Shell has a **sidebar + main content** layout.
-- Content max-width: `max-w-[1000px] mx-auto` for standard pages.
+- Content max-width: `max-w-[1100px] mx-auto` for standard pages.
 - Shell breadcrumb + header area: `max-w-[1440px] mx-auto` (shell level).
 - Vertical rhythm between cards: `space-y-5` or `space-y-6`.
 - Page entry animation: `animate-in fade-in duration-400`.

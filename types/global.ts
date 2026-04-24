@@ -339,6 +339,28 @@ declare global {
     updatedAt?: string;
   }
 
+  interface IInterestedInvestorItem {
+    investorId: number;
+    displayName: string;
+    representativeName: string;
+    fundName?: string | null;
+    profilePhotoURL?: string | null;
+    shortSummary?: string | null;
+    verificationStatus: "VERIFIED" | "BASIC_VERIFIED";
+    verificationBadge:
+      | "Verified Investor Entity"
+      | "Verified Angel Investor"
+      | "Basic Verified";
+    dateOfInterest: string;
+  }
+
+  interface IInterestedInvestorsList {
+    page: number;
+    pageSize: number;
+    total: number;
+    data: IInterestedInvestorItem[];
+  }
+
   interface INotificationItem {
     notificationId: number;
     notificationType: string;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
@@ -20,6 +21,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { toast } from "sonner";
 import Link from "next/link";
 import { isIssueReportNotification, localizeIssueReportNotificationText } from "@/lib/notification";
+import { resolveNotificationActionUrl } from "@/lib/notification-routing";
 
 /* ─── Helper: Get Icon by Type ─────────────────────────────── */
 const getNotificationIcon = (item: Pick<INotificationItem, "notificationType" | "actionUrl" | "relatedEntityType">) => {
@@ -66,6 +68,7 @@ function getDateGroup(dateStr: string): string {
 const GROUP_ORDER = ["Hôm nay", "Hôm qua", "7 ngày qua", "Trước đó"];
 
 export default function StartupNotificationsPage() {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<INotificationItem[]>([]);
   const [activeFilter, setActiveFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
@@ -267,7 +270,8 @@ export default function StartupNotificationsPage() {
                         !item.isRead ? "bg-blue-50/30 hover:bg-blue-50/50" : "hover:bg-slate-50/80"
                       )}
                       onClick={() => {
-                        if (item.actionUrl) window.location.href = item.actionUrl;
+                        const targetUrl = resolveNotificationActionUrl(item.actionUrl, "startup");
+                        if (targetUrl) router.push(targetUrl);
                         if (!item.isRead) handleToggleRead(item.notificationId, false);
                       }}
                     >

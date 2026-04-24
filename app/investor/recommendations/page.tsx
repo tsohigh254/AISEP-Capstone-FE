@@ -23,8 +23,6 @@ export default function RecommendationsPage() {
         const payload = res?.data?.data || res?.data;
         const matches = payload?.matches ?? payload?.Matches ?? [];
         
-        console.log("Recommendations payload:", payload);
-
         if (!Array.isArray(matches)) {
           setRecs([]);
           setLoading(false);
@@ -76,7 +74,7 @@ export default function RecommendationsPage() {
   }, []);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="mx-auto max-w-[1100px] space-y-6 animate-in fade-in duration-500">
       <div className="bg-gradient-to-br from-[#0F172A] to-[#1E293B] rounded-2xl p-8 shadow-sm border border-slate-800 text-white relative overflow-hidden">
         <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
           <Target className="w-64 h-64" />

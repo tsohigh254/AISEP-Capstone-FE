@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   Bell, CheckCheck, Trash2, Loader2,
@@ -18,6 +19,7 @@ import {
 import { useNotifications } from "@/hooks/useNotifications";
 import { toast } from "sonner";
 import { localizeIssueReportNotificationText } from "@/lib/notification";
+import { resolveNotificationActionUrl } from "@/lib/notification-routing";
 
 /* ─── Helper: Get Icon by Type ─────────────────────────────── */
 const getNotificationIcon = (type: string) => {
@@ -33,6 +35,7 @@ const getNotificationIcon = (type: string) => {
 };
 
 export default function StaffNotificationsPage() {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<INotificationItem[]>([]);
   const [activeTab, setActiveTab] = useState<"all" | "unread">("all");
   const [loading, setLoading] = useState(true);
@@ -205,7 +208,8 @@ export default function StaffNotificationsPage() {
                     !item.isRead ? "bg-white" : "bg-white/40"
                   )}
                   onClick={() => {
-                    if (item.actionUrl) window.location.href = item.actionUrl;
+                    const targetUrl = resolveNotificationActionUrl(item.actionUrl, "staff");
+                    if (targetUrl) router.push(targetUrl);
                     if (!item.isRead) handleToggleRead(item.notificationId, false);
                   }}
                 >

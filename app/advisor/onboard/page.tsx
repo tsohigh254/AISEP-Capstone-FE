@@ -5,19 +5,12 @@ import { useRouter } from "next/navigation";
 import {
   User, Briefcase, Globe, Linkedin, FileText,
   Camera, X, CheckCircle2, Sparkles, ArrowRight,
-  ChevronRight, AlertCircle, Check, Loader2,
-  AlertTriangle
+  ChevronRight, AlertCircle, Check, Loader2
 } from "lucide-react";
 import { CreateAdvisorProfile, UpdateAdvisorProfile, GetAdvisorProfile, buildAdvisorProfileFormData } from "@/services/advisor/advisor.api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AuthGuard } from "@/components/auth-guard";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 
 /* ─── Constants ──────────────────────────────────────────────── */
 
@@ -76,6 +69,17 @@ function isValidPublicUrl(value: string) {
   }
 }
 
+function normalizeYearsOfExperience(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+
+  const parsed = typeof value === "number" ? value : parseInt(String(value), 10);
+  if (!Number.isFinite(parsed)) return null;
+
+  if (parsed < 0) return 0;
+  if (parsed > 60) return 60;
+  return parsed;
+}
+
 function mapBackendFieldToFormKey(field?: string): string | null {
   if (!field) return null;
 
@@ -104,13 +108,6 @@ export default function AdvisorOnboardingPage() {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [showSkipDialog, setShowSkipDialog] = useState(false);
-
-  const handleSkip = () => {
-    localStorage.setItem("aisep_advisor_onboarding_skipped", "true");
-    toast.info("Đã bỏ qua quy trình thiết lập hồ sơ.");
-    router.replace("/advisor");
-  };
 
   const [pageLoading, setPageLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -136,16 +133,6 @@ export default function AdvisorOnboardingPage() {
 
   /* ── Load existing profile ───────────────────────────────── */
   useEffect(() => {
-    // Removal of localStorage-based redirection to prevent loops based on stale data
-    /*
-    const skipped = localStorage.getItem("aisep_advisor_onboarding_skipped") === "true";
-    const completed = localStorage.getItem("aisep_advisor_onboarding_completed") === "true";
-    if (skipped || completed) {
-      router.replace("/advisor");
-      return;
-    }
-    */
-
     // 2. Check API for profile status
     setPageLoading(true);
     setLoadError(false);
@@ -160,7 +147,9 @@ export default function AdvisorOnboardingPage() {
           : items.slice(1, 4).map((i: any) => i.category)
         ).filter(Boolean);
 
-        const yearsOfExperience = d.yearsOfExperience ?? items[0]?.yearsOfExperience ?? null;
+        const yearsOfExperience = normalizeYearsOfExperience(
+          d.yearsOfExperience ?? items[0]?.yearsOfExperience ?? null,
+        );
         const filled = [d.fullName, d.title, d.company, primaryExpertise, d.bio, d.mentorshipPhilosophy]
           .every(Boolean) && (d.website || d.linkedInURL) && yearsOfExperience !== null && yearsOfExperience !== undefined;
         
@@ -343,11 +332,12 @@ export default function AdvisorOnboardingPage() {
   };
 
   /* ── Input class ─────────────────────────────────────────── */
-  const inputClass = (key: string) => cn(
-    "w-full h-11 px-4 rounded-xl border text-[13px] text-slate-700 placeholder:text-slate-300 outline-none transition-all bg-white",
-    "focus:border-[#eec54e] focus:ring-2 focus:ring-[#eec54e]/20",
-    errors[key] ? "border-red-300 bg-red-50/40" : "border-slate-200"
-  );
+const inputClass = (key: string) => cn(
+  "w-full h-11 px-4 rounded-xl border text-[13px] text-slate-700 placeholder:text-slate-300 outline-none transition-all bg-white",
+  "focus:border-[#eec54e] focus:ring-2 focus:ring-[#eec54e]/20",
+  "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+  errors[key] ? "border-red-300 bg-red-50/40" : "border-slate-200"
+);
 
   const ErrNote = ({ name }: { name: string }) =>
     errors[name] ? (
@@ -545,11 +535,24 @@ export default function AdvisorOnboardingPage() {
                   <Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                   <input
                     type="number"
-                    value={form.yearsOfExperience ?? ""}
+                    inputMode="numeric"
+                    value={Number.isFinite(form.yearsOfExperience) ? (form.yearsOfExperience as number) : ""}
+                    onKeyDown={e => {
+                      const allowed = ["Backspace", "Delete", "Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"];
+                      if (!allowed.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
+                    }}
+                    onPaste={e => {
+                      const pasted = e.clipboardData.getData("text");
+                      if (!/^\d*$/.test(pasted.trim())) e.preventDefault();
+                    }}
                     onWheel={e => {
                       e.currentTarget.blur();
                     }}
-                    onChange={e => { set("yearsOfExperience", e.target.value === "" ? null : parseInt(e.target.value)); clearErr("yearsOfExperience"); }}
+                    onChange={e => {
+                      const val = normalizeYearsOfExperience(e.target.value);
+                      set("yearsOfExperience", val);
+                      clearErr("yearsOfExperience");
+                    }}
                     placeholder="8"
                     min="0" max="60"
                     className={cn(inputClass("yearsOfExperience"), "pl-10")}
@@ -598,12 +601,7 @@ export default function AdvisorOnboardingPage() {
 
             {/* Actions */}
             <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-              <button
-                onClick={() => setShowSkipDialog(true)}
-                className="text-[13px] text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                Bỏ qua lúc này
-              </button>
+              <div />
               <button
                 onClick={handleNext}
                 className="bg-[#0f172a] text-white text-[13px] font-bold px-6 h-10 rounded-xl hover:bg-slate-700 transition-all flex items-center gap-2 group"
@@ -755,39 +753,6 @@ export default function AdvisorOnboardingPage() {
         Powered by AISEP Pipeline • Secure Profile Verification
       </p>
 
-      {/* Skip Confirmation Dialog */}
-      <Dialog open={showSkipDialog} onOpenChange={setShowSkipDialog}>
-         <DialogContent className="sm:max-w-[440px] rounded-[32px] p-0 overflow-hidden border-none shadow-2xl bg-white">
-            <div className="p-8 space-y-6">
-               <div className="size-16 rounded-[24px] bg-amber-50 flex items-center justify-center border border-amber-100 mx-auto">
-                  <AlertTriangle className="w-8 h-8 text-amber-500" />
-               </div>
-               
-               <div className="text-center space-y-2">
-                  <DialogTitle className="text-[18px] font-bold text-slate-900">Thiết lập hồ sơ sau?</DialogTitle>
-                  <DialogDescription className="text-[13px] text-slate-500 leading-relaxed px-4">
-                     Bạn có thể bắt đầu khám phá Workspace ngay bây giờ. Đừng quên hoàn thiện hồ sơ sau để nhận được nhiều yêu cầu tư vấn hơn từ các Startup nhé!
-                     <span className="block font-bold mt-2 text-slate-900 text-[12px]">Lưu ý: Bạn có thể cập nhật trong phần Cài đặt hồ sơ.</span>
-                  </DialogDescription>
-               </div>
-
-               <div className="grid grid-cols-2 gap-3 pt-2">
-                  <button 
-                    onClick={() => setShowSkipDialog(false)}
-                    className="py-3 rounded-xl font-bold text-[13px] bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all active:scale-95"
-                  >
-                     Tiếp tục làm
-                  </button>
-                  <button 
-                    onClick={handleSkip}
-                    className="py-3 rounded-xl font-bold text-[13px] bg-amber-500 text-white hover:bg-amber-600 hover:shadow-lg hover:shadow-amber-200 transition-all active:scale-95"
-                  >
-                     Đồng ý, bỏ qua
-                  </button>
-               </div>
-            </div>
-         </DialogContent>
-      </Dialog>
     </div>
     </AuthGuard>
   );

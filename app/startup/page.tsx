@@ -117,8 +117,6 @@ export default function StartupDashboardPage() {
         setProfileData(resProfile.data);
         // Lấy điểm AI và summary từ lần đánh giá gần nhất (COMPLETED) đúng startupId
         const startupId = resProfile.data.id || resProfile.data.startupId || resProfile.data.startupID;
-        console.log('[AI DEBUG] Startup profile:', resProfile.data);
-        console.log('[AI DEBUG] Using startupId for history:', startupId);
         if (startupId) {
           const normalizeScore = (raw: any): number | null => {
             if (raw == null) return null;
@@ -142,10 +140,7 @@ export default function StartupDashboardPage() {
 
           GetEvaluationHistory(startupId)
             .then(async (res: any) => {
-              console.log('[AI DEBUG] Evaluation history API result:', res);
               if (!(res.success || res.isSuccess) || !Array.isArray(res.data)) return;
-
-              console.log('[AI DEBUG] Evaluation history data array:', res.data);
 
               const completedList = [...res.data]
                 .filter((x: any) => isCompleted(x))
@@ -163,10 +158,7 @@ export default function StartupDashboardPage() {
                 try {
                   const reportRes: any = await GetEvaluationReport(evaluationId);
                   const reportPayload = reportRes?.data?.report ?? reportRes?.data ?? reportRes;
-                  console.log('[AI DEBUG] GetEvaluationReport payload:', reportPayload);
-
                   const mapped = mapCanonicalToReport(evaluationId, reportPayload);
-                  console.log('[AI DEBUG] Mapped report:', mapped);
 
                   const score = normalizeScore(mapped?.overallScore)
                     ?? normalizeScore(item?.overallScore ?? item?.OverallScore ?? item?.overall_score)
@@ -182,7 +174,6 @@ export default function StartupDashboardPage() {
                   return;
                 } catch {
                   const mapped = mapCanonicalToReport(evaluationId, item);
-                  console.log('[AI DEBUG] Fallback mapped report:', mapped);
 
                   const score = normalizeScore(mapped?.overallScore)
                     ?? normalizeScore(item?.overallScore ?? item?.OverallScore ?? item?.overall_score)
@@ -206,7 +197,7 @@ export default function StartupDashboardPage() {
               setAiSummary("");
               setAiStrengths([]);
             })
-            .catch((err: any) => { console.log('[AI DEBUG] Error fetching evaluation history:', err); });
+            .catch(() => {});
         }
       }
       if (resMembers && (resMembers.success || resMembers.isSuccess) && Array.isArray(resMembers.data)) {
@@ -269,12 +260,6 @@ export default function StartupDashboardPage() {
         const totalAccepted = uniqueById.length > 0
           ? uniqueById.length
           : allAccepted.length;
-
-        console.log("[Startup Dashboard] investor connections count:", {
-          acceptedSent: sentItems.length,
-          acceptedReceived: receivedItems.length,
-          acceptedUnique: totalAccepted,
-        });
 
         setRealConnectCount(totalAccepted);
       })
@@ -351,16 +336,6 @@ export default function StartupDashboardPage() {
                 uniqueByMentorship.push(s);
               }
 
-              // Debug: in ra console để bạn kiểm tra payload và cách FE ghép id
-              // eslint-disable-next-line no-console
-              console.log("[Startup Dashboard] allSessions:", allSessions);
-              // eslint-disable-next-line no-console
-              console.log("[Startup Dashboard] actionableFiltered:", actionableFiltered);
-              // eslint-disable-next-line no-console
-              console.log("[Startup Dashboard] actionableFiltered mappedMentorshipIds:", actionableFiltered.map(extractMentorshipId));
-              // eslint-disable-next-line no-console
-              console.log("[Startup Dashboard] uniqueByMentorship:", uniqueByMentorship);
-
               setUpcomingSessions(uniqueByMentorship.slice(0, 3));
 
               // Luôn hiển thị đúng 4 phiên gần nhất (khử trùng theo sessionID trước khi cắt top 4)
@@ -399,8 +374,6 @@ export default function StartupDashboardPage() {
                 uniqueByMentorship.push(s);
               }
 
-              // eslint-disable-next-line no-console
-              console.log("[Startup Dashboard] fallback uniqueByMentorship:", uniqueByMentorship);
               setUpcomingSessions(uniqueByMentorship.slice(0, 3));
 
               // Fallback: vẫn khử trùng và lấy 4 phiên gần nhất

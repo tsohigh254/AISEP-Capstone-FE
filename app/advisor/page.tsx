@@ -81,9 +81,8 @@ export default function AdvisorDashboardPage() {
   const [mentorships, setMentorships] = useState<any[]>([]);
 
   useEffect(() => {
-    const skipped = localStorage.getItem("aisep_advisor_onboarding_skipped") === "true";
     const completed = localStorage.getItem("aisep_advisor_onboarding_completed") === "true";
-    if (skipped || completed) setHideCompleteness(true);
+    if (completed) setHideCompleteness(true);
   }, []);
 
   useEffect(() => {
