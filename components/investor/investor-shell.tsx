@@ -18,7 +18,7 @@ const routeLabels: Record<string, string> = {
   matching: "AI Matching",
   startups: "Khám phá Startup",
   watchlist: "Watchlist",
-  recommendations: "Gợi ý AI",
+  recommendations: "Startup phù hợp",
   "ai-chatbot": "AI Chatbot",
   kyc: "Xác thực KYC",
   status: "Trạng thái",

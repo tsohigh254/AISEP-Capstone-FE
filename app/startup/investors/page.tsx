@@ -1186,7 +1186,7 @@ export default function InvestorsPage() {
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 rounded-xl border border-[#eec54e]/30 bg-[#fdf8e6] px-4 py-2.5">
               <Sparkles className="size-3 text-[#d4ae3d]" />
-              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#a58419]">Gợi ý AI</span>
+              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#a58419]">Nhà đầu tư phù hợp</span>
             </div>
           </div>
         </div>

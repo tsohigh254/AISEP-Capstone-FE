@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { 
@@ -373,7 +373,7 @@ export function InvestorHeader({
                       { icon: Compass, label: "Khám phá Startup", href: "/investor/startups" },
                       { icon: Bookmark, label: "Danh sách theo dõi", href: "/investor/watchlist" },
                       { icon: Bot, label: "Trợ lý đầu tư AI", href: "/investor/ai-chatbot" },
-                    { icon: Sparkles, label: "Gợi ý AI", href: "/investor/recommendations" },
+                    { icon: Sparkles, label: "Startup phù hợp", href: "/investor/recommendations" },
                     { icon: Handshake, label: "Kết nối đầu tư", href: "/investor/connections" },
                     { icon: BadgeCheck, label: "Xác minh nhà đầu tư", href: "/investor/kyc" },
                       { icon: ShieldAlert, label: "Báo cáo của tôi", href: "/investor/issue-reports" },
