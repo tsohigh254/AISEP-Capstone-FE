@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { 
-  Brain, 
-  Send, 
-  Sparkles, 
-  TrendingUp, 
-  Target, 
-  Search, 
-  Handshake, 
+import {
+  Brain,
+  Send,
+  Sparkles,
+  TrendingUp,
+  Target,
+  Search,
+  Handshake,
   ShieldCheck,
   ChevronRight,
   ArrowRight,
@@ -55,12 +55,12 @@ const INITIAL_MESSAGES: Message[] = [
   {
     id: "welcome",
     type: "ai",
-    content: "Chào mừng! Tôi là AI Investment Assistant. Tôi có thể giúp bạn phân tích thị trường, tìm kiếm Startup phù hợp và đưa ra các insight đầu tư chuẩn xác. Bạn muốn bắt đầu với chủ đề nào?",
+    content: "Xin chào! Tôi là **AISEP Chatbot Assistant** - trợ lý trí tuệ nhân tạo thế hệ mới của bạn. Tôi được tích hợp trực tiếp với Google Gemini 2.5 để mang đến cho bạn những phân tích đầu tư và startup chính xác nhất. Hôm nay tôi có thể giúp gì cho bạn?",
     timestamp: new Date(),
     suggestions: [
-      "Xu hướng nào nổi bật nhất?",
-      "Tôi nên chú ý lĩnh vực nào?",
-      "Có startup nào đáng xem không?"
+      "Phân tích xu hướng thị trường",
+      "Tìm kiếm Startup tiềm năng",
+      "So sánh các dự án đầu tư"
     ]
   }
 ];
@@ -107,52 +107,29 @@ function ThoughtBlock({ thought, isThinking }: { thought: string; isThinking?: b
   const [expanded, setExpanded] = useState(false);
   const [simulatedSteps, setSimulatedSteps] = useState<string[]>([]);
   const [isVisible, setIsVisible] = useState(false);
-  
-  useEffect(() => {
-    let timeout: NodeJS.Timeout;
-    if (isThinking) {
-      // Delay showing the thinking block by 800ms to simulate "reading" the user's message
-      timeout = setTimeout(() => {
-        setIsVisible(true);
-        setExpanded(true); // Auto-expand when it finally appears
-      }, 800);
-    } else {
-      setIsVisible(false); // Instantly hide when thinking is done
-    }
-    return () => clearTimeout(timeout);
-  }, [isThinking]);
 
   useEffect(() => {
-    if (isVisible && isThinking && !thought) {
-      const steps = [
-        "Đang phân tích ngữ nghĩa yêu cầu...",
-        "Tra cứu biểu đồ xu hướng thị trường...",
-        "Truy xuất dữ liệu dự án Startup...",
-        "Đối chiếu các tiêu chí đầu tư...",
-        "Định dạng kết quả đầu ra..."
-      ];
-      let currentStep = 0;
-      setSimulatedSteps([steps[0]]);
-      
-      const interval = setInterval(() => {
-        currentStep++;
-        if (currentStep < steps.length) {
-          setSimulatedSteps(prev => [...prev, steps[currentStep]]);
-        }
-      }, 4000); // Add a new step every 4s to simulate very deep pondering
-      
-      return () => clearInterval(interval);
-    } else if (!isThinking) {
-      setSimulatedSteps([]);
+    // We've removed simulated steps as requested.
+    // The thinking block will only show if there's real content to show or during active thinking.
+    if (!isThinking) {
+      setIsVisible(false);
+    } else {
+      setIsVisible(true);
     }
-  }, [isVisible, isThinking, thought]);
+  }, [isThinking]);
+
+  if (!isThinking || !isVisible || thought) return null; // Only show if we have something or during actual thinking (though user asked to remove loading lines)
+
+  // Actually, the user asked to "xóa các dòng loading này đi" (remove these loading lines).
+  // So I will just return null for the entire ThoughtBlock if it's just doing simulated loading.
+  if (!thought) return null;
 
   if (!isThinking || !isVisible) return null;
 
   return (
     <div className="w-full flex flex-col pl-1 mb-1 animate-in fade-in duration-500">
-      <button 
-        onClick={() => setExpanded(!expanded)} 
+      <button
+        onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-1.5 w-fit group py-1"
       >
         {isThinking ? (
@@ -163,12 +140,12 @@ function ThoughtBlock({ thought, isThinking }: { thought: string; isThinking?: b
         ) : (
           <BrainCircuit className="w-3.5 h-3.5 text-slate-400" />
         )}
-        <span className="text-[13px] font-semibold text-slate-500 group-hover:text-slate-700 transition-colors">
-          {isThinking ? "Đang phân tích và tổng hợp dữ liệu..." : "Quá trình tư duy của AI"}
+        <span className="text-[13px] font-semibold text-emerald-600 group-hover:text-emerald-700 transition-colors">
+          {isThinking ? "AISEP Gemini đang xử lý..." : "Chi tiết phân tích"}
         </span>
         {expanded ? <ChevronUp className="w-3.5 h-3.5 text-slate-400 ml-0.5" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-0.5" />}
       </button>
-      
+
       {expanded && (thought || isThinking) && (
         <div className="mt-1.5 mb-1.5 pl-3.5 border-l-2 border-slate-200 text-[13px] text-slate-500 font-mono whitespace-pre-wrap leading-relaxed py-0.5 break-words">
           {thought ? thought : (
@@ -180,13 +157,13 @@ function ThoughtBlock({ thought, isThinking }: { thought: string; isThinking?: b
                 </div>
               ))}
               {isThinking && (
-                 <div className="flex items-center gap-2 animate-pulse mt-0.5">
-                   <div className="flex items-center gap-1 ml-1.5">
-                      <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" />
-                      <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.2s]" />
-                      <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.4s]" />
-                   </div>
-                 </div>
+                <div className="flex items-center gap-2 animate-pulse mt-0.5">
+                  <div className="flex items-center gap-1 ml-1.5">
+                    <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" />
+                    <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.2s]" />
+                    <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -194,6 +171,63 @@ function ThoughtBlock({ thought, isThinking }: { thought: string; isThinking?: b
       )}
     </div>
   );
+}
+
+function FormattedMessage({ content }: { content: string }) {
+  const lines = content.split('\n');
+  
+  return (
+    <div className="space-y-1">
+      {lines.map((line, i) => {
+        // Handle Bullet points
+        if (line.trim().startsWith('* ')) {
+          const text = line.trim().substring(2);
+          return (
+            <div key={i} className="flex gap-2 pl-2">
+              <span className="text-emerald-500 font-bold">•</span>
+              <span>{renderText(text)}</span>
+            </div>
+          );
+        }
+        
+        // Handle numbered lists (simple 1. 2. etc)
+        const numMatch = line.trim().match(/^(\d+\.)\s+(.*)/);
+        if (numMatch) {
+          return (
+            <div key={i} className="flex gap-2 pl-2">
+              <span className="text-slate-400 font-bold min-w-[20px]">{numMatch[1]}</span>
+              <span>{renderText(numMatch[2])}</span>
+            </div>
+          );
+        }
+
+        return <p key={i} className="min-h-[1em]">{renderText(line)}</p>;
+      })}
+    </div>
+  );
+}
+
+function TypingIndicator() {
+  return (
+    <div className="flex items-center gap-1.5 px-6 py-4 bg-white border border-slate-200 rounded-3xl rounded-tl-none shadow-sm w-fit animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="flex gap-1">
+        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce"></span>
+      </div>
+      <span className="text-[13px] font-medium text-slate-400 ml-1">AISEP đang suy nghĩ...</span>
+    </div>
+  );
+}
+
+function renderText(text: string) {
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={index} className="font-bold text-slate-900">{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
 }
 
 export default function AIChatbotPage() {
@@ -259,7 +293,7 @@ export default function AIChatbotPage() {
       if (!resp.ok) {
         // try to show backend error message
         let bodyText = await resp.text();
-        try { bodyText = JSON.parse(bodyText).message ?? JSON.stringify(JSON.parse(bodyText)); } catch {}
+        try { bodyText = JSON.parse(bodyText).message ?? JSON.stringify(JSON.parse(bodyText)); } catch { }
         setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: `Lỗi server: ${resp.status} ${bodyText}` } : m));
         setIsLoading(false);
         return;
@@ -340,26 +374,25 @@ export default function AIChatbotPage() {
   };
 
   return (
-    <div className="-mt-6 flex flex-col h-[calc(100vh-130px)] max-w-[1100px] w-full px-2 mx-auto animate-in fade-in duration-500 overflow-hidden">
-      
+    <div className="flex flex-col h-[calc(100vh-115px)] max-w-[1400px] w-full px-2 mx-auto animate-in fade-in duration-500 overflow-hidden">
+
       {/* Header - Compacted */}
       <div className="flex items-center justify-between mb-4 px-2">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#eec54e] to-[#F0A500] flex items-center justify-center shadow-md shadow-[#eec54e]/20 flex-shrink-0">
-            <Brain className="w-6 h-6 text-slate-900" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-md shadow-blue-500/20 flex-shrink-0">
+            <Brain className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-[18px] font-bold text-slate-900 leading-tight">AI Investment Assistant</h1>
-            <p className="text-[12px] text-slate-500">Hỏi về Startup, AI Insights, AI Recommend và cơ hội đầu tư</p>
+            <h1 className="text-[18px] font-bold text-slate-900 leading-tight">AISEP Chatbot Assistant</h1>
           </div>
         </div>
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-h-0 bg-white rounded-3xl border border-slate-200/80 shadow-[0_1px_6px_rgba(0,0,0,0.03)] overflow-hidden relative">
-        
+
         {/* Chat Thread */}
-        <div 
+        <div
           ref={scrollRef}
           className="flex-1 overflow-y-auto px-6 py-8 space-y-8 scroll-smooth no-scrollbar"
         >
@@ -384,7 +417,7 @@ export default function AIChatbotPage() {
             }
 
             return (
-              <div 
+              <div
                 key={msg.id}
                 className={cn(
                   "flex w-full",
@@ -401,46 +434,48 @@ export default function AIChatbotPage() {
                   )}
 
                   {/* Bubble containing main completion text */}
-                  {(displayContent || (msg.content && !isThinking && msg.type === "user")) ? (
+                  {msg.type === "ai" && isThinking && !displayContent && !displayThought ? (
+                    <TypingIndicator />
+                  ) : (displayContent || (msg.content && !isThinking && msg.type === "user")) ? (
                     <div className={cn(
                       "rounded-3xl text-[15px] leading-relaxed shadow-sm w-fit max-w-full break-words mt-1",
-                      msg.type === "user" 
-                        ? "bg-[#0f172a] text-white rounded-tr-none px-6 py-4" 
-                        : "bg-white text-slate-800 rounded-tl-none border border-slate-200 px-6 py-4"
+                      msg.type === "user"
+                        ? "bg-[#0f172a] text-white px-6 py-4"
+                        : "bg-white text-slate-800 border border-slate-200 px-6 py-4"
                     )}>
                       <div className="whitespace-pre-wrap">
-                        {displayContent || msg.content}
+                        <FormattedMessage content={displayContent || msg.content} />
                       </div>
                     </div>
                   ) : null}
 
-                {/* Rich Blocks (AI Only) */}
-                {msg.blocks && msg.blocks.length > 0 && (
-                  <div className="mt-4 w-full">
-                    {msg.blocks.map((block, idx) => (
-                      block.type === 'insight' ? (
-                        <InsightBlock key={idx} {...block} />
-                      ) : (
-                        <StartupCard key={idx} {...block} />
-                      )
-                    ))}
-                  </div>
-                )}
+                  {/* Rich Blocks (AI Only) */}
+                  {msg.blocks && msg.blocks.length > 0 && (
+                    <div className="mt-4 w-full">
+                      {msg.blocks.map((block, idx) => (
+                        block.type === 'insight' ? (
+                          <InsightBlock key={idx} {...block} />
+                        ) : (
+                          <StartupCard key={idx} {...block} />
+                        )
+                      ))}
+                    </div>
+                  )}
 
-                {/* Suggestions (AI Only, Last Message) */}
-                {msg.type === "ai" && msg.suggestions && (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {msg.suggestions.map((s, idx) => (
-                      <button 
-                        key={idx}
-                        onClick={() => handleSend(s)}
-                        className="px-3 py-1.5 rounded-full border border-slate-200 bg-white text-[12px] font-bold text-slate-500 hover:border-[#eec54e] hover:text-[#eec54e] transition-all"
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                  {/* Suggestions (AI Only, Last Message) */}
+                  {msg.type === "ai" && msg.suggestions && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {msg.suggestions.map((s, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => handleSend(s)}
+                          className="px-3 py-1.5 rounded-full border border-slate-200 bg-white text-[12px] font-bold text-slate-500 hover:border-[#eec54e] hover:text-[#eec54e] transition-all"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   <span className="text-[10px] text-slate-400 mt-2 font-medium">
                     {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -453,26 +488,10 @@ export default function AIChatbotPage() {
           {/* Loading is represented inside the AI placeholder bubble; no separate loading bubble here. */}
         </div>
 
-        {/* Bottom UI (Intents + Input) */}
+        {/* Bottom UI (Input Area Only) */}
         <div className="bg-white border-t border-slate-100">
-          {/* Quick Intent Carousel */}
-          <div className="px-6 py-3 bg-slate-50/30 border-b border-slate-100/50">
-            <div className="flex flex-wrap gap-2">
-              {QUICK_INTENTS.map((intent) => (
-                <button
-                  key={intent.id}
-                  onClick={() => handleIntentClick(intent.label)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-[12px] font-bold text-slate-600 hover:border-[#eec54e] hover:text-[#eec54e] hover:bg-[#eec54e]/5 transition-all shadow-sm"
-                >
-                  <intent.icon className="w-3.5 h-3.5" />
-                  {intent.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Input Area */}
-          <div className="p-6 pt-2">
+          <div className="p-6 pt-4">
             <div className="relative flex items-center">
               <input
                 type="text"
@@ -482,7 +501,7 @@ export default function AIChatbotPage() {
                 placeholder="Hỏi về Startup, AI Insights, AI Recommend..."
                 className="w-full pl-6 pr-14 py-4 rounded-2xl bg-slate-50 border border-slate-100 text-[14px] focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20 focus:border-[#eec54e] focus:bg-white transition-all shadow-inner"
               />
-              <button 
+              <button
                 onClick={() => handleSend(inputValue)}
                 className="absolute right-2 w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-400 flex items-center justify-center hover:bg-[#eec54e] hover:text-white hover:border-[#eec54e] active:scale-95 transition-all shadow-sm"
               >
