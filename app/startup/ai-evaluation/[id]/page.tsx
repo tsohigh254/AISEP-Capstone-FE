@@ -369,16 +369,18 @@ export default function AIDetailedReportPage() {
             )}
 
             {/* Warnings */}
-            {report.warningMessages.length > 0 && (
+            {report.warningMessages.filter(msg => !msg.includes("SOURCE_ISOLATION")).length > 0 && (
               <div className="px-5 py-4 bg-amber-50 rounded-2xl border border-amber-100">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="text-[12px] font-bold text-amber-800 mb-1">Cảnh báo</p>
                     <ul className="space-y-1">
-                      {report.warningMessages.map((msg, i) => (
-                        <li key={i} className="text-[12px] text-amber-700">• {msg}</li>
-                      ))}
+                      {report.warningMessages
+                        .filter(msg => !msg.includes("SOURCE_ISOLATION"))
+                        .map((msg, i) => (
+                          <li key={i} className="text-[12px] text-amber-700">• {msg}</li>
+                        ))}
                     </ul>
                   </div>
                 </div>
