@@ -65,6 +65,19 @@ export function PickDocumentModal({ isOpen, onClose, onSelect }: PickDocumentMod
         return { Icon: FileCode, cls: "text-blue-500 bg-blue-50" };
     };
 
+    const truncateFileName = (name: string, max = 44) => {
+        if (!name || name.length <= max) return name;
+        const dotIndex = name.lastIndexOf(".");
+        const ext = dotIndex > 0 ? name.slice(dotIndex) : "";
+        const core = dotIndex > 0 ? name.slice(0, dotIndex) : name;
+
+        const keepStart = 24;
+        const keepEnd = Math.max(8, max - keepStart - ext.length - 3);
+        if (core.length <= keepStart + keepEnd) return name;
+
+        return `${core.slice(0, keepStart)}...${core.slice(-keepEnd)}${ext}`;
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden rounded-2xl">
@@ -84,7 +97,7 @@ export function PickDocumentModal({ isOpen, onClose, onSelect }: PickDocumentMod
                         />
                     </div>
 
-                    <div className="max-h-[350px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                    <div className="max-h-[350px] overflow-y-auto overflow-x-hidden space-y-2 pr-1 custom-scrollbar">
                         {loading ? (
                             <div className="py-20 text-center">
                                 <p className="text-sm text-slate-400">Đang tải danh sách tài liệu...</p>
@@ -103,16 +116,21 @@ export function PickDocumentModal({ isOpen, onClose, onSelect }: PickDocumentMod
                                     <div
                                         key={doc.documentID}
                                         onClick={() => onSelect(doc.fileUrl || "", name)}
-                                        className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:border-[#e6cc4c] hover:bg-[#e6cc4c]/5 cursor-pointer transition-all group"
+                                        className="flex w-full max-w-full min-w-0 items-center gap-3 overflow-hidden p-3 rounded-xl border border-slate-100 hover:border-[#e6cc4c] hover:bg-[#e6cc4c]/5 cursor-pointer transition-all group"
                                     >
                                         <div className={cn("size-10 rounded-lg flex items-center justify-center shrink-0", cls)}>
                                             <Icon className="size-5" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-1.5">
-                                                <h4 className="text-sm font-bold text-slate-900 truncate">{name}</h4>
+                                            <div className="flex w-full min-w-0 items-center gap-1.5 overflow-hidden">
+                                                <h4
+                                                    className="block w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold text-slate-900"
+                                                    title={name}
+                                                >
+                                                    {truncateFileName(name)}
+                                                </h4>
                                                 {isAnchored && (
-                                                    <span title="Đã xác thực blockchain">
+                                                    <span className="shrink-0" title="Đã xác thực blockchain">
                                                         <ShieldCheck className="size-3.5 text-emerald-500" />
                                                     </span>
                                                 )}

@@ -166,7 +166,7 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
         // Backend đã return HTTP 200 OK + "isSuccess": true. Data null nếu chưa có.
         if (res.isSuccess) {
           if (res.data) {
-            const d: any = res.data;              console.log("=== API RESPONSE: GET /api/advisors/me ===", d);            
+            const d: any = res.data;
             
             const expArray: string[] = Array.isArray(d.expertise) ? d.expertise : [];
             const apiDurations = Array.isArray(d.supportedDurations) ? d.supportedDurations : [60];

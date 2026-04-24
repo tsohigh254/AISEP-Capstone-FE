@@ -20,6 +20,7 @@ import {
 import { NotificationDetailModal } from "./notification-detail-modal";
 import { IssueReportModal } from "@/components/shared/issue-report-modal";
 import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
+import { useNotifications } from "@/hooks/useNotifications";
 import {
   buildInvestorProfilePresentation,
   getInvestorKycUiState,
@@ -129,14 +130,14 @@ export function InvestorHeader({
   const notiRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
   const fetchNotis = useCallback(async () => {
     setNotiLoading(true);
     try {
       const res = await GetNotifications({ page: 1, pageSize: 5 });
       if (res.data) {
-        setNotifications(res.data.items || []);
-        setUnreadCount(res.data.paging?.totalItems || 0);
+        const items = res.data.items || [];
+        setNotifications(items);
+        setUnreadCount(items.filter((item) => !item.isRead).length);
       }
     } catch (error) {
       console.error("Failed to fetch notifications:", error);
@@ -144,6 +145,29 @@ export function InvestorHeader({
       setNotiLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    fetchNotis();
+  }, [fetchNotis]);
+
+  useNotifications((incoming) => {
+    if (!incoming) return;
+
+    let shouldIncrementUnread = false;
+    setNotifications((prev) => {
+      const exists = prev.some((n) => n.notificationId === incoming.notificationId);
+      if (exists) {
+        return prev.map((n) => (n.notificationId === incoming.notificationId ? incoming : n));
+      }
+      shouldIncrementUnread = !incoming.isRead;
+      return [incoming, ...prev];
+    });
+
+    if (shouldIncrementUnread) {
+      setUnreadCount((count) => count + 1);
+    }
+
+  });
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

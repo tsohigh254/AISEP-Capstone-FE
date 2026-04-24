@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Bookmark, Search, UserMinus, Sparkles, Building2, TrendingUp, Handshake, Loader2 } from "lucide-react";
+import { Bookmark, Search, UserMinus, Sparkles, Building2, TrendingUp, Handshake, Loader2, MessageCircleMore } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GetInvestorWatchlist, GetInvestorProfile, GetStartupById, RemoveFromWatchlist, SearchStartups } from "@/services/investor/investor.api";
 import { GetEvaluationHistory, GetEvaluationReport } from "@/services/ai/ai.api";
+import { GetReceivedConnections, GetSentConnections } from "@/services/connection/connection.api";
+import { ConnectStartupModal } from "@/components/investor/connect-startup-modal";
 import { toast } from "sonner";
 
 function normalizeScore(raw: any): number | null {
@@ -113,12 +115,65 @@ function extractLatestCompletedRunId(items: any[]): number {
 }
 
 type WatchlistRow = IWatchlistItem & { aiScore?: number | null };
+type ConnectionStatus = "none" | "pending" | "accepted";
+type ConnectionMeta = { status: ConnectionStatus; connectionId: number | null };
+
+function normalizeConnectionStatusValue(status?: string | null): ConnectionStatus {
+  const normalized = (status ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+
+  if (normalized === "REQUESTED" || normalized === "PENDING") return "pending";
+  if (normalized === "ACCEPTED" || normalized === "IN_DISCUSSION" || normalized === "INDISCUSSION") {
+    return "accepted";
+  }
+  return "none";
+}
+
+function extractConnectionIdValue(source: any): number | null {
+  const raw = Number(source?.connectionID ?? source?.connectionId ?? source?.ConnectionID ?? null);
+  return Number.isFinite(raw) && raw > 0 ? raw : null;
+}
+
+function buildLatestConnectionMap(items: IConnectionItem[]): Record<number, ConnectionMeta> {
+  const map = new Map<number, ConnectionMeta & { sortTime: number }>();
+
+  for (const item of items) {
+    const startupId = Number(item?.startupID ?? 0);
+    if (!startupId) continue;
+
+    const status = normalizeConnectionStatusValue(item?.connectionStatus);
+    if (status === "none") continue;
+
+    const sortTime = new Date(item?.respondedAt || item?.requestedAt || 0).getTime() || 0;
+    const current = map.get(startupId);
+
+    if (!current || sortTime >= current.sortTime) {
+      map.set(startupId, {
+        status,
+        connectionId: extractConnectionIdValue(item),
+        sortTime,
+      });
+    }
+  }
+
+  return Object.fromEntries(
+    Array.from(map.entries()).map(([startupId, meta]) => [
+      startupId,
+      { status: meta.status, connectionId: meta.connectionId },
+    ]),
+  ) as Record<number, ConnectionMeta>;
+}
 
 export default function WatchlistPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [watchlist, setWatchlist] = useState<WatchlistRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isInvestor, setIsInvestor] = useState<boolean | null>(null);
+  const [connectionMap, setConnectionMap] = useState<Record<number, ConnectionMeta>>({});
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [selectedStartup, setSelectedStartup] = useState<WatchlistRow | null>(null);
   const [removingMap, setRemovingMap] = useState<Record<string, boolean>>({});
   const setRemoving = (key: string, v: boolean) => setRemovingMap((s) => ({ ...s, [key]: v }));
   const [confirmMap, setConfirmMap] = useState<Record<string, boolean>>({});
@@ -256,6 +311,28 @@ export default function WatchlistPage() {
       }
     };
 
+    const fetchConnections = async () => {
+      try {
+        const [sentRes, receivedRes] = await Promise.all([
+          GetSentConnections(1, 200) as any,
+          GetReceivedConnections(1, 200) as any,
+        ]);
+
+        const getItems = (res: any): IConnectionItem[] => {
+          if (!res?.isSuccess && !res?.success) return [];
+          const data = res?.data as any;
+          if (Array.isArray(data)) return data;
+          if (Array.isArray(data?.data)) return data.data;
+          if (Array.isArray(data?.items)) return data.items;
+          return [];
+        };
+
+        setConnectionMap(buildLatestConnectionMap([...getItems(sentRes), ...getItems(receivedRes)]));
+      } catch (err) {
+        console.error("GetConnections error:", err);
+      }
+    };
+
     const init = async () => {
       setIsLoading(true);
       try {
@@ -266,7 +343,7 @@ export default function WatchlistPage() {
           return;
         }
         setIsInvestor(true);
-        await fetchWatchlist();
+        await Promise.all([fetchWatchlist(), fetchConnections()]);
       } catch (e) {
         setIsInvestor(false);
         setIsLoading(false);
@@ -280,6 +357,9 @@ export default function WatchlistPage() {
         if (ev?.data?.type === "refresh") {
           fetchWatchlist();
         }
+        if (ev?.data?.type === "refresh" || ev?.data?.type === "connections-refresh") {
+          fetchConnections();
+        }
       } catch (e) {
         // ignore
       }
@@ -287,6 +367,7 @@ export default function WatchlistPage() {
 
     const onStorage = (ev: StorageEvent) => {
       if (ev.key === "watchlist-refresh") fetchWatchlist();
+      if (ev.key === "connections-refresh") fetchConnections();
     };
 
     if (typeof window !== "undefined") {
@@ -315,6 +396,16 @@ export default function WatchlistPage() {
       }
     };
   }, []);
+
+  const selectedStartupModalData = selectedStartup
+    ? {
+        id: Number(selectedStartup.startupID),
+        name: selectedStartup.startupName,
+        industry: selectedStartup.industry,
+        stage: selectedStartup.stage,
+        logo: selectedStartup.logoURL,
+      }
+    : null;
 
   return (
     <div className="max-w-[1100px] mx-auto space-y-6 pb-16 animate-in fade-in duration-500">
@@ -423,12 +514,47 @@ export default function WatchlistPage() {
                       <p className="text-[10px] text-neutral-400 mt-1 italic font-medium whitespace-nowrap">{new Date(item.addedAt).toLocaleDateString("vi-VN")}</p>
                     </td>
                     <td className="px-6 py-4 text-right pr-6 space-x-2">
-                      {/* Removed 'Xem chi tiết' button per request; show only Connect + Unfollow */}
-                      <Link href={`/investor/startups/${item.startupID}`}>
-                        <button title="Kết nối" className="text-[#C8A000] hover:text-[#E6B800] transition-colors p-2 rounded-lg hover:bg-[#e6cc4c]/10 bg-[#e6cc4c]/5 border border-[#e6cc4c]/20 shadow-sm">
-                          <Handshake className="w-4 h-4" />
-                        </button>
-                      </Link>
+                      {(() => {
+                        const connection = connectionMap[Number(item.startupID)] ?? { status: "none" as const, connectionId: null };
+
+                        if (connection.status === "accepted") {
+                          return (
+                            <Link href={`/investor/messaging${connection.connectionId ? `?connectionId=${connection.connectionId}` : ""}`}>
+                              <button
+                                title="Đã kết nối · Nhắn tin"
+                                className="text-emerald-700 hover:text-emerald-800 transition-colors p-2 rounded-lg hover:bg-emerald-100 bg-emerald-50 border border-emerald-200 shadow-sm"
+                              >
+                                <MessageCircleMore className="w-4 h-4" />
+                              </button>
+                            </Link>
+                          );
+                        }
+
+                        if (connection.status === "pending") {
+                          return (
+                            <button
+                              title="Yêu cầu kết nối đang chờ phản hồi"
+                              onClick={() => toast.info("Yêu cầu kết nối với startup này đang chờ phản hồi.")}
+                              className="text-amber-600 hover:text-amber-700 transition-colors p-2 rounded-lg hover:bg-amber-100 bg-amber-50 border border-amber-200 shadow-sm"
+                            >
+                              <Handshake className="w-4 h-4" />
+                            </button>
+                          );
+                        }
+
+                        return (
+                          <button
+                            title="Đề nghị kết nối"
+                            onClick={() => {
+                              setSelectedStartup(item);
+                              setShowConnectModal(true);
+                            }}
+                            className="text-[#C8A000] hover:text-[#E6B800] transition-colors p-2 rounded-lg hover:bg-[#e6cc4c]/10 bg-[#e6cc4c]/5 border border-[#e6cc4c]/20 shadow-sm"
+                          >
+                            <Handshake className="w-4 h-4" />
+                          </button>
+                        );
+                      })()}
                       {confirmMap[String(item.watchlistId ?? item.startupID ?? item.startupName ?? "")] ? (
                         <div className="flex items-center gap-2">
                           <button onClick={() => setConfirm(String(item.watchlistId ?? item.startupID ?? item.startupName ?? ""), false)} className="px-3 py-1 rounded-lg border border-slate-200 bg-white text-sm text-slate-600 hover:bg-slate-50 transition-all">Hủy</button>
@@ -492,6 +618,37 @@ export default function WatchlistPage() {
           </table>
         </div>
       </div>
+      <ConnectStartupModal
+        open={showConnectModal}
+        onOpenChange={(open) => {
+          setShowConnectModal(open);
+          if (!open) setSelectedStartup(null);
+        }}
+        startup={selectedStartupModalData}
+        onSuccess={() => {
+          void (async () => {
+            try {
+              const [sentRes, receivedRes] = await Promise.all([
+                GetSentConnections(1, 200) as any,
+                GetReceivedConnections(1, 200) as any,
+              ]);
+
+              const getItems = (res: any): IConnectionItem[] => {
+                if (!res?.isSuccess && !res?.success) return [];
+                const data = res?.data as any;
+                if (Array.isArray(data)) return data;
+                if (Array.isArray(data?.data)) return data.data;
+                if (Array.isArray(data?.items)) return data.items;
+                return [];
+              };
+
+              setConnectionMap(buildLatestConnectionMap([...getItems(sentRes), ...getItems(receivedRes)]));
+            } catch {
+              // non-blocking
+            }
+          })();
+        }}
+      />
     </div>
   );
 }

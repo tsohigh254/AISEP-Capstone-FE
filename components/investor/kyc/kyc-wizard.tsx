@@ -99,6 +99,9 @@ export function KYCWizard({
   const existingFiles = initialStatus.submissionSummary?.evidenceFiles ?? [];
   const hasExistingEvidence = existingFiles.length > 0;
   const isInstitutional = formData.investorCategory === "INSTITUTIONAL";
+  const hasLockedInvestorType = Boolean(lockedInvestorType);
+  const investorCategoryLabel =
+    formData.investorCategory === "INSTITUTIONAL" ? "Tổ chức / Quỹ" : "Angel Investor";
 
   useEffect(() => {
     if (!formData.investorCategory && initialInvestorType) {
@@ -341,6 +344,26 @@ export function KYCWizard({
             {/* Investor Category selector */}
             <div>
               <FieldLabel name="investorCategory" required>Loại nhà đầu tư</FieldLabel>
+              {hasLockedInvestorType && (
+                <div className="mb-3 rounded-2xl border border-[#eec54e]/30 bg-[#eec54e]/10 px-4 py-3">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[#eec54e]/30 bg-white">
+                      <CheckCircle2 className="h-4 w-4 text-[#c8a000]" />
+                    </div>
+                    <div>
+                      <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-[#b69200]">
+                        Đã chọn từ bước onboard
+                      </p>
+                      <p className="mt-1 text-[13px] font-semibold text-slate-800">
+                        KYC này sẽ dùng loại hình <span className="text-[#171611]">{investorCategoryLabel}</span> để đồng bộ với hồ sơ nhà đầu tư.
+                      </p>
+                      <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
+                        Không thể đổi loại nhà đầu tư ở bước KYC để tránh lệch dữ liệu.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 {([
                   { value: "INDIVIDUAL_ANGEL", label: "Angel Investor", desc: "Nhà đầu tư cá nhân" },
@@ -356,18 +379,31 @@ export function KYCWizard({
                       formData.investorCategory === opt.value
                         ? "border-[#171611] bg-[#171611]/5 ring-1 ring-[#171611]/10"
                         : "border-slate-200 bg-white hover:border-slate-300",
-                      (isResubmit || !!lockedInvestorType) && "cursor-not-allowed opacity-70"
+                      hasLockedInvestorType && formData.investorCategory !== opt.value && "border-slate-200 bg-slate-50 opacity-45",
+                      (isResubmit || !!lockedInvestorType) && "cursor-not-allowed"
                     )}
                   >
-                    <span className={cn("text-[13px] font-bold", formData.investorCategory === opt.value ? "text-slate-900" : "text-slate-600")}>
-                      {opt.label}
-                    </span>
+                    <div className="flex w-full items-start justify-between gap-3">
+                      <span className={cn("text-[13px] font-bold", formData.investorCategory === opt.value ? "text-slate-900" : "text-slate-600")}>
+                        {opt.label}
+                      </span>
+                      {hasLockedInvestorType && formData.investorCategory === opt.value && (
+                        <span className="rounded-full border border-[#eec54e]/30 bg-[#eec54e]/12 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#b69200]">
+                          Đang dùng
+                        </span>
+                      )}
+                      {hasLockedInvestorType && formData.investorCategory !== opt.value && (
+                        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                          Khóa
+                        </span>
+                      )}
+                    </div>
                     <span className="text-[11px] text-slate-400 mt-0.5">{opt.desc}</span>
                   </button>
                 ))}
               </div>
               {(isResubmit || !!lockedInvestorType) && (
-                <p className="text-[11px] text-slate-400 mt-1.5">Loại nhà đầu tư được xác định từ hồ sơ đã tạo và không thể thay đổi.</p>
+                <p className="text-[11px] text-slate-400 mt-1.5">Loại nhà đầu tư được giữ theo hồ sơ đã tạo trước đó và không thể đổi ở bước KYC.</p>
               )}
               <ErrNote name="investorCategory" />
             </div>

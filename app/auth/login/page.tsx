@@ -147,9 +147,6 @@ export default function LoginPage() {
 
     try {
       const res = await Login(email, password);
-      console.log("API_RESPONSE:", res);
-      console.log("TOKEN_EXTRACT:", res?.data?.accessToken, (res as any)?.accessToken);
-
       // Check for success safely (either boolean success, text message, or token presence)
       const payload = res?.data ? res.data : (res as any);
       const token = payload?.accessToken || (res as any)?.accessToken;

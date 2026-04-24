@@ -101,4 +101,3 @@ if (problems.length > 0) {
   process.exit(1);
 }
 
-console.log("No suspicious mojibake patterns found.");
