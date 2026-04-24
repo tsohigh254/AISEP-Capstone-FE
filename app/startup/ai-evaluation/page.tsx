@@ -519,6 +519,20 @@ function PendingRunView({ run, status, onRefresh }: { run: any; status: AIEvalua
   );
 }
 
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      <div className="h-40 bg-slate-100 rounded-2xl w-full" />
+      <div className="grid grid-cols-3 gap-4">
+        <div className="h-48 bg-slate-50 rounded-2xl" />
+        <div className="h-48 bg-slate-50 rounded-2xl" />
+        <div className="h-48 bg-slate-50 rounded-2xl" />
+      </div>
+      <div className="h-64 bg-slate-50 rounded-2xl w-full" />
+    </div>
+  );
+}
+
 /* ─── Page ─────────────────────────────────────────────────── */
 
 function AIEvaluationHomePageInner() {
@@ -751,16 +765,22 @@ function AIEvaluationHomePageInner() {
           </div>
         )}
 
-        {/* Show a small banner for an in-progress run to avoid swapping major page content */}
-        {isProcessingRun && latestRun && (
-          <PendingRunView run={latestRun} status={runStatus} onRefresh={handleRefreshRun} />
-        )}
-
-        {/* Main content stays mounted to reduce layout shifts */}
-        {hasResult && latestCompleted ? (
-          <DashboardView latestCompleted={latestCompleted} profile={profile} documents={documents} />
+        {loading ? (
+          <LoadingSkeleton />
         ) : (
-          <OnboardingView allReady={allReady} profile={profile} documents={documents} />
+          <>
+            {/* Show a small banner for an in-progress run to avoid swapping major page content */}
+            {isProcessingRun && latestRun && (
+              <PendingRunView run={latestRun} status={runStatus} onRefresh={handleRefreshRun} />
+            )}
+
+            {/* Main content stays mounted to reduce layout shifts */}
+            {hasResult && latestCompleted ? (
+              <DashboardView latestCompleted={latestCompleted} profile={profile} documents={documents} />
+            ) : (
+              <OnboardingView allReady={allReady} profile={profile} documents={documents} />
+            )}
+          </>
         )}
       </div>
     </StartupShell>
