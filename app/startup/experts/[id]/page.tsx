@@ -13,6 +13,8 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { GetAdvisorById, GetMentorships } from "@/services/startup/startup-mentorship.api";
+import { AdvisorBookmarkButton } from "@/components/startup/advisor-bookmark-button";
+import { useStartupAdvisorBookmarks } from "@/hooks/use-startup-advisor-bookmarks";
 import type { IAdvisorDetail, IAdvisorSearchItem, IAdvisorTimeSlot, IMentorshipRequest } from "@/types/startup-mentorship";
 
 const formatVND = (n: number) => n.toLocaleString('vi-VN') + '₫';
@@ -173,6 +175,11 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
   const [activeMentorship, setActiveMentorship] = useState<IMentorshipRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const {
+    isBookmarked,
+    isBookmarkPending,
+    toggleBookmark,
+  } = useStartupAdvisorBookmarks();
 
   const ACTIVE_STATUSES = ["Requested", "Pending", "Accepted", "InProgress"];
 
@@ -313,7 +320,7 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
               </div>
 
               {/* CTAs */}
-              <div className="flex items-center justify-center md:justify-start gap-3 pt-1">
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-1">
                 <Button
                   onClick={handleOpenRequest}
                   disabled={!isAdvisorAvailable(advisor.availabilityHint)}
@@ -328,6 +335,12 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                   <Send className="w-4 h-4 mr-2" />
                   Yêu cầu tư vấn ngay
                 </Button>
+                <AdvisorBookmarkButton
+                  variant="button"
+                  bookmarked={isBookmarked(advisor.advisorID)}
+                  loading={isBookmarkPending(advisor.advisorID)}
+                  onClick={() => { void toggleBookmark(advisor.advisorID); }}
+                />
                 {!!activeMentorship && ["Accepted", "InProgress", "Completed"].includes(activeMentorship.status as string) ? (
                   <Button
                     variant="outline"

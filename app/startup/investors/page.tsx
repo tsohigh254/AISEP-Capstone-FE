@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { toast } from "sonner";
 import React, { useState, useEffect, useCallback } from "react";
@@ -28,7 +28,7 @@ import { AcceptConnection, RejectConnection, GetSentConnections, GetReceivedConn
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { InvestorConnectionModal } from "@/components/startup/investor-connection-modal";
-import { SearchInvestors, type SearchInvestorsParams } from "@/services/startup/startup.api";
+import { GetInterestedInvestors, SearchInvestors, type SearchInvestorsParams } from "@/services/startup/startup.api";
 import { GetIndustriesFlat } from "@/services/master/master.api";
 
 // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -130,8 +130,32 @@ const getErrorStatus = (error: unknown): number | undefined => {
   return typeof response?.status === "number" ? response.status : undefined;
 };
 
+const getErrorCode = (error: unknown): string | undefined => {
+  if (typeof error !== "object" || error === null || !("response" in error)) return undefined;
+  const response = (error as { response?: { data?: { error?: { code?: string }; code?: string } } }).response;
+  return response?.data?.error?.code ?? response?.data?.code;
+};
+
 const getDiscoveryTicketRangeParams = (ticketRange: string) => {
   return DISCOVERY_TICKET_RANGE_OPTIONS.find((option) => option.value === ticketRange)?.params ?? {};
+};
+
+const getVerificationBadgeLabel = (badge: IInterestedInvestorItem["verificationBadge"]): string => {
+  switch (badge) {
+    case "Verified Investor Entity":
+      return "Nhà đầu tư tổ chức đã xác minh";
+    case "Verified Angel Investor":
+      return "Nhà đầu tư thiên thần đã xác minh";
+    case "Basic Verified":
+      return "Đã xác minh cơ bản";
+    default:
+      return badge;
+  }
+};
+
+const getInterestedInvestorDisplay = (item: IInterestedInvestorItem) => {
+  const primaryName = item.displayName.trim();
+  return { primaryName };
 };
 
 const DISCOVERY_PAGE_SIZE = 12;
@@ -217,6 +241,14 @@ export default function InvestorsPage() {
   const [receivedPage, setReceivedPage] = useState(1);
   const [receivedTotalPages, setReceivedTotalPages] = useState(1);
   const [receivedKeyword, setReceivedKeyword] = useState("");
+
+  // Tab: Nhà đầu tư quan tâm
+  const [interestedInvestors, setInterestedInvestors] = useState<IInterestedInvestorItem[]>([]);
+  const [isLoadingInterested, setIsLoadingInterested] = useState(false);
+  const [interestedPage, setInterestedPage] = useState(1);
+  const [interestedTotalPages, setInterestedTotalPages] = useState(1);
+  const [interestedKeyword, setInterestedKeyword] = useState("");
+  const [interestedErrorCode, setInterestedErrorCode] = useState<string | null>(null);
 
   // ── Tab: Đã kết nối ──
   const [connected, setConnected] = useState<IConnectionItem[]>([]);
@@ -360,6 +392,49 @@ export default function InvestorsPage() {
     }
   }, []);
 
+  // â”€â”€ Fetch: interested investors tab (watchlist) â”€â”€
+  const fetchInterested = useCallback(async (page: number, kw?: string) => {
+    setIsLoadingInterested(true);
+    setInterestedErrorCode(null);
+    try {
+      const res = await GetInterestedInvestors({
+        page,
+        pageSize: 10,
+        keyword: kw || undefined,
+        sortBy: "latest",
+      });
+
+      if (isSuccessResponse(res) && res.data) {
+        setInterestedInvestors(res.data.data ?? []);
+        setInterestedTotalPages(Math.max(1, Math.ceil((res.data.total ?? 0) / (res.data.pageSize || 10))));
+      } else {
+        setInterestedInvestors([]);
+        setInterestedTotalPages(1);
+      }
+    } catch (err) {
+      const status = getErrorStatus(err);
+      const code = getErrorCode(err);
+
+      if (status === 404 && code === "STARTUP_PROFILE_NOT_FOUND") {
+        router.replace("/startup/onboard");
+        return;
+      }
+
+      if (code === "NO_INTERESTED_INVESTORS") {
+        setInterestedInvestors([]);
+        setInterestedTotalPages(1);
+      } else if (code === "EMAIL_NOT_VERIFIED") {
+        setInterestedErrorCode("MSG012");
+      } else if (code === "STARTUP_PROFILE_INCOMPLETE") {
+        setInterestedErrorCode("MSG041");
+      } else {
+        setInterestedErrorCode("MSG008");
+      }
+    } finally {
+      setIsLoadingInterested(false);
+    }
+  }, [router]);
+
   // â”€â”€ Fetch: connected tab â”€â”€
   const fetchConnected = useCallback(async (_page?: number) => {
     setIsLoadingConnected(true);
@@ -414,6 +489,7 @@ export default function InvestorsPage() {
           fetchInvestors(currentPage, keyword, discoveryFilters);
           if (activeTab === "Yêu cầu đã gửi") fetchSent(sentPage);
           if (activeTab === "Nhận từ Investor") fetchReceived(receivedPage);
+          if (activeTab === "Nhà đầu tư quan tâm") fetchInterested(interestedPage);
           if (activeTab === "Đã kết nối") fetchConnected(connectedPage);
         }
       } catch { /* ignore */ }
@@ -424,6 +500,7 @@ export default function InvestorsPage() {
         fetchInvestors(currentPage, keyword, discoveryFilters);
         if (activeTab === "Yêu cầu đã gửi") fetchSent(sentPage);
         if (activeTab === "Nhận từ Investor") fetchReceived(receivedPage);
+        if (activeTab === "Nhà đầu tư quan tâm") fetchInterested(interestedPage);
         if (activeTab === "Đã kết nối") fetchConnected(connectedPage);
       }
     };
@@ -445,14 +522,15 @@ export default function InvestorsPage() {
         else window.removeEventListener("storage", onStorage);
       } catch {}
     };
-  }, [fetchInvestors, currentPage, keyword, discoveryFilters, fetchSent, fetchReceived, fetchConnected, activeTab, sentPage, receivedPage, connectedPage]);
+  }, [fetchInvestors, currentPage, keyword, discoveryFilters, fetchSent, fetchReceived, fetchInterested, fetchConnected, activeTab, sentPage, receivedPage, interestedPage, connectedPage]);
 
   // Reload when tab changes
   useEffect(() => {
     if (activeTab === "Yêu cầu đã gửi") { setSentKeyword(""); setSentStatusFilter(""); fetchSent(1); }
     if (activeTab === "Nhận từ Investor") { setReceivedKeyword(""); fetchReceived(1); }
+    if (activeTab === "Nhà đầu tư quan tâm") { setInterestedKeyword(""); fetchInterested(1); }
     if (activeTab === "Đã kết nối") fetchConnected(1);
-  }, [activeTab, fetchSent, fetchReceived, fetchConnected]);
+  }, [activeTab, fetchSent, fetchReceived, fetchInterested, fetchConnected]);
 
   // Search with debounce - Khám phá (fire immediately on first mount, debounce on subsequent changes)
   useEffect(() => {
@@ -480,6 +558,12 @@ export default function InvestorsPage() {
     const t = setTimeout(() => { setReceivedPage(1); fetchReceived(1, receivedKeyword); }, 400);
     return () => clearTimeout(t);
   }, [receivedKeyword, fetchReceived]);
+
+  // Search with debounce - Nhà đầu tư quan tâm
+  useEffect(() => {
+    const t = setTimeout(() => { setInterestedPage(1); fetchInterested(1, interestedKeyword); }, 400);
+    return () => clearTimeout(t);
+  }, [interestedKeyword, fetchInterested]);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -1087,6 +1171,106 @@ export default function InvestorsPage() {
             </div>
           </div>
         );
+      // Tab: Nhà đầu tư quan tâm
+      case "Nhà đầu tư quan tâm":
+        return (
+          <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            {/* Toolbar */}
+            <div className="flex items-center gap-3">
+              <div className="relative w-full sm:w-[340px]">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                <Input
+                  value={interestedKeyword}
+                  onChange={e => setInterestedKeyword(e.target.value)}
+                  placeholder="Tìm kiếm nhà đầu tư..."
+                  className="w-full pl-10 h-10 bg-white border-slate-200 rounded-xl text-[13px]"
+                />
+              </div>
+            </div>
+
+            {interestedErrorCode === "MSG012" && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-[13px] font-medium text-amber-800">
+                Email của bạn chưa được xác minh. Vui lòng xác minh email để xem danh sách nhà đầu tư quan tâm.
+              </div>
+            )}
+            {interestedErrorCode === "MSG041" && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-[13px] font-medium text-amber-800">
+                Hồ sơ startup chưa hoàn thiện. Vui lòng hoàn thiện hồ sơ để xem danh sách nhà đầu tư quan tâm.
+              </div>
+            )}
+            {interestedErrorCode === "MSG008" && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-[13px] font-medium text-red-700">
+                Không thể tải danh sách nhà đầu tư quan tâm lúc này. Vui lòng thử lại sau.
+              </div>
+            )}
+
+            {isLoadingInterested ? (
+              <div className="flex justify-center py-20"><Loader2 className="size-8 animate-spin text-[#eec54e]" /></div>
+            ) : (
+              <div className="rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50/60">
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Nhà đầu tư</th>
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Tóm tắt</th>
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Xác minh</th>
+                      <th className="px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Ngày quan tâm</th>
+                      <th className="px-6 py-4 text-right text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {!interestedErrorCode && interestedInvestors.length === 0 && (
+                      <tr><td colSpan={5} className="px-6 py-14 text-center text-slate-400 text-[13px] font-medium">Chưa có nhà đầu tư nào thêm startup của bạn vào watchlist.</td></tr>
+                    )}
+                    {interestedInvestors.map((item) => {
+                      const { primaryName } = getInterestedInvestorDisplay(item);
+
+                      return (
+                      <tr key={`${item.investorId}-${item.dateOfInterest}`} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <InvestorAvatar name={primaryName} url={item.profilePhotoURL ?? undefined} size="size-9" />
+                            <div>
+                              <p className="text-[13px] font-bold text-slate-800">{primaryName}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 max-w-[260px]">
+                          <p className="text-[13px] text-slate-500 font-medium line-clamp-2">{item.shortSummary || "—"}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={cn(
+                            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+                            item.verificationStatus === "VERIFIED"
+                              ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+                              : "border-sky-100 bg-sky-50 text-sky-700"
+                          )}>
+                            <span className="size-1.5 rounded-full bg-current opacity-70" />
+                            {getVerificationBadgeLabel(item.verificationBadge)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-center text-[12px] font-medium text-slate-400">
+                          {formatDate(item.dateOfInterest)}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <Link href={`/startup/investors/${item.investorId}`}>
+                            <button className="h-9 px-4 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all font-semibold text-[12px]">
+                              Xem hồ sơ
+                            </button>
+                          </Link>
+                        </td>
+                      </tr>
+                    )})}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <p className="text-[12px] font-medium text-slate-400">Trang {interestedPage} / {interestedTotalPages}</p>
+              <Pagination page={interestedPage} total={interestedTotalPages} onChange={(p) => { setInterestedPage(p); fetchInterested(p, interestedKeyword); }} />
+            </div>
+          </div>
+        );
       // ── Đã kết nối ──────────────────────────────────────────────────────
       case "Đã kết nối":
         return (
@@ -1193,7 +1377,7 @@ export default function InvestorsPage() {
 
         {/* Tab Navigation */}
         <div className="flex gap-8 overflow-x-auto border-b border-slate-200">
-          {["Khám phá", "Yêu cầu đã gửi", "Nhận từ Investor", "Đã kết nối"].map((tab) => (
+          {["Khám phá", "Yêu cầu đã gửi", "Nhận từ Investor", "Nhà đầu tư quan tâm", "Đã kết nối"].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}

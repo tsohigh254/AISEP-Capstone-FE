@@ -138,6 +138,40 @@ function extractAiScore(source: any): number | null {
   );
 }
 
+function normalizeConnectionStatusValue(
+  status?: string | null,
+): "none" | "pending" | "accepted" {
+  const normalized = (status ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+
+  if (normalized === "REQUESTED" || normalized === "PENDING") return "pending";
+  if (normalized === "ACCEPTED" || normalized === "IN_DISCUSSION" || normalized === "INDISCUSSION") {
+    return "accepted";
+  }
+  return "none";
+}
+
+function extractConnectionIdValue(source: any): number | null {
+  const raw = Number(source?.connectionId ?? source?.connectionID ?? source?.ConnectionID ?? null);
+  return Number.isFinite(raw) && raw > 0 ? raw : null;
+}
+
+function pickLatestConnectionForStartup(items: any[], startupId: number) {
+  const matched = items.filter(
+    (item) => Number(item?.startupID ?? item?.startupId ?? item?.StartupID ?? null) === startupId,
+  );
+
+  if (!matched.length) return null;
+
+  return [...matched].sort((a, b) => {
+    const aTime = new Date(a?.respondedAt || a?.requestedAt || 0).getTime();
+    const bTime = new Date(b?.respondedAt || b?.requestedAt || 0).getTime();
+    return bTime - aTime;
+  })[0] ?? null;
+}
+
 function extractLatestHistoryScore(items: any[]): number | null {
   if (!Array.isArray(items) || items.length === 0) return null;
 
@@ -727,10 +761,19 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
 
     const checkConnection = async () => {
       if (!Number.isFinite(startupId) || startupId <= 0) return;
+      const startupStatus = normalizeConnectionStatusValue(startup?.connectionStatus);
+      const startupConnectionId = extractConnectionIdValue(startup);
+
+      if (startupStatus !== "none") {
+        setConnectionStatus(startupStatus);
+        setConnectionId(startupConnectionId);
+        return;
+      }
+
       try {
         const [sentRes, receivedRes] = await Promise.all([
-          GetSentConnections(1, 20, undefined, startupId) as any,
-          GetReceivedConnections(1, 20, undefined, startupId) as any,
+          GetSentConnections(1, 100, undefined, startupId) as any,
+          GetReceivedConnections(1, 100, undefined, startupId) as any,
         ]);
         const getItems = (res: any) => {
           if (!res?.isSuccess && !res?.success) return [];
@@ -738,16 +781,17 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
           return Array.isArray(d) ? d : Array.isArray(d?.data) ? d.data : Array.isArray(d?.items) ? d.items : [];
         };
         const allConns = [...getItems(sentRes), ...getItems(receivedRes)];
-        const match = allConns[0] ?? allConns.find((c: any) => Number(c?.startupID ?? c?.startupId ?? c?.StartupID ?? null) === startupId);
-        if (match) {
-          const status = (match.connectionStatus || "").toLowerCase();
-          if (status === "accepted" || status === "indiscussion") {
-            setConnectionStatus("accepted");
-            setConnectionId(match.connectionID);
-          } else if (status === "requested") {
-            setConnectionStatus("pending");
-          }
+        const match = pickLatestConnectionForStartup(allConns, startupId);
+        const resolvedStatus = normalizeConnectionStatusValue(match?.connectionStatus);
+
+        if (resolvedStatus !== "none") {
+          setConnectionStatus(resolvedStatus);
+          setConnectionId(extractConnectionIdValue(match));
+          return;
         }
+
+        setConnectionStatus("none");
+        setConnectionId(null);
       } catch { /* non-blocking */ }
     };
 
@@ -765,7 +809,7 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
     void checkRole();
     void checkConnection();
     void checkWatchlist();
-  }, [startupId]);
+  }, [startupId, startup?.connectionStatus, startup?.connectionId, startup?.connectionID]);
 
   const notifyWatchlistUpdated = () => {
     try {

@@ -257,7 +257,7 @@ export default function LoginPage() {
 
       {/* ===== MAIN ===== */}
       <main className="flex-1 flex items-center justify-center py-12 px-4">
-        <div className="max-w-[1000px] w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <div className="max-w-[1100px] w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
 
           {/* Left Side: Welcome Info */}
           <div className="lg:col-span-5 space-y-8 hidden lg:block">
@@ -459,4 +459,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
