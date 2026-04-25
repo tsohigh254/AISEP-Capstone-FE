@@ -42,6 +42,7 @@ import {
   RemoveFromWatchlist,
 } from "@/services/investor/investor.api";
 import { GetStartupDocuments, ViewDocument } from "@/services/document/document.api";
+import { openDocumentInTab } from "@/lib/document-viewer";
 import { GetEvaluationHistory, GetEvaluationReport } from "@/services/ai/ai.api";
 import { Download, Eye, FileText as FileTextIcon, FolderOpen, RefreshCcw } from "lucide-react";
 import { GetSentConnections, GetReceivedConnections } from "@/services/connection/connection.api";
@@ -605,18 +606,17 @@ function TabDocuments({ startupId }: { startupId: number }) {
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
                     {doc.fileUrl && (
-                      <a
-                        href={/\.pdf(\?|$)/i.test(doc.fileUrl)
-                          ? doc.fileUrl
-                          : `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(doc.fileUrl)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => { ViewDocument(doc.documentID).catch(() => {}); }}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          ViewDocument(doc.documentID).catch(() => {});
+                          openDocumentInTab(doc.documentID).catch(() => {});
+                        }}
                         className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
                         title="Xem tài liệu"
                       >
                         <Eye className="w-4 h-4" />
-                      </a>
+                      </button>
                     )}
                     <button
                       onClick={async () => {

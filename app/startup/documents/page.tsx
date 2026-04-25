@@ -15,6 +15,7 @@ import {
     Info, AlertCircle,
 } from "lucide-react";
 import { AddMetaData, DeleteDocument, DocumentType, GetDocument } from "@/services/document/document.api";
+import { openDocumentInTab } from "@/lib/document-viewer";
 
 /* ─── Types ───────────────────────────────────────────────── */
 type BlockchainStatus = "not_submitted" | "pending" | "recorded" | "matched" | "mismatch" | "failed";
@@ -382,15 +383,14 @@ export default function StartupDocumentsPage() {
                                                     </span>
                                                 </Link>
                                                 {doc.fileUrl && (
-                                                    <a
-                                                        href={doc.fileUrl}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openDocumentInTab(doc.id)}
                                                         className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
-                                                        title="Tải xuống"
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
+                                                        title="Mở tệp"
                                                     >
                                                         <Download className="w-3.5 h-3.5" />
-                                                    </a>
+                                                    </button>
                                                 )}
                                                 <button
                                                     onClick={e => openMenu(e, doc.id)}
