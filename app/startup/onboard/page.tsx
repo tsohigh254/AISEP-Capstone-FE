@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import {
   CreateStartupProfile,
   GetStartupProfile,
-  StartupStage,
 } from "@/services/startup/startup.api";
 import { Step1 } from "@/components/startup/onboarding-steps/step-1-identity";
 import { Step2 } from "@/components/startup/onboarding-steps/step-2-pitch";
@@ -29,8 +28,9 @@ export default function OnboardingPage() {
   const [formData, setFormData] = useState({
     startupName: "",
     oneLiner: "",
-    industryID: "",
-    stage: "",
+    industryId: "",
+    subIndustryId: "",
+    stageId: "",
     problem: "",
     solution: "",
     targetAudience: "",
@@ -80,8 +80,8 @@ export default function OnboardingPage() {
   const completeness = useMemo(() => {
     const checks = [
       Boolean(formData.startupName.trim()),
-      Boolean(formData.industryID),
-      Boolean(formData.stage),
+      Boolean(formData.industryId),
+      Boolean(formData.stageId),
       Boolean(formData.problem.trim()),
       Boolean(formData.solution.trim()),
       Boolean(formData.targetAudience.trim()),
@@ -95,8 +95,9 @@ export default function OnboardingPage() {
       const payload = {
         companyName:      formData.startupName,
         oneLiner:         formData.oneLiner || formData.startupName,
-        stage:            (parseInt(formData.stage) || 0) as StartupStage,
-        industryID:       formData.industryID ? parseInt(formData.industryID) : undefined,
+        stageId:          formData.stageId ? parseInt(formData.stageId) : undefined,
+        industryId:       formData.industryId ? parseInt(formData.industryId) : undefined,
+        subIndustryId:    formData.subIndustryId ? parseInt(formData.subIndustryId) : null,
         problemStatement: formData.problem || undefined,
         solutionSummary:  formData.solution || undefined,
         marketScope:      formData.targetAudience || undefined,
@@ -292,4 +293,3 @@ export default function OnboardingPage() {
     </div>
   );
 }
-

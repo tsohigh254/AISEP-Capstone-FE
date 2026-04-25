@@ -8,8 +8,7 @@ import {
   User, UserCircle, Tag, Briefcase, ChevronDown, Users
 } from "lucide-react";
 import { IInvestorOnboardData } from "@/types/investor-kyc";
-import { GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
-import { INVESTOR_PREFERRED_STAGE_OPTIONS, normalizeInvestorPreferredStages } from "@/lib/investor-preferred-stages";
+import { GetIndustriesFlat, GetStages, IIndustryFlat, IStageMasterItem } from "@/services/master/master.api";
 
 interface InvestorProfileStepProps {
   data: Partial<IInvestorOnboardData>;
@@ -22,8 +21,8 @@ interface InvestorProfileStepProps {
 export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: InvestorProfileStepProps) {
   const set = (key: keyof IInvestorOnboardData, val: any) => onChange({ ...data, [key]: val });
 
-  const toggleList = (key: keyof IInvestorOnboardData, val: string) => {
-    const list = (data[key] as string[]) || [];
+  const toggleNumberList = (key: keyof IInvestorOnboardData, val: number) => {
+    const list = (data[key] as number[]) || [];
     if (list.includes(val)) set(key, list.filter(v => v !== val));
     else set(key, [...list, val]);
   };
@@ -31,10 +30,12 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: 
   const isInstitutional = data.investorCategory === "INSTITUTIONAL";
 
   const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
+  const [stages, setStages] = useState<IStageMasterItem[]>([]);
   const [expandedSections, setExpandedSections] = useState<number[]>([]);
 
   useEffect(() => {
     GetIndustriesFlat().then(setIndustries).catch(() => {});
+    GetStages().then(setStages).catch(() => {});
   }, []);
 
   const parentIndustries = industries.filter(i => !i.parentIndustryID);
@@ -65,8 +66,8 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: 
     </label>
   );
 
-  const totalSelected = data.preferredIndustries?.length ?? 0;
-  const selectedStageValues = normalizeInvestorPreferredStages(data.preferredStages);
+  const totalSelected = data.preferredIndustryIds?.length ?? 0;
+  const selectedStageIds = data.preferredStageIds ?? [];
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 pb-10">
@@ -226,18 +227,18 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: 
               {parentIndustries.map(parent => {
                 const children = childrenMap[parent.industryID] || [];
                 const selectedCount = children.filter(c =>
-                  (data.preferredIndustries || []).includes(c.industryName)
+                  (data.preferredIndustryIds || []).includes(c.industryId)
                 ).length;
                 const isExpanded = expandedSections.includes(parent.industryID);
 
                 // Parent có children → accordion; không có → chip trực tiếp
                 if (children.length === 0) {
-                  const isSelected = (data.preferredIndustries || []).includes(parent.industryName);
+                  const isSelected = (data.preferredIndustryIds || []).includes(parent.industryId);
                   return (
                     <button
                       key={parent.industryID}
                       type="button"
-                      onClick={() => toggleList("preferredIndustries", parent.industryName)}
+                      onClick={() => toggleNumberList("preferredIndustryIds", parent.industryId)}
                       className={cn(
                         "w-full text-left px-4 py-3 rounded-xl border text-[13px] font-semibold transition-all active:scale-[0.99]",
                         isSelected
@@ -277,10 +278,10 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: 
                           <button
                             key={child.industryID}
                             type="button"
-                            onClick={() => toggleList("preferredIndustries", child.industryName)}
+                            onClick={() => toggleNumberList("preferredIndustryIds", child.industryId)}
                             className={cn(
                               "px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-all active:scale-95",
-                              (data.preferredIndustries || []).includes(child.industryName)
+                              (data.preferredIndustryIds || []).includes(child.industryId)
                                 ? "bg-[#eec54e] border-[#eec54e] text-slate-900"
                                 : "bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-white"
                             )}
@@ -302,18 +303,18 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: 
         <div className="md:col-span-2 space-y-3">
           <Label required icon={Layers}>Giai đoạn ưu tiên</Label>
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-            {INVESTOR_PREFERRED_STAGE_OPTIONS.map(opt => {
-              const isSelected = selectedStageValues.includes(opt.value);
+            {stages.map(opt => {
+              const isSelected = selectedStageIds.includes(opt.stageId);
               return (
                 <button
-                  key={opt.value}
+                  key={opt.stageId}
                   type="button"
                   onClick={() =>
                     set(
-                      "preferredStages",
+                      "preferredStageIds",
                       isSelected
-                        ? selectedStageValues.filter(v => v !== opt.value)
-                        : [...selectedStageValues, opt.value]
+                        ? selectedStageIds.filter(v => v !== opt.stageId)
+                        : [...selectedStageIds, opt.stageId]
                     )
                   }
                   className={cn(
@@ -323,7 +324,7 @@ export function InvestorProfileStep({ data, onChange, onNext, onBack, errors }: 
                       : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
                   )}
                 >
-                  {opt.label}
+                  {opt.stageName}
                 </button>
               );
             })}

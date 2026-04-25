@@ -263,6 +263,8 @@ const getMentorshipAdvisorDisplay = (item: IMentorshipRequest) => {
 };
 
 const isAdvisorAvailable = (availabilityHint?: string | null) => availabilityHint === "Available";
+const getAvailabilityLabel = (availabilityHint?: string | null) =>
+  availabilityHint === "Available" ? "Đang nhận mentee" : "Tạm ngưng";
 
 // ─── Helper Components ───────────────────────────────────────────────────────
 
@@ -922,7 +924,7 @@ function StartupAdvisorsPageInner() {
                               ? "bg-emerald-50 border-emerald-100 text-emerald-600"
                               : "bg-slate-50 border-slate-100 text-slate-400"
                           )}>
-                            {advisor.availabilityHint === "Available" ? "Đang nhận mentee" : advisor.availabilityHint === "Not available" ? "Tạm ngưng" : advisor.availabilityHint}
+                            {getAvailabilityLabel(advisor.availabilityHint)}
                           </span>
                         </div>
                         <p className="text-[12px] text-slate-400 mt-0.5">{advisor.title}</p>

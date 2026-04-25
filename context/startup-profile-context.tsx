@@ -8,21 +8,24 @@ import {
     SubmitForApproval,
     ICreateStartupRequest,
     IUpdateStartupRequest,
-    StartupStage,
 } from "@/services/startup/startup.api";
 
 export interface StartupProfileFormState {
     companyName: string;
     oneLiner: string;
     description: string;
-    industryID: string;
+    industryId: string;
+    subIndustryId?: string;
+    /** Deprecated aliases retained until all read-only screens migrate. */
+    industryID?: string;
     subIndustry?: string;
     teamSize?: string;
     currentNeeds?: string[];
     [key: string]: any;
     metricSummary?: string;
     pitchDeckUrl?: string;
-    stage: string;
+    stageId: string;
+    stage?: string;
     foundedDate: string;
     website: string;
     fundingAmountSought: string;
@@ -47,7 +50,9 @@ const INITIAL_FORM: StartupProfileFormState = {
     oneLiner: "",
     description: "",
     industryID: "",
-    stage: StartupStage.Idea.toString(),
+    industryId: "",
+    subIndustryId: "",
+    stageId: "",
     foundedDate: "",
     website: "",
     fundingAmountSought: "",
@@ -91,31 +96,13 @@ interface StartupProfileContextType {
 
 const StartupProfileContext = createContext<StartupProfileContextType | null>(null);
 
-const STAGE_MAP: Record<string, StartupStage> = {
-    Idea: StartupStage.Idea,
-    PreSeed: StartupStage.PreSeed,
-    "Pre-Seed": StartupStage.PreSeed,
-    Seed: StartupStage.Seed,
-    SeriesA: StartupStage.SeriesA,
-    "Series A": StartupStage.SeriesA,
-    SeriesB: StartupStage.SeriesB,
-    "Series B": StartupStage.SeriesB,
-    SeriesC: StartupStage.SeriesC,
-    "Series C": StartupStage.SeriesC,
-    "Series C+": StartupStage.SeriesC,
-    Growth: StartupStage.Growth,
-};
-
-const normalizeStage = (stage: string | number | undefined | null): StartupStage => {
-    if (typeof stage === "number" && Number.isFinite(stage) && stage >= StartupStage.Idea && stage <= StartupStage.Growth) {
-        return stage as StartupStage;
+const getNumberString = (...values: unknown[]) => {
+    for (const value of values) {
+        if (value === undefined || value === null || value === "") continue;
+        const parsed = Number(value);
+        if (Number.isFinite(parsed) && parsed > 0) return String(parsed);
     }
-    const trimmed = `${stage ?? ""}`.trim();
-    const asNumber = Number(trimmed);
-    if (Number.isFinite(asNumber) && asNumber >= StartupStage.Idea && asNumber <= StartupStage.Growth) {
-        return asNumber as StartupStage;
-    }
-    return STAGE_MAP[trimmed] ?? StartupStage.Idea;
+    return "";
 };
 
 export function StartupProfileProvider({ children }: { children: ReactNode }) {
@@ -152,7 +139,10 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                         "companyName",
                         "oneLiner",
                         "description",
+                        "industryId",
                         "industryID",
+                        "stageId",
+                        "stageID",
                         "stage",
                         "teamSize",
                         "pitchDeckUrl",
@@ -184,8 +174,11 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                     companyName: data.companyName || "",
                     oneLiner: data.oneLiner || "",
                     description: data.description || "",
-                    industryID: data.industryID != null ? String(data.industryID) : "",
-                    stage: data.stage !== undefined && data.stage !== null ? normalizeStage(data.stage).toString() : StartupStage.Idea.toString(),
+                    industryId: getNumberString(data.industryId, data.industryID),
+                    industryID: getNumberString(data.industryId, data.industryID),
+                    subIndustryId: getNumberString(data.subIndustryId, data.subIndustryID),
+                    stageId: getNumberString(data.stageId, data.stageID, data.stage),
+                    stage: getNumberString(data.stageId, data.stageID, data.stage),
                     foundedDate: data.foundedDate ? new Date(data.foundedDate).toISOString().split("T")[0] : "",
                     website: data.website || "",
                     fundingAmountSought:
@@ -207,7 +200,7 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                     contactEmail: data.contactEmail || "",
                     contactPhone: data.contactPhone || "",
                     linkedInURL: data.linkedInURL || "",
-                    subIndustry: data.subIndustry || "",
+                    subIndustry: data.subIndustryName || data.subIndustry || "",
                     teamSize: getTeamSizeValue(data as IStartupProfile & { TeamSize?: string | number }),
                     currentNeeds: Array.isArray(data.currentNeeds)
                         ? data.currentNeeds
@@ -243,7 +236,21 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
     }, [getTeamSizeValue]);
 
     const updateForm = useCallback((field: string, value: any) => {
-        setForm(prev => ({ ...prev, [field]: value }));
+        setForm(prev => {
+            const next = { ...prev, [field]: value };
+            if (field === "industryId" || field === "industryID") {
+                next.industryId = value;
+                next.industryID = value;
+            }
+            if (field === "stageId" || field === "stage") {
+                next.stageId = value;
+                next.stage = value;
+            }
+            if (field === "subIndustryId" || field === "subIndustryID") {
+                next.subIndustryId = value;
+            }
+            return next;
+        });
     }, []);
 
     const saveProfile = useCallback(async (): Promise<boolean> => {
@@ -295,8 +302,9 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                 companyName: form.companyName || undefined,
                 oneLiner: form.oneLiner,
                 description: form.description || undefined,
-                industryID: form.industryID ? parseInt(form.industryID) : undefined,
-                stage: normalizeStage(form.stage),
+                industryId: form.industryId ? parseInt(form.industryId) : undefined,
+                subIndustryId: form.subIndustryId ? parseInt(form.subIndustryId) : null,
+                stageId: form.stageId ? parseInt(form.stageId) : undefined,
                 foundedDate: form.foundedDate ? new Date(form.foundedDate) : undefined,
                 website: form.website || undefined,
                 fundingAmountSought: parseMoney(form.fundingAmountSought),
@@ -311,7 +319,6 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                 contactEmail: form.contactEmail || undefined,
                 contactPhone: form.contactPhone || undefined,
                 linkedInURL: form.linkedInURL || undefined,
-                subIndustry: form.subIndustry || undefined,
                 teamSize: form.teamSize || undefined,
                 currentNeeds: form.currentNeeds || undefined,
                 metricSummary: form.metricSummary || undefined,

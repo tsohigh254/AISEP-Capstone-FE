@@ -10,6 +10,8 @@ import { GetReceivedConnections, GetSentConnections } from "@/services/connectio
 import { ConnectStartupModal } from "@/components/investor/connect-startup-modal";
 import { toast } from "sonner";
 
+const INVESTOR_WATCHLIST_LOAD_ERROR_TOAST_ID = "investor-watchlist-load-error";
+
 function normalizeScore(raw: any): number | null {
   if (raw == null) return null;
   let n: number;
@@ -300,12 +302,16 @@ export default function WatchlistPage() {
 
           setWatchlist(normalized as any);
         } else {
-          toast.error("Không thể tải danh sách theo dõi");
+          toast.error("Không thể tải danh sách theo dõi", {
+            id: INVESTOR_WATCHLIST_LOAD_ERROR_TOAST_ID,
+          });
         }
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error("GetInvestorWatchlist error:", err);
-        toast.error("Lỗi khi tải danh sách theo dõi");
+        toast.error("Lỗi khi tải danh sách theo dõi", {
+          id: INVESTOR_WATCHLIST_LOAD_ERROR_TOAST_ID,
+        });
       } finally {
         setIsLoading(false);
       }

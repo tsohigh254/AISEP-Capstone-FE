@@ -19,7 +19,6 @@ import {
 } from "@/services/investor/investor-kyc";
 import { CreateInvestorProfile, UpdateInvestorPreferences, UploadInvestorPhoto } from "@/services/investor/investor.api";
 import { IInvestorKYCStatus, IInvestorOnboardData } from "@/types/investor-kyc";
-import { normalizeInvestorPreferredStages } from "@/lib/investor-preferred-stages";
 import { writeInvestorKycCategorySession } from "@/lib/investor-kyc-category-session";
 
 const TIMELINE_STEPS = [
@@ -60,8 +59,8 @@ export default function InvestorOnboardingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [formData, setFormData] = useState<IInvestorOnboardData>({
-    preferredIndustries: [],
-    preferredStages: [],
+    preferredIndustryIds: [],
+    preferredStageIds: [],
     acceptingConnectionsStatus: "OPEN",
     declarationAccepted: true,
   });
@@ -75,8 +74,8 @@ export default function InvestorOnboardingPage() {
       Boolean(formData.currentRoleTitle?.trim()),
       Boolean(formData.location?.trim()),
       Boolean(formData.website?.trim()),
-      Boolean(formData.preferredIndustries?.length),
-      Boolean(formData.preferredStages?.length),
+      Boolean(formData.preferredIndustryIds?.length),
+      Boolean(formData.preferredStageIds?.length),
     ];
     return Math.round((checks.filter(Boolean).length / checks.length) * 100);
   }, [formData]);
@@ -130,10 +129,10 @@ export default function InvestorOnboardingPage() {
       if (!formData.shortThesisSummary?.trim())
         e.shortThesisSummary = "Vui lòng nhập khẩu vị đầu tư";
 
-      if (!formData.preferredIndustries?.length)
+      if (!formData.preferredIndustryIds?.length)
         e.preferredIndustries = "Vui lòng chọn ít nhất 1 lĩnh vực";
 
-      if (!formData.preferredStages?.length)
+      if (!formData.preferredStageIds?.length)
         e.preferredStages = "Vui lòng chọn ít nhất 1 giai đoạn";
 
       if (isInstitutional) {
@@ -211,10 +210,10 @@ export default function InvestorOnboardingPage() {
         await UploadInvestorPhoto(formData.avatarFile).catch(() => {});
       }
 
-      if (formData.preferredIndustries?.length || formData.preferredStages?.length) {
+      if (formData.preferredIndustryIds?.length || formData.preferredStageIds?.length) {
         await UpdateInvestorPreferences({
-          preferredIndustries: formData.preferredIndustries || [],
-          preferredStages: normalizeInvestorPreferredStages(formData.preferredStages),
+          preferredIndustryIDs: formData.preferredIndustryIds || [],
+          preferredStageIDs: formData.preferredStageIds || [],
         });
       }
 

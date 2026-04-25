@@ -61,14 +61,37 @@ declare global {
     roles: string[];
   }
 
+  interface IIndustryRef {
+    industryId: number;
+    industryName: string;
+    id?: number;
+    name?: string;
+  }
+
+  interface IStageRef {
+    stageId: number;
+    stageName: string;
+    id?: number;
+    name?: string;
+  }
+
   interface IStartupProfile {
     startupID: number;
+    startupId?: number;
     userID: number;
     companyName: string;
     oneLiner: string;
     description: string;
-    industryID: number;
+    industryId?: number;
+    industryID?: number;
     industryName: string;
+    parentIndustryName?: string | null;
+    subIndustryId?: number | null;
+    subIndustryID?: number | null;
+    subIndustryName?: string | null;
+    stageId?: number;
+    stageID?: number;
+    stageName?: string;
     /** Giai đoạn: số 0–6 hoặc chuỗi (API .NET). */
     stage: string | number;
     foundedDate: string;
@@ -91,7 +114,7 @@ declare global {
     /** Một số API trả thêm trạng thái hiển thị dạng chuỗi; ưu tiên khi có. */
     visibilityStatus?: string;
     teamSize: string; // Changed to string
-    subIndustry: string;
+    subIndustry?: string;
     currentNeeds: string[];
     metricSummary: string;
     pitchDeckUrl: string;
@@ -182,8 +205,8 @@ declare global {
     investmentThesis: string;
     connectionGuidance: string;
     supportOffered: string[];
-    preferredStages: string[];
-    preferredIndustries: string[];
+    preferredStages: IStageRef[];
+    preferredIndustries: IIndustryRef[];
     preferredGeographies: string[];
     preferredMarketScopes: string[];
     preferredProductMaturity: string[];
@@ -316,8 +339,8 @@ declare global {
     linkedInURL?: string;
     location?: string;
     country?: string;
-    preferredStages?: string[];
-    preferredIndustries?: string[];
+    preferredStages?: IStageRef[];
+    preferredIndustries?: IIndustryRef[];
     preferredGeographies?: string[];
     averageRating?: number;
     totalConnections?: number;
@@ -509,8 +532,8 @@ declare global {
   }
 
   interface IInvestorPreferences {
-    preferredIndustries: string[];
-    preferredStages: string[];
+    preferredIndustries: IIndustryRef[];
+    preferredStages: IStageRef[];
     preferredMarketScopes: string[];
     supportOffered: string[];
     preferredGeographies?: string;
@@ -520,8 +543,10 @@ declare global {
   }
 
   interface IUpdateInvestorPreferences {
-    preferredIndustries?: string[];
-    preferredStages?: string[];
+    preferredIndustryIDs?: number[];
+    preferredStageIDs?: number[];
+    preferredIndustryIds?: number[];
+    preferredStageIds?: number[];
     preferredMarketScopes?: string[];
     supportOffered?: string[];
     ticketMin?: number | null;
@@ -559,11 +584,19 @@ declare global {
 
   interface IStartupSearchItem {
     startupID: number;
+    startupId?: number;
     companyName: string;
     industry?: string;
+    industryId?: number;
     industryID?: number;
     industryName?: string;
+    subIndustryId?: number | null;
+    subIndustryID?: number | null;
+    subIndustryName?: string | null;
     parentIndustryName?: string | null;
+    stageId?: number;
+    stageID?: number;
+    stageName?: string;
     stage?: string;
     country?: string;
     aiScore?: number;

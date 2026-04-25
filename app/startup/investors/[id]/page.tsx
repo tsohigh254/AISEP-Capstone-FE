@@ -24,7 +24,7 @@ import {
     Handshake,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getInvestorPreferredStageLabel } from "@/lib/investor-preferred-stages";
+import { getIndustryName, getInvestorPreferredStageLabel } from "@/lib/investor-preferred-stages";
 import { buildInvestorProfilePresentation, isInvestorKycVerified } from "@/lib/investor-profile-presenter";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -266,6 +266,7 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
     const dotColors = { yellow: "bg-yellow-400", green: "bg-green-400", blue: "bg-blue-400" };
     const locationLabel = [investor.location, investor.country].filter(Boolean).join(", ");
     const preferredStages = (investor.preferredStages ?? []).map(getInvestorPreferredStageLabel);
+    const preferredIndustries = (investor.preferredIndustries ?? []).map(getIndustryName);
     const aiScoreRangeLabel = typeof investor.preferredAIScoreRange === "string"
         ? investor.preferredAIScoreRange
         : investor.preferredAIScoreRange
@@ -274,7 +275,7 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
     const highlightItems = [
         { label: "Loại nhà đầu tư", value: presentation.categoryLabel || investor.investorType || "Nhà đầu tư" },
         { label: "Giai đoạn quan tâm", value: preferredStages.slice(0, 2).join(" | ") || "Chưa cập nhật" },
-        { label: "Lĩnh vực ưu tiên", value: (investor.preferredIndustries ?? []).slice(0, 2).join(" | ") || "Chưa cập nhật" },
+        { label: "Lĩnh vực ưu tiên", value: preferredIndustries.slice(0, 2).join(" | ") || "Chưa cập nhật" },
     ];
     const connectionBadgeLabel = connectionLoading
         ? "Đang tải trạng thái"
@@ -585,7 +586,7 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                                 </div>
                                 {[
                                     { label: "Giai đoạn ưu tiên", items: preferredStages },
-                                    { label: "Lĩnh vực ưu tiên", items: investor.preferredIndustries },
+                                    { label: "Lĩnh vực ưu tiên", items: preferredIndustries },
                                     { label: "Địa lý", items: investor.preferredGeographies },
                                     { label: "Phạm vi thị trường", items: investor.preferredMarketScopes },
                                     { label: "Độ trưởng thành sản phẩm", items: investor.preferredProductMaturity },

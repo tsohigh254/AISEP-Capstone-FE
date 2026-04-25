@@ -17,6 +17,9 @@ export interface IInvestorOnboardData {
   submitterRole?: string;
   shortThesisSummary?: string;
   investmentThesis?: string;
+  preferredIndustryIds?: number[];
+  preferredStageIds?: number[];
+  /** Deprecated display-only arrays for older preview/review components. */
   preferredIndustries?: string[];
   preferredStages?: string[];
   preferredGeographies?: string[];

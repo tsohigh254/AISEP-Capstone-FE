@@ -56,7 +56,7 @@ const TIMEZONES = [
 ];
 
 interface TimeSlot { date: string; time: string; }
-interface FormErrors { objective?: string; problemContext?: string; scope?: string; }
+interface FormErrors { objective?: string; problemContext?: string; scope?: string; slots?: string; }
 
 export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRequestModalProps) {
     const [objective, setObjective]             = useState("");
@@ -71,6 +71,7 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
     const [isSuccess, setIsSuccess]             = useState(false);
     const [errors, setErrors]                   = useState<FormErrors>({});
     const [submitted, setSubmitted]             = useState(false);
+    const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
 
     const today = typeof window !== "undefined" ? new Date().toISOString().split("T")[0] : "";
     const isAdvisorAvailable = mentor?.availabilityHint === "Available";
@@ -81,7 +82,7 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
             setScope([]); setPlatform("meet"); setDuration("60");
             setTimezone("Asia/Ho_Chi_Minh"); setSlots([{ date: "", time: "" }]);
             setIsSubmitting(false); setIsSuccess(false);
-            setErrors({}); setSubmitted(false);
+            setErrors({}); setSubmitted(false); setShowConfirmSubmit(false);
         }
     }, [isOpen]);
 
@@ -96,20 +97,30 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
     const updateSlot = (i: number, field: keyof TimeSlot, val: string) =>
         setSlots(s => s.map((item, idx) => idx === i ? { ...item, [field]: val } : item));
 
-    const canSubmit = objective.trim() && problemContext.trim() && scope.length > 0;
+    const filledSlots = slots.filter(s => s.date && s.time);
+    const hasPartialSlot = slots.some(s => (s.date && !s.time) || (!s.date && s.time));
+    const canSubmit = objective.trim() && problemContext.trim() && scope.length > 0 && filledSlots.length > 0 && !hasPartialSlot;
 
-    const handleSubmit = async () => {
+    const validateForm = () => {
         if (!isAdvisorAvailable) {
             toast.error("Cố vấn hiện chưa sẵn sàng nhận yêu cầu tư vấn.");
-            return;
+            return false;
         }
         setSubmitted(true);
         const errs: FormErrors = {};
         if (!objective.trim())     errs.objective     = "Vui lòng nhập mục tiêu buổi tư vấn";
         if (!problemContext.trim()) errs.problemContext = "Vui lòng mô tả vấn đề bạn đang gặp";
         if (scope.length === 0)    errs.scope          = "Vui lòng chọn ít nhất một phạm vi";
+        if (filledSlots.length === 0) errs.slots = "Vui lòng thêm ít nhất 1 khung giờ ưu tiên.";
+        if (hasPartialSlot) errs.slots = "Mỗi khung giờ cần điền đủ cả ngày và giờ.";
         setErrors(errs);
-        if (Object.keys(errs).length > 0) return;
+        if (Object.keys(errs).length > 0) return false;
+
+        return true;
+    };
+
+    const handleSubmit = async () => {
+        if (!validateForm()) return;
 
         setIsSubmitting(true);
 
@@ -117,7 +128,6 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
 
         const preferredFormat: MeetingFormat = platform === "meet" ? "GoogleMeet" : "MicrosoftTeams";
 
-        const filledSlots = slots.filter(s => s.date && s.time);
         const now = new Date();
         const hasPastSlot = filledSlots.some(s => new Date(`${s.date}T${s.time}:00`) <= now);
         if (hasPastSlot) {
@@ -174,6 +184,11 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const handleRequestSubmit = () => {
+        if (!validateForm()) return;
+        setShowConfirmSubmit(true);
     };
 
     if (!isOpen || !mentor) return null;
@@ -408,6 +423,12 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                                 <p className="text-[11px] text-slate-400 leading-relaxed">
                                     Đề xuất tối đa 3 khung giờ bạn sẵn sàng. Cố vấn sẽ chọn hoặc đề xuất lại.
                                 </p>
+                                {errors.slots && (
+                                    <p className="flex items-center gap-1.5 text-[11.5px] text-red-500">
+                                        <span className="w-1 h-1 rounded-full bg-red-400 flex-shrink-0" />
+                                        {errors.slots}
+                                    </p>
+                                )}
                             </div>
                         </>
                     )}
@@ -431,7 +452,7 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                             </button>
                             <button
                                 type="button"
-                                onClick={handleSubmit}
+                                onClick={handleRequestSubmit}
                                 disabled={isSubmitting || !canSubmit || !isAdvisorAvailable}
                                 className={cn(
                                     "inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold transition-all",
@@ -452,6 +473,36 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                     </div>
                 )}
             </div>
+
+            {showConfirmSubmit && !isSubmitting && !isSuccess && (
+                <div className="absolute inset-0 z-[5] flex items-center justify-center bg-black/35 p-4">
+                    <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+                        <h4 className="text-[15px] font-bold text-slate-900">Xác nhận gửi yêu cầu</h4>
+                        <p className="mt-2 text-[13px] text-slate-600">
+                            Bạn chắc chắn muốn gửi yêu cầu mentorship đến <span className="font-semibold">{mentor.fullName}</span>?
+                        </p>
+                        <div className="mt-5 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowConfirmSubmit(false)}
+                                className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-slate-600 hover:bg-slate-50"
+                            >
+                                Chưa, xem lại
+                            </button>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    setShowConfirmSubmit(false);
+                                    await handleSubmit();
+                                }}
+                                className="rounded-xl bg-[#0f172a] px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-slate-800"
+                            >
+                                Xác nhận gửi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

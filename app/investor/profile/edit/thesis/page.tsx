@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Loader2, ChevronDown } from "lucide-react";
 import { GetInvestorPreferences, GetInvestorProfile, UpdateInvestorProfile, UpdateInvestorPreferences } from "@/services/investor/investor.api";
 import { GetIndustriesFlat, GetStages, IIndustryFlat, IStageMasterItem } from "@/services/master/master.api";
 import { useInvestorEdit } from "@/context/investor-edit-context";
-import { getInvestorPreferredStageLabel, normalizeInvestorPreferredStage, normalizeInvestorPreferredStages } from "@/lib/investor-preferred-stages";
+import { getIndustryId, getInvestorPreferredStageLabel, getStageId } from "@/lib/investor-preferred-stages";
 
 const inputCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 outline-none transition-all";
 const labelCls = "block text-[12px] font-medium text-slate-500 mb-1.5";
@@ -16,6 +16,9 @@ const normalizeTextList = (value: string) =>
     value.split(",").map(s => s.trim()).filter(Boolean);
 
 const sameStringArray = (a: string[] = [], b: string[] = []) =>
+    a.length === b.length && a.every((item, index) => item === b[index]);
+
+const sameNumberArray = (a: number[] = [], b: number[] = []) =>
     a.length === b.length && a.every((item, index) => item === b[index]);
 
 const formatGroupedNumberInput = (value: string) => {
@@ -58,8 +61,8 @@ export default function ThesisEditPage() {
     const [isLoading, setIsLoading] = useState(true);
 
     const [investmentThesis, setInvestmentThesis] = useState("");
-    const [preferredIndustries, setPreferredIndustries] = useState<string[]>([]);
-    const [preferredStages, setPreferredStages] = useState<string[]>([]);
+    const [preferredIndustryIds, setPreferredIndustryIds] = useState<number[]>([]);
+    const [preferredStageIds, setPreferredStageIds] = useState<number[]>([]);
     const [preferredMarketScopes, setPreferredMarketScopes] = useState("");
     const [supportOffered, setSupportOffered] = useState("");
     const [ticketMin, setTicketMin] = useState("");
@@ -68,18 +71,6 @@ export default function ThesisEditPage() {
     const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
     const [stageOptions, setStageOptions] = useState<IStageMasterItem[]>([]);
     const [expandedSections, setExpandedSections] = useState<number[]>([]);
-
-    const normalizedStageOptions = useMemo(
-        () =>
-            Array.from(
-                new Set(
-                    stageOptions
-                        .map(stage => normalizeInvestorPreferredStage(stage.stageName))
-                        .filter((stage): stage is NonNullable<ReturnType<typeof normalizeInvestorPreferredStage>> => stage != null),
-                ),
-            ),
-        [stageOptions],
-    );
 
     useEffect(() => {
         Promise.allSettled([
@@ -100,8 +91,8 @@ export default function ThesisEditPage() {
                 const prefsData = prefsResult.value as unknown as IBackendRes<IInvestorPreferences>;
                 if (prefsData.isSuccess && prefsData.data) {
                     const prefs = prefsData.data;
-                    setPreferredIndustries(prefs.preferredIndustries || []);
-                    setPreferredStages(normalizeInvestorPreferredStages(prefs.preferredStages));
+                    setPreferredIndustryIds((prefs.preferredIndustries || []).map(getIndustryId).filter((id): id is number => id != null));
+                    setPreferredStageIds((prefs.preferredStages || []).map(getStageId).filter((id): id is number => id != null));
                     setPreferredMarketScopes((prefs.preferredMarketScopes || []).join(", "));
                     setSupportOffered((prefs.supportOffered || []).join(", "));
                     setTicketMin(prefs.ticketMin != null ? formatGroupedNumberInput(String(prefs.ticketMin)) : "");
@@ -119,7 +110,7 @@ export default function ThesisEditPage() {
             if (stagesResult.status === "fulfilled" && stagesResult.value.length > 0) {
                 setStageOptions(stagesResult.value);
             } else {
-                setStageOptions(DEFAULT_STAGE_OPTIONS.map((stageName, index) => ({ stageID: index, stageName })));
+                setStageOptions(DEFAULT_STAGE_OPTIONS.map((stageName, index) => ({ stageId: index + 1, stageID: index + 1, stageName })));
             }
         }).finally(() => setIsLoading(false));
     }, []);
@@ -133,9 +124,9 @@ export default function ThesisEditPage() {
         return acc;
     }, {} as Record<number, IIndustryFlat[]>);
 
-    const toggleIndustry = (name: string) => {
-        setPreferredIndustries(prev =>
-            prev.includes(name) ? prev.filter(v => v !== name) : [...prev, name]
+    const toggleIndustry = (id: number) => {
+        setPreferredIndustryIds(prev =>
+            prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]
         );
     };
 
@@ -145,18 +136,15 @@ export default function ThesisEditPage() {
         );
     };
 
-    const toggleStage = (stage: string) => {
-        const normalizedStage = normalizeInvestorPreferredStage(stage);
-        if (!normalizedStage) return;
-        setPreferredStages(prev =>
-            prev.includes(normalizedStage) ? prev.filter(s => s !== normalizedStage) : [...prev, normalizedStage]
+    const toggleStage = (stageId: number) => {
+        setPreferredStageIds(prev =>
+            prev.includes(stageId) ? prev.filter(s => s !== stageId) : [...prev, stageId]
         );
     };
 
     const handleSave = useCallback(async () => {
         setIsSaving(true);
         try {
-            const normalizedStages = normalizeInvestorPreferredStages(preferredStages);
             const marketScopesList = normalizeTextList(preferredMarketScopes);
             const supportOfferedList = normalizeTextList(supportOffered);
             const parsedTicketMin = parseOptionalNumber(ticketMin);
@@ -178,8 +166,8 @@ export default function ThesisEditPage() {
                     bio: investmentThesis,
                 }),
                 UpdateInvestorPreferences({
-                    preferredIndustries,
-                    preferredStages: normalizedStages,
+                    preferredIndustryIDs: preferredIndustryIds,
+                    preferredStageIDs: preferredStageIds,
                     preferredMarketScopes: marketScopesList,
                     supportOffered: supportOfferedList,
                     ticketMin: parsedTicketMin,
@@ -197,15 +185,15 @@ export default function ThesisEditPage() {
 
             if (prefsData.data) {
                 const savedPreferences = prefsData.data;
-                const savedIndustries = savedPreferences.preferredIndustries || [];
-                const savedStages = normalizeInvestorPreferredStages(savedPreferences.preferredStages);
+                const savedIndustryIds = (savedPreferences.preferredIndustries || []).map(getIndustryId).filter((id): id is number => id != null);
+                const savedStageIds = (savedPreferences.preferredStages || []).map(getStageId).filter((id): id is number => id != null);
                 const savedMarketScopes = savedPreferences.preferredMarketScopes || [];
                 const savedSupportOffered = savedPreferences.supportOffered || [];
                 const savedTicketMin = savedPreferences.ticketMin ?? null;
                 const savedTicketMax = savedPreferences.ticketMax ?? null;
 
-                setPreferredIndustries(savedIndustries);
-                setPreferredStages(savedStages);
+                setPreferredIndustryIds(savedIndustryIds);
+                setPreferredStageIds(savedStageIds);
                 setPreferredMarketScopes(savedMarketScopes.join(", "));
                 setSupportOffered(savedSupportOffered.join(", "));
                 setTicketMin(savedTicketMin != null ? formatGroupedNumberInput(String(savedTicketMin)) : "");
@@ -213,8 +201,8 @@ export default function ThesisEditPage() {
 
                 const notPersisted: string[] = [];
 
-                if (!sameStringArray(savedIndustries, preferredIndustries)) notPersisted.push("ngành nghề quan tâm");
-                if (!sameStringArray(savedStages, normalizedStages)) notPersisted.push("giai đoạn ưu tiên");
+                if (!sameNumberArray(savedIndustryIds, preferredIndustryIds)) notPersisted.push("ngành nghề quan tâm");
+                if (!sameNumberArray(savedStageIds, preferredStageIds)) notPersisted.push("giai đoạn ưu tiên");
                 if (!sameStringArray(savedMarketScopes, marketScopesList)) notPersisted.push("market scopes");
                 if (savedTicketMin !== parsedTicketMin) notPersisted.push("ticket size tối thiểu");
                 if (savedTicketMax !== parsedTicketMax) notPersisted.push("ticket size tối đa");
@@ -232,7 +220,7 @@ export default function ThesisEditPage() {
         } finally {
             setIsSaving(false);
         }
-    }, [investmentThesis, preferredIndustries, preferredStages, preferredMarketScopes, supportOffered, ticketMin, ticketMax, setIsSaving]);
+    }, [investmentThesis, preferredIndustryIds, preferredStageIds, preferredMarketScopes, supportOffered, ticketMin, ticketMax, setIsSaving]);
 
     useEffect(() => {
         setSaveHandler(handleSave);
@@ -265,9 +253,9 @@ export default function ThesisEditPage() {
                     <div>
                         <div className="flex items-center justify-between mb-1.5">
                             <label className={labelCls + " mb-0"}>Ngành nghề quan tâm</label>
-                            {preferredIndustries.length > 0 && (
+                            {preferredIndustryIds.length > 0 && (
                                 <span className="text-[12px] text-slate-500">
-                                    Đã chọn <span className="font-semibold text-slate-700">{preferredIndustries.length}</span> lĩnh vực
+                                    Đã chọn <span className="font-semibold text-slate-700">{preferredIndustryIds.length}</span> lĩnh vực
                                 </span>
                             )}
                         </div>
@@ -287,17 +275,17 @@ export default function ThesisEditPage() {
                                 {parentIndustries.map(parent => {
                                     const children = childrenMap[parent.industryID] || [];
                                     const selectedCount = children.filter(c =>
-                                        preferredIndustries.includes(c.industryName)
+                                        preferredIndustryIds.includes(c.industryId)
                                     ).length;
                                     const isExpanded = expandedSections.includes(parent.industryID);
 
                                     if (children.length === 0) {
-                                        const isSelected = preferredIndustries.includes(parent.industryName);
+                                        const isSelected = preferredIndustryIds.includes(parent.industryId);
                                         return (
                                             <button
                                                 key={parent.industryID}
                                                 type="button"
-                                                onClick={() => toggleIndustry(parent.industryName)}
+                                                onClick={() => toggleIndustry(parent.industryId)}
                                                 className={cn(
                                                     "w-full text-left px-4 py-3 rounded-xl border text-[13px] font-semibold transition-all active:scale-[0.99]",
                                                     isSelected
@@ -337,10 +325,10 @@ export default function ThesisEditPage() {
                                                         <button
                                                             key={child.industryID}
                                                             type="button"
-                                                            onClick={() => toggleIndustry(child.industryName)}
+                                                            onClick={() => toggleIndustry(child.industryId)}
                                                             className={cn(
                                                                 "px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-all active:scale-95",
-                                                                preferredIndustries.includes(child.industryName)
+                                                                preferredIndustryIds.includes(child.industryId)
                                                                     ? "bg-[#e6cc4c] border-[#e6cc4c] text-slate-900"
                                                                     : "bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-white"
                                                             )}
@@ -360,14 +348,14 @@ export default function ThesisEditPage() {
                     <div>
                         <label className={labelCls}>Giai đoạn ưu tiên</label>
                         <div className="flex flex-wrap gap-2 mt-1">
-                            {normalizedStageOptions.map(stage => (
+                            {stageOptions.map(stage => (
                                 <button
-                                    key={stage}
+                                    key={stage.stageId}
                                     type="button"
-                                    onClick={() => toggleStage(stage)}
+                                    onClick={() => toggleStage(stage.stageId)}
                                     className={cn(
                                         "px-3.5 py-2 rounded-xl text-[12px] font-bold border transition-all active:scale-95",
-                                        preferredStages.includes(stage)
+                                        preferredStageIds.includes(stage.stageId)
                                             ? "bg-[#0f172a] border-[#0f172a] text-white"
                                             : "bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300"
                                     )}

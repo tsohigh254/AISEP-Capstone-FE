@@ -97,26 +97,28 @@ export default function StaffWelcomePage() {
   return (
     <div className="min-h-full">
       {/* Hero banner */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-8 py-10">
+      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         {/* Decorative blobs */}
         <div className="absolute top-0 right-0 w-[420px] h-[220px] bg-[#eec54e]/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
         <div className="absolute bottom-0 left-24 w-[300px] h-[180px] bg-blue-500/10 rounded-full blur-3xl translate-y-1/2 pointer-events-none" />
 
-        <div className="relative z-10 max-w-[860px]">
-          <p className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest mb-3">{today}</p>
-          <h1 className="text-[32px] font-black text-white tracking-tight leading-tight mb-2">
-            {greeting}, <span className="text-[#eec54e]">{displayName}</span> 👋
-          </h1>
-          <p className="text-[14px] text-slate-400 leading-relaxed max-w-[480px]">
-            Chào mừng trở lại. Chọn một chức năng bên dưới để bắt đầu làm việc hôm nay.
-          </p>
+        <div className="relative z-10 mx-auto w-full max-w-[1280px] px-5 py-8 sm:px-6 lg:px-8 lg:py-10">
+          <div className="max-w-[860px]">
+            <p className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest mb-3">{today}</p>
+            <h1 className="text-[32px] font-black text-white tracking-tight leading-tight mb-2">
+              {greeting}, <span className="text-[#eec54e]">{displayName}</span> 👋
+            </h1>
+            <p className="text-[14px] text-slate-400 leading-relaxed max-w-[560px]">
+              Chào mừng trở lại. Chọn một chức năng bên dưới để bắt đầu làm việc hôm nay.
+            </p>
+          </div>
         </div>
       </div>
 
       {/* Cards grid */}
-      <div className="px-8 py-8 pb-16">
+      <div className="mx-auto w-full max-w-[1280px] px-5 py-8 pb-16 sm:px-6 lg:px-8">
         <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-5">Chức năng chính</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-[900px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {QUICK_LINKS.map((item) => {
             const Icon = item.icon;
             return (

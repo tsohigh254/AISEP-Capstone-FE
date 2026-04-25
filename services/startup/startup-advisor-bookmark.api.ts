@@ -66,6 +66,14 @@ const normalizeTextArray = (value: unknown) => {
     .filter(Boolean);
 };
 
+const normalizeAvailabilityHint = (value: unknown): "Available" | "Not available" => {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (text === "available") return "Available";
+  if (text === "not available") return "Not available";
+  // Defensive default to avoid surfacing "Unknown" in UI.
+  return "Not available";
+};
+
 export function normalizeStartupBookmarkedAdvisor(raw: unknown): IStartupBookmarkedAdvisor | null {
   if (!raw || typeof raw !== "object") return null;
 
@@ -129,7 +137,7 @@ export function normalizeStartupBookmarkedAdvisor(raw: unknown): IStartupBookmar
     domainTags: normalizeTextArray(advisorRecord.domainTags),
     suitableFor: normalizeTextArray(advisorRecord.suitableFor),
     isVerified: Boolean(advisorRecord.isVerified),
-    availabilityHint: String(advisorRecord.availabilityHint ?? "").trim() || "Unknown",
+    availabilityHint: normalizeAvailabilityHint(advisorRecord.availabilityHint),
     hourlyRate: normalizeNumber(advisorRecord.hourlyRate, 0),
     supportedDurations,
     industry: normalizeIndustry(advisorRecord.industry ?? advisorRecord.industries),

@@ -13,6 +13,7 @@ import {
 } from "@/services/staff/registration.api";
 import axios from "@/services/interceptor";
 import { useAuth } from "@/context/context";
+import { getIndustryName, getInvestorPreferredStageLabel } from "@/lib/investor-preferred-stages";
 import {
   ArrowLeft,
   ShieldCheck,
@@ -1025,8 +1026,8 @@ function ProfileDrawer({ entityId, entityType, open, onClose }: {
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Giai đoạn ưu tiên</p>
                       <div className="flex flex-wrap gap-1.5">
-                        {investor.preferredStages.map((s: string) => (
-                          <span key={s} className="px-2 py-0.5 rounded-md text-[11px] bg-slate-50 text-slate-600 border border-slate-100">{STAGE_LABEL[s] ?? s}</span>
+                        {investor.preferredStages.map((s: IStageRef | string) => (
+                          <span key={getInvestorPreferredStageLabel(s)} className="px-2 py-0.5 rounded-md text-[11px] bg-slate-50 text-slate-600 border border-slate-100">{getInvestorPreferredStageLabel(s)}</span>
                         ))}
                       </div>
                     </div>
@@ -1035,8 +1036,8 @@ function ProfileDrawer({ entityId, entityType, open, onClose }: {
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Ngành ưu tiên</p>
                       <div className="flex flex-wrap gap-1.5">
-                        {investor.preferredIndustries.map((ind: string) => (
-                          <span key={ind} className="px-2 py-0.5 rounded-md text-[11px] bg-slate-50 text-slate-600 border border-slate-100">{ind}</span>
+                        {investor.preferredIndustries.map((ind: IIndustryRef | string) => (
+                          <span key={getIndustryName(ind)} className="px-2 py-0.5 rounded-md text-[11px] bg-slate-50 text-slate-600 border border-slate-100">{getIndustryName(ind)}</span>
                         ))}
                       </div>
                     </div>

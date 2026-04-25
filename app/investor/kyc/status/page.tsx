@@ -9,6 +9,8 @@ import { KYCHub } from "@/components/investor/kyc/kyc-hub";
 import { GetInvestorKYCStatus } from "@/services/investor/investor-kyc";
 import { IInvestorKYCStatus } from "@/types/investor-kyc";
 
+const INVESTOR_KYC_STATUS_LOAD_ERROR_TOAST_ID = "investor-kyc-status-load-error";
+
 export default function InvestorKYCStatusPage() {
   const router = useRouter();
   const [status, setStatus] = useState<IInvestorKYCStatus | null>(null);
@@ -20,12 +22,16 @@ export default function InvestorKYCStatusPage() {
         if (res.isSuccess && res.data) {
           setStatus(res.data);
         } else {
-          toast.error("Không thể tải trạng thái KYC.");
+          toast.error("Không thể tải trạng thái KYC.", {
+            id: INVESTOR_KYC_STATUS_LOAD_ERROR_TOAST_ID,
+          });
           router.replace("/investor/kyc");
         }
       })
       .catch(() => {
-        toast.error("Lỗi kết nối. Vui lòng thử lại.");
+        toast.error("Lỗi kết nối. Vui lòng thử lại.", {
+          id: INVESTOR_KYC_STATUS_LOAD_ERROR_TOAST_ID,
+        });
         router.replace("/investor/kyc");
       })
       .finally(() => setIsLoading(false));

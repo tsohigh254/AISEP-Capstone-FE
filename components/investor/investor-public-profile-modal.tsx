@@ -2,7 +2,7 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Building2, Handshake, Loader2, MapPin, ShieldCheck } from "lucide-react";
-import { getInvestorPreferredStageLabel } from "@/lib/investor-preferred-stages";
+import { getIndustryName, getInvestorPreferredStageLabel } from "@/lib/investor-preferred-stages";
 import { buildInvestorProfilePresentation } from "@/lib/investor-profile-presenter";
 import Image from "next/image";
 import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
@@ -100,7 +100,7 @@ export function InvestorPublicProfileModal({
                 <h4 className="mb-3 font-be-vietnam text-xs font-black uppercase tracking-widest text-neutral-400">Giai đoạn ưu tiên</h4>
                 <div className="flex flex-wrap gap-2">
                   {preferredStages.map((stage) => (
-                    <span key={stage} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-bold text-slate-700">
+                    <span key={getInvestorPreferredStageLabel(stage)} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-bold text-slate-700">
                       {getInvestorPreferredStageLabel(stage)}
                     </span>
                   ))}
@@ -114,10 +114,10 @@ export function InvestorPublicProfileModal({
                 <div className="flex flex-wrap gap-2">
                   {preferredIndustries.map((tag) => (
                     <span
-                      key={tag}
+                      key={getIndustryName(tag)}
                       className="rounded-full border border-[#e6cc4c]/20 bg-[#e6cc4c]/10 px-3 py-1.5 text-[11px] font-bold text-[#171611] transition-colors hover:bg-[#e6cc4c]/20"
                     >
-                      {tag}
+                      {getIndustryName(tag)}
                     </span>
                   ))}
                 </div>

@@ -22,11 +22,14 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useCountUp } from "@/lib/useCountUp";
 import { buildInvestorProfilePresentation, getInvestorKycUiState } from "@/lib/investor-profile-presenter";
+import { getIndustryName } from "@/lib/investor-preferred-stages";
 import { GetSentConnections, GetReceivedConnections } from "@/services/connection/connection.api";
 import { GetDocument } from "@/services/document/document.api";
 import { GetInvestorProfile, GetInvestorWatchlist } from "@/services/investor/investor.api";
 import { GetInvestorKYCStatus } from "@/services/investor/investor-kyc";
 import type { IInvestorKYCStatus } from "@/types/investor-kyc";
+
+const INVESTOR_DASHBOARD_LOAD_ERROR_TOAST_ID = "investor-dashboard-load-error";
 
 type RawWatchlistItem = Partial<{
   watchlistID: number;
@@ -139,7 +142,7 @@ function AIMarketAnalysis({ profile, watchlist }: { profile: IInvestorProfile | 
         const backendBase = (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_AI_SERVICE_URL || "").replace(/\/$/, "");
         const endpoint = `${backendBase}/api/ai/investor-agent/chat/stream`;
 
-        const industries = (profile?.preferredIndustries ?? []).slice(0, 5).join(", ");
+        const industries = (profile?.preferredIndustries ?? []).map(getIndustryName).slice(0, 5).join(", ");
         const watched = (watchlist ?? []).slice(0, 3).map(w => w.startupName).join(", ");
 
         let query = "Bạn là AI Investment Assistant. Tóm tắt 2 xu hướng công nghệ ngắn gọn (1 câu mỗi) và 1 khuyến nghị hành động cho nhà đầu tư.";
@@ -393,7 +396,9 @@ export default function InvestorDashboardPage() {
       setConnectionTotal((sentTotal ?? 0) + (receivedTotal ?? 0));
     } catch (error) {
       console.error("fetchDashboardData error:", error);
-      toast.error("Lỗi khi tải dữ liệu Dashboard");
+      toast.error("Lỗi khi tải dữ liệu Dashboard", {
+        id: INVESTOR_DASHBOARD_LOAD_ERROR_TOAST_ID,
+      });
     } finally {
       setIsLoading(false);
     }

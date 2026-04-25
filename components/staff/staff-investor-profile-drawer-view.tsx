@@ -10,7 +10,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getInvestorPreferredStageLabel } from "@/lib/investor-preferred-stages";
+import { getIndustryName, getInvestorPreferredStageLabel } from "@/lib/investor-preferred-stages";
 import {
   buildInvestorProfilePresentation,
   isInvestorKycVerified,
@@ -92,7 +92,7 @@ export function StaffInvestorProfileDrawerView({
             {preferredIndustries[0] && (
               <span className="inline-flex items-center gap-1 rounded-md border border-slate-100 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
                 <FileText className="h-3 w-3 text-slate-400" />
-                Lĩnh vực chính: {preferredIndustries[0]}
+                Lĩnh vực chính: {getIndustryName(preferredIndustries[0])}
               </span>
             )}
             {locationLabel && (
@@ -196,7 +196,7 @@ export function StaffInvestorProfileDrawerView({
               <h3 className="mb-3 text-[13px] font-semibold text-slate-700">Giai đoạn ưu tiên</h3>
               <div className="flex flex-wrap gap-2">
                 {preferredStages.length > 0 ? preferredStages.map((stage) => (
-                  <span key={stage} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] font-medium text-slate-600">
+                  <span key={getInvestorPreferredStageLabel(stage)} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] font-medium text-slate-600">
                     {getInvestorPreferredStageLabel(stage)}
                   </span>
                 )) : <p className="text-[13px] text-slate-400">Chưa cập nhật.</p>}
@@ -207,8 +207,8 @@ export function StaffInvestorProfileDrawerView({
               <h3 className="mb-3 text-[13px] font-semibold text-slate-700">Lĩnh vực ưu tiên</h3>
               <div className="flex flex-wrap gap-2">
                 {preferredIndustries.length > 0 ? preferredIndustries.map((industry) => (
-                  <span key={industry} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] font-medium text-slate-600">
-                    {industry}
+                  <span key={getIndustryName(industry)} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] font-medium text-slate-600">
+                    {getIndustryName(industry)}
                   </span>
                 )) : <p className="text-[13px] text-slate-400">Chưa cập nhật.</p>}
               </div>

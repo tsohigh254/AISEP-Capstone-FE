@@ -21,6 +21,8 @@ import Link from "next/link";
 import { GetSentConnections, GetReceivedConnections, WithdrawConnection, AcceptConnection, RejectConnection } from "@/services/connection/connection.api";
 import { toast } from "sonner";
 
+const INVESTOR_CONNECTIONS_LOAD_ERROR_TOAST_ID = "investor-connections-load-error";
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const formatDate = (iso: string) => {
@@ -123,7 +125,9 @@ export default function ConnectionsPage() {
       else if (tab === "accepted") setAccepted(items);
       else setRejected(items);
     } catch {
-      toast.error("Lỗi khi tải danh sách kết nối");
+      toast.error("Lỗi khi tải danh sách kết nối", {
+        id: INVESTOR_CONNECTIONS_LOAD_ERROR_TOAST_ID,
+      });
     } finally {
       setLoadingTab(null);
     }

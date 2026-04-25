@@ -17,11 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buildInvestorSearchPresentation, isInvestorKycVerified } from "@/lib/investor-profile-presenter";
-import {
-  INVESTOR_PREFERRED_STAGE_OPTIONS,
-  normalizeInvestorPreferredStage,
-  normalizeInvestorPreferredStages,
-} from "@/lib/investor-preferred-stages";
+import { getIndustryName } from "@/lib/investor-preferred-stages";
 import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
 import { Button } from "@/components/ui/button";
 import { AcceptConnection, RejectConnection, GetSentConnections, GetReceivedConnections, WithdrawConnection } from "@/services/connection/connection.api";
@@ -29,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { InvestorConnectionModal } from "@/components/startup/investor-connection-modal";
 import { GetInterestedInvestors, SearchInvestors, type SearchInvestorsParams } from "@/services/startup/startup.api";
-import { GetIndustriesFlat } from "@/services/master/master.api";
+import { GetIndustriesFlat, GetStages } from "@/services/master/master.api";
 
 // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -80,8 +76,8 @@ type DiscoveryConnectionStatus =
   (typeof DISCOVERY_CONNECTION_STATUS)[keyof typeof DISCOVERY_CONNECTION_STATUS];
 
 type DiscoveryFilterState = {
-  stage: string;
-  industry: string;
+  stageId: string;
+  industryId: string;
   ticketRange: string;
 };
 
@@ -98,8 +94,8 @@ const DISCOVERY_TICKET_RANGE_OPTIONS: Array<{
 ];
 
 const DEFAULT_DISCOVERY_FILTERS: DiscoveryFilterState = {
-  stage: "",
-  industry: "",
+  stageId: "",
+  industryId: "",
   ticketRange: "",
 };
 
@@ -159,16 +155,6 @@ const getInterestedInvestorDisplay = (item: IInterestedInvestorItem) => {
 };
 
 const DISCOVERY_PAGE_SIZE = 12;
-const DISCOVERY_STAGE_FALLBACK_PAGE_SIZE = 100;
-
-const matchesInvestorPreferredStage = (
-  investor: IInvestorSearchItem,
-  selectedStage: ReturnType<typeof normalizeInvestorPreferredStage>,
-) => {
-  if (!selectedStage) return true;
-  return normalizeInvestorPreferredStages(investor.preferredStages).includes(selectedStage);
-};
-
 const normalizeDiscoveryConnectionStatus = (status?: string | null): DiscoveryConnectionStatus => {
   if (
     status === DISCOVERY_CONNECTION_STATUS.REQUESTED ||
@@ -222,7 +208,8 @@ export default function InvestorsPage() {
   const [investorsError, setInvestorsError] = useState<string | null>(null);
   const [keyword, setKeyword] = useState("");
   const [discoveryFilters, setDiscoveryFilters] = useState<DiscoveryFilterState>(DEFAULT_DISCOVERY_FILTERS);
-  const [industryOptions, setIndustryOptions] = useState<string[]>([]);
+  const [industryOptions, setIndustryOptions] = useState<{ id: number; name: string }[]>([]);
+  const [stageOptions, setStageOptions] = useState<{ id: number; name: string }[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -295,43 +282,16 @@ export default function InvestorsPage() {
     setInvestorsError(null);
     try {
       const ticketRangeParams = getDiscoveryTicketRangeParams(filters.ticketRange);
-      const selectedStage = filters.stage ? normalizeInvestorPreferredStage(filters.stage) : null;
       const res = await SearchInvestors({
         page,
         pageSize: DISCOVERY_PAGE_SIZE,
         keyword: kw || undefined,
-        stage: filters.stage || undefined,
-        industry: filters.industry || undefined,
+        stageId: filters.stageId ? Number(filters.stageId) : undefined,
+        industryId: filters.industryId ? Number(filters.industryId) : undefined,
         ...ticketRangeParams,
       }) as IBackendRes<PaginatedListData<IInvestorSearchItem>>;
       if ((res.success || res.isSuccess) && res.data) {
         const items = getListItems(res.data);
-        const serverStageLooksWrong = Boolean(
-          selectedStage &&
-          (items.length === 0 || items.some((item) => !matchesInvestorPreferredStage(item, selectedStage))),
-        );
-
-        if (serverStageLooksWrong) {
-          const fallbackRes = await SearchInvestors({
-            page: 1,
-            pageSize: DISCOVERY_STAGE_FALLBACK_PAGE_SIZE,
-            keyword: kw || undefined,
-            industry: filters.industry || undefined,
-            ...ticketRangeParams,
-          }) as IBackendRes<PaginatedListData<IInvestorSearchItem>>;
-
-          if ((fallbackRes.success || fallbackRes.isSuccess) && fallbackRes.data) {
-            const fallbackItems = getListItems(fallbackRes.data).filter((item) =>
-              matchesInvestorPreferredStage(item, selectedStage),
-            );
-            const startIndex = (page - 1) * DISCOVERY_PAGE_SIZE;
-            setInvestors(fallbackItems.slice(startIndex, startIndex + DISCOVERY_PAGE_SIZE));
-            setTotalItems(fallbackItems.length);
-            setTotalPages(Math.max(1, Math.ceil(fallbackItems.length / DISCOVERY_PAGE_SIZE)));
-            return;
-          }
-        }
-
         setInvestors(items);
         setTotalPages(getTotalPages(res.data, DISCOVERY_PAGE_SIZE));
         setTotalItems(res.data.paging?.totalItems ?? res.data.total ?? 0);
@@ -466,13 +426,22 @@ export default function InvestorsPage() {
     GetIndustriesFlat()
       .then((items) => {
         if (!isMounted) return;
-        const uniqueIndustries = Array.from(
-          new Set(items.map((item) => item.industryName).filter((name) => typeof name === "string" && name.trim().length > 0)),
-        ).sort((a, b) => a.localeCompare(b));
-        setIndustryOptions(uniqueIndustries);
+        setIndustryOptions(items
+          .filter((item) => item.industryName.trim().length > 0)
+          .map((item) => ({ id: item.industryId, name: item.industryName }))
+          .sort((a, b) => a.name.localeCompare(b.name)));
       })
       .catch(() => {
         if (isMounted) setIndustryOptions([]);
+      });
+
+    GetStages()
+      .then((items) => {
+        if (!isMounted) return;
+        setStageOptions(items.map((item) => ({ id: item.stageId, name: item.stageName })));
+      })
+      .catch(() => {
+        if (isMounted) setStageOptions([]);
       });
 
     return () => {
@@ -660,14 +629,14 @@ export default function InvestorsPage() {
                 </div>
                 <div className="relative">
                   <select
-                    value={discoveryFilters.stage}
-                    onChange={(event) => handleDiscoveryFilterChange("stage", event.target.value)}
+                    value={discoveryFilters.stageId}
+                    onChange={(event) => handleDiscoveryFilterChange("stageId", event.target.value)}
                     className="h-11 min-w-[150px] appearance-none rounded-xl border border-slate-200 bg-white px-4 pr-10 text-[13px] font-medium text-slate-700 outline-none transition-colors hover:bg-slate-50"
                   >
                     <option value="">Giai đoạn</option>
-                    {INVESTOR_PREFERRED_STAGE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
+                    {stageOptions.map((option) => (
+                      <option key={option.id} value={option.id.toString()}>
+                        {option.name}
                       </option>
                     ))}
                   </select>
@@ -675,14 +644,14 @@ export default function InvestorsPage() {
                 </div>
                 <div className="relative">
                   <select
-                    value={discoveryFilters.industry}
-                    onChange={(event) => handleDiscoveryFilterChange("industry", event.target.value)}
+                    value={discoveryFilters.industryId}
+                    onChange={(event) => handleDiscoveryFilterChange("industryId", event.target.value)}
                     className="h-11 min-w-[190px] appearance-none rounded-xl border border-slate-200 bg-white px-4 pr-10 text-[13px] font-medium text-slate-700 outline-none transition-colors hover:bg-slate-50"
                   >
                     <option value="">Ngành nghề ưu tiên</option>
                     {industryOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
+                      <option key={option.id} value={option.id.toString()}>
+                        {option.name}
                       </option>
                     ))}
                   </select>
@@ -707,8 +676,8 @@ export default function InvestorsPage() {
                   variant="outline"
                   onClick={handleResetDiscoveryFilters}
                   disabled={
-                    discoveryFilters.stage === "" &&
-                    discoveryFilters.industry === "" &&
+                    discoveryFilters.stageId === "" &&
+                    discoveryFilters.industryId === "" &&
                     discoveryFilters.ticketRange === ""
                   }
                   className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
@@ -845,7 +814,7 @@ export default function InvestorsPage() {
                         ? "Closed"
                         : normalizeConnectionStatus(conn?.connectionStatus) || "Closed";
                   const hasTicketSize = investor.ticketSizeMin != null || investor.ticketSizeMax != null;
-                  const industries = (investor.preferredIndustries ?? []).slice(0, 3);
+                  const industries = (investor.preferredIndustries ?? []).map(getIndustryName).slice(0, 3);
                   return (
                     <div key={investor.investorID} className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
                       <div className="flex flex-1 flex-col p-6 text-center">

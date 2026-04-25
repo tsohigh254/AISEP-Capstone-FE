@@ -167,10 +167,45 @@ export default function StartupProfileViewPage() {
         : null;
     const foundedYear = p.foundedDate ? new Date(p.foundedDate).getFullYear() : p.foundedYear;
 
-    const childIndustryName = p.industryName || industries.find(x => x.industryID === p.industryID)?.industryName || p.industry;
-    const parentIndustryName = p.parentIndustryName || industries.find(x => x.industryID === industries.find(c => c.industryID === p.industryID)?.parentIndustryID)?.industryName;
-    const displayIndustry = parentIndustryName ? `${parentIndustryName} / ${childIndustryName}` : childIndustryName;
-    const displayStage = STAGE_LABELS[p.stage?.toString()] || p.stage;
+    const parentIndustryId = Number(p.industryId ?? p.industryID ?? 0);
+    const subIndustryId = Number(p.subIndustryId ?? p.subIndustryID ?? 0);
+
+    const parentIndustryName =
+        p.parentIndustryName ||
+        p.industryName ||
+        industries.find((item) => item.industryId === parentIndustryId || item.industryID === parentIndustryId)?.industryName ||
+        "";
+
+    const subIndustryName =
+        p.subIndustryName ||
+        industries.find((item) => item.industryId === subIndustryId || item.industryID === subIndustryId)?.industryName ||
+        "";
+
+    const fallbackIndustry =
+        p.industry ||
+        industries.find((item) => item.industryId === parentIndustryId || item.industryID === parentIndustryId)?.industryName ||
+        "Chưa có ngành";
+
+    const displayIndustry =
+        subIndustryName && parentIndustryName
+            ? `${parentIndustryName} / ${subIndustryName}`
+            : parentIndustryName || subIndustryName || fallbackIndustry;
+    const stageIdValue =
+        p.stageId ??
+        p.stageID ??
+        p.StageId ??
+        p.StageID;
+    const stageNameValue =
+        p.stageName ??
+        p.StageName ??
+        p.stage ??
+        p.Stage ??
+        p.fundingStage ??
+        p.FundingStage;
+    const displayStage =
+        STAGE_LABELS[String(stageIdValue ?? "")] ||
+        STAGE_LABELS[String(stageNameValue ?? "")] ||
+        stageNameValue;
     const isApproved = !!(p.approvedAt || p.approvedBy);
     const teamSizeValue = p.teamSize ?? p.TeamSize;
     

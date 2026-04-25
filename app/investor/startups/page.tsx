@@ -15,7 +15,6 @@ import {
   BadgeCheck,
 } from "lucide-react";
 import { cn, normalizeScore } from "@/lib/utils";
-import { normalizeInvestorPreferredStage, getInvestorPreferredStageLabel } from "@/lib/investor-preferred-stages";
 import { ConnectStartupModal } from "@/components/investor/connect-startup-modal";
 import { SearchStartups, GetMasterIndustries, GetMasterStages } from "@/services/investor/investor.api";
 
@@ -35,11 +34,13 @@ type StartupCard = {
   name: string;
   industry: string;
   industryId: number | null;
+  stageId: number | null;
   stage: string;
   location: string;
   target: string;
   raised: string;
   score: number;
+  matchLabel: string | null;
   desc: string;
   activeDays: number | null;
   logo: string;
@@ -62,6 +63,14 @@ function hasImageSource(value: string) {
   return /^https?:\/\//i.test(value) || value.startsWith("/");
 }
 
+function firstText(...values: unknown[]) {
+  for (const value of values) {
+    const text = typeof value === "string" ? value.trim() : "";
+    if (text) return text;
+  }
+  return "";
+}
+
 const labelCls = "block text-[12px] font-semibold text-slate-500 mb-2";
 const checkCls =
   "w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900/10 cursor-pointer accent-slate-900";
@@ -79,10 +88,10 @@ export default function StartupDiscoveryPage() {
 
   // Dynamic master data
   const [industryOptions, setIndustryOptions] = useState<{ id: number; name: string; parentId: number | null }[]>([]);
-  const [stageOptions, setStageOptions] = useState<string[]>([]);
+  const [stageOptions, setStageOptions] = useState<{ id: number; name: string }[]>([]);
 
   const [selectedIndustryIds, setSelectedIndustryIds] = useState<number[]>([]);
-  const [selectedStages, setSelectedStages] = useState<string[]>([]);
+  const [selectedStageIds, setSelectedStageIds] = useState<number[]>([]);
   const [minScore, setMinScore] = useState(0);
 
   // Debounce search input → trigger server-side fetch
@@ -96,18 +105,15 @@ export default function StartupDiscoveryPage() {
     GetMasterIndustries().then((res: any) => {
       const data = res?.data ?? res;
       const list = Array.isArray(data) ? data : [];
-      setIndustryOptions(list.map((i: any) => ({ id: i.industryID, name: i.industryName, parentId: i.parentIndustryID ?? null })));
+      setIndustryOptions(list.map((i: any) => ({ id: i.industryId ?? i.industryID, name: i.industryName, parentId: i.parentIndustryId ?? i.parentIndustryID ?? null })));
     }).catch(() => {});
     GetMasterStages().then((res: any) => {
       const data = res?.data ?? res;
       const raw = Array.isArray(data) ? data : [];
       // Chỉ lấy 4 giai đoạn trong scope: Idea, PreSeed, Seed, Growth
-      const normalized = Array.from(new Set(
-        raw
-          .map((s: any) => typeof s === "string" ? s : s.stageName || s.name || s.stage || "")
-          .filter((stageName: string) => normalizeInvestorPreferredStage(stageName) != null)
-      ));
-      setStageOptions(normalized);
+      setStageOptions(raw
+        .map((s: any) => ({ id: s.stageId ?? s.stageID ?? s.id, name: s.stageName ?? s.name ?? "" }))
+        .filter((stage: { id: number; name: string }) => Number.isFinite(stage.id) && stage.name.trim().length > 0));
     }).catch(() => {});
   }, []);
 
@@ -122,7 +128,7 @@ export default function StartupDiscoveryPage() {
           1,
           100,
           selectedIndustryIds.length >= 1 ? selectedIndustryIds[0] : undefined,
-          selectedStages.length === 1 ? selectedStages[0] : undefined,
+          selectedStageIds.length === 1 ? selectedStageIds[0] : undefined,
         );
         const isSuccess = res.isSuccess || res.success || res.statusCode === 200;
 
@@ -137,19 +143,101 @@ export default function StartupDiscoveryPage() {
             if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
             return v.toLocaleString('vi-VN');
           };
-          const mapped: StartupCard[] = items.map((apiItem: any) => ({
-            id: apiItem.startupID?.toString() || "0",
-            name: apiItem.companyName || "Unknown",
-            industry: apiItem.parentIndustryName
-              ? `${apiItem.parentIndustryName} / ${apiItem.industryName || apiItem.industry || "Other"}`
-              : (apiItem.industryName || apiItem.industry || "Other"),
-            industryId: apiItem.industryID ?? null,
-            stage: apiItem.stage || "",
+          const industryById = new Map<number, { id: number; name: string; parentId: number | null }>();
+          const industryByName = new Map<string, { id: number; name: string; parentId: number | null }>();
+          industryOptions.forEach((option) => {
+            industryById.set(option.id, option);
+            industryByName.set(option.name.trim().toLowerCase(), option);
+          });
+
+          const mapped: StartupCard[] = items.map((apiItem: any) => {
+            const explicitSubIndustry = firstText(
+              apiItem.subIndustryName,
+              apiItem.subIndustry,
+              apiItem.SubIndustryName,
+              apiItem.SubIndustry
+            );
+            const explicitIndustry = firstText(
+              apiItem.industryName,
+              apiItem.IndustryName,
+              apiItem.industry,
+              apiItem.Industry
+            );
+
+            const parentIndustry = firstText(
+              apiItem.parentIndustryName,
+              apiItem.parentIndustry,
+              apiItem.ParentIndustryName,
+              apiItem.ParentIndustry,
+              explicitSubIndustry ? explicitIndustry : ""
+            );
+            const childIndustry = firstText(
+              explicitSubIndustry,
+              explicitIndustry
+            );
+            const fallbackIndustry = firstText(
+              explicitIndustry,
+              explicitSubIndustry
+            );
+            const subIndustryId = Number(
+              apiItem.subIndustryId ?? apiItem.subIndustryID ?? apiItem.SubIndustryId ?? 0
+            );
+            const industryNameKey = (childIndustry || fallbackIndustry).trim().toLowerCase();
+            const inferredChild =
+              (Number.isFinite(subIndustryId) && subIndustryId > 0 ? industryById.get(subIndustryId) : undefined) ||
+              (industryNameKey ? industryByName.get(industryNameKey) : undefined);
+            const inferredParent =
+              inferredChild?.parentId != null ? industryById.get(inferredChild.parentId) : undefined;
+
+            const parentIndustryDisplay = parentIndustry || inferredParent?.name || "";
+            const childIndustryDisplay = childIndustry || inferredChild?.name || fallbackIndustry || "";
+            const normalizedParent = parentIndustryDisplay.trim().toLowerCase();
+            const normalizedChild = childIndustryDisplay.trim().toLowerCase();
+            const industryDisplay =
+              parentIndustryDisplay &&
+              childIndustryDisplay &&
+              normalizedParent !== normalizedChild
+                ? `${parentIndustryDisplay} / ${childIndustryDisplay}`
+                : parentIndustryDisplay || childIndustryDisplay || "Other";
+
+            const descriptionText = firstText(
+              apiItem.oneLiner,
+              apiItem.OneLiner,
+              apiItem.tagline,
+              apiItem.Tagline,
+              apiItem.description,
+              apiItem.Description,
+              apiItem.companyDescription,
+              apiItem.CompanyDescription,
+              apiItem.startupDescription,
+              apiItem.StartupDescription,
+              apiItem.subIndustryName,
+              apiItem.subIndustry,
+              apiItem.SubIndustryName,
+              apiItem.SubIndustry
+            );
+
+            return {
+            id: (apiItem.startupID ?? apiItem.startupId ?? apiItem.StartupId ?? 0).toString(),
+            name: apiItem.companyName || apiItem.startupName || apiItem.StartupName || "Unknown",
+            industry: industryDisplay,
+            industryId: apiItem.industryId ?? apiItem.industryID ?? null,
+            stageId: apiItem.stageId ?? apiItem.stageID ?? null,
+            stage: apiItem.stageName || apiItem.stage || "",
             location: apiItem.country || "VN",
             target: formatMoney(apiItem.fundingAmountSought) ? `$${formatMoney(apiItem.fundingAmountSought)}` : "Chưa cập nhật",
             raised: formatMoney(apiItem.currentFundingRaised) ? `$${formatMoney(apiItem.currentFundingRaised)}` : "Chưa cập nhật",
             score: normalizeScore(apiItem?.aiScore ?? apiItem?.score ?? apiItem?.matchScore ?? apiItem?.overallScore ?? apiItem?.overall_score) ?? 0,
-            desc: apiItem.tagline || apiItem.subIndustry || "Chưa có thông tin mô tả",
+            matchLabel:
+              firstText(
+                apiItem.matchLabel,
+                apiItem.MatchLabel,
+                apiItem.fitLabel,
+                apiItem.FitLabel,
+                apiItem.recommendationLabel,
+                apiItem.RecommendationLabel
+              ) || null,
+            desc: descriptionText || `Lĩnh vực: ${industryDisplay}`,
             activeDays: apiItem.createdAt
               ? Math.max(0, Math.floor((Date.now() - new Date(apiItem.createdAt).getTime()) / 86_400_000))
               : null,
@@ -161,7 +249,8 @@ export default function StartupDiscoveryPage() {
             connectionStatus: (apiItem.connectionStatus as string) ?? null,
             connectionId: (apiItem.connectionId as number) ?? null,
             canRequestConnection: (apiItem.canRequestConnection as boolean) ?? true,
-          }));
+          };
+          });
           setStartups(mapped);
         }
       } catch (error) {
@@ -172,7 +261,7 @@ export default function StartupDiscoveryPage() {
     };
 
     fetchStartups();
-  }, [debouncedSearch, selectedIndustryIds, selectedStages, refreshKey]);
+  }, [debouncedSearch, selectedIndustryIds, selectedStageIds, refreshKey, industryOptions]);
 
 
   const toggleIndustry = (id: number) =>
@@ -190,14 +279,14 @@ export default function StartupDiscoveryPage() {
     );
   };
 
-  const toggleStage = (s: string) =>
-    setSelectedStages((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
+  const toggleStage = (id: number) =>
+    setSelectedStageIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
-  const activeCount = selectedIndustryIds.length + selectedStages.length + (minScore > 0 ? 1 : 0);
+  const activeCount = selectedIndustryIds.length + selectedStageIds.length + (minScore > 0 ? 1 : 0);
 
   const clearAll = () => {
     setSelectedIndustryIds([]);
-    setSelectedStages([]);
+    setSelectedStageIds([]);
     setMinScore(0);
   };
 
@@ -207,13 +296,13 @@ export default function StartupDiscoveryPage() {
       selectedIndustryIds.length <= 1 || // handled server-side if <=1
       (startup.industryId != null && selectedIndustryIds.includes(startup.industryId));
     const matchStage =
-      selectedStages.length <= 1 || // handled server-side if <=1
-      selectedStages.includes(startup.stage);
+      selectedStageIds.length <= 1 || // handled server-side if <=1
+      (startup.stageId != null && selectedStageIds.includes(startup.stageId));
     const matchScore = startup.score >= minScore;
     return matchIndustry && matchStage && matchScore;
   });
 
-  const hasActiveFilters = search !== "" || selectedIndustryIds.length > 0 || selectedStages.length > 0 || minScore > 0;
+  const hasActiveFilters = search !== "" || selectedIndustryIds.length > 0 || selectedStageIds.length > 0 || minScore > 0;
 
   return (
     <div className="max-w-6xl mx-auto w-full space-y-6">
@@ -352,17 +441,17 @@ export default function StartupDiscoveryPage() {
                   <div className="space-y-2">
                     {stageOptions.map((stage) => (
                       <label
-                        key={stage}
+                        key={stage.id}
                         className="flex items-center gap-2.5 cursor-pointer group"
                       >
                         <input
                           type="checkbox"
-                          checked={selectedStages.includes(stage)}
-                          onChange={() => toggleStage(stage)}
+                          checked={selectedStageIds.includes(stage.id)}
+                          onChange={() => toggleStage(stage.id)}
                           className={checkCls}
                         />
                         <span className="text-[12px] text-slate-600 group-hover:text-slate-900 transition-colors">
-                          {getInvestorPreferredStageLabel(stage)}
+                          {stage.name}
                         </span>
                       </label>
                     ))}
@@ -543,7 +632,7 @@ export default function StartupDiscoveryPage() {
                 <div className="flex items-center gap-1 text-[12px] text-slate-400 mb-3 flex-wrap">
                   <Target className="w-3.5 h-3.5 text-emerald-500" />
                   <span className="font-semibold text-slate-700">
-                    {startup.score}% Phù hợp
+                    Điểm phù hợp: {startup.score}%
                   </span>
                   <span>•</span>
                   <span>Raise: {startup.target}</span>
@@ -568,22 +657,11 @@ export default function StartupDiscoveryPage() {
                       Điểm AI: {startup.score}/100
                     </span>
                   </div>
-                  <span
-                    className={cn(
-                      "px-2 py-0.5 rounded-md text-[10px] font-bold",
-                      startup.score >= 85
-                        ? "bg-emerald-100 text-emerald-700"
-                        : startup.score >= 75
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-slate-100 text-slate-500",
-                    )}
-                  >
-                    {startup.score >= 85
-                      ? "Rất phù hợp"
-                      : startup.score >= 75
-                        ? "Phù hợp"
-                        : "Tiềm năng"}
-                  </span>
+                  {startup.matchLabel && (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">
+                      {startup.matchLabel}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2.5">

@@ -21,6 +21,8 @@ import { toast } from "sonner";
 import { localizeIssueReportNotificationText } from "@/lib/notification";
 import { resolveNotificationActionUrl } from "@/lib/notification-routing";
 
+const STAFF_NOTIFICATIONS_LOAD_ERROR_TOAST_ID = "staff-notifications-load-error";
+
 /* ─── Helper: Get Icon by Type ─────────────────────────────── */
 const getNotificationIcon = (type: string) => {
   switch (type?.toUpperCase()) {
@@ -62,7 +64,9 @@ export default function StaffNotificationsPage() {
       }
     } catch (error) {
       console.error("Failed to fetch notifications:", error);
-      toast.error("Không thể tải thông báo.");
+      toast.error("Không thể tải thông báo.", {
+        id: STAFF_NOTIFICATIONS_LOAD_ERROR_TOAST_ID,
+      });
     } finally {
       setLoading(false);
       setLoadingMore(false);

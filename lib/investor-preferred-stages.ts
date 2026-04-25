@@ -14,6 +14,9 @@ export const INVESTOR_PREFERRED_STAGE_OPTIONS: Array<{
     { value: "Growth", label: "Growth" },
 ];
 
+export type InvestorStageLike = string | { stageId?: number; stageID?: number; id?: number; stageName?: string; name?: string };
+export type InvestorIndustryLike = string | { industryId?: number; industryID?: number; id?: number; industryName?: string; name?: string };
+
 const STAGE_VALUE_BY_INPUT: Record<string, InvestorPreferredStageValue> = {
     Idea: "Idea",
     PreSeed: "PreSeed",
@@ -28,10 +31,32 @@ const STAGE_LABEL_BY_VALUE = INVESTOR_PREFERRED_STAGE_OPTIONS.reduce<Record<stri
     return acc;
 }, {});
 
-export const normalizeInvestorPreferredStage = (value: string): InvestorPreferredStageValue | null =>
-    STAGE_VALUE_BY_INPUT[value] ?? null;
+const getStageName = (value: InvestorStageLike): string => {
+    if (typeof value === "string") return value;
+    return value.stageName ?? value.name ?? "";
+};
 
-export const normalizeInvestorPreferredStages = (values?: string[]) => {
+export const getStageId = (value: InvestorStageLike): number | null => {
+    if (typeof value === "string") return null;
+    const id = value.stageId ?? value.stageID ?? value.id;
+    return typeof id === "number" && Number.isFinite(id) ? id : null;
+};
+
+export const getIndustryId = (value: InvestorIndustryLike): number | null => {
+    if (typeof value === "string") return null;
+    const id = value.industryId ?? value.industryID ?? value.id;
+    return typeof id === "number" && Number.isFinite(id) ? id : null;
+};
+
+export const getIndustryName = (value: InvestorIndustryLike): string => {
+    if (typeof value === "string") return value;
+    return value.industryName ?? value.name ?? "";
+};
+
+export const normalizeInvestorPreferredStage = (value: InvestorStageLike): InvestorPreferredStageValue | null =>
+    STAGE_VALUE_BY_INPUT[getStageName(value)] ?? null;
+
+export const normalizeInvestorPreferredStages = (values?: InvestorStageLike[]) => {
     const normalized = (values ?? [])
         .map(normalizeInvestorPreferredStage)
         .filter((value): value is InvestorPreferredStageValue => value != null);
@@ -39,11 +64,11 @@ export const normalizeInvestorPreferredStages = (values?: string[]) => {
     return Array.from(new Set(normalized));
 };
 
-export const getInvestorPreferredStageLabel = (value: string) => {
+export const getInvestorPreferredStageLabel = (value: InvestorStageLike) => {
     const normalized = normalizeInvestorPreferredStage(value);
-    if (!normalized) return value;
-    return STAGE_LABEL_BY_VALUE[normalized] ?? value;
+    if (!normalized) return getStageName(value);
+    return STAGE_LABEL_BY_VALUE[normalized] ?? getStageName(value);
 };
 
-export const getInvestorPreferredStageLabels = (values?: string[]) =>
+export const getInvestorPreferredStageLabels = (values?: InvestorStageLike[]) =>
     normalizeInvestorPreferredStages(values).map(getInvestorPreferredStageLabel);

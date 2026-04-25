@@ -20,6 +20,8 @@ import {
 } from "@/services/investor/investor-kyc";
 import type { IInvestorKYCStatus, IInvestorKYCSubmission } from "@/types/investor-kyc";
 
+const INVESTOR_KYC_PAGE_LOAD_ERROR_TOAST_ID = "investor-kyc-page-load-error";
+
 export default function InvestorKYCPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -58,7 +60,9 @@ export default function InvestorKYCPage() {
         }
       } catch {
         if (!silent) {
-          toast.error("Không thể tải trạng thái KYC. Vui lòng kiểm tra lại kết nối.");
+          toast.error("Không thể tải trạng thái KYC. Vui lòng kiểm tra lại kết nối.", {
+            id: INVESTOR_KYC_PAGE_LOAD_ERROR_TOAST_ID,
+          });
         }
       } finally {
         if (!silent) setIsLoading(false);

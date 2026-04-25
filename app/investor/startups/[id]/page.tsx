@@ -865,11 +865,53 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
   const palette = getMonogramPalette(Number(startup.startupID ?? startupId));
   const companyName = startup.companyName ?? "Startup";
   const initials = companyName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
-  const displayStage = STAGE_LABELS[startup.stage?.toString()] || STAGE_LABELS[startup.fundingStage?.toString()] || startup.fundingStage || startup.stage;
-  const displayIndustry = startup.parentIndustryName
-    ? `${startup.parentIndustryName} / ${startup.industryName || startup.industry || ""}`
-    : (startup.industryName || startup.industry);
+  const stageIdValue =
+    startup.stageId ??
+    startup.stageID ??
+    startup.StageId ??
+    startup.StageID;
+  const stageNameValue =
+    startup.stageName ??
+    startup.StageName ??
+    startup.stage ??
+    startup.Stage ??
+    startup.fundingStage ??
+    startup.FundingStage;
+  const displayStage =
+    STAGE_LABELS[String(stageIdValue ?? "")] ||
+    STAGE_LABELS[String(stageNameValue ?? "")] ||
+    stageNameValue;
+  const explicitSubIndustry =
+    startup.subIndustryName ??
+    startup.subIndustry ??
+    startup.SubIndustryName ??
+    startup.SubIndustry ??
+    "";
+  const explicitIndustry =
+    startup.industryName ??
+    startup.industry ??
+    startup.IndustryName ??
+    startup.Industry ??
+    "";
+  const parentIndustryValue =
+    startup.parentIndustryName ??
+    startup.parentIndustry ??
+    startup.ParentIndustryName ??
+    startup.ParentIndustry ??
+    (explicitSubIndustry ? explicitIndustry : "");
+  const childIndustryValue = explicitSubIndustry || explicitIndustry;
+  const displayIndustry =
+    parentIndustryValue &&
+    childIndustryValue &&
+    String(parentIndustryValue).trim().toLowerCase() !== String(childIndustryValue).trim().toLowerCase()
+      ? `${parentIndustryValue} / ${childIndustryValue}`
+      : (parentIndustryValue || childIndustryValue);
   const teamSizeValue = startup.teamSize ?? startup.TeamSize;
+  const isTeamVerified = Boolean(
+    startup.approvedAt ||
+    startup.approvedBy ||
+    String(startup.profileStatus ?? "").toLowerCase() === "approved"
+  );
   const targetFunding = Number(startup.fundingAmountSought) || 0;
   const aiScore = resolvedAiScore ?? extractAiScore(startup) ?? 0;
 
@@ -1033,6 +1075,7 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
             <span className="text-slate-200 text-[14px] mx-0.5">·</span>
             <span className="inline-flex items-center gap-1 text-[11px] text-slate-400"><MapPin className="w-3 h-3" />{startup.location || "Chưa rõ vị trí"}</span>
             {startup.productStatus && <span className="inline-flex items-center gap-1 text-[11px] text-slate-400"><span className="text-slate-200">·</span> {startup.productStatus}</span>}
+            {isTeamVerified && <Tag variant="green"><CheckCircle2 className="w-3 h-3" />Đã xác minh đội ngũ</Tag>}
             {startup.enterpriseCode && <Tag variant="green"><CheckCircle2 className="w-3 h-3" />Đã đăng ký doanh nghiệp</Tag>}
           </div>
 

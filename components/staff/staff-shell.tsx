@@ -11,6 +11,7 @@ import { StaffHelpDrawer } from "./staff-help-drawer";
 import { AuthGuard } from "@/components/auth-guard";
 
 const routeLabels: Record<string, string> = {
+  "master-data": "Danh mục dữ liệu",
   staff: "Vận hành",
   activity: "Giám sát nền tảng",
   kyc: "Xét duyệt KYC",

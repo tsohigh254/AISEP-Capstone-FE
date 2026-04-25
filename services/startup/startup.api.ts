@@ -14,8 +14,12 @@ export interface ICreateStartupRequest {
     companyName: string
     oneLiner: string
     description?: string
+    industryId?: number
+    subIndustryId?: number | null
+    stageId?: number
+    /** Deprecated aliases accepted by the client mapper only. */
     industryID?: number
-    stage: StartupStage
+    stage?: StartupStage | number
     foundedDate?: string | Date
     website?: string
     logoUrl?: File
@@ -34,7 +38,6 @@ export interface ICreateStartupRequest {
     solutionSummary?: string
     // Contact & Extra
     linkedInURL?: string
-    subIndustry?: string
     currentNeeds?: string[]
     metricSummary?: string
     teamSize?: string
@@ -49,8 +52,12 @@ export interface IUpdateStartupRequest {
     companyName: string
     oneLiner: string
     description?: string
+    industryId?: number
+    subIndustryId?: number | null
+    stageId?: number
+    /** Deprecated aliases accepted by the client mapper only. */
     industryID?: number
-    stage: StartupStage
+    stage?: StartupStage | number
     foundedDate?: string | Date
     website?: string
     /** File mới hoặc `null` khi xóa logo (multipart append `"null"`). */
@@ -70,7 +77,6 @@ export interface IUpdateStartupRequest {
     solutionSummary?: string
     // Contact & Extra
     linkedInURL?: string
-    subIndustry?: string
     currentNeeds?: string[]
     metricSummary?: string
     teamSize?: string
@@ -118,7 +124,12 @@ function appendFormValue(formData: FormData, key: string, value: unknown) {
 
 function getStartupFormKey(key: string) {
     // Backend save contract expects TeamSize in PascalCase for multipart form-data.
-    return key === "teamSize" ? "TeamSize" : key;
+    if (key === "teamSize") return "TeamSize";
+    if (key === "industryID") return "industryId";
+    if (key === "stage") return "stageId";
+    if (key === "stageID") return "stageId";
+    if (key === "subIndustryID") return "subIndustryId";
+    return key;
 }
 
 export const CreateStartupProfile = (data: ICreateStartupRequest) => {
@@ -129,7 +140,7 @@ export const CreateStartupProfile = (data: ICreateStartupRequest) => {
         }
     });
 
-    return axios.post<IBackendRes<string>>(`/api/startups`, formData, {
+    return axios.post<IBackendRes<string>>(`/api/startups/me`, formData, {
         headers: {
             "Content-Type": "multipart/form-data"
         }
@@ -226,8 +237,8 @@ export type SearchInvestorsParams = {
     page?: number;
     pageSize?: number;
     keyword?: string;
-    industry?: string;
-    stage?: string;
+    industryId?: number;
+    stageId?: number;
     ticketSizeMin?: number;
     ticketSizeMax?: number;
     country?: string;

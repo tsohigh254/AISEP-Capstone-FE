@@ -6,8 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { getNames } from "country-list";
 import { Building2, Camera, X, ChevronDown, CheckCircle2, ShieldCheck } from "lucide-react";
 import { useStartupProfile } from "@/context/startup-profile-context";
-import { StartupStage } from "@/services/startup/startup.api";
-import { GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
+import { GetIndustriesFlat, GetStages, IIndustryFlat, IStageMasterItem } from "@/services/master/master.api";
 import { GetStartupKYCStatus } from "@/services/startup/startup-kyc.api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -237,6 +236,7 @@ function StartupInfoPageInner() {
     const { form, updateForm, logoFile, setLogoFile, profileLogoURL, setProfileLogoURL, loading } = useStartupProfile();
     const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
     const [allIndustries, setAllIndustries] = useState<IIndustryFlat[]>([]);
+    const [stages, setStages] = useState<IStageMasterItem[]>([]);
     const [parentIndustryId, setParentIndustryId] = useState<string>("");
     const fileRef = useRef<HTMLInputElement>(null);
     const searchParams = useSearchParams();
@@ -247,19 +247,21 @@ function StartupInfoPageInner() {
             setAllIndustries(data);
             setIndustries(data.filter(i => i.parentIndustryID === null || i.parentIndustryID === undefined));
         }).catch(() => {});
+        GetStages().then(setStages).catch(() => {});
     }, []);
 
-    // Sync parentIndustryId whenever form.industryID or allIndustries becomes available
+    // Sync parentIndustryId whenever form.industryId/subIndustryId or allIndustries becomes available
     useEffect(() => {
-        if (!form.industryID || allIndustries.length === 0) return;
-        const current = allIndustries.find(i => i.industryID === Number(form.industryID));
-        if (current?.parentIndustryID) {
-            setParentIndustryId(current.parentIndustryID.toString());
+        if (allIndustries.length === 0) return;
+        const currentParentId = Number(form.industryId || form.industryID || 0);
+        const currentSubId = Number(form.subIndustryId || form.subIndustryID || 0);
+        const current = allIndustries.find(i => i.industryId === currentSubId) || allIndustries.find(i => i.industryId === currentParentId);
+        if (current?.parentIndustryId) {
+            setParentIndustryId(current.parentIndustryId.toString());
         } else {
-            // form.industryID is itself a parent (leaf or legacy data)
-            setParentIndustryId(form.industryID.toString());
+            setParentIndustryId(currentParentId > 0 ? currentParentId.toString() : "");
         }
-    }, [form.industryID, allIndustries]);
+    }, [form.industryId, form.industryID, form.subIndustryId, form.subIndustryID, allIndustries]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const f = e.target.files?.[0];
@@ -366,33 +368,32 @@ function StartupInfoPageInner() {
                                     value={parentIndustryId}
                                     onChange={(e) => {
                                         setParentIndustryId(e.target.value);
-                                        updateForm("industryID", "");
-                                        updateForm("subIndustry", "");
+                                        updateForm("industryId", e.target.value);
+                                        updateForm("subIndustryId", "");
                                     }}
                                     className={cn(inputCls, "appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5%207.5L10%2012.5L15%207.5%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[length:20px] bg-no-repeat bg-[position:right_16px_center]")}
                                 >
                                     <option value="">Chọn lĩnh vực</option>
                                     {industries.map(ind => (
-                                        <option key={ind.industryID} value={ind.industryID.toString()}>{ind.industryName}</option>
+                                        <option key={ind.industryId} value={ind.industryId.toString()}>{ind.industryName}</option>
                                     ))}
                                 </select>
                             </div>
                             <div>
                                 <label className={labelCls}>Lĩnh vực phụ (Sub-Industry)</label>
                                 <select
-                                    value={form.industryID?.toString() || ""}
+                                    value={form.subIndustryId?.toString() || ""}
                                     onChange={(e) => {
-                                        updateForm("industryID", e.target.value);
-                                        updateForm("subIndustry", "");
+                                        updateForm("subIndustryId", e.target.value);
                                     }}
                                     disabled={!parentIndustryId}
                                     className={cn(inputCls, "appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5%207.5L10%2012.5L15%207.5%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[length:20px] bg-no-repeat bg-[position:right_16px_center] disabled:opacity-50 disabled:cursor-not-allowed")}
                                 >
                                     <option value="">{parentIndustryId ? "Chọn lĩnh vực phụ" : "Chọn lĩnh vực chính trước"}</option>
                                     {allIndustries
-                                        .filter(i => i.parentIndustryID === Number(parentIndustryId))
+                                        .filter(i => i.parentIndustryId === Number(parentIndustryId))
                                         .map(i => (
-                                            <option key={i.industryID} value={i.industryID.toString()}>{i.industryName}</option>
+                                            <option key={i.industryId} value={i.industryId.toString()}>{i.industryName}</option>
                                         ))
                                     }
                                 </select>
@@ -400,15 +401,15 @@ function StartupInfoPageInner() {
                             <div>
                                 <label className={labelCls}>Giai đoạn phát triển <span className="text-red-500">*</span></label>
                                 <select
-                                    name="stage"
-                                    value={form.stage || StartupStage.Idea.toString()}
-                                    onChange={(e) => updateForm("stage", e.target.value)}
+                                    name="stageId"
+                                    value={form.stageId || ""}
+                                    onChange={(e) => updateForm("stageId", e.target.value)}
                                     className={cn(inputCls, "appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5%207.5L10%2012.5L15%207.5%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[length:20px] bg-no-repeat bg-[position:right_16px_center]")}
                                 >
-                                    <option value={StartupStage.Idea.toString()}>Hạt giống (Idea)</option>
-                                    <option value={StartupStage.PreSeed.toString()}>Tiền ươm mầm (Pre-Seed)</option>
-                                    <option value={StartupStage.Seed.toString()}>Ươm mầm (Seed)</option>
-                                    <option value={StartupStage.Growth.toString()}>Tăng trưởng (Growth)</option>
+                                    <option value="">Chọn giai đoạn</option>
+                                    {stages.map((stage) => (
+                                        <option key={stage.stageId} value={stage.stageId.toString()}>{stage.stageName}</option>
+                                    ))}
                                 </select>
                             </div>
                             <div>
@@ -707,4 +708,3 @@ export default function StartupInfoPage() {
         </Suspense>
     );
 }
-

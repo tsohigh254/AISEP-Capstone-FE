@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import {
   LogOut, Loader2,
   LayoutGrid, Activity, ShieldCheck,
-  MessageSquare, AlertCircle, Users, CreditCard,
+  MessageSquare, AlertCircle, Users, CreditCard, Tags,
 } from "lucide-react";
 import { useAuth } from "@/context/context";
 import { Logout } from "@/services/auth/auth.api";
@@ -21,6 +21,7 @@ const NAV_GROUPS: {
     items: [
       { icon: Activity,   label: "Giám sát nền tảng", href: "/staff/activity" },
       { icon: ShieldCheck, label: "Xét duyệt KYC", href: "/staff/kyc" },
+      { icon: Tags,          label: "Danh mục dữ liệu",       href: "/staff/master-data" },
     ],
   },
   {
@@ -195,5 +196,3 @@ interface StaffSidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
 }
-
-

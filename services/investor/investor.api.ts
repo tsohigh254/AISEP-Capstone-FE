@@ -1,4 +1,5 @@
 import axios from "../interceptor";
+import { IIndustryFlat, IStageMasterItem } from "../master/master.api";
 
 export const GetInvestorProfile = () => {
     return axios.get<IBackendRes<IInvestorProfile>>(`/api/investors/me`);
@@ -30,7 +31,7 @@ export const SearchStartups = (
     page: number = 1,
     pageSize: number = 20,
     industryId?: number,
-    stage?: string,
+    stageId?: number,
 ) => {
     const params: Record<string, string | number> = {
         page,
@@ -39,21 +40,21 @@ export const SearchStartups = (
     };
     if (query) params.q = query;
     if (industryId) params.industryId = industryId;
-    if (stage) params.stage = stage;
+    if (stageId) params.stageId = stageId;
     return axios.get<IBackendRes<IPaginatedRes<IStartupSearchItem>>>(`/api/investors/search`, {
         params
     });
 }
 
 export const GetMasterIndustries = () => {
-    return axios.get<IBackendRes<{ industryID: number; industryName: string; parentID?: number | null }[]>>(
+    return axios.get<IBackendRes<IIndustryFlat[]>>(
         `/api/master/industries`,
         { params: { mode: 'flat' } }
     );
 }
 
 export const GetMasterStages = () => {
-    return axios.get<IBackendRes<string[]>>(`/api/master/stages`);
+    return axios.get<IBackendRes<IStageMasterItem[]>>(`/api/master/stages`);
 }
 
 export const GetRecommendations = (topN: number = 10) => {
@@ -86,7 +87,14 @@ export const UploadInvestorPhoto = (file: File) => {
 }
 
 export const UpdateInvestorPreferences = (data: IUpdateInvestorPreferences) => {
-    return axios.put<IBackendRes<IInvestorPreferences>>(`/api/investors/me/preferences`, data);
+    const payload = {
+        ...data,
+        preferredStageIDs: data.preferredStageIDs ?? data.preferredStageIds,
+        preferredIndustryIDs: data.preferredIndustryIDs ?? data.preferredIndustryIds,
+    };
+    delete (payload as any).preferredStageIds;
+    delete (payload as any).preferredIndustryIds;
+    return axios.put<IBackendRes<IInvestorPreferences>>(`/api/investors/me/preferences`, payload);
 }
 
 export const GetKYCStatus = () => {

@@ -54,6 +54,8 @@ const formatShortDate = (iso?: string | null) => {
 };
 
 const isAdvisorAvailable = (availabilityHint?: string | null) => availabilityHint === "Available";
+const getAvailabilityLabel = (availabilityHint?: string | null) =>
+  availabilityHint === "Available" ? "Đang nhận mentee" : "Tạm ngưng";
 
 const isValidImageUrl = (url?: string | null) => {
   if (!url) return false;
@@ -110,11 +112,7 @@ export function AdvisorDiscoveryCard({
                     : "bg-slate-50 border-slate-100 text-slate-400"
                 )}
               >
-                {advisor.availabilityHint === "Available"
-                  ? "Đang nhận mentee"
-                  : advisor.availabilityHint === "Not available"
-                    ? "Tạm ngưng"
-                    : advisor.availabilityHint}
+                {getAvailabilityLabel(advisor.availabilityHint)}
               </span>
             </div>
           </div>

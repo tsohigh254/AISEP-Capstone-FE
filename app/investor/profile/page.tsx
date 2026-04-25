@@ -20,7 +20,7 @@ import {
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getInvestorPreferredStageLabel } from "@/lib/investor-preferred-stages";
+import { getIndustryName, getInvestorPreferredStageLabel } from "@/lib/investor-preferred-stages";
 import { buildInvestorProfilePresentation, isInvestorKycVerified } from "@/lib/investor-profile-presenter";
 import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
 import { GetInvestorPreferences, GetInvestorProfile } from "@/services/investor/investor.api";
@@ -271,7 +271,7 @@ export default function InvestorProfileViewPage() {
             {profile.preferredIndustries?.[0] && (
               <Tag>
                 <FileText className="h-3 w-3 text-slate-400" />
-                Lĩnh vực chính: {profile.preferredIndustries[0]}
+                Lĩnh vực chính: {getIndustryName(profile.preferredIndustries[0])}
               </Tag>
             )}
             {profile.preferredMarketScopes?.[0] && <Tag variant="blue">{profile.preferredMarketScopes[0]}</Tag>}
@@ -398,10 +398,10 @@ export default function InvestorProfileViewPage() {
                 <div className="flex flex-wrap gap-2">
                   {profile.preferredIndustries.map((industry) => (
                     <span
-                      key={industry}
+                      key={getIndustryName(industry)}
                       className="rounded-lg border border-[#e6cc4c]/25 bg-[#fdfbe9] px-3 py-1.5 text-[12px] font-medium text-[#171611]"
                     >
-                      {industry}
+                      {getIndustryName(industry)}
                     </span>
                   ))}
                 </div>
@@ -482,7 +482,7 @@ export default function InvestorProfileViewPage() {
                 <div className="mt-2 flex flex-wrap gap-2">
                   {profile.preferredStages.map((stage) => (
                     <span
-                      key={stage}
+                      key={getInvestorPreferredStageLabel(stage)}
                       className="rounded-lg border border-violet-100/60 bg-violet-50 px-3 py-1.5 text-[12px] font-medium text-violet-700"
                     >
                       {getInvestorPreferredStageLabel(stage)}
