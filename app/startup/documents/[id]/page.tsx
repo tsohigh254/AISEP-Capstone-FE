@@ -23,6 +23,7 @@ import {
     GetDocumentAccessLogs,
     AddMetaData,
 } from "@/services/document/document.api";
+import { openDocumentInTab, downloadDocument } from "@/lib/document-viewer";
 
 /* ─── Types ───────────────────────────────────────────────── */
 type BlockchainStatus = "not_submitted" | "pending" | "recorded" | "matched" | "mismatch" | "failed";
@@ -829,22 +830,20 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                             <div className="grid grid-cols-2 gap-2">
                                 {doc.fileUrl ? (
                                     <>
-                                        <a
-                                            href={doc.fileUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                                        <button
+                                            type="button"
+                                            onClick={() => openDocumentInTab(doc.id)}
                                             className="flex items-center justify-center gap-1.5 py-2.5 bg-[#0f172a] text-white rounded-xl text-[12px] font-medium hover:bg-slate-800 transition-all"
                                         >
                                             <Eye className="w-3.5 h-3.5" /> Mở tệp
-                                        </a>
-                                        <a
-                                            href={doc.fileUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => downloadDocument(doc.id, doc.name)}
                                             className="flex items-center justify-center gap-1.5 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-[12px] font-medium hover:bg-slate-50 transition-all"
                                         >
                                             <Download className="w-3.5 h-3.5" /> Tải xuống
-                                        </a>
+                                        </button>
                                     </>
                                 ) : (
                                     <p className="col-span-2 text-[12px] text-slate-400">Chưa có file để tải xuống.</p>

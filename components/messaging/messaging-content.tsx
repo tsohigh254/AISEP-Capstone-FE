@@ -28,6 +28,7 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/context/context";
 import { useChat } from "@/hooks/useChat";
+import { openDocumentInTab } from "@/lib/document-viewer";
 import {
     GetConversations,
     CreateConversation,
@@ -124,6 +125,13 @@ function MessageBubble({ msg, onRetry }: { msg: IMessage & { _failed?: boolean }
         return /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
     };
 
+    // Document proxy URL pattern: /api/documents/{id}/content
+    // These need authenticated fetch (JWT in header) — direct <a href> won't work.
+    const proxyDocumentMatch = (url: string): string | null => {
+        const m = url.match(/^\/api\/documents\/(\d+)\/content$/);
+        return m ? m[1] : null;
+    };
+
     return (
         <div className={cn("flex w-full mb-2", msg.isMine ? "justify-end" : "justify-start")}>
             <div className={cn("flex flex-col max-w-[85%] md:max-w-[70%] min-w-0", msg.isMine ? "items-end" : "items-start")}>
@@ -133,48 +141,66 @@ function MessageBubble({ msg, onRetry }: { msg: IMessage & { _failed?: boolean }
                         ? "bg-[#0f172a] text-white rounded-tr-none" 
                         : "bg-white text-slate-700 border border-slate-100 rounded-tl-none shadow-sm"
                 )}>
-                    {msg.attachmentUrls && (
-                        <div className="mb-2 space-y-2 max-w-full min-w-0">
-                            {isImage(msg.attachmentUrls) ? (
-                                <div className="relative rounded-lg overflow-hidden border border-slate-200/20 max-w-sm">
-                                    <img 
-                                        src={msg.attachmentUrls} 
-                                        alt="Attachment" 
-                                        className="max-h-60 w-auto object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                                        onClick={() => window.open(msg.attachmentUrls!, "_blank")}
-                                    />
+                    {msg.attachmentUrls && (() => {
+                        const proxyDocId = proxyDocumentMatch(msg.attachmentUrls);
+                        const attachmentClass = cn(
+                            "flex w-full max-w-full min-w-0 items-center gap-3 p-2.5 rounded-xl border transition-all overflow-hidden cursor-pointer text-left",
+                            msg.isMine
+                                ? "bg-white/10 border-white/20 hover:bg-white/20"
+                                : "bg-slate-50 border-slate-200 hover:bg-slate-100"
+                        );
+                        const fileBubble = (
+                            <>
+                                <div className={cn(
+                                    "size-9 rounded-lg flex items-center justify-center shrink-0",
+                                    msg.isMine ? "bg-white/20" : "bg-white shadow-sm border border-slate-200"
+                                )}>
+                                    <FileIcon className={cn("size-4", msg.isMine ? "text-white" : "text-slate-500")} />
                                 </div>
-                            ) : (
-                                <a 
-                                    href={msg.attachmentUrls} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className={cn(
-                                        "flex w-full max-w-full min-w-0 items-center gap-3 p-2.5 rounded-xl border transition-all overflow-hidden",
-                                        msg.isMine 
-                                            ? "bg-white/10 border-white/20 hover:bg-white/20" 
-                                            : "bg-slate-50 border-slate-200 hover:bg-slate-100"
-                                    )}
-                                >
-                                    <div className={cn(
-                                        "size-9 rounded-lg flex items-center justify-center shrink-0",
-                                        msg.isMine ? "bg-white/20" : "bg-white shadow-sm border border-slate-200"
-                                    )}>
-                                        <FileIcon className={cn("size-4", msg.isMine ? "text-white" : "text-slate-500")} />
+                                <div className="flex-1 min-w-0 pr-2">
+                                    <p className={cn("block max-w-full text-[13px] font-medium truncate", msg.isMine ? "text-white" : "text-slate-900")}>
+                                        {proxyDocId ? (msg.content || "Tài liệu") : getFileName(msg.attachmentUrls)}
+                                    </p>
+                                    <p className={cn("text-[10px] mt-0.5", msg.isMine ? "text-white/60" : "text-slate-400")}>
+                                        Tài liệu đính kèm
+                                    </p>
+                                </div>
+                                <Download className={cn("size-4 shrink-0", msg.isMine ? "text-white/60" : "text-slate-400")} />
+                            </>
+                        );
+
+                        return (
+                            <div className="mb-2 space-y-2 max-w-full min-w-0">
+                                {isImage(msg.attachmentUrls) ? (
+                                    <div className="relative rounded-lg overflow-hidden border border-slate-200/20 max-w-sm">
+                                        <img
+                                            src={msg.attachmentUrls}
+                                            alt="Attachment"
+                                            className="max-h-60 w-auto object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                                            onClick={() => window.open(msg.attachmentUrls!, "_blank")}
+                                        />
                                     </div>
-                                    <div className="flex-1 min-w-0 pr-2">
-                                        <p className={cn("block max-w-full text-[13px] font-medium truncate", msg.isMine ? "text-white" : "text-slate-900")}>
-                                            {getFileName(msg.attachmentUrls)}
-                                        </p>
-                                        <p className={cn("text-[10px] mt-0.5", msg.isMine ? "text-white/60" : "text-slate-400")}>
-                                            Tài liệu đính kèm
-                                        </p>
-                                    </div>
-                                    <Download className={cn("size-4 shrink-0", msg.isMine ? "text-white/60" : "text-slate-400")} />
-                                </a>
-                            )}
-                        </div>
-                    )}
+                                ) : proxyDocId ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => openDocumentInTab(proxyDocId).catch(() => toast.error("Không mở được tài liệu — bạn có thể không có quyền truy cập."))}
+                                        className={attachmentClass}
+                                    >
+                                        {fileBubble}
+                                    </button>
+                                ) : (
+                                    <a
+                                        href={msg.attachmentUrls}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={attachmentClass}
+                                    >
+                                        {fileBubble}
+                                    </a>
+                                )}
+                            </div>
+                        );
+                    })()}
                     <div className="w-full max-w-full whitespace-pre-wrap break-all">{msg.content}</div>
                     {msg._failed && (
                         <button 
