@@ -32,11 +32,44 @@ import { GetIndustriesFlat, GetStages } from "@/services/master/master.api";
 const EMPTY_METRIC_VALUE = "N/A";
 
 const formatTicketSize = (min?: number | null, max?: number | null): string => {
-  if (!min && !max) return EMPTY_METRIC_VALUE;
-  const fmt = (n: number) => n >= 1_000_000 ? `$${n / 1_000_000}M` : `$${n / 1_000}K`;
-  if (min && max) return `${fmt(min)}-${fmt(max)}`;
-  if (min) return `${fmt(min)}+`;
-  return `${fmt(max!)}`;
+  const normalize = (value?: number | null) => {
+    if (value == null) return null;
+    const num = Number(value);
+    if (!Number.isFinite(num) || num < 0) return null;
+    return num;
+  };
+
+  const minValue = normalize(min);
+  const maxValue = normalize(max);
+  if (minValue == null && maxValue == null) return EMPTY_METRIC_VALUE;
+
+  const compact = (value: number) => {
+    const units = [
+      { threshold: 1_000_000_000, suffix: "B" },
+      { threshold: 1_000_000, suffix: "M" },
+      { threshold: 1_000, suffix: "K" },
+    ];
+
+    for (const unit of units) {
+      if (value >= unit.threshold) {
+        const compactValue = value / unit.threshold;
+        const rounded =
+          compactValue >= 100 ? compactValue.toFixed(0) :
+          compactValue >= 10 ? compactValue.toFixed(1) :
+          compactValue.toFixed(2);
+        return `$${rounded.replace(/\.0+$|(\.\d*[1-9])0+$/, "$1")}${unit.suffix}`;
+      }
+    }
+
+    return `$${value.toLocaleString("en-US")}`;
+  };
+
+  if (minValue != null && maxValue != null) {
+    const [from, to] = minValue <= maxValue ? [minValue, maxValue] : [maxValue, minValue];
+    return `${compact(from)} - ${compact(to)}`;
+  }
+  if (minValue != null) return `${compact(minValue)}+`;
+  return compact(maxValue!);
 };
 
 const formatDate = (iso: string): string => {

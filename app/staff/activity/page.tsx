@@ -8,11 +8,7 @@ import {
   Activity,
   MessageSquareWarning,
   RefreshCw,
-  LayoutDashboard,
-  Cpu,
   Lock,
-  AlertOctagon,
-  Workflow,
   AlertTriangle,
   Loader2,
   ChevronRight,
@@ -133,23 +129,12 @@ export default function PlatformActivityPage() {
       warn: !loadingStats && (stats?.pendingKycCount ?? 0) > 0,
       href: "/staff/kyc",
     },
-    {
-      label: "AI Service",
-      value: loadingStats ? "—" : (stats?.aiServiceOnline ? "Online" : "Offline"),
-      sub: "uptime 30 ngày",
-      icon: Cpu,
-      warn: !loadingStats && stats?.aiServiceOnline === false,
-      href: "/staff/activity",
-    },
   ];
 
   const governanceItems = [
     { label: "Chờ duyệt KYC Startup", value: loadingStats ? "—" : String(stats?.pendingKycCount ?? "—"), icon: ShieldCheck, href: "/staff/kyc" },
     { label: "Tài khoản bị khoá (24h)", value: loadingStats ? "—" : String(stats?.lockedAccounts ?? "—"), icon: Lock, href: "/staff/kyc" },
     { label: "Khiếu nại leo thang", value: "—", icon: MessageSquareWarning, href: "/staff/complaints" },
-    { label: "Role thay đổi gần đây", value: "—", icon: LayoutDashboard, href: "/staff/activity" },
-    { label: "Yêu cầu mở khẩn cấp", value: "—", icon: AlertOctagon, href: "/staff/issue-reports" },
-    { label: "Workflow chờ xử lý", value: "—", icon: Workflow, href: "/staff/consulting-ops" },
   ];
 
   return (
@@ -186,7 +171,7 @@ export default function PlatformActivityPage() {
             System Health
           </h2>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {statCards.map((card) => {
             const Icon = card.icon;
             return (

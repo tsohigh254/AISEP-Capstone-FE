@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -37,7 +36,6 @@ import {
 type Tab = "industries" | "stages";
 type StatusFilter = "all" | "active" | "inactive";
 type IndustryKindFilter = "all" | "parent" | "child";
-type IndustryMode = "parent" | "child";
 
 type IndustryRow = IStaffIndustryItem & {
   level: number;
@@ -79,7 +77,6 @@ const fieldClass =
 
 const textareaClass =
   "min-h-20 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] font-semibold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#eec54e] focus:ring-2 focus:ring-[#eec54e]/20";
-const MASTER_DATA_LOAD_ERROR_TOAST_ID = "staff-master-data-load-error";
 
 function isActive(value?: boolean) {
   return value !== false;
@@ -94,20 +91,7 @@ function flattenIndustries(items: IStaffIndustryItem[]) {
   };
 
   items.forEach((item) => visit(item, 0));
-
-  // BE can return partially-flattened trees where parentIndustryId exists
-  // but parentName isn't reachable via nested subIndustries; fill it by id lookup.
-  const nameById = new Map<number, string>();
-  rows.forEach((row) => {
-    nameById.set(row.industryId, row.industryName);
-  });
-
-  return rows.map((row) => ({
-    ...row,
-    parentName:
-      row.parentName ??
-      (row.parentIndustryId != null ? nameById.get(row.parentIndustryId) : undefined),
-  }));
+  return rows;
 }
 
 function StatusPill({ active }: { active?: boolean }) {
@@ -123,7 +107,7 @@ function StatusPill({ active }: { active?: boolean }) {
       )}
     >
       {enabled ? <CheckCircle2 className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-      {enabled ? "Đang dùng" : "Đã ẩn khỏi public"}
+      {enabled ? "Đang dùng" : "Đã ẩn"}
     </span>
   );
 }
@@ -164,7 +148,6 @@ export default function StaffMasterDataPage() {
   const [industries, setIndustries] = useState<IStaffIndustryItem[]>([]);
   const [stages, setStages] = useState<IStageMasterItem[]>([]);
   const [industryForm, setIndustryForm] = useState<IndustryForm>(emptyIndustryForm);
-  const [industryMode, setIndustryMode] = useState<IndustryMode>("parent");
   const [stageForm, setStageForm] = useState<StageForm>(emptyStageForm);
   const [showIndustryForm, setShowIndustryForm] = useState(false);
   const [showStageForm, setShowStageForm] = useState(false);
@@ -174,16 +157,6 @@ export default function StaffMasterDataPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
-  const [confirmModal, setConfirmModal] = useState<{
-    open: boolean;
-    title?: string;
-    message?: string;
-    confirmLabel?: string;
-    cancelLabel?: string;
-    onConfirm?: (() => Promise<void> | void) | undefined;
-  }>({ open: false });
-  const [confirmProcessing, setConfirmProcessing] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   const flatIndustries = useMemo(() => flattenIndustries(industries), [industries]);
   const parentOptions = flatIndustries.filter((item) => !item.parentIndustryId);
@@ -195,9 +168,7 @@ export default function StaffMasterDataPage() {
       setIndustries(industryItems);
       setStages(stageItems);
     } catch {
-      toast.error("Không tải được danh mục master data.", {
-        id: MASTER_DATA_LOAD_ERROR_TOAST_ID,
-      });
+      toast.error("Không tải được danh mục master data.");
     } finally {
       setLoading(false);
     }
@@ -217,37 +188,6 @@ export default function StaffMasterDataPage() {
   const maxOrder = stages.reduce((max, item) => Math.max(max, item.orderIndex ?? 0), 0);
 
   const normalizedSearch = search.trim().toLowerCase();
-  const hasActiveFilters =
-    Boolean(normalizedSearch) ||
-    statusFilter !== "all" ||
-    (tab === "industries" && industryKindFilter !== "all");
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    const onEscapeCloseForm = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      if (showIndustryForm) resetIndustryForm();
-      if (showStageForm) resetStageForm();
-    };
-
-    window.addEventListener("keydown", onEscapeCloseForm);
-    return () => window.removeEventListener("keydown", onEscapeCloseForm);
-  }, [showIndustryForm, showStageForm]);
-
-  useEffect(() => {
-    const shouldLockScroll = showIndustryForm || showStageForm || confirmModal.open;
-    if (!shouldLockScroll) return;
-
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [showIndustryForm, showStageForm, confirmModal.open]);
 
   const visibleIndustries = useMemo(() => {
     return flatIndustries.filter((item) => {
@@ -285,7 +225,6 @@ export default function StaffMasterDataPage() {
 
   const resetIndustryForm = () => {
     setIndustryForm(emptyIndustryForm);
-    setIndustryMode("parent");
     setShowIndustryForm(false);
   };
 
@@ -297,7 +236,6 @@ export default function StaffMasterDataPage() {
   const startCreate = () => {
     if (tab === "industries") {
       setIndustryForm(emptyIndustryForm);
-      setIndustryMode("parent");
       setShowIndustryForm(true);
       return;
     }
@@ -310,7 +248,6 @@ export default function StaffMasterDataPage() {
   };
 
   const editIndustry = (item: IStaffIndustryItem) => {
-    const mode: IndustryMode = item.parentIndustryId ? "child" : "parent";
     setIndustryForm({
       id: item.industryId,
       industryName: item.industryName,
@@ -318,7 +255,6 @@ export default function StaffMasterDataPage() {
       parentIndustryId: item.parentIndustryId ? String(item.parentIndustryId) : "",
       isActive: isActive(item.isActive),
     });
-    setIndustryMode(mode);
     setShowIndustryForm(true);
   };
 
@@ -333,45 +269,10 @@ export default function StaffMasterDataPage() {
     setShowStageForm(true);
   };
 
-  // Helpers to manipulate industry tree in local state
-  const removeIndustryById = (items: IStaffIndustryItem[], id: number): IStaffIndustryItem[] => {
-    return items
-      .map((it) => ({ ...it, subIndustries: it.subIndustries ? removeIndustryById(it.subIndustries, id) : [] }))
-      .filter((it) => it.industryId !== id);
-  };
-
-  const insertIndustryIntoTree = (items: IStaffIndustryItem[], node: IStaffIndustryItem): IStaffIndustryItem[] => {
-    if (!node.parentIndustryId) {
-      return [...items, node];
-    }
-
-    let inserted = false;
-
-    const walk = (list: IStaffIndustryItem[]): IStaffIndustryItem[] =>
-      list.map((it) => {
-        if (it.industryId === node.parentIndustryId) {
-          inserted = true;
-          return { ...it, subIndustries: [...(it.subIndustries ?? []), node] };
-        }
-        if (it.subIndustries && it.subIndustries.length) {
-          return { ...it, subIndustries: walk(it.subIndustries) };
-        }
-        return it;
-      });
-
-    const result = walk(items);
-    if (!inserted) return [...items, node];
-    return result;
-  };
-
   const saveIndustry = async () => {
     const name = industryForm.industryName.trim();
     if (!name) {
       toast.error("Vui lòng nhập tên ngành.");
-      return;
-    }
-    if (industryMode === "child" && !industryForm.parentIndustryId) {
-      toast.error("Vui lòng chọn ngành cha cho ngành phụ.");
       return;
     }
 
@@ -380,35 +281,16 @@ export default function StaffMasterDataPage() {
       const payload = {
         industryName: name,
         description: industryForm.description.trim() || undefined,
-        parentIndustryId:
-          industryMode === "child" && industryForm.parentIndustryId
-            ? Number(industryForm.parentIndustryId)
-            : null,
+        parentIndustryId: industryForm.parentIndustryId ? Number(industryForm.parentIndustryId) : null,
         isActive: industryForm.isActive,
       };
 
-      // Create or update and update local state using returned DTO from API
-      if (industryForm.id) {
-        const updated = await UpdateStaffIndustry(industryForm.id, payload as any);
-        setIndustries((prev) => {
-          // remove any existing node with same id then insert updated node into correct parent
-          const without = removeIndustryById(prev, updated.industryId);
-          return insertIndustryIntoTree(without, updated);
-        });
-        toast.success("Đã cập nhật ngành.");
-      } else {
-        const created = await CreateStaffIndustry(payload as any);
-        setIndustries((prev) => insertIndustryIntoTree(prev, created));
-        toast.success("Đã tạo ngành mới.");
-      }
+      if (industryForm.id) await UpdateStaffIndustry(industryForm.id, payload);
+      else await CreateStaffIndustry(payload);
 
-      // Ensure UI reflects backend ordering and immediately highlights created/updated item.
-      await loadData();
-      setSearch("");
-      setStatusFilter("all");
-      setIndustryKindFilter("all");
-
+      toast.success(industryForm.id ? "Đã cập nhật ngành." : "Đã tạo ngành mới.");
       resetIndustryForm();
+      await loadData();
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Không lưu được ngành.");
     } finally {
@@ -437,17 +319,12 @@ export default function StaffMasterDataPage() {
         isActive: stageForm.isActive,
       };
 
-      if (stageForm.id) {
-        const updated = await UpdateStaffStage(stageForm.id, payload as any);
-        setStages((prev) => prev.map((s) => (s.stageId === updated.stageId ? updated : s)));
-        toast.success("Đã cập nhật giai đoạn.");
-      } else {
-        const created = await CreateStaffStage(payload as any);
-        setStages((prev) => [...prev, created]);
-        toast.success("Đã tạo giai đoạn mới.");
-      }
+      if (stageForm.id) await UpdateStaffStage(stageForm.id, payload);
+      else await CreateStaffStage(payload);
 
+      toast.success(stageForm.id ? "Đã cập nhật giai đoạn." : "Đã tạo giai đoạn mới.");
       resetStageForm();
+      await loadData();
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Không lưu được giai đoạn.");
     } finally {
@@ -456,25 +333,18 @@ export default function StaffMasterDataPage() {
   };
 
   const hideIndustry = async (item: IStaffIndustryItem) => {
-    const counts = (item.startupCount || item.investorCount) ? ` (${item.startupCount ?? 0} startup, ${item.investorCount ?? 0} investor đang dùng)` : "";
-    setConfirmModal({
-      open: true,
-      title: "Xác nhận ẩn khỏi danh mục public",
-      message: `Ẩn ngành "${item.industryName}" khỏi danh mục public?${counts} Bản ghi vẫn được giữ trong hệ thống và có thể hiển thị lại.`,
-      confirmLabel: "Ẩn khỏi public",
-      onConfirm: async () => {
-        setBusyKey(`industry-${item.industryId}`);
-        try {
-          const res = await DeleteStaffIndustry(item.industryId);
-          toast.success((res as any)?.message || "Đã ẩn ngành khỏi public.");
-          await loadData();
-        } catch (error: any) {
-          toast.error(error?.response?.data?.message || "Không ẩn ngành khỏi public được.");
-        } finally {
-          setBusyKey(null);
-        }
-      },
-    });
+    if (!window.confirm(`Ẩn ngành "${item.industryName}" khỏi master data public?`)) return;
+
+    setBusyKey(`industry-${item.industryId}`);
+    try {
+      await DeleteStaffIndustry(item.industryId);
+      toast.success("Đã ẩn ngành.");
+      await loadData();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Không ẩn được ngành.");
+    } finally {
+      setBusyKey(null);
+    }
   };
 
   const restoreIndustry = async (item: IStaffIndustryItem) => {
@@ -486,34 +356,28 @@ export default function StaffMasterDataPage() {
         parentIndustryId: item.parentIndustryId ?? null,
         isActive: true,
       });
-      toast.success("Đã hiển thị lại ngành trên danh mục public.");
+      toast.success("Đã bật lại ngành.");
       await loadData();
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Không hiển thị lại ngành được.");
+      toast.error(error?.response?.data?.message || "Không bật lại được ngành.");
     } finally {
       setBusyKey(null);
     }
   };
 
   const hideStage = async (item: IStageMasterItem) => {
-    setConfirmModal({
-      open: true,
-      title: "Xác nhận ẩn khỏi danh mục public",
-      message: `Ẩn giai đoạn "${item.stageName}" khỏi danh mục public? Bản ghi vẫn được giữ trong hệ thống và có thể hiển thị lại.`,
-      confirmLabel: "Ẩn khỏi public",
-      onConfirm: async () => {
-        setBusyKey(`stage-${item.stageId}`);
-        try {
-          const res = await DeleteStaffStage(item.stageId);
-          toast.success((res as any)?.message || "Đã ẩn giai đoạn khỏi public.");
-          await loadData();
-        } catch (error: any) {
-          toast.error(error?.response?.data?.message || "Không ẩn giai đoạn khỏi public được.");
-        } finally {
-          setBusyKey(null);
-        }
-      },
-    });
+    if (!window.confirm(`Ẩn giai đoạn "${item.stageName}" khỏi danh mục public?`)) return;
+
+    setBusyKey(`stage-${item.stageId}`);
+    try {
+      await DeleteStaffStage(item.stageId);
+      toast.success("Đã ẩn giai đoạn.");
+      await loadData();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Không ẩn được giai đoạn.");
+    } finally {
+      setBusyKey(null);
+    }
   };
 
   const restoreStage = async (item: IStageMasterItem) => {
@@ -525,35 +389,17 @@ export default function StaffMasterDataPage() {
         orderIndex: item.orderIndex,
         isActive: true,
       });
-      toast.success("Đã hiển thị lại giai đoạn trên danh mục public.");
+      toast.success("Đã bật lại giai đoạn.");
       await loadData();
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Không hiển thị lại giai đoạn được.");
+      toast.error(error?.response?.data?.message || "Không bật lại được giai đoạn.");
     } finally {
       setBusyKey(null);
     }
   };
 
-  const handleConfirm = async () => {
-    if (!confirmModal.onConfirm) {
-      setConfirmModal({ open: false });
-      return;
-    }
-
-    setConfirmProcessing(true);
-    try {
-      await confirmModal.onConfirm();
-    } catch (err) {
-      // errors are handled inside onConfirm where appropriate
-    } finally {
-      setConfirmProcessing(false);
-      setConfirmModal({ open: false });
-    }
-  };
-
   const activeTabCount = tab === "industries" ? visibleIndustries.length : visibleStages.length;
   const showingForm = tab === "industries" ? showIndustryForm : showStageForm;
-  const withPortal = (node: React.ReactNode) => (mounted ? createPortal(node, document.body) : null);
 
   return (
     <div className="space-y-6 px-8 py-7 pb-16 animate-in fade-in duration-500">
@@ -613,7 +459,6 @@ export default function StaffMasterDataPage() {
                     setTab(item.id);
                     setSearch("");
                     setStatusFilter("all");
-                    setIndustryKindFilter("all");
                   }}
                   className={cn(
                     "inline-flex h-9 items-center gap-2 rounded-lg px-3.5 text-[13px] font-bold transition-all",
@@ -676,75 +521,18 @@ export default function StaffMasterDataPage() {
         <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px] font-semibold text-slate-500">
           <span className="rounded-lg bg-slate-50 px-2.5 py-1">{activeTabCount} kết quả</span>
           {showingForm && <span className="rounded-lg bg-amber-50 px-2.5 py-1 text-amber-700">Đang mở form chỉnh sửa</span>}
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearch("");
-                setStatusFilter("all");
-                setIndustryKindFilter("all");
-              }}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-slate-600 transition hover:bg-slate-50"
-            >
-              Xóa bộ lọc
-            </button>
-          )}
         </div>
-
-        {hasActiveFilters && (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {!!normalizedSearch && (
-              <button
-                type="button"
-                onClick={() => setSearch("")}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[12px] font-semibold text-slate-600"
-              >
-                Từ khóa: {search}
-                <X className="h-3 w-3" />
-              </button>
-            )}
-            {statusFilter !== "all" && (
-              <button
-                type="button"
-                onClick={() => setStatusFilter("all")}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[12px] font-semibold text-slate-600"
-              >
-                Trạng thái: {statusFilter === "active" ? "Đang dùng" : "Đã ẩn"}
-                <X className="h-3 w-3" />
-              </button>
-            )}
-            {tab === "industries" && industryKindFilter !== "all" && (
-              <button
-                type="button"
-                onClick={() => setIndustryKindFilter("all")}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[12px] font-semibold text-slate-600"
-              >
-                Cấp: {industryKindFilter === "parent" ? "Ngành cha" : "Ngành phụ"}
-                <X className="h-3 w-3" />
-              </button>
-            )}
-          </div>
-        )}
       </div>
 
-      {tab === "industries" &&
-        showIndustryForm &&
-        withPortal(
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Đóng form sửa ngành"
-            onClick={resetIndustryForm}
-            className="absolute inset-0 bg-black/35"
-          />
-          <section className="relative z-10 w-full max-w-5xl max-h-[86vh] overflow-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+      {tab === "industries" && showIndustryForm && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50/25 p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-[15px] font-bold text-slate-900">
                 {industryForm.id ? "Sửa ngành" : "Thêm ngành mới"}
               </h2>
               <p className="mt-0.5 text-[12px] font-medium text-slate-500">
-                Chọn rõ loại ngành để tránh nhầm thao tác: ngành cha là cấp cao nhất, ngành phụ sẽ nằm trong một ngành cha.
+                Chọn ngành cha nếu đây là ngành phụ. Bỏ trống ngành cha để tạo ngành cấp cao nhất.
               </p>
             </div>
             <button
@@ -756,40 +544,7 @@ export default function StaffMasterDataPage() {
             </button>
           </div>
 
-          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-2">
-            <p className="mb-2 px-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">Loại ngành</p>
-            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setIndustryMode("parent");
-                  setIndustryForm((prev) => ({ ...prev, parentIndustryId: "" }));
-                }}
-                className={cn(
-                  "rounded-md px-3 py-1.5 text-[12px] font-bold transition",
-                  industryMode === "parent"
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800"
-                )}
-              >
-                Ngành cha
-              </button>
-              <button
-                type="button"
-                onClick={() => setIndustryMode("child")}
-                className={cn(
-                  "rounded-md px-3 py-1.5 text-[12px] font-bold transition",
-                  industryMode === "child"
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800"
-                )}
-              >
-                Ngành phụ
-              </button>
-            </div>
-          </div>
-
-          <div className={cn("grid gap-3 lg:items-end", industryMode === "child" ? "lg:grid-cols-[1fr_1fr_1.2fr_auto]" : "lg:grid-cols-[1.2fr_1.6fr_auto]")}>
+          <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_1.4fr_auto] lg:items-end">
             <div>
               <label className="mb-1.5 block text-[12px] font-bold text-slate-500">Tên ngành</label>
               <input
@@ -800,35 +555,31 @@ export default function StaffMasterDataPage() {
               />
             </div>
 
-            {industryMode === "child" && (
-              <div>
-                <label className="mb-1.5 block text-[12px] font-bold text-slate-500">
-                  Ngành cha <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  className={fieldClass}
-                  value={industryForm.parentIndustryId}
-                  onChange={(event) => setIndustryForm((prev) => ({ ...prev, parentIndustryId: event.target.value }))}
-                >
-                  <option value="">Chọn ngành cha</option>
-                  {parentOptions
-                    .filter((item) => item.industryId !== industryForm.id)
-                    .map((item) => (
-                      <option key={item.industryId} value={item.industryId}>
-                        {item.industryName}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            )}
+            <div>
+              <label className="mb-1.5 block text-[12px] font-bold text-slate-500">Ngành cha</label>
+              <select
+                className={fieldClass}
+                value={industryForm.parentIndustryId}
+                onChange={(event) => setIndustryForm((prev) => ({ ...prev, parentIndustryId: event.target.value }))}
+              >
+                <option value="">Không có ngành cha</option>
+                {parentOptions
+                  .filter((item) => item.industryId !== industryForm.id)
+                  .map((item) => (
+                    <option key={item.industryId} value={item.industryId}>
+                      {item.industryName}
+                    </option>
+                  ))}
+              </select>
+            </div>
 
             <div>
-              <label className="mb-1.5 block text-[12px] font-bold text-slate-500">Mô tả nội bộ (tùy chọn)</label>
+              <label className="mb-1.5 block text-[12px] font-bold text-slate-500">Mô tả</label>
               <input
                 className={fieldClass}
                 value={industryForm.description}
                 onChange={(event) => setIndustryForm((prev) => ({ ...prev, description: event.target.value }))}
-                placeholder="Dùng để staff nhận biết nhanh trong trang quản trị"
+                placeholder="Mô tả ngắn hiển thị trong quản trị"
               />
             </div>
 
@@ -843,22 +594,6 @@ export default function StaffMasterDataPage() {
             </label>
           </div>
 
-          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-[12px] font-semibold text-slate-600">
-            Bạn sắp {industryForm.id ? "cập nhật" : "tạo"}:{" "}
-            <span className="font-bold text-slate-900">
-              {industryMode === "parent"
-                ? `Ngành cha${industryForm.industryName.trim() ? ` - ${industryForm.industryName.trim()}` : ""}`
-                : `Ngành phụ${
-                    industryForm.parentIndustryId
-                      ? ` thuộc ${
-                          parentOptions.find((it) => String(it.industryId) === industryForm.parentIndustryId)
-                            ?.industryName ?? "ngành cha đã chọn"
-                        }`
-                      : ""
-                  }${industryForm.industryName.trim() ? ` - ${industryForm.industryName.trim()}` : ""}`}
-            </span>
-          </div>
-
           <div className="mt-4 flex justify-end gap-2">
             <button
               type="button"
@@ -870,28 +605,18 @@ export default function StaffMasterDataPage() {
             <button
               type="button"
               onClick={saveIndustry}
-              disabled={saving || (industryMode === "child" && !industryForm.parentIndustryId)}
+              disabled={saving}
               className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-900 px-4 text-[13px] font-bold text-white transition hover:bg-slate-800 disabled:opacity-50"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {industryForm.id ? "Lưu thay đổi" : industryMode === "parent" ? "Tạo ngành cha" : "Tạo ngành phụ"}
+              {industryForm.id ? "Lưu thay đổi" : "Tạo ngành"}
             </button>
           </div>
-          </section>
-        </div>
+        </section>
       )}
 
-      {tab === "stages" &&
-        showStageForm &&
-        withPortal(
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Đóng form sửa giai đoạn"
-            onClick={resetStageForm}
-            className="absolute inset-0 bg-black/35"
-          />
-          <section className="relative z-10 w-full max-w-4xl max-h-[86vh] overflow-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+      {tab === "stages" && showStageForm && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50/25 p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-[15px] font-bold text-slate-900">
@@ -971,8 +696,7 @@ export default function StaffMasterDataPage() {
               {stageForm.id ? "Lưu thay đổi" : "Tạo giai đoạn"}
             </button>
           </div>
-          </section>
-        </div>
+        </section>
       )}
 
       <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
@@ -1007,9 +731,9 @@ export default function StaffMasterDataPage() {
             <Loader2 className="h-7 w-7 animate-spin text-[#eec54e]" />
           </div>
         ) : tab === "industries" ? (
-          <div className="max-h-[68vh] overflow-auto">
+          <div className="overflow-x-auto">
             <table className="w-full border-collapse">
-              <thead className="sticky top-0 z-[2] bg-slate-50 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
+              <thead className="bg-slate-50 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
                 <tr>
                   <th className="px-5 py-3">Tên ngành</th>
                   <th className="px-5 py-3">Cấp</th>
@@ -1019,20 +743,13 @@ export default function StaffMasterDataPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {visibleIndustries.map((item, index) => {
+                {visibleIndustries.map((item) => {
                   const rowBusy = busyKey === `industry-${item.industryId}`;
                   const rowActive = isActive(item.isActive);
                   const editing = industryForm.id === item.industryId && showIndustryForm;
 
                   return (
-                    <tr
-                      key={item.industryId}
-                      className={cn(
-                        "transition hover:bg-slate-50/70",
-                        index % 2 === 1 && "bg-slate-50/20",
-                        editing && "bg-amber-50/40"
-                      )}
-                    >
+                    <tr key={item.industryId} className={cn("transition hover:bg-slate-50/70", editing && "bg-amber-50/40")}>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2" style={{ paddingLeft: item.level * 18 }}>
                           <p className="text-[13px] font-bold text-slate-900">{item.industryName}</p>
@@ -1048,15 +765,8 @@ export default function StaffMasterDataPage() {
                           </p>
                         )}
                       </td>
-                      <td className="px-5 py-3.5">
-                        <span
-                          className={cn(
-                            "inline-flex rounded-lg px-2.5 py-1 text-[11px] font-bold",
-                            item.parentIndustryId ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
-                          )}
-                        >
-                          {item.parentIndustryId ? "Ngành phụ" : "Ngành cha"}
-                        </span>
+                      <td className="px-5 py-3.5 text-[12px] font-bold text-slate-500">
+                        {item.parentIndustryId ? "Ngành phụ" : "Ngành cha"}
                       </td>
                       <td className="px-5 py-3.5 text-[12px] font-semibold text-slate-500">
                         {item.parentName ?? "-"}
@@ -1069,11 +779,10 @@ export default function StaffMasterDataPage() {
                           <button
                             type="button"
                             onClick={() => editIndustry(item)}
-                            className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-[12px] font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+                            className="inline-flex size-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
                             title="Sửa"
                           >
                             <Edit3 className="h-4 w-4" />
-                            Sửa
                           </button>
                           <button
                             type="button"
@@ -1082,7 +791,7 @@ export default function StaffMasterDataPage() {
                             className={cn(
                               "inline-flex h-9 items-center gap-2 rounded-xl border px-3 text-[12px] font-bold transition disabled:opacity-50",
                               rowActive
-                                ? "border-rose-200 text-rose-700 hover:bg-rose-50"
+                                ? "border-rose-100 text-rose-600 hover:bg-rose-50"
                                 : "border-emerald-100 text-emerald-700 hover:bg-emerald-50"
                             )}
                           >
@@ -1093,7 +802,7 @@ export default function StaffMasterDataPage() {
                             ) : (
                               <RotateCcw className="h-4 w-4" />
                             )}
-                            {rowActive ? "Ẩn khỏi public" : "Hiển thị lại"}
+                            {rowActive ? "Ẩn" : "Bật lại"}
                           </button>
                         </div>
                       </td>
@@ -1112,9 +821,9 @@ export default function StaffMasterDataPage() {
             </table>
           </div>
         ) : (
-          <div className="max-h-[68vh] overflow-auto">
+          <div className="overflow-x-auto">
             <table className="w-full border-collapse">
-              <thead className="sticky top-0 z-[2] bg-slate-50 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
+              <thead className="bg-slate-50 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
                 <tr>
                   <th className="px-5 py-3">Giai đoạn</th>
                   <th className="px-5 py-3">Thứ tự</th>
@@ -1123,20 +832,13 @@ export default function StaffMasterDataPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {visibleStages.map((item, index) => {
+                {visibleStages.map((item) => {
                   const rowBusy = busyKey === `stage-${item.stageId}`;
                   const rowActive = isActive(item.isActive);
                   const editing = stageForm.id === item.stageId && showStageForm;
 
                   return (
-                    <tr
-                      key={item.stageId}
-                      className={cn(
-                        "transition hover:bg-slate-50/70",
-                        index % 2 === 1 && "bg-slate-50/20",
-                        editing && "bg-amber-50/40"
-                      )}
-                    >
+                    <tr key={item.stageId} className={cn("transition hover:bg-slate-50/70", editing && "bg-amber-50/40")}>
                       <td className="px-5 py-3.5">
                         <p className="text-[13px] font-bold text-slate-900">{item.stageName}</p>
                         {item.description && (
@@ -1158,11 +860,10 @@ export default function StaffMasterDataPage() {
                           <button
                             type="button"
                             onClick={() => editStage(item)}
-                            className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-[12px] font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+                            className="inline-flex size-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
                             title="Sửa"
                           >
                             <Edit3 className="h-4 w-4" />
-                            Sửa
                           </button>
                           <button
                             type="button"
@@ -1182,7 +883,7 @@ export default function StaffMasterDataPage() {
                             ) : (
                               <RotateCcw className="h-4 w-4" />
                             )}
-                            {rowActive ? "Ẩn khỏi public" : "Hiển thị lại"}
+                            {rowActive ? "Ẩn" : "Bật lại"}
                           </button>
                         </div>
                       </td>
@@ -1202,43 +903,6 @@ export default function StaffMasterDataPage() {
           </div>
         )}
       </section>
-
-      {confirmModal.open &&
-        withPortal(
-        <div className="fixed inset-0 z-[80] flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setConfirmModal({ open: false })}
-          />
-
-          <div className="relative z-10 mx-4 w-full max-w-lg rounded-2xl bg-white p-6 shadow-lg">
-            <h3 className="text-[16px] font-bold text-slate-900">{confirmModal.title}</h3>
-            <p className="mt-2 text-[13px] text-slate-600">{confirmModal.message}</p>
-
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmModal({ open: false })}
-                disabled={confirmProcessing}
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-[13px] font-bold text-slate-600 transition hover:bg-slate-50"
-              >
-                Hủy
-              </button>
-
-              <button
-                type="button"
-                onClick={handleConfirm}
-                disabled={confirmProcessing}
-                className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-900 px-4 text-[13px] font-bold text-white transition hover:bg-slate-800 disabled:opacity-50"
-              >
-                {confirmProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                <span>{confirmModal.confirmLabel ?? "Xác nhận"}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }

@@ -31,6 +31,7 @@ import { GetStartupProfile, GetMembers } from "@/services/startup/startup.api";
 import { GetEvaluationHistory, GetEvaluationReport } from "@/services/ai/ai.api";
 import { mapCanonicalToReport } from "./ai-evaluation/canonical-mapper";
 import { calcProfileCompleteness } from "@/lib/profile-completeness";
+import { StartupReadinessCard } from "@/components/startup/readiness/startup-readiness-card";
 
 export default function StartupDashboardPage() {
   const [showProfile, setShowProfile] = useState(false);
@@ -492,6 +493,12 @@ export default function StartupDashboardPage() {
             <div className="w-14 h-14 rounded-full bg-[#f4f4f0] flex items-center justify-center group-hover:bg-white transition-colors">
               <Handshake className="w-7 h-7 text-neutral-muted" />
             </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-12 gap-6">
+          <div className="col-span-12">
+            <StartupReadinessCard />
           </div>
         </div>
 

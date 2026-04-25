@@ -242,8 +242,12 @@ export default function AdvisorReportsPage() {
   }, []);
 
   const filteredReports = useMemo(() => {
+    if (activeTab === "pending") {
+      return [];
+    }
+
     let list = reports;
-    if (activeTab !== "all" && activeTab !== "pending") {
+    if (activeTab !== "all") {
       list = list.filter(r => r.reviewStatus === activeTab);
     }
     if (search.trim()) {
@@ -256,7 +260,13 @@ export default function AdvisorReportsPage() {
     return list;
   }, [reports, activeTab, search]);
 
+  const isSearching = search.trim().length > 0;
   const showPending = activeTab === "all" || activeTab === "pending";
+  const showEmptyAll = !isSearching && activeTab === "all" && reports.length === 0 && pendingSessions.length === 0;
+  const showEmptyPending = !isSearching && activeTab === "pending" && pendingSessions.length === 0;
+  const showFilteredEmpty =
+    filteredReports.length === 0 &&
+    ((activeTab !== "all" && activeTab !== "pending") || isSearching);
 
   return (
     <AdvisorShell>
@@ -355,14 +365,26 @@ export default function AdvisorReportsPage() {
                 ))}
               </div>
 
-              {filteredReports.length === 0 && (activeTab !== "all" && activeTab !== "pending" || search) && (
+              {(showEmptyAll || showEmptyPending || showFilteredEmpty) && (
                 <div className="bg-white rounded-2xl border border-slate-200/80 py-20 flex flex-col items-center justify-center text-center">
                   <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
                     <Inbox className="w-8 h-8 text-slate-300" />
                   </div>
-                  <h3 className="text-[15px] font-bold text-slate-900">Không tìm thấy báo cáo nào</h3>
+                  <h3 className="text-[15px] font-bold text-slate-900">
+                    {showEmptyAll
+                      ? "Chưa có báo cáo tư vấn nào"
+                      : showEmptyPending
+                        ? "Không có buổi tư vấn nào chờ báo cáo"
+                        : "Không tìm thấy báo cáo nào"}
+                  </h3>
                   <p className="text-[13px] text-slate-500 mt-1 px-10">
-                    {search ? `Không có báo cáo nào khớp với từ khóa "${search}"` : "Bạn chưa có báo cáo nào ở trạng thái này."}
+                    {showEmptyAll
+                      ? "Các báo cáo đã nộp và các buổi tư vấn cần viết báo cáo sẽ xuất hiện tại đây."
+                      : showEmptyPending
+                        ? "Khi có buổi tư vấn đã hoàn thành nhưng chưa có báo cáo, hệ thống sẽ hiển thị tại đây."
+                        : search
+                          ? `Không có báo cáo nào khớp với từ khóa "${search}"`
+                          : "Bạn chưa có báo cáo nào ở trạng thái này."}
                   </p>
                 </div>
               )}

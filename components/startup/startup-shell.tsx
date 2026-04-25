@@ -20,6 +20,7 @@ const routeLabels: Record<string, string> = {
   startup: "Workspace",
   "startup-profile": "Hồ sơ Startup",
   investors: "Nhà đầu tư",
+  readiness: "Sẵn sàng gọi vốn",
   "ai-evaluation": "Đánh giá AI",
   request: "Yêu cầu đánh giá",
   score: "Điểm tiềm năng",

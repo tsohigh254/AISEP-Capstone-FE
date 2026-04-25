@@ -128,6 +128,7 @@ function mergePreferencesIntoProfile(
 export default function InvestorProfileViewPage() {
   const [activeTab, setActiveTab] = useState<Tab>("Giới thiệu");
   const [profile, setProfile] = useState<IInvestorProfile | null>(null);
+  const [preferences, setPreferences] = useState<IInvestorPreferences | null>(null);
   const [kycStatus, setKycStatus] = useState<IInvestorKYCStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -153,6 +154,7 @@ export default function InvestorProfileViewPage() {
         if (nextProfile && preferencesRes.status === "fulfilled") {
           const data = preferencesRes.value as unknown as IBackendRes<IInvestorPreferences>;
           if (data.isSuccess && data.data) {
+            setPreferences(data.data);
             nextProfile = mergePreferencesIntoProfile(nextProfile, data.data);
           }
         }
@@ -192,6 +194,8 @@ export default function InvestorProfileViewPage() {
     .toUpperCase();
   const websiteDisplay = profile.website || profile.linkedInURL;
   const thesisSummary = presentation.shortSummary;
+  const ticketMin = preferences?.ticketMin ?? null;
+  const ticketMax = preferences?.ticketMax ?? null;
   const isKycVerified = isInvestorKycVerified(profile, kycStatus);
   // Chỉ trust acceptingConnections khi đã KYC VERIFIED (BE default bug: true cho tài khoản mới)
   const effectiveAcceptingConnections = isKycVerified && profile.acceptingConnections;
@@ -308,12 +312,6 @@ export default function InvestorProfileViewPage() {
                   + Mở rộng thesis
                 </Link>
               )}
-              <Link
-                href="/investor/kyc"
-                className="inline-flex items-center gap-1 rounded-md border border-amber-100/60 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 transition-colors hover:bg-amber-100"
-              >
-                + KYC thành viên
-              </Link>
             </div>
           </div>
         </div>
@@ -454,6 +452,25 @@ export default function InvestorProfileViewPage() {
       {activeTab === "Tiêu chí đầu tư" && (
         <div className="grid grid-cols-12 gap-5">
           <div className="col-span-12 space-y-5 lg:col-span-8">
+            {profile.preferredIndustries?.length > 0 && (
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                <h3 className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-slate-700">
+                  <Target className="h-4 w-4 text-[#C8A000]" />
+                  Ngành nghề quan tâm
+                </h3>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {profile.preferredIndustries.map((industry) => (
+                    <span
+                      key={getIndustryName(industry)}
+                      className="rounded-lg border border-[#e6cc4c]/25 bg-[#fdfbe9] px-3 py-1.5 text-[12px] font-medium text-[#171611]"
+                    >
+                      {getIndustryName(industry)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {profile.preferredMarketScopes?.length > 0 && (
               <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
                 <h3 className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-slate-700">
@@ -491,6 +508,25 @@ export default function InvestorProfileViewPage() {
                 </div>
               </div>
             )}
+
+            {profile.supportOffered?.length > 0 && (
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                <h3 className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-slate-700">
+                  <Handshake className="h-4 w-4 text-emerald-500" />
+                  Giá trị gia tăng cung cấp
+                </h3>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {profile.supportOffered.map((support) => (
+                    <span
+                      key={support}
+                      className="rounded-lg border border-emerald-100/60 bg-emerald-50 px-3 py-1.5 text-[12px] font-medium text-emerald-700"
+                    >
+                      {support}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="col-span-12 space-y-4 lg:col-span-4">
@@ -503,6 +539,24 @@ export default function InvestorProfileViewPage() {
                   label="Vị trí địa lý ưu tiên"
                   value={profile.preferredGeographies.join(", ")}
                 />
+              </div>
+            )}
+
+            {(ticketMin != null || ticketMax != null) && (
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                <h3 className="mb-4 text-[12px] font-semibold uppercase tracking-widest text-slate-400">
+                  Quy mô đầu tư (USD)
+                </h3>
+                <div className="space-y-3">
+                  <InfoPair
+                    label="Tối thiểu"
+                    value={ticketMin != null ? ticketMin.toLocaleString("vi-VN") : "Chưa cập nhật"}
+                  />
+                  <InfoPair
+                    label="Tối đa"
+                    value={ticketMax != null ? ticketMax.toLocaleString("vi-VN") : "Chưa cập nhật"}
+                  />
+                </div>
               </div>
             )}
           </div>
