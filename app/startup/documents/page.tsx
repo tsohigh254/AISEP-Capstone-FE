@@ -444,32 +444,49 @@ export default function StartupDocumentsPage() {
             })()}
 
             {/* Delete confirmation dialog (independent of dropdown) */}
-            {deleteConfirmId && (
-                <div className="fixed inset-0 z-[80] flex items-center justify-center">
-                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={() => setDeleteConfirmId(null)} />
-                    <div className="relative bg-white rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.12)] w-full max-w-sm mx-4 p-6 space-y-4">
-                        <div className="flex items-center gap-3">
-                            <div className="size-10 rounded-xl bg-red-50 flex items-center justify-center">
-                                <Trash2 className="w-5 h-5 text-red-500" />
+            {deleteConfirmId && (() => {
+                const deletingDoc = localDocs.find(d => d.id === deleteConfirmId);
+                const isOnChain = deletingDoc?.blockchainStatus === "recorded" || deletingDoc?.blockchainStatus === "matched";
+                return (
+                    <div className="fixed inset-0 z-[80] flex items-center justify-center">
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={() => setDeleteConfirmId(null)} />
+                        <div className="relative bg-white rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.12)] w-full max-w-md mx-4 p-6 space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="size-10 rounded-xl bg-red-50 flex items-center justify-center">
+                                    <Trash2 className="w-5 h-5 text-red-500" />
+                                </div>
+                                <div>
+                                    <h3 className="text-[15px] font-semibold text-slate-900">Xóa tài liệu</h3>
+                                    <p className="text-[12px] text-slate-400 mt-0.5">Thao tác này không thể hoàn tác.</p>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="text-[15px] font-semibold text-slate-900">Xóa tài liệu</h3>
-                                <p className="text-[12px] text-slate-400 mt-0.5">Thao tác này không thể hoàn tác.</p>
+
+                            {isOnChain && (
+                                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex gap-3">
+                                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                                    <div className="space-y-1">
+                                        <p className="text-[12.5px] font-semibold text-amber-800">Tài liệu đã được ghi nhận trên blockchain</p>
+                                        <p className="text-[12px] text-amber-700 leading-relaxed">
+                                            Bản ghi hash trên blockchain sẽ vẫn tồn tại vĩnh viễn và không thể gỡ bỏ. Việc xóa chỉ ẩn tài liệu khỏi danh sách (xóa mềm) — bằng chứng thời điểm và quyền sở hữu IP vẫn được lưu giữ.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setDeleteConfirmId(null)}
+                                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                                >Hủy</button>
+                                <button
+                                    onClick={() => handleDelete(deleteConfirmId)}
+                                    className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-[13px] font-semibold hover:bg-red-600 transition-colors"
+                                >Xóa ngay</button>
                             </div>
-                        </div>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setDeleteConfirmId(null)}
-                                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-colors"
-                            >Hủy</button>
-                            <button
-                                onClick={() => handleDelete(deleteConfirmId)}
-                                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-[13px] font-semibold hover:bg-red-600 transition-colors"
-                            >Xóa ngay</button>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {/* Edit modal */}
             {editState && (
