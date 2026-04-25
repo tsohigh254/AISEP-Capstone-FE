@@ -77,7 +77,7 @@ export default function RequestAIEvaluationPage() {
 
   const selectedPitchDeck = aiEligibleDocs.find((d: any) => selectedDocs.has(d.id) && d.type === "PITCH_DECK");
   const selectedBPlan = aiEligibleDocs.find((d: any) => selectedDocs.has(d.id) && d.type === "BUSINESS_PLAN");
-  const canSubmit = allReady && confirmed && selectedPitchDeck && submitState === "idle";
+  const canSubmit = allReady && confirmed && (selectedPitchDeck || selectedBPlan) && submitState === "idle";
 
   const toggleDoc = (id: string) => {
     setSelectedDocs(prev => {
@@ -135,7 +135,10 @@ export default function RequestAIEvaluationPage() {
       const startupId = profileRes?.data?.startupID;
       if (!startupId) throw new Error("Startup not found");
       setSubmitState("submitting");
-      const payload = { startupId }; // omit documentIds to let backend use all available docs
+      const payload = { 
+        startupId, 
+        documentIds: Array.from(selectedDocs).map(id => Number(id)) 
+      };
       const res = (await SubmitEvaluation(payload)) as unknown as IBackendRes<any>;
       console.debug("SubmitEvaluation response:", res);
       if (res && (res.success || res.isSuccess)) {

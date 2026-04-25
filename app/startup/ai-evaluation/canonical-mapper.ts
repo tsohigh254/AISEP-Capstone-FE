@@ -106,13 +106,41 @@ function mapCanonicalToReport(runId: number, data: any): AIEvaluationReport {
     overall?.score ?? 0
   );
 
-  const allCriteriaScores = (criteria || [])
-    .map((c: any) => normalizeTo100(c.normalized_score ?? c.weighted_score ?? c.final_score ?? c.score ?? c.raw_score))
-    .sort((a: number, b: number) => b - a);
-  const pitchDeckScore = allCriteriaScores[0] ?? overallScore;
-  const businessPlanScore = allCriteriaScores[1] ?? overallScore;
-
   const executiveSummary = narr?.executive_summary ?? narr?.summary ?? narr?.conclusion ?? overall?.summary ?? "";
+  const warnings = asStringArray(data?.warnings ?? data?.processing_warnings ?? narr?.warnings ?? []);
+  
+  // Heuristic: Detect source documents from report text since we cannot change BE
+  const fullText = (executiveSummary + " " + (data?.snapshot_label ?? "") + " " + warnings.join(" ")).toLowerCase();
+  
+  const mentionsBP = fullText.includes("business plan") || fullText.includes("kế hoạch kinh doanh");
+  const mentionsPD = fullText.includes("pitch deck") || fullText.includes("bản thuyết trình");
+  const bpMissing = fullText.includes("business plan not provided") || fullText.includes("thiếu business plan") || fullText.includes("không có business plan");
+  const pdMissing = fullText.includes("pitch deck not provided") || fullText.includes("thiếu pitch deck") || fullText.includes("không có pitch deck");
+
+  let pitchDeckScore = 0;
+  let businessPlanScore = 0;
+
+  // Decision logic
+  if (mentionsBP && mentionsPD && !bpMissing && !pdMissing) {
+    // Looks like a combined evaluation
+    const allScores = (criteria || [])
+      .map((c: any) => normalizeTo100(c.normalized_score ?? c.weighted_score ?? c.final_score ?? c.score ?? c.raw_score))
+      .sort((a: number, b: number) => b - a);
+    pitchDeckScore = allScores[0] ?? overallScore;
+    businessPlanScore = allScores[1] ?? overallScore;
+  } else if (mentionsBP && !bpMissing) {
+    // Business Plan only
+    businessPlanScore = overallScore;
+    pitchDeckScore = 0;
+  } else if (mentionsPD && !pdMissing) {
+    // Pitch Deck only
+    pitchDeckScore = overallScore;
+    businessPlanScore = 0;
+  } else {
+    // Fallback: If we can't tell, show overall score in both or use the old high-low logic
+    pitchDeckScore = overallScore;
+    businessPlanScore = 0; 
+  }
 
   const strengths: string[] = asStringArray(narr?.strengths ?? narr?.strength ?? narr?.top_strengths ?? narr?.topStrengths ?? data?.strengths ?? []);
   const opportunities: string[] = asStringArray(narr?.opportunities ?? narr?.opportunity ?? narr?.top_opportunities ?? narr?.topOpportunities ?? data?.opportunities ?? []);
