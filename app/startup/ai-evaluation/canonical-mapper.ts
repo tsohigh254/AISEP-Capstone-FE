@@ -100,7 +100,18 @@ function getFlatSubScoreTo100(data: any, ...keys: string[]): number {
 }
 
 function mapLatestScoreToReport(data: any): AIEvaluationReport {
-  const runId = Number(data?.runId ?? data?.RunId ?? data?.evaluationId ?? data?.EvaluationId ?? data?.id ?? 0) || 0;
+  const runId = Number(
+    data?.evaluationRunId ??
+    data?.EvaluationRunId ??
+    data?.evaluationRunID ??
+    data?.EvaluationRunID ??
+    data?.runId ??
+    data?.RunId ??
+    data?.evaluationId ??
+    data?.EvaluationId ??
+    data?.id ??
+    0
+  ) || 0;
   const now = new Date();
   const nowStr = now.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
