@@ -8,6 +8,7 @@ import {
   CreditCard,
   AlertCircle,
   ArrowRight,
+  BarChart3,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/context";
@@ -84,6 +85,18 @@ const QUICK_LINKS = [
     iconBg: "bg-indigo-500",
     badge: null,
     badgeColor: "",
+  },
+  {
+    icon: BarChart3,
+    label: "Quản lý tài chính",
+    desc: "Xem báo cáo doanh thu, hoa hồng và theo dõi dòng tiền hệ thống",
+    href: "/staff/finance",
+    accent: "#e6cc4c",
+    gradient: "from-amber-500/10 via-amber-400/5 to-transparent",
+    border: "hover:border-amber-200",
+    iconBg: "bg-[#eec54e]",
+    badge: "Mới",
+    badgeColor: "bg-amber-100 text-amber-600",
   },
 ];
 
