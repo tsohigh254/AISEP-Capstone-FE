@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
   Sparkles, ArrowLeft, FileText, History, RefreshCw, BarChart3,
+  Loader2,
   ShieldCheck, CheckCircle2, AlertTriangle, XCircle, TrendingUp,
   ChevronDown, ChevronUp, Zap, Info, Users, Globe, Layout, Banknote,
   Clock, Tag, Cpu, BookOpen, Download, Layers,
@@ -185,7 +186,7 @@ export default function AIDetailedReportPage() {
       <StartupShell>
         <div className="max-w-[1100px] mx-auto pb-20 animate-in fade-in duration-500">
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow p-10 text-center">
-            <History className="w-8 h-8 text-[#eec54e] mx-auto animate-spin mb-3" />
+            <Loader2 className="w-8 h-8 text-[#eec54e] mx-auto animate-spin mb-3" />
             <p className="text-sm text-slate-500">Đang tải báo cáo...</p>
           </div>
         </div>

@@ -8,6 +8,7 @@ import {
   LogOut, Loader2,
   LayoutGrid, Activity, ShieldCheck,
   MessageSquare, AlertCircle, Users, CreditCard, Tags,
+  BarChart3,
 } from "lucide-react";
 import { useAuth } from "@/context/context";
 import { Logout } from "@/services/auth/auth.api";
@@ -34,8 +35,9 @@ const NAV_GROUPS: {
   {
     label: "Vận hành",
     items: [
-      { icon: Users,    label: "Vận hành tư vấn",   href: "/staff/consulting-ops" },
+      { icon: Users,      label: "Vận hành tư vấn",   href: "/staff/consulting-ops" },
       { icon: CreditCard, label: "Vận hành thanh toán", href: "/staff/payment-ops" },
+      { icon: BarChart3,  label: "Quản lý tài chính",   href: "/staff/finance" },
     ],
   },
 ];
