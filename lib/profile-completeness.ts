@@ -4,13 +4,19 @@
  */
 export function calcProfileCompleteness(p: any, members: any[] = []): number {
   if (!p) return 0;
+  const hasStage =
+    p.stage !== undefined && p.stage !== null && p.stage !== "" ||
+    p.stageId !== undefined && p.stageId !== null && p.stageId !== "" ||
+    p.stageID !== undefined && p.stageID !== null && p.stageID !== "" ||
+    p.stageName !== undefined && p.stageName !== null && p.stageName !== "";
+
   const checks: boolean[] = [
     // Basic info (7)
     !!p.companyName,
     !!p.oneLiner,
     !!p.description,
     !!(p.industryID || p.industryName || p.industry),
-    p.stage !== undefined && p.stage !== null && p.stage !== "",
+    hasStage,
     !!p.logoURL,
     !!(p.location || p.country),
     // Business (4)

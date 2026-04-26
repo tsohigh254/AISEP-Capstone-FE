@@ -79,7 +79,8 @@ function mapStatusToUI(status?: string): AIEvaluationStatus {
   const s = (status ?? "").toLowerCase();
   if (s === "queued") return "QUEUED";
   if (s === "processing" || s === "retry" || s === "analyzing") return "ANALYZING";
-  if (s === "partial_completed" || s === "completed") return "COMPLETED";
+  if (s === "partial_completed") return "ANALYZING";
+  if (s === "completed") return "COMPLETED";
   if (s === "failed") return "FAILED";
   if (s === "insufficient_data") return "INSUFFICIENT_DATA";
   if (s === "access_restricted" || s === "access_denied") return "ACCESS_RESTRICTED";

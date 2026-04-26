@@ -187,6 +187,10 @@ function visibilityToBE(v: Visibility): number {
     }
 }
 
+function isReadinessCriticalDocumentType(type: DocType): boolean {
+    return type === "Pitch Deck" || type === "Tài chính";
+}
+
 /* ─── Toast ───────────────────────────────────────────────── */
 function Toast({ msg, type = "info", onClose }: { msg: string; type?: "info"|"success"|"error"; onClose: () => void }) {
     useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, []);
@@ -248,6 +252,11 @@ function VisibilityModal({ currentVisibility, saving, onClose, onSave }: {
                     <p className="text-[12px] text-slate-500 leading-relaxed bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
                         <Info className="inline w-3.5 h-3.5 text-slate-400 mr-1.5 -mt-0.5" />{hint}
                     </p>
+                    {value === "public" && (
+                        <p className="text-[11px] text-amber-700 leading-relaxed bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                            Với Pitch Deck/Business Plan, hệ thống sẽ tự bật thêm quyền Investor để không bị thiếu điều kiện readiness.
+                        </p>
+                    )}
                 </div>
                 <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
                     <button onClick={onClose} disabled={saving} className="px-4 py-2.5 rounded-xl text-[13px] font-medium text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-50">Hủy</button>
@@ -691,16 +700,22 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
             showToast("ID tài liệu không hợp lệ", "error");
             return;
         }
+        const shouldForceInvestorBit = v === "public" && isReadinessCriticalDocumentType(doc.type);
+        const visibilityValue = shouldForceInvestorBit ? 5 : visibilityToBE(v);
         setSavingMeta(true);
         try {
             const res = await AddMetaData(backendDocId, {
-                visibility: visibilityToBE(v),
+                visibility: visibilityValue,
             }) as any;
             if (res?.success === false || res?.isSuccess === false) {
                 showToast(res?.message ?? "Cập nhật thất bại", "error");
                 return;
             }
-            showToast("Đã cập nhật quyền xem", "success");
+            if (shouldForceInvestorBit) {
+                showToast("Đã bật Public + Investor để đáp ứng điều kiện readiness.", "info");
+            } else {
+                showToast("Đã cập nhật quyền xem", "success");
+            }
             setEditOpen(false);
             setReloadToken(t => t + 1);
         } catch (e: any) {

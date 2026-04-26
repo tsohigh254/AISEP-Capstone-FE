@@ -626,31 +626,10 @@ function AIEvaluationHomePageInner() {
                 executiveSummary: r?.summary ?? r?.executiveSummary ?? "",
               } as any;
 
-              // If the most recent run is already completed, try to fetch its report and show it as the latestCompleted.
-              if (status === "COMPLETED") {
-                try {
-                  if (!cancelled) {
-                    // Only fetch report if we don't already have a latestCompleted
-                    if (!latestCompleted) {
-                      const rres = await GetEvaluationReport(sid) as unknown as any;
-                      const reportPayload = rres?.data?.report ?? rres?.data ?? rres;
-                      const mapped = mapCanonicalToReport(sid, reportPayload);
-                      if (!cancelled) {
-                        setLatestCompleted(mapped);
-                        setLatestRun(null);
-                        setRunStatus(status);
-                      }
-                    } else {
-                      if (!cancelled) { setLatestRun(null); setRunStatus(status); }
-                    }
-                  }
-                } catch (err) {
-                  // If fetching report failed, fall back to showing the run summary so user can refresh
-                  if (!cancelled) { setLatestRun(mappedRun); setRunStatus(status); }
-                }
-              } else {
-                if (!cancelled) { setLatestRun(mappedRun); setRunStatus(status); }
-              }
+              // Readiness acceptance depends on current score from GetLatestScore.
+              // Keep history as auxiliary state and avoid promoting history-only data
+              // into latestCompleted when there is no current score yet.
+              if (!cancelled) { setLatestRun(mappedRun); setRunStatus(status); }
             }
           }
         } catch (err: any) {
