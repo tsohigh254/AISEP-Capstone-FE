@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { GetStartupProfile, GetMembers } from "@/services/startup/startup.api";
 import { calcProfileCompleteness } from "@/lib/profile-completeness";
+import { getStartupIndustryDisplay } from "@/lib/startup-industry-display";
 import { SubmitEvaluation } from "@/services/ai/ai.api";
 
 /* ─── Submission states ────────────────────────────────────── */
@@ -226,7 +227,12 @@ export default function RequestAIEvaluationPage() {
                     : <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />}
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-semibold text-slate-700">Hồ sơ Startup</p>
-                    <p className="text-[11px] text-slate-400">{profile.completionPercent}% hoàn thành — {profile.items.filter((i: any) => i.ready).length}/{profile.items.length} mục đạt yêu cầu</p>
+                    <p className="text-[11px] text-slate-400">
+                      {profile.completionPercent}% hoàn thành
+                      {Array.isArray(profile.items) && profile.items.length > 0
+                        ? ` — ${profile.items.filter((i: any) => i.ready).length}/${profile.items.length} mục đạt yêu cầu`
+                        : ""}
+                    </p>
                   </div>
                   <span className={cn("px-2.5 py-1 rounded-full text-[11px] font-bold", profile.ready ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500")}>
                     {profile.ready ? "Đạt" : "Chưa đạt"}
@@ -327,11 +333,14 @@ export default function RequestAIEvaluationPage() {
             {/* Profile Snapshot */}
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
               <p className="text-[13px] font-bold text-slate-800 mb-3">Snapshot hồ sơ</p>
+              {(() => {
+                const industryDisplay = getStartupIndustryDisplay(profileSnapshot);
+                return (
               <div className="space-y-2.5">
                 {[
                   { label: "Tên startup", value: profileSnapshot?.companyName ?? profileSnapshot?.name ?? "—" },
                   { label: "Giai đoạn", value: profileSnapshot?.stageName ?? String(profileSnapshot?.stage ?? "—") },
-                  { label: "Ngành", value: profileSnapshot?.industry ?? "—" },
+                  { label: "Ngành", value: industryDisplay },
                   { label: "Năm thành lập", value: profileSnapshot?.foundedYear ?? profileSnapshot?.foundedDate ?? "—" },
                   { label: "Quy mô đội ngũ", value: profileSnapshot?.teamSize ? `${profileSnapshot.teamSize} thành viên` : "—" },
                   { label: "Cập nhật gần nhất", value: profileSnapshot?.lastUpdated ?? profileSnapshot?.updatedAt ?? "—" },
@@ -342,6 +351,8 @@ export default function RequestAIEvaluationPage() {
                   </div>
                 ))}
               </div>
+                );
+              })()}
             </div>
 
             {/* Submit Card */}

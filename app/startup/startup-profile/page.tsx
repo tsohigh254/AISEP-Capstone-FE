@@ -15,6 +15,7 @@ import { GetStartupProfile, GetMembers } from "@/services/startup/startup.api";
 import { GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
 import { GetStartupKYCStatus } from "@/services/startup/startup-kyc.api";
 import { calcProfileCompleteness } from "@/lib/profile-completeness";
+import { getStartupIndustryDisplay } from "@/lib/startup-industry-display";
 
 const STAGE_LABELS: Record<string, string> = {
     "0": "Hạt giống (Idea)", "1": "Tiền ươm mầm (Pre-Seed)", "2": "Ươm mầm (Seed)", 
@@ -167,29 +168,7 @@ export default function StartupProfileViewPage() {
         : null;
     const foundedYear = p.foundedDate ? new Date(p.foundedDate).getFullYear() : p.foundedYear;
 
-    const parentIndustryId = Number(p.industryId ?? p.industryID ?? 0);
-    const subIndustryId = Number(p.subIndustryId ?? p.subIndustryID ?? 0);
-
-    const parentIndustryName =
-        p.parentIndustryName ||
-        p.industryName ||
-        industries.find((item) => item.industryId === parentIndustryId || item.industryID === parentIndustryId)?.industryName ||
-        "";
-
-    const subIndustryName =
-        p.subIndustryName ||
-        industries.find((item) => item.industryId === subIndustryId || item.industryID === subIndustryId)?.industryName ||
-        "";
-
-    const fallbackIndustry =
-        p.industry ||
-        industries.find((item) => item.industryId === parentIndustryId || item.industryID === parentIndustryId)?.industryName ||
-        "Chưa có ngành";
-
-    const displayIndustry =
-        subIndustryName && parentIndustryName
-            ? `${parentIndustryName} / ${subIndustryName}`
-            : parentIndustryName || subIndustryName || fallbackIndustry;
+    const displayIndustry = getStartupIndustryDisplay(p, industries);
     const stageIdValue =
         p.stageId ??
         p.stageID ??
