@@ -48,6 +48,7 @@ import { Download, Eye, FileText as FileTextIcon, FolderOpen, RefreshCcw } from 
 import { GetSentConnections, GetReceivedConnections } from "@/services/connection/connection.api";
 import { GetStages, IStageMasterItem, GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
 import { getStageDisplay } from "@/lib/get-stage-display";
+import { ConnectStartupModal } from "@/components/investor/connect-startup-modal";
 import { getStartupIndustryDisplay } from "@/lib/startup-industry-display";
 
 // ─── Constants ────────────────────────────────────────────────────────────────

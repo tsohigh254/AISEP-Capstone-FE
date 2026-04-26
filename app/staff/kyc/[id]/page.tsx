@@ -90,6 +90,9 @@ type PreviewDocument = {
   fileType?: string | null;
 };
 
+const STARTUP_PROFILE_TABS = ["Tổng quan", "Kinh doanh", "Gọi vốn", "Đội ngũ", "Liên hệ"] as const;
+type StartupProfileTab = typeof STARTUP_PROFILE_TABS[number];
+
 // --- Helper Functions ---
 const AVATAR_COLORS = [
   "from-violet-500 to-violet-600", "from-blue-500 to-blue-600",
@@ -402,7 +405,6 @@ const EXPERTISE_LABEL: Record<string, string> = {
 };
 
 
-const STARTUP_PROFILE_TABS = ["Tổng quan", "Kinh doanh", "Gọi vốn", "Đội ngũ", "Liên hệ"] as const;
 
 
 function calcAdvisorDrawerCompleteness(advisor: IAdvisorDetail) {
