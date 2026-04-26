@@ -140,7 +140,7 @@ export const CreateStartupProfile = (data: ICreateStartupRequest) => {
         }
     });
 
-    return axios.post<IBackendRes<string>>(`/api/startups/me`, formData, {
+    return axios.post<IBackendRes<string>>(`/api/startups`, formData, {
         headers: {
             "Content-Type": "multipart/form-data"
         }
