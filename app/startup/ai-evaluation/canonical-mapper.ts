@@ -199,24 +199,18 @@ function parseLatestScoreSubMetrics(data: any): AIEvaluationReport["subMetrics"]
  */
 function assignDocScores(
   overallScore: number | null,
-  evaluatedDocTypes?: string[]
+  evaluatedDocTypes?: string[],
+  explicitPD?: number | null,
+  explicitBP?: number | null
 ): { pitchDeckScore: number | null; businessPlanScore: number | null } {
   const types = (evaluatedDocTypes ?? []).map(t => t.toLowerCase());
   const hasPD = types.includes("pitch_deck");
   const hasBP = types.includes("business_plan");
 
-  if (hasPD && hasBP) {
-    // Both evaluated — show overall for both
-    return { pitchDeckScore: overallScore, businessPlanScore: overallScore };
-  }
-  if (hasBP) {
-    return { pitchDeckScore: null, businessPlanScore: overallScore };
-  }
-  if (hasPD) {
-    return { pitchDeckScore: overallScore, businessPlanScore: null };
-  }
-  // Fallback: unknown — show overall in pitchDeck for backward compat
-  return { pitchDeckScore: overallScore, businessPlanScore: null };
+  return {
+    pitchDeckScore: hasPD ? (explicitPD ?? overallScore) : null,
+    businessPlanScore: hasBP ? (explicitBP ?? overallScore) : null
+  };
 }
 
 function mapLatestScoreToReport(data: any, evaluatedDocTypes?: string[]): AIEvaluationReport {
@@ -255,12 +249,17 @@ function mapLatestScoreToReport(data: any, evaluatedDocTypes?: string[]): AIEval
       }))
     : [];
 
+  const pitchDeckScore = readOptionalFlatScore100(data, "pitchDeckScore", "PitchDeckScore", "pitch_deck_score");
+  const businessPlanScore = readOptionalFlatScore100(data, "businessPlanScore", "BusinessPlanScore", "business_plan_score");
+
+  const docScores = assignDocScores(overallScore, evaluatedDocTypes, pitchDeckScore, businessPlanScore);
+
   return {
     evaluationId: String(runId),
     startupId: String(data?.startupId ?? data?.StartupId ?? data?.startup_id ?? ""),
     status: "COMPLETED",
     overallScore,
-    ...assignDocScores(overallScore, evaluatedDocTypes),
+    ...docScores,
     teamScore,
     marketScore,
     productScore,

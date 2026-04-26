@@ -273,7 +273,7 @@ export default function StartupProfileViewPage() {
                             <Link href="/startup/startup-profile/info"
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-50 text-slate-500 text-[11px] font-medium border border-slate-100 hover:bg-slate-100 transition-colors"
                             >
-                                + Thêm thông tin
+                                {completeness < 100 ? "+ Thêm thông tin" : "Chỉnh sửa hồ sơ"}
                             </Link>
                         </div>
                     </div>
