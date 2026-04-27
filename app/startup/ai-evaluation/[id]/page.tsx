@@ -109,6 +109,7 @@ export default function AIDetailedReportPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [evalStatus, setEvalStatus] = useState<AIEvaluationStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState<boolean>(false);
+  const [selectedTab, setSelectedTab] = useState<"merged" | "pitch_deck" | "business_plan">("merged");
   const searchParams = useSearchParams();
   const showDebug = !!(searchParams && (searchParams.get("debug") === "1" || searchParams.get("debug") === "true"));
 
@@ -133,13 +134,17 @@ export default function AIDetailedReportPage() {
           // If backend indicates report valid, map and return
           if (payload.isReportValid || payload.IsReportValid) {
             const canonical = payload.report ?? payload.Report ?? payload;
-            const mapped = mapCanonicalToReport(runId, canonical, evalDocTypes);
+            const pdScore = payload.pitchDeckOverallScore ?? payload.PitchDeckOverallScore ?? null;
+            const bpScore = payload.businessPlanOverallScore ?? payload.BusinessPlanOverallScore ?? null;
+            const rawPD = payload.pitchDeckReport ?? payload.PitchDeckReport ?? null;
+            const rawBP = payload.businessPlanReport ?? payload.BusinessPlanReport ?? null;
+            const mapped = mapCanonicalToReport(runId, canonical, evalDocTypes, pdScore, bpScore, rawPD, rawBP);
             if (!cancelled) setReport(mapped);
             return true;
           }
           // If payload.Report exists and looks complete, map anyway
           if (payload.report) {
-            const mapped = mapCanonicalToReport(runId, payload.report, evalDocTypes);
+            const mapped = mapCanonicalToReport(runId, payload.report, evalDocTypes, payload.pitchDeckOverallScore ?? null, payload.businessPlanOverallScore ?? null, payload.pitchDeckReport ?? null, payload.businessPlanReport ?? null);
             if (!cancelled) setReport(mapped);
             return true;
           }
@@ -181,6 +186,13 @@ export default function AIDetailedReportPage() {
     return () => { cancelled = true; };
   }, [id]);
 
+  const currentReport = 
+    selectedTab === "pitch_deck" && report?.pitchDeckReport 
+      ? report.pitchDeckReport 
+      : (selectedTab === "business_plan" && report?.businessPlanReport 
+          ? report.businessPlanReport 
+          : report);
+
   if (isLoading) {
     return (
       <StartupShell>
@@ -211,7 +223,7 @@ export default function AIDetailedReportPage() {
           const reportPayload = rdata?.report ?? rdata;
           const evalDocTypes = rdata?.evaluatedDocumentTypes ?? rdata?.EvaluatedDocumentTypes ?? [];
           setRawPayload(reportPayload);
-          const mapped = mapCanonicalToReport(runId, reportPayload, evalDocTypes);
+          const mapped = mapCanonicalToReport(runId, reportPayload, evalDocTypes, rdata?.pitchDeckOverallScore ?? null, rdata?.businessPlanOverallScore ?? null, rdata?.pitchDeckReport ?? null, rdata?.businessPlanReport ?? null);
           setReport(mapped);
         } else if (newStatus === "FAILED") {
           setLoadError("Đánh giá đã thất bại. Vui lòng kiểm tra lịch sử hoặc thử lại.");
@@ -350,103 +362,132 @@ export default function AIDetailedReportPage() {
                   <p className="text-[14px] font-bold text-slate-800">Điểm tổng quan</p>
                 </div>
 
-                {/* Document scores */}
-                <div className="grid grid-cols-2 gap-3 mb-5">
-                  <div className="px-4 py-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                {/* Document scores (Tabs) */}
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                  <button 
+                    onClick={() => setSelectedTab(selectedTab === "pitch_deck" ? "merged" : "pitch_deck")}
+                    className={cn(
+                      "flex flex-col items-start px-4 py-3 rounded-xl border transition-all duration-300 relative overflow-hidden",
+                      selectedTab === "pitch_deck" 
+                        ? "bg-blue-50 border-blue-200 shadow-sm ring-1 ring-blue-500" 
+                        : "bg-white border-slate-100 hover:bg-blue-50/30 hover:border-blue-200"
+                    )}
+                  >
                     <div className="flex items-center gap-2 mb-1">
-                      <Layout className="w-3.5 h-3.5 text-blue-400" />
-                      <span className="text-[11px] text-blue-500 font-semibold">Pitch Deck</span>
+                      <Layout className={cn("w-3.5 h-3.5", selectedTab === "pitch_deck" ? "text-blue-500" : "text-blue-400")} />
+                      <span className={cn("text-[11px] font-bold uppercase tracking-tight", selectedTab === "pitch_deck" ? "text-blue-600" : "text-slate-400")}>Pitch Deck</span>
                     </div>
-                    <span className="text-[22px] font-black text-blue-700 tabular-nums">{formatScore100(report.pitchDeckScore)}</span>
-                  </div>
-                  <div className="px-4 py-3 bg-violet-50/50 rounded-xl border border-violet-100">
+                    <div className="flex items-baseline gap-1">
+                      <span className={cn("text-[26px] font-black tabular-nums", selectedTab === "pitch_deck" ? "text-blue-700" : "text-slate-700")}>
+                        {formatScore100(report.pitchDeckScore)}
+                      </span>
+                      <span className="text-[12px] font-bold text-slate-300">/100</span>
+                    </div>
+                    {selectedTab === "pitch_deck" && (
+                      <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+                    )}
+                  </button>
+
+                  <button 
+                    onClick={() => setSelectedTab(selectedTab === "business_plan" ? "merged" : "business_plan")}
+                    className={cn(
+                      "flex flex-col items-start px-4 py-3 rounded-xl border transition-all duration-300 relative overflow-hidden",
+                      selectedTab === "business_plan" 
+                        ? "bg-violet-50 border-violet-200 shadow-sm ring-1 ring-violet-500" 
+                        : "bg-white border-slate-100 hover:bg-violet-50/30 hover:border-violet-200"
+                    )}
+                  >
                     <div className="flex items-center gap-2 mb-1">
-                      <BookOpen className="w-3.5 h-3.5 text-violet-400" />
-                      <span className="text-[11px] text-violet-500 font-semibold">Business Plan</span>
+                      <BookOpen className={cn("w-3.5 h-3.5", selectedTab === "business_plan" ? "text-violet-500" : "text-violet-400")} />
+                      <span className={cn("text-[11px] font-bold uppercase tracking-tight", selectedTab === "business_plan" ? "text-violet-600" : "text-slate-400")}>Business Plan</span>
                     </div>
-                    <span className="text-[22px] font-black text-violet-700 tabular-nums">{formatScore100(report.businessPlanScore)}</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className={cn("text-[26px] font-black tabular-nums", selectedTab === "business_plan" ? "text-violet-700" : "text-slate-700")}>
+                        {formatScore100(report.businessPlanScore)}
+                      </span>
+                      <span className="text-[12px] font-bold text-slate-300">/100</span>
+                    </div>
+                    {selectedTab === "business_plan" && (
+                      <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-violet-500 rounded-full animate-pulse" />
+                    )}
+                  </button>
+                </div>
+
+                {/* Tab Indicator */}
+                <div className="flex items-center justify-between mb-4 px-1">
+                  <div className="flex items-center gap-2">
+                    <div className={cn("w-2 h-2 rounded-full", selectedTab === "merged" ? "bg-amber-400" : (selectedTab === "pitch_deck" ? "bg-blue-500" : "bg-violet-500"))} />
+                    <span className="text-[12px] font-bold text-slate-700">
+                      {selectedTab === "merged" ? "Báo cáo tổng hợp" : (selectedTab === "pitch_deck" ? "Chi tiết Pitch Deck" : "Chi tiết Business Plan")}
+                    </span>
                   </div>
+                  {selectedTab !== "merged" && (
+                    <button onClick={() => setSelectedTab("merged")} className="text-[11px] font-bold text-blue-500 hover:underline">Quay lại báo cáo gộp</button>
+                  )}
                 </div>
 
                 {/* Category bars */}
                 <div className="space-y-4">
-                  <ScoreBar icon={<Users className="w-4 h-4 text-blue-400" />} label="Đội ngũ" score={report.teamScore} />
-                  <ScoreBar icon={<Globe className="w-4 h-4 text-emerald-400" />} label="Thị trường" score={report.marketScore} />
-                  <ScoreBar icon={<Layout className="w-4 h-4 text-violet-400" />} label="Sản phẩm" score={report.productScore} />
-                  <ScoreBar icon={<Zap className="w-4 h-4 text-amber-400" />} label="Traction" score={report.tractionScore} />
-                  <ScoreBar icon={<Banknote className="w-4 h-4 text-slate-400" />} label="Tài chính" score={report.financialScore} />
+                  <ScoreBar icon={<Users className="w-4 h-4 text-blue-400" />} label="Đội ngũ" score={currentReport?.teamScore ?? 0} />
+                  <ScoreBar icon={<Globe className="w-4 h-4 text-emerald-400" />} label="Thị trường" score={currentReport?.marketScore ?? 0} />
+                  <ScoreBar icon={<Layout className="w-4 h-4 text-violet-400" />} label="Sản phẩm" score={currentReport?.productScore ?? 0} />
+                  <ScoreBar icon={<Zap className="w-4 h-4 text-amber-400" />} label="Traction" score={currentReport?.tractionScore ?? 0} />
+                  <ScoreBar icon={<Banknote className="w-4 h-4 text-slate-400" />} label="Tài chính" score={currentReport?.financialScore ?? 0} />
                 </div>
               </div>
             )}
 
-            {/* Warnings */}
-            {report.warningMessages.filter(msg => !msg.includes("SOURCE_ISOLATION")).length > 0 && (
-              <div className="px-5 py-4 bg-amber-50 rounded-2xl border border-amber-100">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-[12px] font-bold text-amber-800 mb-1">Cảnh báo</p>
-                    <ul className="space-y-1">
-                      {report.warningMessages
-                        .filter(msg => !msg.includes("SOURCE_ISOLATION"))
-                        .map((msg, i) => (
-                          <li key={i} className="text-[12px] text-amber-700">• {msg}</li>
-                        ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
+
 
             {/* Detailed Breakdown Sections */}
-            {hasTeamMetrics && (
+            {currentReport?.subMetrics.team && currentReport.subMetrics.team.length > 0 && (
               <ExpandableSection
                 title="Đội ngũ — Chi tiết"
                 icon={<Users className="w-4 h-4 text-blue-500" />}
                 iconColor="bg-blue-50"
                 defaultOpen
               >
-                <SubMetricsList metrics={report.subMetrics.team} />
+                <SubMetricsList metrics={currentReport.subMetrics.team} />
               </ExpandableSection>
             )}
 
-            {hasMarketMetrics && (
+            {currentReport?.subMetrics.market && currentReport.subMetrics.market.length > 0 && (
               <ExpandableSection
                 title="Thị trường — Chi tiết"
                 icon={<Globe className="w-4 h-4 text-emerald-500" />}
                 iconColor="bg-emerald-50"
               >
-                <SubMetricsList metrics={report.subMetrics.market} />
+                <SubMetricsList metrics={currentReport.subMetrics.market} />
               </ExpandableSection>
             )}
 
-            {hasProductMetrics && (
+            {currentReport?.subMetrics.product && currentReport.subMetrics.product.length > 0 && (
               <ExpandableSection
                 title="Sản phẩm — Chi tiết"
                 icon={<Layout className="w-4 h-4 text-violet-500" />}
                 iconColor="bg-violet-50"
               >
-                <SubMetricsList metrics={report.subMetrics.product} />
+                <SubMetricsList metrics={currentReport.subMetrics.product} />
               </ExpandableSection>
             )}
 
-            {hasTractionMetrics && (
+            {currentReport?.subMetrics.traction && currentReport.subMetrics.traction.length > 0 && (
               <ExpandableSection
                 title="Traction — Chi tiết"
                 icon={<Zap className="w-4 h-4 text-amber-500" />}
                 iconColor="bg-amber-50"
               >
-                <SubMetricsList metrics={report.subMetrics.traction} />
+                <SubMetricsList metrics={currentReport.subMetrics.traction} />
               </ExpandableSection>
             )}
 
-            {hasFinancialMetrics && (
+            {currentReport?.subMetrics.financial && currentReport.subMetrics.financial.length > 0 && (
               <ExpandableSection
                 title="Tài chính — Chi tiết"
                 icon={<Banknote className="w-4 h-4 text-slate-500" />}
                 iconColor="bg-slate-100"
               >
-                <SubMetricsList metrics={report.subMetrics.financial} />
+                <SubMetricsList metrics={currentReport.subMetrics.financial} />
               </ExpandableSection>
             )}
 
@@ -461,7 +502,7 @@ export default function AIDetailedReportPage() {
             )}
 
             {/* Key Strengths */}
-            {hasStrengths && (
+            {currentReport?.strengths && currentReport.strengths.length > 0 && (
               <ExpandableSection
                 title="Điểm mạnh"
                 icon={<TrendingUp className="w-4 h-4 text-emerald-500" />}
@@ -469,7 +510,7 @@ export default function AIDetailedReportPage() {
                 defaultOpen
               >
                 <div className="space-y-2.5">
-                  {report.strengths.map((s, i) => (
+                  {currentReport.strengths.map((s, i) => (
                     <div key={i} className="flex items-start gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
                       <p className="text-[12px] text-slate-600 leading-relaxed">{s}</p>
@@ -480,7 +521,7 @@ export default function AIDetailedReportPage() {
             )}
 
             {/* Risks / Concerns */}
-            {hasRisksOrConcerns && (
+            {((currentReport?.risks && currentReport.risks.length > 0) || (currentReport?.concerns && currentReport.concerns.length > 0)) && (
               <ExpandableSection
                 title="Rủi ro & Mối quan ngại"
                 icon={<AlertTriangle className="w-4 h-4 text-amber-500" />}
@@ -488,11 +529,11 @@ export default function AIDetailedReportPage() {
                 defaultOpen
               >
                 <div className="space-y-4">
-                  {report.risks.length > 0 && (
+                  {currentReport?.risks && currentReport.risks.length > 0 && (
                     <div>
                       <p className="text-[11px] font-bold text-red-500 uppercase tracking-wide mb-2">Rủi ro</p>
                       <div className="space-y-2">
-                        {report.risks.map((r, i) => (
+                        {currentReport.risks.map((r, i) => (
                           <div key={i} className="flex items-start gap-2">
                             <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />
                             <p className="text-[12px] text-slate-600 leading-relaxed">{r}</p>
@@ -501,11 +542,11 @@ export default function AIDetailedReportPage() {
                       </div>
                     </div>
                   )}
-                  {report.concerns.length > 0 && (
+                  {currentReport?.concerns && currentReport.concerns.length > 0 && (
                     <div>
                       <p className="text-[11px] font-bold text-amber-500 uppercase tracking-wide mb-2">Mối quan ngại</p>
                       <div className="space-y-2">
-                        {report.concerns.map((c, i) => (
+                        {currentReport.concerns.map((c, i) => (
                           <div key={i} className="flex items-start gap-2">
                             <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
                             <p className="text-[12px] text-slate-600 leading-relaxed">{c}</p>
@@ -519,14 +560,14 @@ export default function AIDetailedReportPage() {
             )}
 
             {/* Gaps / Missing Info */}
-            {report.gaps.length > 0 && (
+            {currentReport?.gaps && currentReport.gaps.length > 0 && (
               <ExpandableSection
                 title="Thiếu hụt & Thông tin cần bổ sung"
                 icon={<Info className="w-4 h-4 text-blue-500" />}
                 iconColor="bg-blue-50"
               >
                 <div className="space-y-2">
-                  {report.gaps.map((g, i) => (
+                  {currentReport.gaps.map((g, i) => (
                     <div key={i} className="flex items-start gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
                       <p className="text-[12px] text-slate-600 leading-relaxed">{g}</p>
@@ -537,7 +578,7 @@ export default function AIDetailedReportPage() {
             )}
 
             {/* Recommendations */}
-            {report.recommendations.length > 0 && (
+            {currentReport?.recommendations && currentReport.recommendations.length > 0 && (
               <ExpandableSection
                 title="Khuyến nghị cải thiện"
                 icon={<Sparkles className="w-4 h-4 text-[#eec54e]" />}
@@ -546,7 +587,7 @@ export default function AIDetailedReportPage() {
               >
                 <p className="text-[11px] text-slate-400 mb-4 italic">Các khuyến nghị dưới đây được tạo bởi AI và mang tính hỗ trợ.</p>
                 <div className="space-y-3">
-                  {report.recommendations.map((rec, i) => {
+                  {currentReport.recommendations.map((rec, i) => {
                       const key = String(rec?.priority ?? "").toUpperCase();
                       const pcfg = PRIORITY_CFG[key] ?? PRIORITY_CFG.MEDIUM;
                       return (
@@ -558,10 +599,12 @@ export default function AIDetailedReportPage() {
                             <span className="text-[11px] text-slate-400 font-semibold">{rec.category}</span>
                           </div>
                           <p className="text-[13px] font-semibold text-slate-700 mb-2">{rec.text}</p>
-                          <div className="flex items-start gap-1.5">
-                            <Zap className="w-3 h-3 text-amber-400 mt-0.5 flex-shrink-0" />
-                            <p className="text-[11px] text-slate-500">{rec.impact}</p>
-                          </div>
+                          {rec.impact && (
+                            <div className="flex items-start gap-1.5 opacity-70">
+                              <Zap className="w-3 h-3 text-amber-400 mt-0.5 flex-shrink-0" />
+                              <p className="text-[11px] text-slate-500">{rec.impact}</p>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
