@@ -50,14 +50,34 @@ export function AIInvestorInsightModal({
 }: AIInvestorInsightModalProps) {
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
+
+  const extractErrorCode = (source: any): string => {
+    return String(
+      source?.errorCode ??
+      source?.error?.code ??
+      source?.response?.data?.errorCode ??
+      source?.response?.data?.error?.code ??
+      source?.data?.errorCode ??
+      ""
+    ).toUpperCase();
+  };
 
   useEffect(() => {
     if (open && startupId) {
       let cancelled = false;
       (async () => {
         setLoading(true);
+        setReport(null);
+        setAccessDenied(false);
         try {
           const historyRes = await GetEvaluationHistory(startupId) as any;
+          const historySuccess = Boolean(historyRes?.success ?? historyRes?.isSuccess ?? true);
+          if (!historySuccess) {
+            const code = extractErrorCode(historyRes);
+            if (!cancelled && code === "ACCESS_DENIED") setAccessDenied(true);
+            return;
+          }
           const historyItems = historyRes?.data ?? historyRes ?? [];
           
           const isCompleted = (item: any) => {
@@ -90,6 +110,12 @@ export function AIInvestorInsightModal({
             if (runId) {
               try {
                 const reportRes = await GetEvaluationReport(runId) as any;
+                const reportSuccess = Boolean(reportRes?.success ?? reportRes?.isSuccess ?? true);
+                if (!reportSuccess) {
+                  const code = extractErrorCode(reportRes);
+                  if (!cancelled && code === "ACCESS_DENIED") setAccessDenied(true);
+                  return;
+                }
                 const payload = reportRes?.data ?? reportRes;
                 const canonical = payload.report ?? payload;
                 if (canonical) {
@@ -106,6 +132,8 @@ export function AIInvestorInsightModal({
             }
           }
         } catch (e) {
+          const code = extractErrorCode(e);
+          if (!cancelled && code === "ACCESS_DENIED") setAccessDenied(true);
           console.error("Failed to fetch VIP AI report", e);
         } finally {
           if (!cancelled) setLoading(false);
@@ -287,6 +315,18 @@ export function AIInvestorInsightModal({
                   <p className="text-[12px] text-slate-500 leading-relaxed font-medium">
                     Báo cáo này được tổng hợp tự động bởi thuật toán của AISEP dựa trên dữ liệu Pitch Deck và Business Plan của Startup. 
                     Nhà đầu tư nên sử dụng thông tin này như một tài liệu tham khảo bổ trợ cho quy trình Due Diligence.
+                  </p>
+                </div>
+              </div>
+            ) : accessDenied ? (
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-6">
+                <div className="w-20 h-20 rounded-3xl bg-white shadow-sm border border-slate-100 flex items-center justify-center">
+                  <ShieldCheck className="w-10 h-10 text-slate-200" />
+                </div>
+                <div className="text-center space-y-2">
+                  <p className="text-[16px] font-bold text-slate-600">Startup chưa cấp quyền xem chi tiết AI</p>
+                  <p className="text-[13px] text-slate-400 max-w-[360px]">
+                    Bạn vẫn có thể xem điểm AI tổng quát. Báo cáo chi tiết chỉ hiển thị khi startup bật quyền chia sẻ AI Insight cho investor.
                   </p>
                 </div>
               </div>
