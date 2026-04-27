@@ -61,22 +61,39 @@ export function AIInvestorInsightModal({
           const historyItems = historyRes?.data ?? historyRes ?? [];
           
           const isCompleted = (item: any) => {
-            const s = String(item?.status ?? item?.Status ?? "").toLowerCase();
+            const s = String(item?.status ?? item?.Status ?? item?.statusName ?? item?.StatusName ?? "").toLowerCase();
             return s === "completed" || s === "partial_completed";
           };
+
+          const getTime = (item: any) => {
+            const t = new Date(item?.generatedAt ?? item?.calculatedAt ?? item?.createdAt ?? item?.updatedAt ?? item?.created_at ?? item?.updated_at ?? 0).getTime();
+            return Number.isFinite(t) ? t : 0;
+          };
           
-          const latestRun = [...historyItems]
-            .filter(isCompleted)
-            .sort((a, b) => new Date(b.generatedAt || 0).getTime() - new Date(a.generatedAt || 0).getTime())[0];
+          const sorted = [...historyItems].filter(isCompleted).sort((a, b) => getTime(b) - getTime(a));
+          const latestRun = sorted[0];
           
-          const runId = latestRun?.evaluationId ?? latestRun?.runId ?? latestRun?.id;
-          
-          if (runId) {
-            const reportRes = await GetEvaluationReport(runId) as any;
-            const payload = reportRes?.data ?? reportRes;
-            const canonical = payload.report ?? payload;
-            const mapped = mapCanonicalToReport(runId, canonical);
-            if (!cancelled) setReport(mapped);
+          if (latestRun) {
+            // First, try to map from the history item itself as a fallback for scores
+            try {
+               const { mapLatestScoreToReport } = await import("../../app/startup/ai-evaluation/canonical-mapper");
+               const fallbackMapped = mapLatestScoreToReport(latestRun);
+               if (!cancelled) setReport(fallbackMapped);
+            } catch (err) {
+               console.warn("Failed to create fallback report from history item", err);
+            }
+
+            const runId = latestRun?.evaluationId ?? latestRun?.EvaluationId ?? latestRun?.runId ?? latestRun?.RunId ?? latestRun?.id ?? latestRun?.Id ?? latestRun?.run_id;
+            
+            if (runId) {
+              const reportRes = await GetEvaluationReport(runId) as any;
+              const payload = reportRes?.data ?? reportRes;
+              const canonical = payload.report ?? payload;
+              if (canonical) {
+                const mapped = mapCanonicalToReport(Number(runId), canonical);
+                if (!cancelled) setReport(mapped);
+              }
+            }
           }
         } catch (e) {
           console.error("Failed to fetch VIP AI report", e);
