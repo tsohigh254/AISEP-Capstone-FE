@@ -27,6 +27,7 @@ import { GetSentConnections, GetReceivedConnections } from "@/services/connectio
 import { GetDocument } from "@/services/document/document.api";
 import { GetInvestorProfile, GetInvestorWatchlist } from "@/services/investor/investor.api";
 import { GetInvestorKYCStatus } from "@/services/investor/investor-kyc";
+import { InvestorAgentResearchEndpoint } from "@/services/ai/ai.api";
 import type { IInvestorKYCStatus } from "@/types/investor-kyc";
 
 const INVESTOR_DASHBOARD_LOAD_ERROR_TOAST_ID = "investor-dashboard-load-error";
@@ -140,7 +141,7 @@ function AIMarketAnalysis({ profile, watchlist }: { profile: IInvestorProfile | 
 
       try {
         const backendBase = (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_AI_SERVICE_URL || "").replace(/\/$/, "");
-        const endpoint = `${backendBase}/api/ai/investor-agent/chat/stream`;
+        const endpoint = `${backendBase}${InvestorAgentResearchEndpoint}`;
 
         const industries = (profile?.preferredIndustries ?? []).map(getIndustryName).slice(0, 5).join(", ");
         const watched = (watchlist ?? []).slice(0, 3).map(w => w.startupName).join(", ");
@@ -161,49 +162,19 @@ function AIMarketAnalysis({ profile, watchlist }: { profile: IInvestorProfile | 
           body: JSON.stringify({ query }),
         });
 
-        if (!resp.ok) {
-          const body = await resp.text();
-          throw new Error(`HTTP ${resp.status} ${body}`);
+        const payload = await resp.json().catch(() => null);
+        const ok = resp.ok && payload && (payload.isSuccess === true || payload.success === true);
+        if (!ok) {
+          const msg =
+            (payload && (payload.message || payload.Message)) || `HTTP ${resp.status}`;
+          throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
         }
 
-        const reader = resp.body?.getReader();
-        if (!reader) {
-          const body = await resp.text();
-          if (mounted) setText(body);
-          return;
-        }
-
-        const decoder = new TextDecoder();
-        let buffer = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const parts = buffer.split(/\r?\n\r?\n/);
-          buffer = parts.pop() ?? "";
-          for (const part of parts) {
-            const lines = part.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-            for (const line of lines) {
-              if (!line.startsWith("data:")) continue;
-              const data = line.replace(/^data:\s?/, "").trim();
-              if (data === "[DONE]") continue;
-              let evt = null;
-              try {
-                evt = JSON.parse(data);
-              } catch {
-                if (mounted) setText(prev => prev + data);
-                continue;
-              }
-              if (evt?.type === "answer_chunk" && evt.content) {
-                if (mounted) setText(prev => prev + evt.content);
-              } else if (evt?.type === "final_answer" && evt.content) {
-                if (mounted) setText(prev => prev + evt.content);
-              } else if (evt?.content) {
-                if (mounted) setText(prev => prev + evt.content);
-              }
-            }
-          }
-        }
+        const data = payload.data ?? payload.Data;
+        const answer =
+          (data && (data.finalAnswer ?? data.FinalAnswer)) ??
+          "";
+        if (mounted) setText(typeof answer === "string" ? answer : String(answer ?? ""));
       } catch (err: any) {
         if (mounted) setError(err?.message ?? String(err));
       } finally {

@@ -40,3 +40,6 @@ export interface IInvestorAgentChatRequest {
  * if the interceptor/axios doesn't support streaming well.
  */
 export const InvestorAgentChatStreamEndpoint = "/api/ai/investor-agent/chat/stream";
+
+/** One-shot research (no client thread); .NET assigns a fresh research-* thread_id to Python /chat/stream. */
+export const InvestorAgentResearchEndpoint = "/api/ai/investor-agent/research";
