@@ -185,6 +185,16 @@ export const DisableVisibility = () => {
     return axios.put<IBackendRes<null>>(`/api/startups/me/visibility`, { isVisible: false });
 };
 
+export const GetAiInsightVisibility = () => {
+    return axios.get<IBackendRes<{ allowInvestorAiInsight: boolean }>>(`/api/startups/me/ai-insight-visibility`);
+};
+
+export const SetAiInsightVisibility = (allowInvestorAiInsight: boolean) => {
+    return axios.put<IBackendRes<{ allowInvestorAiInsight: boolean }>>(`/api/startups/me/ai-insight-visibility`, {
+        allowInvestorAiInsight,
+    });
+};
+
 export const AddMember = (data: IAddMemberRequest) => {
     const formData = new FormData();
     Object.entries(data).forEach(([key, value]) => {

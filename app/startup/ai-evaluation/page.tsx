@@ -8,12 +8,12 @@ import {
   Sparkles, CheckCircle2, XCircle, FileText, ChevronRight,
   ArrowRight, Clock, AlertTriangle, RefreshCw, BarChart3,
   History, FileSearch, Info, ShieldCheck, Loader2, Layout, BookOpen,
-  Brain, Target, FileBarChart, ListChecks,
+  Brain, Target, FileBarChart, ListChecks, Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GetLatestScore, GetEvaluationHistory, GetEvaluationStatus, GetEvaluationReport } from "@/services/ai/ai.api";
 import { GetDocument, GetStartupDocuments } from "@/services/document/document.api";
-import { GetStartupProfile, GetMembers } from "@/services/startup/startup.api";
+import { GetStartupProfile, GetMembers, GetAiInsightVisibility, SetAiInsightVisibility } from "@/services/startup/startup.api";
 import { mapCanonicalToReport, mapLatestScoreToReport, mapStatusToUI, normalizeTo100 } from "./canonical-mapper";
 import { calcProfileCompleteness } from "@/lib/profile-completeness";
 import { formatScore100, scoreChipColorClass, scoreRingVisual } from "@/lib/ai-evaluation-score-ui";
@@ -633,6 +633,9 @@ function AIEvaluationHomePageInner() {
   const [documents, setDocuments] = useState<any>({ ready: false, items: [], eligibleDocs: [] });
   const [historyCount, setHistoryCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
+  const [allowInvestorAiInsight, setAllowInvestorAiInsight] = useState<boolean>(false);
+  const [aiInsightVisibilityLoading, setAiInsightVisibilityLoading] = useState<boolean>(true);
+  const [aiInsightVisibilitySaving, setAiInsightVisibilitySaving] = useState<boolean>(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -672,6 +675,18 @@ function AIEvaluationHomePageInner() {
           eligibleDocs: (pdata?.eligibleDocs ?? docsItems) || [],
         };
         if (!cancelled) { setProfile(prof); setDocuments(docs); }
+
+        try {
+          const visRes = await GetAiInsightVisibility() as unknown as any;
+          const visPayload = visRes?.data ?? visRes;
+          if (!cancelled) {
+            setAllowInvestorAiInsight(Boolean(visPayload?.allowInvestorAiInsight));
+          }
+        } catch {
+          if (!cancelled) setAllowInvestorAiInsight(false);
+        } finally {
+          if (!cancelled) setAiInsightVisibilityLoading(false);
+        }
 
         // Try to fetch latest score (may 404 if no score yet)
         try {
@@ -849,9 +864,65 @@ function AIEvaluationHomePageInner() {
     }
   };
 
+  const handleToggleAiInsightVisibility = async () => {
+    const next = !allowInvestorAiInsight;
+    try {
+      setAiInsightVisibilitySaving(true);
+      const res = await SetAiInsightVisibility(next) as unknown as any;
+      const isSuccess = Boolean(res?.success ?? res?.isSuccess ?? true);
+      if (!isSuccess) throw new Error(res?.message ?? "Không thể cập nhật quyền xem AI Insight.");
+      const payload = res?.data ?? res;
+      setAllowInvestorAiInsight(Boolean(payload?.allowInvestorAiInsight ?? next));
+    } catch (err: any) {
+      setApiError(err?.message ?? "Không thể cập nhật quyền xem AI Insight.");
+    } finally {
+      setAiInsightVisibilitySaving(false);
+    }
+  };
+
   return (
     <StartupShell>
       <div className="max-w-[1100px] mx-auto pb-20 animate-in fade-in duration-500 min-h-[600px]">
+        <div className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold text-slate-800 flex items-center gap-2">
+              <Eye className="w-4 h-4 text-slate-500" />
+              Cho phép Investor xem AI Insight chi tiết
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Khi tắt, investor chỉ thấy điểm AI tổng quát. Khi bật, investor xem được phân tích chi tiết.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span
+              className={cn(
+                "px-2.5 py-1 rounded-md text-[11px] font-bold border",
+                allowInvestorAiInsight
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-slate-100 text-slate-600 border-slate-200",
+              )}
+            >
+              {allowInvestorAiInsight ? "Trạng thái: Đang bật" : "Trạng thái: Đang tắt"}
+            </span>
+            <button
+              type="button"
+              onClick={handleToggleAiInsightVisibility}
+              disabled={aiInsightVisibilityLoading || aiInsightVisibilitySaving}
+              className={cn(
+                "h-9 px-3 rounded-lg text-[12px] font-semibold transition-colors",
+                allowInvestorAiInsight
+                  ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  : "bg-emerald-600 text-white hover:bg-emerald-700",
+                (aiInsightVisibilityLoading || aiInsightVisibilitySaving) && "opacity-60 cursor-not-allowed",
+              )}
+            >
+              {aiInsightVisibilityLoading || aiInsightVisibilitySaving
+                ? "Đang cập nhật..."
+                : allowInvestorAiInsight ? "Tắt quyền" : "Bật quyền"}
+            </button>
+          </div>
+        </div>
+
         {/* API error banner */}
         {apiError && (
           <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-100 flex items-center justify-between">
