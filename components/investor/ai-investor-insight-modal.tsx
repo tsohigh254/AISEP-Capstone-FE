@@ -90,7 +90,10 @@ export function AIInvestorInsightModal({
               const payload = reportRes?.data ?? reportRes;
               const canonical = payload.report ?? payload;
               if (canonical) {
-                const mapped = mapCanonicalToReport(Number(runId), canonical);
+                const mapped = mapCanonicalToReport(Number(runId), canonical, [], null, null, null, null, {
+                  submittedAt: payload.submittedAt ?? payload.SubmittedAt,
+                  updatedAt: payload.updatedAt ?? payload.UpdatedAt
+                });
                 if (!cancelled) setReport(mapped);
               }
             }
@@ -166,7 +169,9 @@ export function AIInvestorInsightModal({
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
-                <span className="text-[52px] font-black text-[#0f172a] tracking-tighter leading-none">{overallScore || 0}</span>
+                <span className="text-[52px] font-black text-[#0f172a] tracking-tighter leading-none">
+                  {report?.overallScore ?? overallScore ?? 0}
+                </span>
                 <span className="text-[12px] font-bold text-slate-400 uppercase tracking-widest mt-1">Score</span>
               </div>
             </div>
@@ -222,48 +227,52 @@ export function AIInvestorInsightModal({
                   </div>
                 </section>
 
-                {/* Highlights Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-emerald-600">
-                       <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
-                        <CheckCircle2 className="w-4 h-4" />
-                       </div>
-                      <h3 className="text-[11px] font-black uppercase tracking-[0.2em]">Thế mạnh tiêu biểu</h3>
+                {/* Sub-Metrics Section (Pillars Detail) */}
+                {report.subMetrics && (
+                  <section className="space-y-4">
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <div className="w-8 h-8 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center">
+                        <TrendingUp className="w-4 h-4 text-blue-500" />
+                      </div>
+                      <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Phân tích chi tiết tiêu chí</h3>
                     </div>
-                    <div className="space-y-3">
-                      {(report.strengths || []).slice(0, 3).map((s: string, i: number) => (
-                        <div key={i} className="px-4 py-3 bg-white text-slate-700 text-[13px] font-medium rounded-xl border border-slate-100 shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex items-start gap-3">
-                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-2 shrink-0" />
-                          {s}
-                        </div>
-                      ))}
-                      {(!report.strengths || report.strengths.length === 0) && (
-                        <p className="text-[12px] text-slate-400 italic bg-slate-100/50 p-4 rounded-xl text-center">Chưa có dữ liệu thế mạnh</p>
-                      )}
+                    <div className="grid grid-cols-1 gap-3">
+                      {[
+                        { label: "Đội ngũ", key: "team", icon: "👥" },
+                        { label: "Thị trường", key: "market", icon: "🌍" },
+                        { label: "Sản phẩm", key: "product", icon: "📦" },
+                        { label: "Sức kéo", key: "traction", icon: "📈" },
+                        { label: "Tài chính", key: "financial", icon: "💰" }
+                      ].map(group => {
+                        const items = report.subMetrics[group.key as keyof typeof report.subMetrics] || [];
+                        if (items.length === 0) return null;
+                        return (
+                          <div key={group.key} className="bg-white rounded-[20px] border border-slate-100 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                            <div className="px-5 py-3 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
+                              <span className="text-[12px] font-bold text-slate-700 flex items-center gap-2">
+                                <span className="text-base">{group.icon}</span> {group.label}
+                              </span>
+                              <span className="text-[11px] font-black text-[#eec54e]">
+                                {report[`${group.key}Score` as keyof typeof report] ?? 0}/100
+                              </span>
+                            </div>
+                            <div className="p-4 space-y-3">
+                              {items.map((m: any, i: number) => (
+                                <div key={i} className="space-y-1">
+                                  <div className="flex justify-between items-start gap-4">
+                                    <span className="text-[13px] font-semibold text-slate-600 leading-tight">{m.name}</span>
+                                    <span className="text-[12px] font-bold text-slate-400 shrink-0">{m.score}/{m.maxScore}</span>
+                                  </div>
+                                  {m.comment && <p className="text-[11px] text-slate-400 leading-relaxed italic">"{m.comment}"</p>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-amber-600">
-                       <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
-                        <AlertTriangle className="w-4 h-4" />
-                       </div>
-                      <h3 className="text-[11px] font-black uppercase tracking-[0.2em]">Rủi ro cần lưu ý</h3>
-                    </div>
-                    <div className="space-y-3">
-                      {(report.risks || report.concerns || []).slice(0, 3).map((r: string, i: number) => (
-                        <div key={i} className="px-4 py-3 bg-white text-slate-700 text-[13px] font-medium rounded-xl border border-slate-100 shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex items-start gap-3">
-                           <div className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-2 shrink-0" />
-                          {r}
-                        </div>
-                      ))}
-                      {(!(report.risks || report.concerns) || (report.risks || report.concerns).length === 0) && (
-                        <p className="text-[12px] text-slate-400 italic bg-slate-100/50 p-4 rounded-xl text-center">Chưa ghi nhận rủi ro lớn</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                  </section>
+                )}
 
                 {/* Data disclaimer */}
                 <div className="flex items-start gap-4 p-5 bg-[#0f172a]/5 rounded-[20px] border border-[#0f172a]/10 mt-6">

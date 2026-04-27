@@ -98,6 +98,19 @@ function mapStatusToUI(status?: string): AIEvaluationStatus {
   if (s === "validating") return "VALIDATING";
   return "NOT_REQUESTED";
 }
+ 
+function formatDate(dateInput: any): string {
+  if (!dateInput) return "";
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return String(dateInput);
+  return d.toLocaleDateString("vi-VN", { 
+    day: "2-digit", 
+    month: "2-digit", 
+    year: "numeric", 
+    hour: "2-digit", 
+    minute: "2-digit" 
+  });
+}
 
 function getFlatSubScoreTo100(data: any, ...keys: string[]): number {
   for (const key of keys) {
@@ -249,9 +262,7 @@ function mapLatestScoreToReport(data: any, evaluatedDocTypes?: string[]): AIEval
     data?.id ??
     0
   ) || 0;
-  const now = new Date();
-  const nowStr = now.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-
+ 
   const overallScore = readOptionalFlatScore100(data, "overallScore", "OverallScore", "overall_score", "score", "Score", "aiScore", "AiScore", "latestEvaluation.overallScore", "aiEvaluation.overallScore");
   const teamScore = readOptionalFlatScore100(data, "teamScore", "TeamScore", "team_score", "latestEvaluation.teamScore", "aiEvaluation.teamScore");
   const marketScore = readOptionalFlatScore100(data, "marketScore", "MarketScore", "market_score", "latestEvaluation.marketScore", "aiEvaluation.marketScore");
@@ -288,8 +299,8 @@ function mapLatestScoreToReport(data: any, evaluatedDocTypes?: string[]): AIEval
     productScore,
     tractionScore,
     financialScore,
-    calculatedAt: data?.calculatedAt ?? data?.CalculatedAt ?? data?.calculated_at ?? "",
-    generatedAt: data?.generatedAt ?? data?.GeneratedAt ?? data?.generated_at ?? data?.created_at ?? data?.CreatedAt ?? "",
+    calculatedAt: formatDate(data?.calculatedAt ?? data?.CalculatedAt ?? data?.calculated_at ?? data?.submittedAt ?? data?.SubmittedAt),
+    generatedAt: formatDate(data?.generatedAt ?? data?.GeneratedAt ?? data?.generated_at ?? data?.created_at ?? data?.CreatedAt ?? data?.updatedAt ?? data?.UpdatedAt),
     isCurrent: true,
     configVersion: data?.configVersion ?? data?.ConfigVersion ?? "",
     modelVersion: data?.modelVersion ?? data?.ModelVersion ?? "",
@@ -307,7 +318,7 @@ function mapLatestScoreToReport(data: any, evaluatedDocTypes?: string[]): AIEval
   } as AIEvaluationReport;
 }
 
-function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: string[], explicitPD?: number | null, explicitBP?: number | null, rawPD?: any, rawBP?: any): AIEvaluationReport {
+function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: string[], explicitPD?: number | null, explicitBP?: number | null, rawPD?: any, rawBP?: any, metadata?: { submittedAt?: string; updatedAt?: string }): AIEvaluationReport {
   const criteria: any[] = data?.criteria_results ?? data?.criteria ?? [];
   const overall = data?.overall_result ?? data;
   const narr = data?.narrative ?? data;
@@ -319,11 +330,11 @@ function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: stri
     overall?.score ?? 0
   );
 
-  const tScore = getCriterionScore(criteria, "team", "team_", "execution");
-  const mScore = getCriterionScore(criteria, "market", "market_");
-  const pScore = getCriterionScore(criteria, "solution", "product", "differentiation", "solution_");
-  const trScore = getCriterionScore(criteria, "traction", "validation", "validation_");
-  const fScore = getCriterionScore(criteria, "business", "financial", "model", "revenue", "business_");
+  const tScore = getCriterionScore(criteria, "team", "team_", "execution", "founder");
+  const mScore = getCriterionScore(criteria, "market", "market_", "timing", "attractiveness");
+  const pScore = getCriterionScore(criteria, "solution", "product", "differentiation", "solution_", "tech");
+  const trScore = getCriterionScore(criteria, "traction", "validation", "validation_", "growth");
+  const fScore = getCriterionScore(criteria, "business", "financial", "model", "revenue", "business_", "scalability");
 
   // Fallback to flat scores if criteria results are missing or 0
   const teamScore = tScore || readOptionalFlatScore100(data, "teamScore", "TeamScore", "team_score", "latestEvaluation.teamScore", "aiEvaluation.teamScore") || 0;
@@ -332,7 +343,11 @@ function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: stri
   const tractionScore = trScore || readOptionalFlatScore100(data, "tractionScore", "TractionScore", "traction_score", "latestEvaluation.tractionScore", "aiEvaluation.tractionScore") || 0;
   const financialScore = fScore || readOptionalFlatScore100(data, "financialScore", "FinancialScore", "financial_score", "latestEvaluation.financialScore", "aiEvaluation.financialScore") || 0;
 
-  const executiveSummary = cleanAiText(narr?.executive_summary ?? narr?.summary ?? narr?.conclusion ?? overall?.summary ?? "");
+  const executiveSummary = cleanAiText(
+    narr?.executive_summary ?? narr?.summary ?? narr?.conclusion ?? 
+    overall?.summary ?? overall?.executive_summary ?? 
+    data?.summary ?? data?.executive_summary ?? ""
+  );
   const warnings = asStringArray(data?.warnings ?? data?.processing_warnings ?? narr?.warnings ?? []);
 
   // Use explicit document types from backend if available
@@ -413,7 +428,7 @@ function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: stri
   const now = new Date();
   const nowStr = now.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-  return {
+  const result = {
     evaluationId: String(runId),
     startupId: String(data?.startup_id ?? data?.startupId ?? ""),
     status: mapStatusToUI(data?.status ?? data?.Status ?? "queued"),
@@ -425,8 +440,8 @@ function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: stri
     productScore,
     tractionScore,
     financialScore,
-    calculatedAt: data?.calculated_at ?? data?.calculatedAt ?? data?.submitted_at ?? data?.submittedAt ?? "",
-    generatedAt: data?.generated_at ?? data?.generatedAt ?? data?.created_at ?? data?.createdAt ?? "",
+    calculatedAt: formatDate(metadata?.submittedAt ?? data?.calculated_at ?? data?.calculatedAt ?? data?.submitted_at ?? data?.submittedAt),
+    generatedAt: formatDate(metadata?.updatedAt ?? data?.generated_at ?? data?.generatedAt ?? data?.created_at ?? data?.createdAt ?? data?.updatedAt ?? data?.UpdatedAt),
     isCurrent: false,
     configVersion: data?.config_version ?? data?.configVersion ?? "",
     modelVersion: data?.model_version ?? data?.modelVersion ?? "",
@@ -451,6 +466,19 @@ function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: stri
     pitchDeckReport: rawPD ? mapCanonicalToReport(runId, rawPD, ["pitch_deck"], explicitPD) : null,
     businessPlanReport: rawBP ? mapCanonicalToReport(runId, rawBP, ["business_plan"], explicitBP) : null,
   } as AIEvaluationReport;
+
+  console.log(`[CanonicalMapper] Mapped report for run ${runId}:`, {
+    overallScore,
+    teamScore,
+    marketScore,
+    productScore,
+    tractionScore,
+    financialScore,
+    hasSummary: !!executiveSummary,
+    criteriaCount: criteria.length
+  });
+
+  return result;
 }
 
 export { normalizeTo100, mapCanonicalToReport, mapLatestScoreToReport, mapStatusToUI };

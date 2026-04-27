@@ -138,13 +138,19 @@ export default function AIDetailedReportPage() {
             const bpScore = payload.businessPlanOverallScore ?? payload.BusinessPlanOverallScore ?? null;
             const rawPD = payload.pitchDeckReport ?? payload.PitchDeckReport ?? null;
             const rawBP = payload.businessPlanReport ?? payload.BusinessPlanReport ?? null;
-            const mapped = mapCanonicalToReport(runId, canonical, evalDocTypes, pdScore, bpScore, rawPD, rawBP);
+            const mapped = mapCanonicalToReport(runId, canonical, evalDocTypes, pdScore, bpScore, rawPD, rawBP, {
+              submittedAt: payload.submittedAt ?? payload.SubmittedAt,
+              updatedAt: payload.updatedAt ?? payload.UpdatedAt
+            });
             if (!cancelled) setReport(mapped);
             return true;
           }
           // If payload.Report exists and looks complete, map anyway
           if (payload.report) {
-            const mapped = mapCanonicalToReport(runId, payload.report, evalDocTypes, payload.pitchDeckOverallScore ?? null, payload.businessPlanOverallScore ?? null, payload.pitchDeckReport ?? null, payload.businessPlanReport ?? null);
+            const mapped = mapCanonicalToReport(runId, payload.report, evalDocTypes, payload.pitchDeckOverallScore ?? null, payload.businessPlanOverallScore ?? null, payload.pitchDeckReport ?? null, payload.businessPlanReport ?? null, {
+              submittedAt: payload.submittedAt ?? payload.SubmittedAt,
+              updatedAt: payload.updatedAt ?? payload.UpdatedAt
+            });
             if (!cancelled) setReport(mapped);
             return true;
           }
@@ -223,7 +229,10 @@ export default function AIDetailedReportPage() {
           const reportPayload = rdata?.report ?? rdata;
           const evalDocTypes = rdata?.evaluatedDocumentTypes ?? rdata?.EvaluatedDocumentTypes ?? [];
           setRawPayload(reportPayload);
-          const mapped = mapCanonicalToReport(runId, reportPayload, evalDocTypes, rdata?.pitchDeckOverallScore ?? null, rdata?.businessPlanOverallScore ?? null, rdata?.pitchDeckReport ?? null, rdata?.businessPlanReport ?? null);
+          const mapped = mapCanonicalToReport(runId, reportPayload, evalDocTypes, rdata?.pitchDeckOverallScore ?? null, rdata?.businessPlanOverallScore ?? null, rdata?.pitchDeckReport ?? null, rdata?.businessPlanReport ?? null, {
+            submittedAt: rdata?.submittedAt ?? rdata?.SubmittedAt,
+            updatedAt: rdata?.updatedAt ?? rdata?.UpdatedAt
+          });
           setReport(mapped);
         } else if (newStatus === "FAILED") {
           setLoadError("Đánh giá đã thất bại. Vui lòng kiểm tra lịch sử hoặc thử lại.");
