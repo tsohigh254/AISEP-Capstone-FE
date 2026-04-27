@@ -28,3 +28,15 @@ export const GetLatestScore = () => {
 export const GetScoreHistory = () => {
   return axios.get<IBackendRes<any>>(`/api/ai/history`);
 };
+
+export interface IInvestorAgentChatRequest {
+  query: string;
+  thread_id?: string;
+}
+
+/**
+ * Initiates the Investor Agent chat stream.
+ * Note: Since this returns a stream, use fetch() directly or a specialized SSE handler
+ * if the interceptor/axios doesn't support streaming well.
+ */
+export const InvestorAgentChatStreamEndpoint = "/api/ai/investor-agent/chat/stream";

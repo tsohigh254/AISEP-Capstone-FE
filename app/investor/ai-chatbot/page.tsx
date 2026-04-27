@@ -24,6 +24,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { InvestorAgentChatStreamEndpoint } from "@/services/ai/ai.api";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 // --- Types & Constants ---
 
@@ -38,7 +41,26 @@ interface Message {
   suggestions?: string[];
   thought?: string;
   isThinking?: boolean;
+  metadata?: {
+    references?: Array<{ title: string; url: string; source_domain: string }>;
+    caveats?: string[];
+    grounding_summary?: any;
+  };
+  steps?: string[];
 }
+
+const NODE_LABELS: Record<string, string> = {
+  followup_resolver: "Đang hiểu ngữ cảnh...",
+  router: "Đang xác định ý định...",
+  planner: "Đang lập kế hoạch tìm kiếm...",
+  search: "Đang tìm kiếm thông tin...",
+  source_selection: "Đang chọn lọc nguồn tin...",
+  extract: "Đang đọc nội dung bài viết...",
+  fact_builder: "Đang trích xuất sự thật...",
+  claim_verifier: "Đang đối chiếu bằng chứng...",
+  writer: "Đang tổng hợp câu trả lời...",
+  scope_guard: "Đang kiểm tra phạm vi...",
+};
 
 const QUICK_INTENTS = [
   { id: "trends", label: "Tôi muốn tìm hiểu xu hướng đầu tư", icon: TrendingUp },
@@ -103,93 +125,52 @@ function StartupCard({ name, industry, stage, matchScore }: { name: string; indu
   );
 }
 
-function ThoughtBlock({ thought, isThinking }: { thought: string; isThinking?: boolean }) {
-  const [expanded, setExpanded] = useState(false);
-  const [simulatedSteps, setSimulatedSteps] = useState<string[]>([]);
-  const [isVisible, setIsVisible] = useState(false);
+function ProgressTimeline({ steps, isThinking }: { steps: string[]; isThinking: boolean }) {
+  const [expanded, setExpanded] = useState(true);
   
-  useEffect(() => {
-    let timeout: NodeJS.Timeout;
-    if (isThinking) {
-      // Delay showing the thinking block by 800ms to simulate "reading" the user's message
-      timeout = setTimeout(() => {
-        setIsVisible(true);
-        setExpanded(true); // Auto-expand when it finally appears
-      }, 800);
-    } else {
-      setIsVisible(false); // Instantly hide when thinking is done
-    }
-    return () => clearTimeout(timeout);
-  }, [isThinking]);
-
-  useEffect(() => {
-    if (isVisible && isThinking && !thought) {
-      const steps = [
-        "Đang phân tích ngữ nghĩa yêu cầu...",
-        "Tra cứu biểu đồ xu hướng thị trường...",
-        "Truy xuất dữ liệu dự án Startup...",
-        "Đối chiếu các tiêu chí đầu tư...",
-        "Định dạng kết quả đầu ra..."
-      ];
-      let currentStep = 0;
-      setSimulatedSteps([steps[0]]);
-      
-      const interval = setInterval(() => {
-        currentStep++;
-        if (currentStep < steps.length) {
-          setSimulatedSteps(prev => [...prev, steps[currentStep]]);
-        }
-      }, 4000); // Add a new step every 4s to simulate very deep pondering
-      
-      return () => clearInterval(interval);
-    } else if (!isThinking) {
-      setSimulatedSteps([]);
-    }
-  }, [isVisible, isThinking, thought]);
-
-  if (!isThinking || !isVisible) return null;
+  if (!isThinking && (!steps || steps.length === 0)) return null;
 
   return (
-    <div className="w-full flex flex-col pl-1 mb-1 animate-in fade-in duration-500">
+    <div className="w-full flex flex-col pl-1 mb-2 animate-in fade-in duration-500">
       <button 
         onClick={() => setExpanded(!expanded)} 
         className="flex items-center gap-1.5 w-fit group py-1"
       >
-        {isThinking ? (
-          <div className="relative flex items-center justify-center w-4 h-4">
-            <span className="absolute inline-flex h-3 w-3 animate-ping rounded-full bg-emerald-400 opacity-20"></span>
-            <Sparkles className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
-          </div>
-        ) : (
-          <BrainCircuit className="w-3.5 h-3.5 text-slate-400" />
-        )}
+        <div className="relative flex items-center justify-center w-4 h-4">
+          {isThinking ? (
+            <>
+              <span className="absolute inline-flex h-3 w-3 animate-ping rounded-full bg-emerald-400 opacity-20"></span>
+              <Sparkles className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+            </>
+          ) : (
+            <BrainCircuit className="w-3.5 h-3.5 text-slate-400" />
+          )}
+        </div>
         <span className="text-[13px] font-semibold text-slate-500 group-hover:text-slate-700 transition-colors">
-          {isThinking ? "Đang phân tích và tổng hợp dữ liệu..." : "Quá trình tư duy của AI"}
+          {isThinking ? "Đang phân tích và tổng hợp dữ liệu..." : "Quy trình phân tích của AI"}
         </span>
         {expanded ? <ChevronUp className="w-3.5 h-3.5 text-slate-400 ml-0.5" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-0.5" />}
       </button>
       
-      {expanded && (thought || isThinking) && (
-        <div className="mt-1.5 mb-1.5 pl-3.5 border-l-2 border-slate-200 text-[13px] text-slate-500 font-mono whitespace-pre-wrap leading-relaxed py-0.5 break-words">
-          {thought ? thought : (
-            <div className="flex flex-col gap-1.5">
-              {simulatedSteps.map((step, idx) => (
-                <div key={idx} className="flex items-center gap-2 animate-in fade-in slide-in-from-left-1 duration-300">
-                  <span className="w-1 h-1 rounded-full bg-slate-400" />
-                  {step}
-                </div>
-              ))}
-              {isThinking && (
-                 <div className="flex items-center gap-2 animate-pulse mt-0.5">
-                   <div className="flex items-center gap-1 ml-1.5">
-                      <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" />
-                      <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.2s]" />
-                      <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.4s]" />
-                   </div>
+      {expanded && (
+        <div className="mt-1.5 mb-1.5 pl-3.5 border-l-2 border-slate-200 text-[13px] text-slate-500 leading-relaxed py-0.5">
+          <div className="flex flex-col gap-1.5">
+            {steps.map((step, idx) => (
+              <div key={idx} className="flex items-center gap-2 animate-in fade-in slide-in-from-left-1 duration-300">
+                <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                {NODE_LABELS[step] || step}
+              </div>
+            ))}
+            {isThinking && (
+               <div className="flex items-center gap-2 animate-pulse mt-0.5">
+                 <div className="flex items-center gap-1 ml-1.5">
+                    <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" />
+                    <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.2s]" />
+                    <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:0.4s]" />
                  </div>
-              )}
-            </div>
-          )}
+               </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -200,6 +181,7 @@ export default function AIChatbotPage() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [threadId, setThreadId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -211,6 +193,13 @@ export default function AIChatbotPage() {
   useEffect(() => {
     // Lock body scroll on this page
     document.body.style.overflow = "hidden";
+
+    // Restore thread ID if exists
+    const savedThreadId = sessionStorage.getItem("ai_investor_thread_id");
+    if (savedThreadId) {
+      setThreadId(savedThreadId);
+    }
+
     return () => {
       document.body.style.overflow = "unset";
     };
@@ -218,6 +207,17 @@ export default function AIChatbotPage() {
 
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
+
+    // Maintain or generate thread_id
+    let currentThreadId = threadId;
+    if (!currentThreadId) {
+      currentThreadId = `thread_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      setThreadId(currentThreadId);
+      sessionStorage.setItem("ai_investor_thread_id", currentThreadId);
+    }
+
+    const correlationId = `corr_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    console.log(`[AI Chat] Correlation ID: ${correlationId}`);
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -233,6 +233,7 @@ export default function AIChatbotPage() {
       content: "",
       isThinking: true,
       timestamp: new Date(),
+      steps: [],
     };
 
     // Add user message and AI placeholder in one update
@@ -241,26 +242,32 @@ export default function AIChatbotPage() {
     setIsLoading(true);
 
     // Build endpoint: prefer backend proxy so auth + session work
-    const backendBase = (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_AI_SERVICE_URL || "").replace(/\/$/, "");
-    const endpoint = `${backendBase}/api/ai/investor-agent/chat/stream`;
+    const backendBase = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
+    const endpoint = `${backendBase}${InvestorAgentChatStreamEndpoint}`;
 
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const headers: Record<string, string> = { 
+        "Content-Type": "application/json",
+        "X-Correlation-Id": correlationId
+      };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
       const resp = await fetch(endpoint, {
         method: "POST",
         headers,
         credentials: "include",
-        body: JSON.stringify({ query: text }),
+        body: JSON.stringify({ 
+          query: text,
+          thread_id: currentThreadId 
+        }),
       });
 
       if (!resp.ok) {
         // try to show backend error message
         let bodyText = await resp.text();
         try { bodyText = JSON.parse(bodyText).message ?? JSON.stringify(JSON.parse(bodyText)); } catch {}
-        setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: `Lỗi server: ${resp.status} ${bodyText}` } : m));
+        setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: `Lỗi server: ${resp.status} ${bodyText}`, isThinking: false } : m));
         setIsLoading(false);
         return;
       }
@@ -268,7 +275,7 @@ export default function AIChatbotPage() {
       const reader = resp.body?.getReader();
       if (!reader) {
         const textBody = await resp.text();
-        setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: textBody } : m));
+        setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: textBody, isThinking: false } : m));
         setIsLoading(false);
         return;
       }
@@ -282,54 +289,61 @@ export default function AIChatbotPage() {
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
 
-        const parts = buffer.split(/\r?\n\r?\n/);
+        const parts = buffer.split("\n\n");
         buffer = parts.pop() ?? "";
 
         for (const part of parts) {
-          const lines = part.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-          for (const line of lines) {
-            if (!line.startsWith("data:")) continue;
-            const data = line.replace(/^data:\s?/, "").trim();
-            if (data === "[DONE]") {
-              finished = true;
-              break;
-            }
-
-            // Try parse JSON event, otherwise append raw
-            let evt: any = null;
-            try {
-              evt = JSON.parse(data);
-            } catch (e) {
-              setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: (m.content ?? "") + data } : m));
-              continue;
-            }
-
-            const type = evt?.type;
-            if (type === "thought_chunk" && evt.content) {
-              setMessages(prev => prev.map(m => m.id === aiId ? { ...m, thought: (m.thought ?? "") + evt.content, isThinking: true } : m));
-            } else if (type === "answer_chunk" && evt.content) {
-              // Ensure we only set isThinking to false if it's the actual answer stream 
-              // Wait, deepseek streams <think> block as answer_chunk initially!
-              setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: (m.content ?? "") + evt.content } : m));
-            } else if (type === "final_answer" && evt.content) {
-              setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: (m.content ?? "") + evt.content, isThinking: false } : m));
-            } else if (type === "final_metadata") {
-              // attach simple suggestions from references (titles)
-              const refs = evt.references ?? [];
-              const suggestions = refs.map((r: any) => r.title).filter(Boolean);
-              if (suggestions.length) {
-                setMessages(prev => prev.map(m => m.id === aiId ? { ...m, suggestions } : m));
-              }
-            } else if (type === "error") {
-              setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: (m.content ?? "") + `\n\nError: ${evt.content}` } : m));
-            }
+          const line = part.split("\n").find(l => l.startsWith("data: "));
+          if (!line) continue;
+          
+          const data = line.slice(6).trim();
+          if (data === "[DONE]") {
+            finished = true;
+            break;
           }
-          if (finished) break;
+
+          // Try parse JSON event
+          let evt: any = null;
+          try {
+            evt = JSON.parse(data);
+          } catch (e) {
+            continue;
+          }
+
+          const type = evt?.type;
+          if (type === "progress" && evt.node) {
+            setMessages(prev => prev.map(m => m.id === aiId ? { 
+              ...m, 
+              steps: [...(m.steps || []), evt.node].filter((v, i, a) => a.indexOf(v) === i) 
+            } : m));
+          } else if (type === "answer_chunk" && evt.content) {
+            setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: (m.content ?? "") + evt.content } : m));
+          } else if (type === "final_answer" && evt.content) {
+            setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: evt.content, isThinking: false } : m));
+          } else if (type === "final_metadata") {
+            setMessages(prev => prev.map(m => m.id === aiId ? { 
+              ...m, 
+              metadata: {
+                references: evt.references,
+                caveats: evt.caveats,
+                grounding_summary: evt.grounding_summary
+              },
+              // Also update suggestions if available in references
+              suggestions: (evt.references || []).slice(0, 3).map((r: any) => r.title).filter(Boolean)
+            } : m));
+          } else if (type === "error") {
+            setMessages(prev => prev.map(m => m.id === aiId ? { 
+              ...m, 
+              content: (m.content ?? "") + `\n\n⚠️ Lỗi hệ thống: ${evt.content}`,
+              isThinking: false 
+            } : m));
+          }
         }
+        if (finished) break;
       }
 
     } catch (err: any) {
-      setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: `Lỗi khi kết nối: ${err?.message ?? String(err)}` } : m));
+      setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: `Lỗi khi kết nối: ${err?.message ?? String(err)}`, isThinking: false } : m));
     } finally {
       setIsLoading(false);
     }
@@ -395,22 +409,68 @@ export default function AIChatbotPage() {
                   "max-w-[90%] flex flex-col",
                   msg.type === "user" ? "items-end" : "items-start"
                 )}>
-                  {/* Thought Block MUST be outside the chat bubble to float completely seamlessly */}
-                  {msg.type === "ai" && (displayThought || isThinking) && (
-                    <ThoughtBlock thought={displayThought} isThinking={isThinking} />
+                  {/* Pipeline Steps (AI Only) */}
+                  {msg.type === "ai" && (msg.steps || msg.isThinking) && (
+                    <ProgressTimeline steps={msg.steps || []} isThinking={msg.isThinking || false} />
                   )}
 
                   {/* Bubble containing main completion text */}
                   {(displayContent || (msg.content && !isThinking && msg.type === "user")) ? (
                     <div className={cn(
-                      "rounded-3xl text-[15px] leading-relaxed shadow-sm w-fit max-w-full break-words mt-1",
+                      "rounded-3xl text-[15px] leading-relaxed shadow-sm w-fit max-w-full break-words mt-1 overflow-hidden",
                       msg.type === "user" 
                         ? "bg-[#0f172a] text-white rounded-tr-none px-6 py-4" 
                         : "bg-white text-slate-800 rounded-tl-none border border-slate-200 px-6 py-4"
                     )}>
-                      <div className="whitespace-pre-wrap">
-                        {displayContent || msg.content}
+                      <div className="prose prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-slate-900 prose-pre:text-white prose-a:text-blue-600 dark:prose-invert">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {displayContent || msg.content || ""}
+                        </ReactMarkdown>
                       </div>
+
+                      {/* References (AI Only) */}
+                      {msg.type === "ai" && msg.metadata?.references && msg.metadata.references.length > 0 && (
+                        <div className="mt-6 pt-4 border-t border-slate-100">
+                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Nguồn tham khảo</p>
+                          <div className="flex flex-col gap-2">
+                            {msg.metadata.references.map((ref, idx) => (
+                              <a 
+                                key={idx} 
+                                href={ref.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 group/ref"
+                              >
+                                <div className="w-5 h-5 rounded-md bg-slate-50 flex items-center justify-center text-[10px] font-bold text-slate-400 group-hover/ref:bg-[#eec54e]/10 group-hover/ref:text-[#eec54e] transition-colors">
+                                  {idx + 1}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[13px] font-semibold text-slate-700 truncate group-hover/ref:text-[#eec54e] transition-colors">{ref.title}</p>
+                                  <p className="text-[11px] text-slate-400 truncate">{ref.source_domain}</p>
+                                </div>
+                                <ArrowRight className="w-3 h-3 text-slate-300 group-hover/ref:text-[#eec54e] group-hover/ref:translate-x-0.5 transition-all" />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Caveats (AI Only) */}
+                      {msg.type === "ai" && msg.metadata?.caveats && msg.metadata.caveats.length > 0 && (
+                        <div className="mt-4 p-3 rounded-xl bg-amber-50/50 border border-amber-100/50">
+                          <div className="flex items-start gap-2">
+                            <HelpCircle className="w-3.5 h-3.5 text-amber-500 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="text-[11px] font-bold text-amber-600 uppercase tracking-wider mb-1">Lưu ý về dữ liệu</p>
+                              <ul className="list-disc list-inside space-y-1">
+                                {msg.metadata.caveats.map((caveat, idx) => (
+                                  <li key={idx} className="text-[12px] text-amber-700/80 leading-snug">{caveat}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : null}
 
