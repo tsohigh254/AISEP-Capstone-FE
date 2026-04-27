@@ -19,6 +19,25 @@ import { calcProfileCompleteness } from "@/lib/profile-completeness";
 import { formatScore100, scoreChipColorClass, scoreRingVisual } from "@/lib/ai-evaluation-score-ui";
 import { AIEvaluationStatus, AIEvaluationReport } from "./types";
 
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+    const day = pad(date.getDate());
+    const month = pad(date.getMonth() + 1);
+    const year = date.getFullYear();
+    
+    return `${hours}:${minutes} ${day}/${month}/${year}`;
+  } catch (e) {
+    return dateStr;
+  }
+}
+
 function fileNameFromUrl(url?: string | null): string {
   if (!url) return "Untitled";
   try {
@@ -315,7 +334,7 @@ function DashboardView({ latestCompleted, profile, documents }: { latestComplete
             </span>
           </div>
           <p className="text-[12px] text-slate-400">
-            Lần đánh giá gần nhất: <span className="font-semibold text-slate-500">{latestCompleted.calculatedAt}</span>
+            Lần đánh giá gần nhất: <span className="font-semibold text-slate-500">{formatDate(latestCompleted.calculatedAt)}</span>
           </p>
         </div>
         <button
@@ -518,7 +537,7 @@ function DashboardView({ latestCompleted, profile, documents }: { latestComplete
               <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center group-hover:bg-amber-50 transition-colors"><History className="w-5 h-5 text-slate-400 group-hover:text-amber-500 transition-colors" /></div>
               <div>
                 <p className="text-[14px] font-bold text-slate-800">Lịch sử đánh giá</p>
-                <p className="text-[12px] text-slate-400">{latestCompleted ? 1 : 0} lượt đánh giá</p>
+                <p className="text-[12px] text-slate-400">{historyCount} lượt đánh giá</p>
               </div>
             </div>
             <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-amber-400 transition-colors" />
@@ -565,7 +584,7 @@ function PendingRunView({ run, status, onRefresh }: { run: any; status: AIEvalua
           <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center">{statusCfg.icon}</div>
           <div>
             <p className="text-[16px] font-bold text-slate-900">Đang xử lý đánh giá</p>
-            <p className="text-[13px] text-slate-500 mt-1">ID: {run?.evaluationId ?? "-"} • {run?.calculatedAt ?? ""}</p>
+            <p className="text-[13px] text-slate-500 mt-1">ID: {run?.evaluationId ?? "-"} • {formatDate(run?.calculatedAt)}</p>
             <p className="text-[13px] text-slate-600 mt-3">Trạng thái hiện tại: <span className={cn("font-semibold ml-1", statusCfg.color)}>{statusCfg.label}</span></p>
             {run?.overallScore != null && run.overallScore > 0 && (
               <p className="text-[20px] font-black text-slate-900 mt-3">{run.overallScore}/100</p>
@@ -607,6 +626,7 @@ function AIEvaluationHomePageInner() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [profile, setProfile] = useState<any>({ ready: false, completionPercent: 0, items: [] });
   const [documents, setDocuments] = useState<any>({ ready: false, items: [], eligibleDocs: [] });
+  const [historyCount, setHistoryCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -697,7 +717,11 @@ function AIEvaluationHomePageInner() {
               // Readiness acceptance depends on current score from GetLatestScore.
               // Keep history as auxiliary state and avoid promoting history-only data
               // into latestCompleted when there is no current score yet.
-              if (!cancelled) { setLatestRun(mappedRun); setRunStatus(status); }
+              if (!cancelled) { 
+                setLatestRun(mappedRun); 
+                setRunStatus(status);
+                setHistoryCount(list.length);
+              }
 
               // Self-heal for old runs: if latest score is missing but we already have
               // a completed run, fetch report once to trigger BE sync, then retry latest score.

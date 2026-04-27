@@ -9,6 +9,15 @@ function normalizeTo100(raw: any): number {
   return Math.round(n);
 }
 
+/**
+ * Removes technical debug notes enclosed in brackets, e.g. [Merged - prioritizes Business Plan...]
+ */
+function cleanAiText(text: any): string {
+  if (typeof text !== "string") return "";
+  // Removes strings like [Text here...] at the start or end of the text
+  return text.replace(/^\[[^\]]*\]\s*/g, "").trim();
+}
+
 function getCriterionScore(criteria: any[] | undefined, ...names: string[]): number {
   if (!criteria) return 0;
   const normalize = (s: any) => (s == null ? "" : String(s).toLowerCase().replace(/[^a-z]/g, ""));
@@ -40,7 +49,7 @@ function getCriterionSubMetrics(criteria: any[] | undefined, ...names: string[])
           name: m.name ?? m.sub_criterion_name ?? m.criterion ?? m.title ?? (m.excerpt || m.summary) ?? "",
           score: normalizeTo100(m.score ?? m.normalized_score ?? m.weighted_score ?? m.final_score ?? m.raw_score ?? 0),
           maxScore: m.max_score ?? 100,
-          comment: m.comment ?? m.explanation ?? m.reasoning ?? m.detail ?? "",
+          comment: cleanAiText(m.comment ?? m.explanation ?? m.reasoning ?? m.detail ?? ""),
         }));
       }
 
@@ -141,7 +150,7 @@ function parseLatestScoreSubMetrics(data: any): AIEvaluationReport["subMetrics"]
       (typeof item.metricValue === "string" && item.metricValue) ||
       (typeof item.MetricValue === "string" && item.MetricValue) ||
       "";
-    return { name, score, maxScore: 100, comment };
+    return { name, score, maxScore: 100, comment: cleanAiText(comment) };
   };
 
   /** Chỉ dùng khi response cũ thiếu Pillar. */
@@ -265,13 +274,13 @@ function mapLatestScoreToReport(data: any, evaluatedDocTypes?: string[]): AIEval
     productScore,
     tractionScore,
     financialScore,
-    calculatedAt: data?.calculatedAt ?? data?.CalculatedAt ?? data?.calculated_at ?? nowStr,
-    generatedAt: data?.calculatedAt ?? data?.CalculatedAt ?? data?.calculated_at ?? nowStr,
+    calculatedAt: data?.calculatedAt ?? data?.CalculatedAt ?? data?.calculated_at ?? "",
+    generatedAt: data?.generatedAt ?? data?.GeneratedAt ?? data?.generated_at ?? data?.created_at ?? data?.CreatedAt ?? "",
     isCurrent: true,
     configVersion: data?.configVersion ?? data?.ConfigVersion ?? "",
     modelVersion: data?.modelVersion ?? data?.ModelVersion ?? "",
     promptVersion: data?.promptVersion ?? data?.PromptVersion ?? "",
-    snapshotLabel: data?.snapshotLabel ?? data?.SnapshotLabel ?? `Đánh giá ${nowStr}`,
+    snapshotLabel: data?.snapshotLabel ?? data?.SnapshotLabel ?? (data?.calculatedAt ? `Đánh giá ${data.calculatedAt}` : `Đánh giá ${nowStr}`),
     warningMessages: asStringArray(data?.warnings ?? data?.Warnings ?? []),
     executiveSummary: data?.executiveSummary ?? data?.ExecutiveSummary ?? data?.summary ?? data?.Summary ?? "",
     strengths: asStringArray(data?.strengths ?? data?.Strengths ?? []),
@@ -301,7 +310,7 @@ function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: stri
     overall?.score ?? 0
   );
 
-  const executiveSummary = narr?.executive_summary ?? narr?.summary ?? narr?.conclusion ?? overall?.summary ?? "";
+  const executiveSummary = cleanAiText(narr?.executive_summary ?? narr?.summary ?? narr?.conclusion ?? overall?.summary ?? "");
   const warnings = asStringArray(data?.warnings ?? data?.processing_warnings ?? narr?.warnings ?? []);
 
   // Use explicit document types from backend if available
@@ -394,13 +403,13 @@ function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: stri
     productScore,
     tractionScore,
     financialScore,
-    calculatedAt: data?.calculated_at ?? data?.calculatedAt ?? data?.submitted_at ?? data?.submittedAt ?? nowStr,
-    generatedAt: data?.generated_at ?? data?.generatedAt ?? data?.created_at ?? data?.createdAt ?? nowStr,
+    calculatedAt: data?.calculated_at ?? data?.calculatedAt ?? data?.submitted_at ?? data?.submittedAt ?? "",
+    generatedAt: data?.generated_at ?? data?.generatedAt ?? data?.created_at ?? data?.createdAt ?? "",
     isCurrent: false,
     configVersion: data?.config_version ?? data?.configVersion ?? "",
     modelVersion: data?.model_version ?? data?.modelVersion ?? "",
     promptVersion: data?.prompt_version ?? data?.promptVersion ?? "",
-    snapshotLabel: data?.snapshot_label ?? data?.title ?? `Đánh giá ${nowStr}`,
+    snapshotLabel: data?.snapshot_label ?? data?.title ?? (data?.calculated_at ? `Đánh giá ${data.calculated_at}` : `Đánh giá ${nowStr}`),
     warningMessages: asStringArray(data?.warnings ?? data?.processing_warnings ?? narr?.warnings ?? []),
     executiveSummary,
     strengths,

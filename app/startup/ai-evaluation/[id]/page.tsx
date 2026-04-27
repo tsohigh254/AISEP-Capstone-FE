@@ -187,10 +187,10 @@ export default function AIDetailedReportPage() {
   }, [id]);
 
   const currentReport = 
-    selectedTab === "pitch_deck" && report?.pitchDeckReport 
-      ? report.pitchDeckReport 
-      : (selectedTab === "business_plan" && report?.businessPlanReport 
-          ? report.businessPlanReport 
+    selectedTab === "pitch_deck" 
+      ? (report?.pitchDeckReport ?? null)
+      : (selectedTab === "business_plan" 
+          ? (report?.businessPlanReport ?? null)
           : report);
 
   if (isLoading) {
@@ -365,9 +365,15 @@ export default function AIDetailedReportPage() {
                 {/* Document scores (Tabs) */}
                 <div className="grid grid-cols-2 gap-3 mb-6">
                   <button 
-                    onClick={() => setSelectedTab(selectedTab === "pitch_deck" ? "merged" : "pitch_deck")}
+                    onClick={() => {
+                      if (report.pitchDeckScore != null) {
+                        setSelectedTab(selectedTab === "pitch_deck" ? "merged" : "pitch_deck");
+                      }
+                    }}
+                    disabled={report.pitchDeckScore == null}
                     className={cn(
                       "flex flex-col items-start px-4 py-3 rounded-xl border transition-all duration-300 relative overflow-hidden",
+                      report.pitchDeckScore == null ? "opacity-50 cursor-not-allowed grayscale" : "cursor-pointer",
                       selectedTab === "pitch_deck" 
                         ? "bg-blue-50 border-blue-200 shadow-sm ring-1 ring-blue-500" 
                         : "bg-white border-slate-100 hover:bg-blue-50/30 hover:border-blue-200"
@@ -389,9 +395,15 @@ export default function AIDetailedReportPage() {
                   </button>
 
                   <button 
-                    onClick={() => setSelectedTab(selectedTab === "business_plan" ? "merged" : "business_plan")}
+                    onClick={() => {
+                      if (report.businessPlanScore != null) {
+                        setSelectedTab(selectedTab === "business_plan" ? "merged" : "business_plan");
+                      }
+                    }}
+                    disabled={report.businessPlanScore == null}
                     className={cn(
                       "flex flex-col items-start px-4 py-3 rounded-xl border transition-all duration-300 relative overflow-hidden",
+                      report.businessPlanScore == null ? "opacity-50 cursor-not-allowed grayscale" : "cursor-pointer",
                       selectedTab === "business_plan" 
                         ? "bg-violet-50 border-violet-200 shadow-sm ring-1 ring-violet-500" 
                         : "bg-white border-slate-100 hover:bg-violet-50/30 hover:border-violet-200"

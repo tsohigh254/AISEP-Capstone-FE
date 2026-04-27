@@ -321,15 +321,15 @@ export default function AIChatbotPage() {
           } else if (type === "final_answer" && evt.content) {
             setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: evt.content, isThinking: false } : m));
           } else if (type === "final_metadata") {
+            // Update: Guide v2 says metadata is a flat object (no .content wrapper)
+            const metadata = evt; 
             setMessages(prev => prev.map(m => m.id === aiId ? { 
               ...m, 
-              metadata: {
-                references: evt.references,
-                caveats: evt.caveats,
-                grounding_summary: evt.grounding_summary
-              },
-              // Also update suggestions if available in references
-              suggestions: (evt.references || []).slice(0, 3).map((r: any) => r.title).filter(Boolean)
+              metadata: metadata,
+              // Prioritize real suggested questions, fallback to reference titles
+              suggestions: (metadata.suggested_next_questions && metadata.suggested_next_questions.length > 0)
+                ? metadata.suggested_next_questions
+                : (metadata.references || []).slice(0, 3).map((r: any) => r.title).filter(Boolean)
             } : m));
           } else if (type === "error") {
             setMessages(prev => prev.map(m => m.id === aiId ? { 
