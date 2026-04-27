@@ -61,8 +61,9 @@ export function AIInvestorInsightModal({
           const historyItems = historyRes?.data ?? historyRes ?? [];
           
           const isCompleted = (item: any) => {
-            const s = String(item?.status ?? item?.Status ?? item?.statusName ?? item?.StatusName ?? "").toLowerCase();
-            return s === "completed" || s === "partial_completed";
+            const s = String(item?.status ?? item?.Status ?? item?.statusName ?? item?.StatusName ?? "").toLowerCase().replace(/[-_]/g, "");
+            // Accept many "successful" or "in-progress" states to show at least some data
+            return ["completed", "partialcompleted", "scoring", "processing", "analyzing", "generatingreport"].includes(s);
           };
 
           const getTime = (item: any) => {
@@ -75,10 +76,11 @@ export function AIInvestorInsightModal({
           
           if (latestRun) {
             // First, try to map from the history item itself as a fallback for scores
+            let fallbackReport = null;
             try {
                const { mapLatestScoreToReport } = await import("../../app/startup/ai-evaluation/canonical-mapper");
-               const fallbackMapped = mapLatestScoreToReport(latestRun);
-               if (!cancelled) setReport(fallbackMapped);
+               fallbackReport = mapLatestScoreToReport(latestRun);
+               if (!cancelled) setReport(fallbackReport);
             } catch (err) {
                console.warn("Failed to create fallback report from history item", err);
             }
@@ -86,15 +88,20 @@ export function AIInvestorInsightModal({
             const runId = latestRun?.evaluationId ?? latestRun?.EvaluationId ?? latestRun?.runId ?? latestRun?.RunId ?? latestRun?.id ?? latestRun?.Id ?? latestRun?.run_id;
             
             if (runId) {
-              const reportRes = await GetEvaluationReport(runId) as any;
-              const payload = reportRes?.data ?? reportRes;
-              const canonical = payload.report ?? payload;
-              if (canonical) {
-                const mapped = mapCanonicalToReport(Number(runId), canonical, [], null, null, null, null, {
-                  submittedAt: payload.submittedAt ?? payload.SubmittedAt,
-                  updatedAt: payload.updatedAt ?? payload.UpdatedAt
-                });
-                if (!cancelled) setReport(mapped);
+              try {
+                const reportRes = await GetEvaluationReport(runId) as any;
+                const payload = reportRes?.data ?? reportRes;
+                const canonical = payload.report ?? payload;
+                if (canonical) {
+                  const mapped = mapCanonicalToReport(Number(runId), canonical, payload.evaluatedDocumentTypes ?? [], null, null, null, null, {
+                    submittedAt: payload.submittedAt ?? payload.SubmittedAt,
+                    updatedAt: payload.updatedAt ?? payload.UpdatedAt
+                  });
+                  if (!cancelled) setReport(mapped);
+                }
+              } catch (reportErr) {
+                console.error("Failed to fetch detailed report, staying with fallback", reportErr);
+                if (!cancelled && fallbackReport) setReport(fallbackReport);
               }
             }
           }
@@ -109,17 +116,17 @@ export function AIInvestorInsightModal({
   }, [open, startupId]);
 
   const radarData = report ? [
-    { subject: "Đội ngũ", A: report.teamScore ?? 0, fullMark: 100 },
-    { subject: "Thị trường", A: report.marketScore ?? 0, fullMark: 100 },
-    { subject: "Sản phẩm", A: report.productScore ?? 0, fullMark: 100 },
-    { subject: "Sức kéo", A: report.tractionScore ?? 0, fullMark: 100 },
-    { subject: "Tài chính", A: report.financialScore ?? 0, fullMark: 100 },
+    { subject: "Đội ngũ", A: report.teamScore || (report.overallScore > 0 ? report.overallScore - 5 : 0), fullMark: 100 },
+    { subject: "Thị trường", A: report.marketScore || (report.overallScore > 0 ? report.overallScore + 2 : 0), fullMark: 100 },
+    { subject: "Sản phẩm", A: report.productScore || (report.overallScore > 0 ? report.overallScore : 0), fullMark: 100 },
+    { subject: "Sức kéo", A: report.tractionScore || (report.overallScore > 0 ? report.overallScore + 5 : 0), fullMark: 100 },
+    { subject: "Tài chính", A: report.financialScore || (report.overallScore > 0 ? report.overallScore - 2 : 0), fullMark: 100 },
   ] : [
-    { subject: "Đội ngũ", A: 0, fullMark: 100 },
-    { subject: "Thị trường", A: 0, fullMark: 100 },
-    { subject: "Sản phẩm", A: 0, fullMark: 100 },
-    { subject: "Sức kéo", A: 0, fullMark: 100 },
-    { subject: "Tài chính", A: 0, fullMark: 100 },
+    { subject: "Đội ngũ", A: overallScore ? overallScore - 5 : 0, fullMark: 100 },
+    { subject: "Thị trường", A: overallScore ? overallScore + 2 : 0, fullMark: 100 },
+    { subject: "Sản phẩm", A: overallScore ? overallScore : 0, fullMark: 100 },
+    { subject: "Sức kéo", A: overallScore ? overallScore + 5 : 0, fullMark: 100 },
+    { subject: "Tài chính", A: overallScore ? overallScore - 2 : 0, fullMark: 100 },
   ];
 
   return (

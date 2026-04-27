@@ -20,11 +20,11 @@ function cleanAiText(text: any): string {
 
 function getCriterionScore(criteria: any[] | undefined, ...names: string[]): number {
   if (!criteria) return 0;
-  const normalize = (s: any) => (s == null ? "" : String(s).toLowerCase().replace(/[^a-z]/g, ""));
+  const normalize = (s: any) => (s == null ? "" : String(s).toLowerCase().trim());
   for (const c of criteria) {
     const label = normalize(c?.criterion_name ?? c?.criterion ?? c?.name ?? c?.title ?? c?.criterionName);
     for (const name of names) {
-      const target = String(name ?? "").toLowerCase().replace(/[^a-z]/g, "");
+      const target = String(name ?? "").toLowerCase().trim();
       if (label.includes(target)) {
         const raw = c.normalized_score ?? c.weighted_score ?? c.final_score ?? c.score ?? c.raw_score ?? c.finalScore ?? c.rawScore;
         return normalizeTo100(raw);
@@ -36,11 +36,11 @@ function getCriterionScore(criteria: any[] | undefined, ...names: string[]): num
 
 function getCriterionSubMetrics(criteria: any[] | undefined, ...names: string[]): SubMetric[] {
   if (!criteria) return [];
-  const normalize = (s: any) => (s == null ? "" : String(s).toLowerCase().replace(/[^a-z]/g, ""));
+  const normalize = (s: any) => (s == null ? "" : String(s).toLowerCase().trim());
   for (const c of criteria) {
     const label = normalize(c?.criterion_name ?? c?.criterion ?? c?.name ?? c?.title ?? c?.criterionName);
     for (const name of names) {
-      const target = String(name ?? "").toLowerCase().replace(/[^a-z]/g, "");
+      const target = String(name ?? "").toLowerCase().trim();
       if (!label.includes(target)) continue;
 
       const raw = c?.sub_metrics ?? c?.sub_criteria ?? c?.subMetrics ?? c?.subCriteria ?? c?.cap_summary ?? c?.details ?? null;
@@ -62,6 +62,18 @@ function getCriterionSubMetrics(criteria: any[] | undefined, ...names: string[])
           maxScore: 100,
           comment: "",
         }));
+      }
+
+      // Final fallback: if no submetrics but we have a comment/explanation for the main criterion,
+      // create a single submetric entry so the section isn't empty.
+      const mainComment = c?.comment ?? c?.explanation ?? c?.reasoning ?? c?.detail ?? "";
+      if (mainComment) {
+        return [{
+          name: "Chi tiết",
+          score: normalizeTo100(c.normalized_score ?? c.weighted_score ?? c.final_score ?? c.score ?? 0),
+          maxScore: 100,
+          comment: cleanAiText(mainComment),
+        }];
       }
 
       return [];
@@ -330,11 +342,11 @@ function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: stri
     overall?.score ?? 0
   );
 
-  const tScore = getCriterionScore(criteria, "team", "team_", "execution", "founder");
-  const mScore = getCriterionScore(criteria, "market", "market_", "timing", "attractiveness");
-  const pScore = getCriterionScore(criteria, "solution", "product", "differentiation", "solution_", "tech");
-  const trScore = getCriterionScore(criteria, "traction", "validation", "validation_", "growth");
-  const fScore = getCriterionScore(criteria, "business", "financial", "model", "revenue", "business_", "scalability");
+  const tScore = getCriterionScore(criteria, "team", "execution", "founder", "đội ngũ", "nhân sự", "sáng lập");
+  const mScore = getCriterionScore(criteria, "market", "timing", "attractiveness", "thị trường", "đối thủ", "cạnh tranh");
+  const pScore = getCriterionScore(criteria, "solution", "product", "differentiation", "tech", "sản phẩm", "công nghệ", "giải pháp");
+  const trScore = getCriterionScore(criteria, "traction", "validation", "growth", "tiến độ", "người dùng", "khách hàng");
+  const fScore = getCriterionScore(criteria, "business", "financial", "model", "revenue", "scalability", "tài chính", "doanh thu", "mô hình");
 
   // Fallback to flat scores if criteria results are missing or 0
   const teamScore = tScore || readOptionalFlatScore100(data, "teamScore", "TeamScore", "team_score", "latestEvaluation.teamScore", "aiEvaluation.teamScore") || 0;
@@ -456,11 +468,11 @@ function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: stri
     gaps,
     recommendations,
     subMetrics: {
-      team: getCriterionSubMetrics(criteria, "team"),
-      market: getCriterionSubMetrics(criteria, "market"),
-      product: getCriterionSubMetrics(criteria, "solution", "product"),
-      traction: getCriterionSubMetrics(criteria, "traction"),
-      financial: getCriterionSubMetrics(criteria, "business", "model", "financial"),
+      team: getCriterionSubMetrics(criteria, "team", "execution", "founder", "đội ngũ", "nhân sự", "sáng lập"),
+      market: getCriterionSubMetrics(criteria, "market", "timing", "attractiveness", "thị trường", "đối thủ", "cạnh tranh"),
+      product: getCriterionSubMetrics(criteria, "solution", "product", "differentiation", "tech", "sản phẩm", "công nghệ", "giải pháp"),
+      traction: getCriterionSubMetrics(criteria, "traction", "validation", "growth", "tiến độ", "người dùng", "khách hàng"),
+      financial: getCriterionSubMetrics(criteria, "business", "financial", "model", "revenue", "scalability", "tài chính", "doanh thu", "mô hình"),
       other: [],
     },
     pitchDeckReport: rawPD ? mapCanonicalToReport(runId, rawPD, ["pitch_deck"], explicitPD) : null,
