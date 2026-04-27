@@ -166,6 +166,11 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
         return raw != null ? String(raw) : "";
     }, []);
 
+    const clearSaveStatus = useCallback(() => {
+        setSaveError(null);
+        setSaveSuccess(false);
+    }, []);
+
     // Sync form state whenever profile changes (from server refresh)
     useEffect(() => {
         if (!profile) return;
@@ -383,11 +388,6 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
             setSubmitting(false);
         }
     }, [saveProfile, fetchProfile]);
-
-    const clearSaveStatus = useCallback(() => {
-        setSaveError(null);
-        setSaveSuccess(false);
-    }, []);
 
     // No more manual useEffect fetchProfile needed as useQuery handles it
 
