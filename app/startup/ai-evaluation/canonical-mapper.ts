@@ -284,7 +284,7 @@ function mapLatestScoreToReport(data: any, evaluatedDocTypes?: string[]): AIEval
   } as AIEvaluationReport;
 }
 
-function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: string[]): AIEvaluationReport {
+function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: string[], explicitPD?: number | null, explicitBP?: number | null, rawPD?: any, rawBP?: any): AIEvaluationReport {
   const criteria: any[] = data?.criteria_results ?? data?.criteria ?? [];
   const overall = data?.overall_result ?? data;
   const narr = data?.narrative ?? data;
@@ -306,7 +306,7 @@ function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: stri
 
   // Use explicit document types from backend if available
   const { pitchDeckScore, businessPlanScore } = evaluatedDocTypes && evaluatedDocTypes.length > 0
-    ? assignDocScores(overallScore, evaluatedDocTypes)
+    ? assignDocScores(overallScore, evaluatedDocTypes, explicitPD, explicitBP)
     : (() => {
         // Legacy fallback: heuristic text-matching (only for old runs without evaluatedDocumentTypes)
         const fullText = (executiveSummary + " " + (data?.snapshot_label ?? "") + " " + warnings.join(" ")).toLowerCase();
@@ -350,8 +350,25 @@ function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: stri
       }
 
       const text = r.text ?? r.recommendation ?? r.recommendation_text ?? r.recommendation ?? r.suggestion ?? r.description ?? "";
-      const category = r.category ?? r.type ?? r.categoryName ?? "";
-      const impact = r.impact ?? r.expected_impact ?? r.expectedImpact ?? r.expected_impact ?? "";
+      let category = r.category ?? r.type ?? r.categoryName ?? "";
+      
+      // Humanize category
+      const catMap: Record<string, string> = {
+        "VALIDATION_PRIORITY": "Xác thực dữ liệu",
+        "STRATEGIC_CLARITY": "Chi tiết chiến lược",
+        "PRODUCT_DEVELOPMENT": "Phát triển sản phẩm",
+        "MARKET_EXPANSION": "Mở rộng thị trường",
+        "FINANCIAL_PLANNING": "Kế hoạch tài chính"
+      };
+      if (catMap[category]) {
+        category = catMap[category];
+      } else {
+        category = category.replace(/_/g, ' ');
+      }
+
+      // Hide technical impact/criterion name if it looks like an internal ID (has underscores but no spaces)
+      const impactRaw = r.impact ?? r.expected_impact ?? r.expectedImpact ?? r.expected_impact ?? "";
+      const impact = (impactRaw.includes('_') && !impactRaw.includes(' ')) ? "" : impactRaw;
 
       recommendations.push({
         category,
@@ -400,6 +417,8 @@ function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: stri
       financial: getCriterionSubMetrics(criteria, "business", "model", "financial"),
       other: [],
     },
+    pitchDeckReport: rawPD ? mapCanonicalToReport(runId, rawPD, ["pitch_deck"], explicitPD) : null,
+    businessPlanReport: rawBP ? mapCanonicalToReport(runId, rawBP, ["business_plan"], explicitBP) : null,
   } as AIEvaluationReport;
 }
 

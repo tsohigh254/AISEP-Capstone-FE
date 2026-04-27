@@ -762,7 +762,7 @@ function AIEvaluationHomePageInner() {
             const rdata = rres?.data ?? rres ?? {};
             const reportPayload = rdata?.report ?? rdata;
             const evalDocTypes = rdata?.evaluatedDocumentTypes ?? rdata?.EvaluatedDocumentTypes ?? [];
-            const mapped = mapCanonicalToReport(sid, reportPayload, evalDocTypes);
+            const mapped = mapCanonicalToReport(sid, reportPayload, evalDocTypes, rdata?.pitchDeckOverallScore ?? null, rdata?.businessPlanOverallScore ?? null);
             if (!cancelled) {
               setLatestCompleted(mapped);
               setLatestRun(null);
@@ -809,7 +809,7 @@ function AIEvaluationHomePageInner() {
         const rdata = rres?.data ?? rres ?? {};
         const reportPayload = rdata?.report ?? rdata;
         const evalDocTypes = rdata?.evaluatedDocumentTypes ?? rdata?.EvaluatedDocumentTypes ?? [];
-        const mapped = mapCanonicalToReport(sid, reportPayload, evalDocTypes);
+        const mapped = mapCanonicalToReport(sid, reportPayload, evalDocTypes, rdata?.pitchDeckOverallScore ?? null, rdata?.businessPlanOverallScore ?? null);
         setLatestCompleted(mapped);
         setLatestRun(null);
       }

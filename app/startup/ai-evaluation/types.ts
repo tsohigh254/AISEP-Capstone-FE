@@ -61,6 +61,10 @@ export interface AIEvaluationReport {
     /** Tiêu chí BE gắn pillar OTHER hoặc không khớp nhóm chính. */
     other: SubMetric[];
   };
+  
+  /** Full detail reports for specific sources if available. */
+  pitchDeckReport?: AIEvaluationReport | null;
+  businessPlanReport?: AIEvaluationReport | null;
 }
 
 export type UserRole = "STARTUP_OWNER" | "INVESTOR_FULL" | "INVESTOR_LIMITED" | "INVESTOR_UNAUTHORIZED";
