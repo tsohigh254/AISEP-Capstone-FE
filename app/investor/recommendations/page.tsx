@@ -84,7 +84,7 @@ export default function RecommendationsPage() {
             fitLabel,
             matchReasons: reasonsArray.filter(r => r && typeof r === "string"),
           };
-        }).filter(Boolean);
+        }).filter((item): item is RecommendationCard => item !== null);
 
         setRecs(mapped);
         setLoading(false);
