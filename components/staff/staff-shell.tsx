@@ -19,6 +19,7 @@ const routeLabels: Record<string, string> = {
   "issue-reports": "Báo cáo sự cố",
   "consulting-ops": "Vận hành tư vấn",
   "payment-ops": "Vận hành thanh toán",
+  finance: "Quản lý tài chính",
   profile: "Hồ sơ cá nhân",
   history: "Lịch sử thẩm định",
   profiles: "Hồ sơ",

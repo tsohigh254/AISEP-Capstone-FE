@@ -126,6 +126,11 @@
     @apply border-border outline-ring/50;
   }
 
+  /* Tránh “giật” layout khi thanh cuộn dọc xuất hiện/biến (đổi tab, nội dung dài ngắn khác nhau) */
+  html {
+    scrollbar-gutter: stable;
+  }
+
   body {
     @apply bg-background text-foreground;
   }
