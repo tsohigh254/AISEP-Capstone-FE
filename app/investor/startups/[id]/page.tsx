@@ -44,7 +44,8 @@ import {
 import { GetStartupDocuments, ViewDocument } from "@/services/document/document.api";
 import { openDocumentInTab } from "@/lib/document-viewer";
 import { GetEvaluationHistory, GetEvaluationReport } from "@/services/ai/ai.api";
-import { Download, Eye, FileText as FileTextIcon, FolderOpen, RefreshCcw } from "lucide-react";
+import { Download, Eye, FileText as FileTextIcon, FolderOpen, RefreshCcw, ShieldCheck } from "lucide-react";
+import { VerifyDownloadedFileModal } from "@/components/shared/verify-downloaded-file-modal";
 import { GetSentConnections, GetReceivedConnections } from "@/services/connection/connection.api";
 import { GetStages, IStageMasterItem, GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
 import { getStageDisplay } from "@/lib/get-stage-display";
@@ -541,6 +542,7 @@ function TabDocuments({ startupId }: { startupId: number }) {
   const [startupDocs, setStartupDocs] = useState<IDocument[]>([]);
   /** true ngay từ đầu để khung đầu tiên là spinner, tránh nhảy Empty → Loading */
   const [docsLoading, setDocsLoading] = useState(true);
+  const [showVerify, setShowVerify] = useState(false);
 
   useEffect(() => {
     if (!startupId || startupId <= 0) return;
@@ -565,8 +567,20 @@ function TabDocuments({ startupId }: { startupId: number }) {
           </div>
           <h2 className="text-[16px] font-bold text-[#0f172a]">Tài liệu Data Room</h2>
         </div>
-        <span className="text-[11px] text-slate-400 font-medium">{startupDocs.length} tài liệu</span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setShowVerify(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-[12px] font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
+            title="Xác minh file PDF/DOCX bạn vừa tải về máy bằng cách so khớp với hash trên blockchain"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            Xác minh file đã tải
+          </button>
+          <span className="text-[11px] text-slate-400 font-medium">{startupDocs.length} tài liệu</span>
+        </div>
       </div>
+      <VerifyDownloadedFileModal isOpen={showVerify} onClose={() => setShowVerify(false)} />
       <div className="px-7 py-5">
         {docsLoading ? (
           <div className="flex items-center justify-center py-6">

@@ -24,6 +24,7 @@ import {
     AddMetaData,
 } from "@/services/document/document.api";
 import { openDocumentInTab, downloadDocument } from "@/lib/document-viewer";
+import { VerifyDownloadedFileModal } from "@/components/shared/verify-downloaded-file-modal";
 
 /* ─── Types ───────────────────────────────────────────────── */
 type BlockchainStatus = "not_submitted" | "pending" | "recorded" | "matched" | "mismatch" | "failed";
@@ -286,6 +287,7 @@ function BlockchainPanel({ status, hash, proofStatus, txHash, recordedAt, ethers
 }) {
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
     const [showTechnical, setShowTechnical] = useState(false);
+    const [showVerifyDownloaded, setShowVerifyDownloaded] = useState(false);
     const bc = BC[status];
     const isVerified     = status === "recorded" || status === "matched";
     const isMismatch     = status === "mismatch";
@@ -391,6 +393,17 @@ function BlockchainPanel({ status, hash, proofStatus, txHash, recordedAt, ethers
                                 <RotateCcw className="w-3.5 h-3.5" /> Kiểm tra lại
                             </button>
                         )}
+
+                        {(isVerified || isMismatch) && (
+                            <button
+                                onClick={() => setShowVerifyDownloaded(true)}
+                                className="w-full flex items-center justify-center gap-2 py-2 border border-emerald-200 text-emerald-700 bg-emerald-50 rounded-xl text-[12px] font-medium hover:bg-emerald-100 transition-all"
+                                title="Đối chiếu file PDF/DOCX bạn đã tải về máy với hash đã đăng ký trên blockchain"
+                            >
+                                <ShieldCheck className="w-3.5 h-3.5" /> Xác minh file đã tải về
+                            </button>
+                        )}
+                        <VerifyDownloadedFileModal isOpen={showVerifyDownloaded} onClose={() => setShowVerifyDownloaded(false)} />
 
                         {/* Collapsible technical details */}
                         <div className="border-t border-slate-100 pt-3">

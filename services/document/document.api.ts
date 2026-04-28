@@ -105,6 +105,20 @@ export const CheckOnchainStatus = (documentId: number) => {
     return axios.get<IBackendRes<IBlockchainVerification>>(`/api/documents/${documentId}/chain/tx-status`);
 }
 
+export interface IHashLookupResponse {
+    hash: string;
+    onChainVerified: boolean;
+    recordedInSystem: boolean;
+    status: "Verified" | "OnChainOnly" | "NotFound";
+    documentID: number | null;
+    anchoredAt: string | null;
+    etherscanUrl: string | null;
+}
+
+export const VerifyHashLookup = (hash: string) => {
+    return axios.post<IBackendRes<IHashLookupResponse>>(`/api/blockchain/verify-hash`, { hash });
+}
+
 // export const VerifyDocumentOnchainByStaff = (documentId: string) => {
 //     return axios.post<IBackendRes<IBlockchainChecking>>(`/api/staff/documents/${documentId}/check-onchain-hash`);
 // }
