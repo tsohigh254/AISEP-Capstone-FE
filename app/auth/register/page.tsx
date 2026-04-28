@@ -374,9 +374,23 @@ export default function RegisterPage() {
                 />
                 <label htmlFor="terms" className="text-xs text-slate-500 leading-normal">
                   Bằng cách đăng ký, tôi đồng ý với{" "}
-                  <Link href="#" className="text-slate-900 underline font-medium">Điều khoản sử dụng</Link>{" "}
+                  <Link
+                    href="https://drive.google.com/file/d/1vKqyCwEObjGt2YEfaOO7KLTU25r3CG-_/view"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-slate-900 underline font-medium"
+                  >
+                    Điều khoản sử dụng
+                  </Link>{" "}
                   và{" "}
-                  <Link href="#" className="text-slate-900 underline font-medium">Chính sách bảo mật</Link>{" "}
+                  <Link
+                    href="https://drive.google.com/file/d/1vKqyCwEObjGt2YEfaOO7KLTU25r3CG-_/view"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-slate-900 underline font-medium"
+                  >
+                    Chính sách bảo mật
+                  </Link>{" "}
                   của AISEP.
                 </label>
               </div>

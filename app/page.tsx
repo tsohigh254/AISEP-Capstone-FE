@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
   ShieldCheck,
@@ -22,85 +23,303 @@ import {
   BadgeCheck,
   Mail,
   MapPin,
+  Quote,
 } from "lucide-react";
 import { PublicHeader } from "@/components/layout/PublicHeader";
 
 export default function Home() {
+  const roleOrder = ["startup", "investor", "advisor"] as const;
   const [activeRole, setActiveRole] = useState<
     "startup" | "investor" | "advisor"
   >("startup");
+  const [roleDirection, setRoleDirection] = useState(1);
+  const prefersReducedMotion = useReducedMotion();
+
+  const handleRoleChange = (nextRole: (typeof roleOrder)[number]) => {
+    if (nextRole === activeRole) return;
+    const nextIndex = roleOrder.indexOf(nextRole);
+    const currentIndex = roleOrder.indexOf(activeRole);
+    setRoleDirection(nextIndex > currentIndex ? 1 : -1);
+    setActiveRole(nextRole);
+  };
+
+  const heroContainer = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: prefersReducedMotion ? 0 : 0.11,
+        delayChildren: prefersReducedMotion ? 0 : 0.12,
+      },
+    },
+  };
+
+  const heroItem = {
+    hidden: { opacity: 0, y: prefersReducedMotion ? 0 : 16 },
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 1.05, ease: [0.22, 1, 0.36, 1] as const },
+    },
+  };
+
+  const rolePanelVariants = {
+    enter: (direction: number) => ({
+      opacity: 0,
+      x: prefersReducedMotion ? 0 : direction > 0 ? 24 : -24,
+    }),
+    center: {
+      opacity: 1,
+      x: 0,
+    },
+    exit: (direction: number) => ({
+      opacity: 0,
+      x: prefersReducedMotion ? 0 : direction > 0 ? -20 : 20,
+    }),
+  };
+
+  const testimonials = [
+    {
+      name: "Nguyễn Minh Khang",
+      role: "Founder • Startup",
+      quote:
+        "AISEP giúp team mình chuẩn hóa hồ sơ gọi vốn rất nhanh, có checklist rõ ràng nên đỡ bỏ sót tài liệu quan trọng.",
+      rating: 5,
+    },
+    {
+      name: "Lê Thu Hà",
+      role: "Angel Investor",
+      quote:
+        "Phần dữ liệu startup trình bày có cấu trúc, tiết kiệm rất nhiều thời gian khi sàng lọc cơ hội đầu tư ban đầu.",
+      rating: 5,
+    },
+    {
+      name: "Trần Quốc Việt",
+      role: "Advisor • Product",
+      quote:
+        "Luồng mentorship trực quan, dễ theo dõi tiến độ từng startup và lưu lại báo cáo sau mỗi phiên làm việc.",
+      rating: 4,
+    },
+    {
+      name: "Phạm Ngọc Linh",
+      role: "Co-founder • Startup",
+      quote:
+        "Bọn mình thích nhất là cơ chế chia sẻ tài liệu có kiểm soát, vừa tiện vừa đảm bảo bảo mật thông tin nội bộ.",
+      rating: 5,
+    },
+    {
+      name: "Đỗ Anh Tuấn",
+      role: "VC Associate",
+      quote:
+        "Nền tảng chạy ổn định, giao diện dễ dùng. Phần đánh giá và tổng hợp thông tin hỗ trợ DD rất tốt ở giai đoạn đầu.",
+      rating: 4,
+    },
+    {
+      name: "Vũ Mai Phương",
+      role: "Mentor • Growth",
+      quote:
+        "Từ khi dùng AISEP, việc phối hợp giữa mentor và startup mượt hơn nhiều vì mọi đầu việc đều có lịch sử rõ ràng.",
+      rating: 5,
+    },
+    {
+      name: "Bùi Hoàng Nam",
+      role: "Founder • SaaS Startup",
+      quote:
+        "Dashboard theo dõi tiến độ rất trực quan, team mới vào là dùng được ngay mà không cần training nhiều.",
+      rating: 5,
+    },
+    {
+      name: "Trịnh Khánh Vy",
+      role: "Operations Lead • Startup",
+      quote:
+        "Khả năng phân quyền và lưu lịch sử chỉnh sửa giúp bọn mình làm việc với nhiều bên mà vẫn kiểm soát được rủi ro.",
+      rating: 4,
+    },
+    {
+      name: "Ngô Gia Huy",
+      role: "Investment Analyst",
+      quote:
+        "Mình đánh giá cao phần tổng hợp dữ liệu theo mẫu chuẩn, đọc profile startup nhanh hơn rất nhiều so với trước.",
+      rating: 5,
+    },
+    {
+      name: "Phan Yến Nhi",
+      role: "Portfolio Manager • VC",
+      quote:
+        "Các startup trên nền tảng có mức độ chuẩn hóa hồ sơ đồng đều, phù hợp để lọc cơ hội theo tiêu chí đầu tư.",
+      rating: 4,
+    },
+    {
+      name: "Lương Đình Quân",
+      role: "Mentor • Finance",
+      quote:
+        "Mình dễ theo dõi từng buổi cố vấn, note và action items đều lưu đầy đủ nên không bị thiếu việc sau phiên họp.",
+      rating: 5,
+    },
+    {
+      name: "Hồ Thảo My",
+      role: "Advisor • Marketing",
+      quote:
+        "Giao diện thân thiện, thao tác mượt trên cả laptop và mobile. Startup phản hồi cũng nhanh hơn nhờ luồng rõ ràng.",
+      rating: 4,
+    },
+    {
+      name: "Đinh Nhật Long",
+      role: "Co-founder • HealthTech",
+      quote:
+        "Các bước chuẩn bị tài liệu gọi vốn được gợi ý theo checklist nên team mình giảm hẳn thời gian rà soát thủ công.",
+      rating: 5,
+    },
+    {
+      name: "Mai Quỳnh Anh",
+      role: "Angel Investor",
+      quote:
+        "Phần thông tin pháp lý và tài chính hiển thị có cấu trúc giúp mình ra quyết định cho vòng gặp đầu rất nhanh.",
+      rating: 4,
+    },
+    {
+      name: "Tạ Minh Đức",
+      role: "Program Manager • Incubator",
+      quote:
+        "AISEP phù hợp để vận hành cohort startup vì có thể theo dõi tiến độ và mức độ hoàn thiện hồ sơ theo tuần.",
+      rating: 5,
+    },
+    {
+      name: "Võ Hải Đăng",
+      role: "Community Mentor",
+      quote:
+        "Điểm mình thích là khả năng theo dõi lịch sử mentoring theo startup, dễ đánh giá tác động qua từng giai đoạn.",
+      rating: 4,
+    },
+  ];
 
   return (
     <div className="relative flex min-h-screen w-full flex-col overflow-x-hidden bg-[#F6EFBB] text-slate-900">
+      <style jsx global>{`
+        @keyframes aiSepMarqueeLeft {
+          from { transform: translateX(0); }
+          to { transform: translateX(-50%); }
+        }
+        @keyframes aiSepMarqueeRight {
+          from { transform: translateX(-50%); }
+          to { transform: translateX(0); }
+        }
+      `}</style>
       {/* HEADER */}
       <PublicHeader />
-      <div className="h-[73px]" />
 
       {/* MAIN */}
       <main className="flex-1">
         {/* HERO */}
-        <section className="relative mx-auto max-w-[1280px] px-6 py-16 lg:px-10 lg:py-24">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div className="flex flex-col gap-8">
-              <div className="space-y-4">
-                <h1 className="text-4xl font-black leading-[1.1] tracking-tight text-[#5B0E14] lg:text-6xl">
-                  Nền tảng vận hành Hệ sinh thái Khởi nghiệp toàn diện
-                </h1>
-                <p className="text-lg font-medium text-slate-500">
-                  A comprehensive startup ecosystem operation platform.
-                </p>
-              </div>
+        <section className="relative overflow-hidden h-screen min-h-[720px]">
+          <motion.video
+            className="absolute inset-0 h-full w-full object-cover"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            initial={prefersReducedMotion ? false : { scale: 1 }}
+            animate={prefersReducedMotion ? undefined : { scale: 1.03 }}
+            transition={
+              prefersReducedMotion
+                ? undefined
+                : { duration: 38, repeat: Infinity, repeatType: "reverse", ease: "linear" }
+            }
+          >
+            <source src="/0428(2).mp4" type="video/mp4" />
+          </motion.video>
+          <div className="absolute inset-0 bg-[#F6EFBB]/52" />
 
-              <div className="flex flex-wrap gap-3">
-                <div className="flex items-center gap-2 rounded-full bg-[#f0f04c]/10 px-4 py-2 border border-[#f0f04c]/20">
-                  <ShieldCheck className="w-4 h-4 text-slate-800" />
-                  <span className="text-sm font-semibold text-slate-800">
-                    Minh bạch quy trình
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 rounded-full bg-[#f0f04c]/10 px-4 py-2 border border-[#f0f04c]/20">
-                  <Shield className="w-4 h-4 text-slate-800" />
-                  <span className="text-sm font-semibold text-slate-800">
-                    Bảo vệ tính toàn vẹn tài liệu
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 rounded-full bg-[#f0f04c]/10 px-4 py-2 border border-[#f0f04c]/20">
-                  <Network className="w-4 h-4 text-slate-800" />
-                  <span className="text-sm font-semibold text-slate-800">
-                    Kết nối &amp; cố vấn có kiểm soát
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-4">
-                <Link
-                  href="/auth/register"
-                  className="flex min-w-[160px] items-center justify-center rounded-xl bg-[#f0f04c] px-8 py-4 text-base font-bold text-slate-900 shadow-xl shadow-[#f0f04c]/20 hover:shadow-[#f0f04c]/40 hover:-translate-y-0.5 transition-all"
+          <div className="relative mx-auto max-w-[1280px] h-full px-6 lg:px-10 flex items-center">
+            <div className="w-full origin-center scale-[0.96] sm:scale-[1] md:scale-[1.04] lg:scale-[1.1] xl:scale-[1.16] 2xl:scale-[1.2]">
+              <div className="grid w-full grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+                <motion.div
+                  className="flex flex-col gap-8"
+                  variants={heroContainer}
+                  initial="hidden"
+                  animate="show"
                 >
-                  Bắt đầu ngay
-                </Link>
-                <a
-                  href="#proof"
-                  className="flex min-w-[160px] items-center justify-center rounded-xl border-2 border-slate-200 bg-white px-8 py-4 text-base font-bold text-slate-700 hover:bg-slate-50 transition-all"
-                >
-                  Xem nền tảng
-                </a>
-              </div>
-            </div>
+                  <motion.div variants={heroItem} className="space-y-4">
+                    <h1 className="text-4xl font-black leading-[1.1] tracking-tight text-[#5B0E14] lg:text-6xl">
+                      Nền tảng vận hành Hệ sinh thái Khởi nghiệp toàn diện
+                    </h1>
+                    <p className="text-lg font-medium text-slate-500">
+                      A comprehensive startup ecosystem operation platform.
+                    </p>
+                  </motion.div>
 
-            <div className="relative">
-              <div className="relative aspect-video w-full overflow-hidden rounded-2xl shadow-2xl">
-                <Image
-                  src="/anh1.jpg"
-                  alt="Đội ngũ AISEP đang trao đổi trước bảng điều khiển nền tảng"
-                  fill
-                  priority
-                  className="object-cover scale-[1.58]"
-                  sizes="(min-width: 1024px) 50vw, 100vw"
-                  style={{ objectPosition: "center 38%" }}
-                />
+                  <motion.div variants={heroItem} className="flex flex-wrap gap-3">
+                    {[
+                      { icon: ShieldCheck, label: "Minh bạch quy trình" },
+                      { icon: Shield, label: "Bảo vệ tính toàn vẹn tài liệu" },
+                      { icon: Network, label: "Kết nối & cố vấn có kiểm soát" },
+                    ].map((item, index) => (
+                      <motion.div
+                        key={item.label}
+                        className="flex items-center gap-2 rounded-full bg-[#f0f04c]/10 px-4 py-2 border border-[#f0f04c]/20"
+                        animate={prefersReducedMotion ? undefined : { y: [0, -2, 0] }}
+                        transition={{
+                          duration: 4.8,
+                          repeat: Infinity,
+                          repeatDelay: 0.8,
+                          ease: "easeInOut",
+                          delay: index * 0.35,
+                        }}
+                      >
+                        <item.icon className="w-4 h-4 text-slate-800" />
+                        <span className="text-sm font-semibold text-slate-800">
+                          {item.label}
+                        </span>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+
+                  <motion.div variants={heroItem} className="flex flex-wrap gap-4">
+                    <motion.div whileHover={{ y: -3, scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                      <Link
+                        href="/auth/register"
+                        className="flex min-w-[160px] items-center justify-center rounded-xl bg-[#f0f04c] px-8 py-4 text-base font-bold text-slate-900 shadow-xl shadow-[#f0f04c]/20 hover:shadow-[#f0f04c]/40 transition-all"
+                      >
+                        Bắt đầu ngay
+                      </Link>
+                    </motion.div>
+                    <motion.div whileHover={{ y: -2, scale: 1.01 }} whileTap={{ scale: 0.98 }}>
+                      <a
+                        href="#proof"
+                        className="flex min-w-[160px] items-center justify-center rounded-xl border-2 border-slate-200 bg-white px-8 py-4 text-base font-bold text-slate-700 hover:bg-slate-50 transition-all"
+                      >
+                        Xem nền tảng
+                      </a>
+                    </motion.div>
+                  </motion.div>
+                </motion.div>
+
+                <motion.div
+                  className="relative"
+                  initial={prefersReducedMotion ? false : { opacity: 0, x: 28 }}
+                  animate={prefersReducedMotion ? undefined : { opacity: 1, x: 0 }}
+                  transition={{ duration: 1.15, ease: [0.22, 1, 0.36, 1], delay: 0.35 }}
+                  whileHover={prefersReducedMotion ? undefined : { y: -4 }}
+                >
+                  <div className="relative aspect-video lg:aspect-[16/9] w-full overflow-hidden rounded-2xl shadow-2xl">
+                    <Image
+                      src="/anh1.jpg"
+                      alt="Đội ngũ AISEP đang trao đổi trước bảng điều khiển nền tảng"
+                      fill
+                      priority
+                      className="object-cover scale-[1.58]"
+                      sizes="(min-width: 1024px) 50vw, 100vw"
+                      style={{ objectPosition: "center 38%" }}
+                    />
+                  </div>
+                  <motion.div
+                    className="absolute -bottom-6 -left-6 hidden md:block w-48 h-48 bg-[#f0f04c] rounded-2xl -z-10 opacity-20 blur-2xl"
+                    animate={prefersReducedMotion ? undefined : { scale: [1, 1.08, 1], opacity: [0.16, 0.24, 0.16] }}
+                    transition={{ duration: 7.2, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                </motion.div>
               </div>
-              <div className="absolute -bottom-6 -left-6 hidden md:block w-48 h-48 bg-[#f0f04c] rounded-2xl -z-10 opacity-20 blur-2xl" />
             </div>
           </div>
         </section>
@@ -230,8 +449,8 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-            </div>
-          </div>
+                </div>
+              </div>
         </section>
 
         {/* PILLARS - DARK */}
@@ -324,16 +543,23 @@ export default function Home() {
               Vai trò &amp; Trường hợp sử dụng
             </h2>
             <div className="flex flex-wrap justify-center gap-3">
-              {(["startup", "investor", "advisor"] as const).map((role) => (
+              {roleOrder.map((role) => (
                 <button
                   key={role}
-                  onClick={() => setActiveRole(role)}
-                  className={`px-8 py-3 font-extrabold rounded-full text-sm border-2 transition-colors ${
+                  onClick={() => handleRoleChange(role)}
+                  className={`relative px-8 py-3 font-extrabold rounded-full text-sm border-2 transition-colors ${
                     activeRole === role
-                      ? "bg-[#e6e64c] text-slate-900 border-[#e6e64c] shadow-md"
+                      ? "text-slate-900 border-[#e6e64c] shadow-md"
                       : "bg-white text-slate-600 border-slate-100 hover:border-[#e6e64c]/50 shadow-sm"
                   }`}
                 >
+                  {activeRole === role && (
+                    <motion.span
+                      layoutId="role-pill-highlight"
+                      className="absolute inset-0 rounded-full bg-[#e6e64c] -z-10"
+                      transition={{ type: "spring", stiffness: 360, damping: 30 }}
+                    />
+                  )}
                   {role === "startup"
                     ? "STARTUP"
                     : role === "investor"
@@ -344,9 +570,19 @@ export default function Home() {
             </div>
           </div>
 
+          <AnimatePresence mode="wait" custom={roleDirection}>
           {/* STARTUP TAB */}
           {activeRole === "startup" && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+            <motion.div
+              key="startup"
+              custom={roleDirection}
+              variants={rolePanelVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+              className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center"
+            >
               <div className="space-y-8">
                 <div>
                   <span className="bg-[#e6e64c]/20 text-slate-900 px-4 py-1.5 rounded-full font-black tracking-widest uppercase text-xs">
@@ -429,12 +665,21 @@ export default function Home() {
                   </button>
                 </div>
               </div>
-            </div>
+            </motion.div>
           )}
 
           {/* INVESTOR TAB */}
           {activeRole === "investor" && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+            <motion.div
+              key="investor"
+              custom={roleDirection}
+              variants={rolePanelVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+              className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center"
+            >
               <div className="bg-slate-950 rounded-[2.5rem] p-10 overflow-hidden relative min-h-[500px] flex flex-col justify-center shadow-2xl">
                 <div className="absolute inset-0 bg-gradient-to-br from-[#e6e64c]/10 via-transparent to-transparent" />
                 <div className="relative z-10 space-y-6">
@@ -539,12 +784,21 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
           )}
 
           {/* ADVISOR TAB */}
           {activeRole === "advisor" && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+            <motion.div
+              key="advisor"
+              custom={roleDirection}
+              variants={rolePanelVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+              className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center"
+            >
               <div className="space-y-8">
                 <div>
                   <span className="bg-[#e6e64c]/20 text-slate-900 px-4 py-1.5 rounded-full font-black tracking-widest uppercase text-xs">
@@ -631,12 +885,99 @@ export default function Home() {
                   </button>
                 </div>
               </div>
-            </div>
+            </motion.div>
           )}
+          </AnimatePresence>
+        </section>
+
+        {/* TESTIMONIALS */}
+        <section className="py-20 bg-white border-y border-slate-100 overflow-hidden">
+          <div className="max-w-7xl mx-auto px-6 mb-10">
+            <div className="text-center space-y-3">
+              <h2 className="text-3xl md:text-4xl font-black text-slate-900">
+                Người dùng nói gì về AISEP
+              </h2>
+              <p className="text-slate-500 text-base md:text-lg">
+                Nhận xét thực tế từ startup, nhà đầu tư và cố vấn đang tham gia nền tảng.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            <div className="relative">
+              <div
+                className="flex w-max gap-5 px-6"
+                style={{ animation: "aiSepMarqueeLeft 56s linear infinite" }}
+                onMouseEnter={(e) => { e.currentTarget.style.animationPlayState = "paused"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.animationPlayState = "running"; }}
+              >
+                {[...testimonials, ...testimonials].map((item, idx) => (
+                  <article
+                    key={`line1-${idx}`}
+                    className="w-[320px] md:w-[360px] rounded-2xl border border-slate-100 bg-white shadow-sm p-5"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="text-[15px] font-bold text-slate-900">{item.name}</p>
+                        <p className="text-[12px] text-slate-500">{item.role}</p>
+                      </div>
+                      <Quote className="w-5 h-5 text-[#e6e64c]" />
+                    </div>
+                    <p className="text-[13px] text-slate-600 leading-relaxed min-h-[72px]">
+                      {item.quote}
+                    </p>
+                    <div className="mt-4 flex items-center gap-1">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`w-4 h-4 ${i < item.rating ? "text-[#e6e64c] fill-[#e6e64c]" : "text-slate-200"}`}
+                        />
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <div className="relative">
+              <div
+                className="flex w-max gap-5 px-6"
+                style={{ animation: "aiSepMarqueeRight 62s linear infinite" }}
+                onMouseEnter={(e) => { e.currentTarget.style.animationPlayState = "paused"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.animationPlayState = "running"; }}
+              >
+                {[...testimonials.slice().reverse(), ...testimonials.slice().reverse()].map((item, idx) => (
+                  <article
+                    key={`line2-${idx}`}
+                    className="w-[320px] md:w-[360px] rounded-2xl border border-slate-100 bg-slate-50/70 shadow-sm p-5"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="text-[15px] font-bold text-slate-900">{item.name}</p>
+                        <p className="text-[12px] text-slate-500">{item.role}</p>
+                      </div>
+                      <Quote className="w-5 h-5 text-[#e6e64c]" />
+                    </div>
+                    <p className="text-[13px] text-slate-600 leading-relaxed min-h-[72px]">
+                      {item.quote}
+                    </p>
+                    <div className="mt-4 flex items-center gap-1">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`w-4 h-4 ${i < item.rating ? "text-[#e6e64c] fill-[#e6e64c]" : "text-slate-200"}`}
+                        />
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </div>
         </section>
 
         {/* CTA BANNER */}
-        <section id="cta" className="max-w-7xl mx-auto px-6 mb-24">
+        <section id="cta" className="max-w-7xl mx-auto px-6 mt-14 md:mt-20 mb-24">
           <div className="bg-[#e6e64c] rounded-[3rem] p-16 md:p-24 text-center relative overflow-hidden shadow-2xl">
             <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none">
               <Rocket className="w-72 h-72" />

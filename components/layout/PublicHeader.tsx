@@ -41,9 +41,7 @@ export function PublicHeader({}: PublicHeaderProps) {
 
   return (
     <header 
-      className={`fixed top-0 z-50 w-full transition-all duration-700 ease-out px-4 sm:px-6 lg:px-10 py-4 font-manrope ${
-        isScrolled ? "mt-1" : "mt-4"
-      } ${mounted ? "translate-y-0 opacity-100" : "-translate-y-10 opacity-0"}`}
+      className={`fixed top-0 z-50 w-full transition-all duration-700 ease-out px-4 sm:px-6 lg:px-10 py-3 font-manrope ${mounted ? "translate-y-0 opacity-100" : "-translate-y-10 opacity-0"}`}
     >
       <div className={`mx-auto max-w-[1200px] rounded-2xl border transition-all duration-500 ease-in-out flex items-center justify-between px-6 lg:px-8 group/header ${
         isScrolled 
