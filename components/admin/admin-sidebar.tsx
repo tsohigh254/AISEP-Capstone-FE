@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import {
     LogOut, Loader2, Users,
     LayoutDashboard, ShieldCheck, FileText,
-    AlertTriangle, Activity,
+    AlertTriangle, Activity, Bot,
 } from "lucide-react";
 import { useAuth } from "@/context/context";
 import { Logout } from "@/services/auth/auth.api";
@@ -33,6 +33,7 @@ const NAV_GROUPS: {
         label: "Tuân thủ & Sự cố",
         items: [
             { icon: FileText,      label: "Audit Logs",        href: "/admin/audit-logs"  },
+            { icon: Bot,           label: "AI Logs",           href: "/admin/ai-logs"     },
             { icon: AlertTriangle, label: "Incident Center",   href: "/admin/incident"    },
             { icon: Activity,      label: "System Health",     href: "/admin/system-health" },
         ],

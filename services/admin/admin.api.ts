@@ -200,6 +200,42 @@ export const ReadLogFile = (fileName: string, tail: number = 500) => {
 };
 
 /* ═══════════════════════════════════════════════════════════
+   AI Service Logs  (api/admin/ai-logs)
+   ═══════════════════════════════════════════════════════════ */
+
+export interface AiLogEntryRes {
+    timestamp: string;
+    level: string;
+    logger: string;
+    message: string;
+    correlationId: string | null;
+    source: string;     // "api" | "worker"
+    raw: string | null;
+}
+
+export interface AiLogFileInfoRes {
+    fileName: string;
+    exists: boolean;
+    sizeBytes: number;
+    lastModifiedUtc: string | null;
+}
+
+export interface AiLogsRes {
+    entries: AiLogEntryRes[];
+    totalReturned: number;
+    sources: AiLogFileInfoRes[];
+}
+
+export const GetAiLogs = (params: {
+    tail?: number;
+    level?: string;
+    search?: string;
+    correlationId?: string;
+}) => {
+    return axios.get<IBackendRes<AiLogsRes>>(`/api/admin/ai-logs`, { params });
+};
+
+/* ═══════════════════════════════════════════════════════════
    Auth — Admin Password Reset  (api/auth/admin/reset-password)
    ═══════════════════════════════════════════════════════════ */
 
