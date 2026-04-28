@@ -4,6 +4,7 @@ export interface IStaffDashboardStats {
   totalUsers: number;
   lockedAccounts: number;
   pendingKycCount: number;
+  escalatedComplaintsCount: number;
   aiServiceOnline: boolean;
   checkedAt: string;
 }

@@ -539,7 +539,8 @@ function TabContact({ p }: any) {
 
 function TabDocuments({ startupId }: { startupId: number }) {
   const [startupDocs, setStartupDocs] = useState<IDocument[]>([]);
-  const [docsLoading, setDocsLoading] = useState(false);
+  /** true ngay từ đầu để khung đầu tiên là spinner, tránh nhảy Empty → Loading */
+  const [docsLoading, setDocsLoading] = useState(true);
 
   useEffect(() => {
     if (!startupId || startupId <= 0) return;
@@ -675,6 +676,12 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
   const [connectionId, setConnectionId] = useState<number | null>(null);
   const [resolvedAiScore, setResolvedAiScore] = useState<number | null>(null);
   const [showAiInsight, setShowAiInsight] = useState(false);
+  /** Giữ TabDocuments mounted sau lần mở đầu → không fetch/spinner lại mỗi khi đổi tab */
+  const [documentsTabMounted, setDocumentsTabMounted] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === "Tài liệu") setDocumentsTabMounted(true);
+  }, [activeTab]);
 
   const fetchStartup = useCallback(async () => {
     if (!Number.isFinite(startupId) || startupId <= 0) {
@@ -1128,7 +1135,11 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
       {activeTab === "Kinh doanh" && <TabBusiness p={startup} />}
       {activeTab === "Gọi vốn" && <TabFunding p={startup} displayStage={displayStage} />}
       {activeTab === "Đội ngũ & Xác thực" && <TabTeam p={startup} />}
-      {activeTab === "Tài liệu" && <TabDocuments startupId={startupId} />}
+      {(activeTab === "Tài liệu" || documentsTabMounted) && (
+        <div className={cn(activeTab !== "Tài liệu" && "hidden")}>
+          <TabDocuments startupId={startupId} />
+        </div>
+      )}
       {activeTab === "Liên hệ" && <TabContact p={startup} />}
     </div>
   );

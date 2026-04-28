@@ -134,7 +134,7 @@ export default function PlatformActivityPage() {
   const governanceItems = [
     { label: "Chờ duyệt KYC Startup", value: loadingStats ? "—" : String(stats?.pendingKycCount ?? "—"), icon: ShieldCheck, href: "/staff/kyc" },
     { label: "Tài khoản bị khoá (24h)", value: loadingStats ? "—" : String(stats?.lockedAccounts ?? "—"), icon: Lock, href: "/staff/kyc" },
-    { label: "Khiếu nại leo thang", value: "—", icon: MessageSquareWarning, href: "/staff/complaints" },
+    { label: "Khiếu nại leo thang", value: loadingStats ? "—" : String(stats?.escalatedComplaintsCount ?? 0), icon: MessageSquareWarning, href: "/staff/complaints" },
   ];
 
   return (
